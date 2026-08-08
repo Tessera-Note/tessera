@@ -191,6 +191,16 @@ function buildService(batches: string[][]) {
 
   service.db = { selectFrom: () => query };
   service.logger = { warn: jest.fn(), log: jest.fn(), debug: jest.fn() };
+  // Настройки разрешаются один раз на прогон, обход к ним не обращается.
+  service.embeddingRun = jest.fn(async () => ({
+    identity: {
+      driver: 'openrouter',
+      baseUrl: null,
+      modelName: 'openai/text-embedding-3-small',
+    },
+    model: {},
+    providerOptions: undefined,
+  }));
   service.indexPage = jest.fn(async (id: string) => {
     calls.push(id);
     if (id === 'плохая') throw new Error('модель отказала');
@@ -239,5 +249,36 @@ describe('EmbeddingService.indexWorkspace', () => {
 
     expect(calls).toEqual([]);
     expect(result).toEqual({ indexed: 0, failed: 0 });
+  });
+});
+
+/**
+ * Настройки разрешаются один раз на прогон. Раньше `indexPage` пять раз ходил
+ * за ними на каждую страницу, а идентичность читалась внутри цикла, поэтому
+ * сохранение настроек в середине оставляло вики разбитой на две идентичности
+ * без всякого признака.
+ */
+describe('EmbeddingService.indexWorkspace, разрешение настроек', () => {
+  it('настройки читаются один раз на весь обход', async () => {
+    const { service } = buildService([['p-1', 'p-2'], ['p-3'], []]);
+
+    await service.indexWorkspace('ws-1');
+
+    expect(service.embeddingRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('один и тот же прогон передается каждой странице', async () => {
+    const { service } = buildService([['p-1', 'p-2'], []]);
+    const seen: unknown[] = [];
+    service.indexPage = jest.fn(async (_id: string, run: unknown) => {
+      seen.push(run);
+      return { chunks: 1 };
+    });
+
+    await service.indexWorkspace('ws-1');
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(seen[1]);
+    expect(seen[0]).toBeTruthy();
   });
 });

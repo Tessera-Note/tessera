@@ -78,7 +78,11 @@ export class AiSettingsController {
     // workspace has to be re-embedded before search means anything again.
     const embeddingChanged =
       identityBefore.driver !== identityAfter.driver ||
-      (identityBefore.model ?? null) !== (identityAfter.model ?? null);
+      (identityBefore.model ?? null) !== (identityAfter.model ?? null) ||
+      // Адрес шлюза тоже часть идентичности: два разных OpenAI-совместимых
+      // сервиса дают одну и ту же пару провайдер и модель, но несовместимые
+      // векторы.
+      (identityBefore.baseUrl ?? null) !== (identityAfter.baseUrl ?? null);
 
     if (embeddingChanged && workspace.settings?.['ai']?.search) {
       await this.aiQueue.add(QueueJob.WORKSPACE_CREATE_EMBEDDINGS, {

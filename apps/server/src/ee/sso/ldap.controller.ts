@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
-import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { Workspace } from '@tessera/db/types/entity.types';
@@ -19,6 +19,7 @@ import {
   EXPORT_THROTTLER,
 } from '../../integrations/throttle/throttler-names';
 import { LdapLoginThrottlerGuard } from '../../integrations/throttle/ldap-login-throttler.guard';
+import { LDAP_LOGIN_THROTTLER } from '../../integrations/throttle/throttler-names';
 import { LdapService } from './services/ldap.service';
 import { LdapLoginDto } from './dto/sso.dto';
 
@@ -53,6 +54,15 @@ export class LdapController {
    * личности отдано провайдеру. Клиент умеет разбирать поля второго фактора
    * в ответе, но для этого пути они не заполняются.
    */
+  /**
+   * Пять попыток на связку провайдера и имени за пять минут.
+   *
+   * Порог задан здесь, а не в общей настройке счетчиков: там он применялся бы
+   * ко всем контроллерам под любым `ThrottlerGuard`. Порог ниже, чем у прочих
+   * счетчиков, потому что цена превышения здесь не отказ нам, а блокировка
+   * учетной записи в каталоге.
+   */
+  @Throttle({ [LDAP_LOGIN_THROTTLER]: { ttl: 300_000, limit: 5 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post(':providerId/login')

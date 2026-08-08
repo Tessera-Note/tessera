@@ -28,6 +28,8 @@ describe('EmbeddingService.search', () => {
     ];
 
     const query: any = {
+      $if: (condition: boolean, cb: (qb: any) => any) =>
+        condition ? cb(query) : query,
       innerJoin: jest.fn(() => query),
       select: jest.fn(() => query),
       where: jest.fn(() => query),
@@ -47,6 +49,7 @@ describe('EmbeddingService.search', () => {
     service.embedQuery = jest.fn().mockResolvedValue([0.1, 0.2]);
     service.identity = jest.fn().mockResolvedValue({
       driver: 'openrouter',
+      baseUrl: null,
       modelName: 'openai/text-embedding-3-small',
     });
 

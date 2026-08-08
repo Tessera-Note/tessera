@@ -249,10 +249,6 @@ export class SpaceMemberService {
       throw new NotFoundException('Space membership not found');
     }
 
-    if (spaceMember.role === SpaceRole.ADMIN) {
-      await this.validateLastAdmin(dto.spaceId, { memberId: spaceMember.id });
-    }
-
     let affectedUserIds: string[] = [];
     if (dto.userId) {
       affectedUserIds = [dto.userId];
@@ -263,6 +259,14 @@ export class SpaceMemberService {
     }
 
     await executeTx(this.db, async (trx) => {
+      if (spaceMember.role === SpaceRole.ADMIN) {
+        await this.validateLastAdmin(
+          dto.spaceId,
+          { memberId: spaceMember.id },
+          trx,
+        );
+      }
+
       await this.spaceMemberRepo.removeSpaceMemberById(
         spaceMember.id,
         dto.spaceId,
@@ -339,15 +343,22 @@ export class SpaceMemberService {
       return;
     }
 
-    if (spaceMember.role === SpaceRole.ADMIN) {
-      await this.validateLastAdmin(dto.spaceId, { memberId: spaceMember.id });
-    }
+    await executeTx(this.db, async (trx) => {
+      if (spaceMember.role === SpaceRole.ADMIN) {
+        await this.validateLastAdmin(
+          dto.spaceId,
+          { memberId: spaceMember.id },
+          trx,
+        );
+      }
 
-    await this.spaceMemberRepo.updateSpaceMember(
-      { role: dto.role },
-      spaceMember.id,
-      dto.spaceId,
-    );
+      await this.spaceMemberRepo.updateSpaceMember(
+        { role: dto.role },
+        spaceMember.id,
+        dto.spaceId,
+        trx,
+      );
+    });
 
     this.auditService.log({
       event: AuditEvent.SPACE_MEMBER_ROLE_CHANGED,
@@ -383,16 +394,26 @@ export class SpaceMemberService {
    * держит и без этой операции, и запрет там ловил бы невиновных: удалить
    * нельзя было бы ничего, включая то, что к роли администратора отношения
    * не имеет.
+   *
+   * Проверка обязана идти в той же транзакции, что и само изменение, и после
+   * блокировки пространства: иначе два параллельных снятия проходят каждое по
+   * отдельности и оба фиксируются.
    */
   async validateLastAdmin(
     spaceId: string,
-    excluded?: { memberId?: string; groupId?: string; userId?: string },
+    excluded: { memberId?: string; groupId?: string; userId?: string } | undefined,
+    trx: KyselyTransaction,
   ): Promise<void> {
+    await this.spaceMemberRepo.lockSpaceForAdminCheck(spaceId, trx);
+
     // Без исключений проверяется само состояние: администратор в
     // пространстве должен быть хотя бы один.
     if (!excluded) {
-      const current =
-        await this.spaceMemberRepo.adminUserCountBySpaceId(spaceId);
+      const current = await this.spaceMemberRepo.adminUserCountBySpaceId(
+        spaceId,
+        undefined,
+        trx,
+      );
       if (current === 0) {
         throw new BadRequestException(
           'There must be at least one space admin with full access',
@@ -402,12 +423,16 @@ export class SpaceMemberService {
     }
 
     const [before, after] = await Promise.all([
-      this.spaceMemberRepo.adminUserCountBySpaceId(spaceId),
-      this.spaceMemberRepo.adminUserCountBySpaceId(spaceId, {
-        excludeMemberId: excluded.memberId,
-        excludeGroupId: excluded.groupId,
-        excludeUserId: excluded.userId,
-      }),
+      this.spaceMemberRepo.adminUserCountBySpaceId(spaceId, undefined, trx),
+      this.spaceMemberRepo.adminUserCountBySpaceId(
+        spaceId,
+        {
+          excludeMemberId: excluded.memberId,
+          excludeGroupId: excluded.groupId,
+          excludeUserId: excluded.userId,
+        },
+        trx,
+      ),
     ]);
 
     if (before > 0 && after === 0) {
@@ -416,6 +441,7 @@ export class SpaceMemberService {
       );
     }
   }
+
 
 
   async getUserSpaces(

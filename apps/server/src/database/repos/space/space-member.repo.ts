@@ -13,6 +13,13 @@ import {
 import { PaginationOptions } from '../../pagination/pagination-options';
 import { MemberInfo, UserSpaceRole } from './types';
 import { SpaceRole } from '../../../common/helpers/types/permission';
+
+/**
+ * Пространство ключей рекомендательных блокировок: второй аргумент это хеш
+ * идентификатора пространства, первый отделяет этот инвариант от любых
+ * других блокировок в приложении.
+ */
+const ADMIN_INVARIANT_LOCK = 4181;
 import { executeWithCursorPagination } from '@tessera/db/pagination/cursor-pagination';
 import { GroupRepo } from '@tessera/db/repos/group/group.repo';
 import { SpaceRepo } from '@tessera/db/repos/space/space.repo';
@@ -47,8 +54,9 @@ export class SpaceMemberRepo {
     updatableSpaceMember: UpdatableSpaceMember,
     spaceMemberId: string,
     spaceId: string,
+    trx?: KyselyTransaction,
   ): Promise<void> {
-    await this.db
+    await dbOrTx(this.db, trx)
       .updateTable('spaceMembers')
       .set(updatableSpaceMember)
       .where('id', '=', spaceMemberId)
@@ -113,6 +121,29 @@ export class SpaceMemberRepo {
    * снимает одну строку членства, `excludeGroupId` все гранты группы,
    * `excludeUserId` одного человека из состава групп.
    */
+  /**
+   * Взять блокировку пространства на время транзакции.
+   *
+   * Инвариант «хотя бы один администратор» считается запросом, а решение по
+   * нему принимается снаружи, поэтому два параллельных снятия проходили
+   * проверку каждое по отдельности и оба фиксировались, оставляя
+   * пространство без администратора. Блокировка сериализует такие проверки по
+   * одному пространству и снимается вместе с транзакцией, коммитом или
+   * откатом.
+   *
+   * Рекомендательная блокировка, а не `for update`: считающий запрос это
+   * объединение двух выборок с join, а `for update` с `union` PostgreSQL не
+   * принимает.
+   */
+  async lockSpaceForAdminCheck(
+    spaceId: string,
+    trx: KyselyTransaction,
+  ): Promise<void> {
+    await sql`select pg_advisory_xact_lock(${ADMIN_INVARIANT_LOCK}, hashtext(${spaceId}))`.execute(
+      trx,
+    );
+  }
+
   async adminUserCountBySpaceId(
     spaceId: string,
     opts?: {
@@ -120,8 +151,11 @@ export class SpaceMemberRepo {
       excludeGroupId?: string;
       excludeUserId?: string;
     },
+    trx?: KyselyTransaction,
   ): Promise<number> {
-    const direct = this.db
+    const db = dbOrTx(this.db, trx);
+
+    const direct = db
       .selectFrom('spaceMembers')
       .innerJoin('users', 'users.id', 'spaceMembers.userId')
       .select('users.id as userId')
@@ -133,7 +167,7 @@ export class SpaceMemberRepo {
         qb.where('spaceMembers.id', '!=', opts.excludeMemberId),
       );
 
-    const viaGroup = this.db
+    const viaGroup = db
       .selectFrom('spaceMembers')
       .innerJoin('groupUsers', 'groupUsers.groupId', 'spaceMembers.groupId')
       .innerJoin('users', 'users.id', 'groupUsers.userId')

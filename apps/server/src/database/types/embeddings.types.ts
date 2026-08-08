@@ -12,6 +12,12 @@ export interface PageEmbeddings {
    * провайдеров дает разные векторы.
    */
   driver: string | null;
+  /**
+   * Адрес шлюза, которым посчитан вектор. Два разных OpenAI-совместимых
+   * шлюза дают одну и ту же пару провайдер и модель, но несовместимые
+   * векторы. Пустое значение это адрес провайдера по умолчанию.
+   */
+  baseUrl: string | null;
   modelDimensions: number;
   workspaceId: string;
   // Nullable in the schema: a chunk comes either from a page body or from an

@@ -8,6 +8,22 @@ import { AiSettingsService } from '../ai/ai-settings.service';
 import { AiProviderFactory } from '../ai/ai-provider.factory';
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
 import { chunkText } from './chunk-text';
+import type { ResolvedEmbeddingConfig } from '../ai/ai-settings.service';
+import type { EmbeddingModel } from 'ai';
+
+/** Провайдер, адрес шлюза и модель: чем определяется набор векторов. */
+type EmbeddingIdentity = {
+  driver: string;
+  baseUrl: string | null;
+  modelName: string;
+};
+
+/** Разрешенные настройки одного прогона индексации. */
+type EmbeddingRun = {
+  identity: EmbeddingIdentity;
+  model: EmbeddingModel;
+  providerOptions: { openai: { dimensions: number } } | undefined;
+};
 
 /** Must match the dimension pinned by the page_embeddings migration. */
 export const EMBEDDING_DIMENSION = 1536;
@@ -61,18 +77,20 @@ export class EmbeddingService {
   }
 
   /**
-   * Идентичность векторного пространства: провайдер и модель.
+   * Идентичность векторного пространства: провайдер, адрес и модель.
    *
    * Имени модели недостаточно с тех пор, как провайдер выбирается: одно и то
    * же имя у разных провайдеров дает разные векторы, а сравнение векторов из
    * разных пространств возвращает правдоподобный шум, а не ошибку.
+   *
+   * Адрес входит по той же причине: два разных OpenAI-совместимых шлюза дают
+   * одну и ту же пару провайдер и модель, но несовместимые векторы. Пустой
+   * адрес это адрес провайдера по умолчанию и отличается от заданного явно.
    */
-  private async identity(
-    workspaceId: string,
-  ): Promise<{ driver: string; modelName: string }> {
-    const config = await this.aiSettingsService.resolveEmbedding(workspaceId);
+  private identityOf(config: ResolvedEmbeddingConfig): EmbeddingIdentity {
     return {
       driver: config.driver || 'openai',
+      baseUrl: config.baseUrl || null,
       modelName:
         config.model ||
         this.environmentService.getAiEmbeddingModel() ||
@@ -80,21 +98,22 @@ export class EmbeddingService {
     };
   }
 
-  private async modelName(workspaceId: string): Promise<string> {
-    const config = await this.aiSettingsService.resolveEmbedding(workspaceId);
-    return (
-      config.model ||
-      this.environmentService.getAiEmbeddingModel() ||
-      DEFAULT_EMBEDDING_MODEL
+  private async identity(workspaceId: string): Promise<EmbeddingIdentity> {
+    return this.identityOf(
+      await this.aiSettingsService.resolveEmbedding(workspaceId),
     );
   }
 
   /**
-   * Embeddings go into a fixed-width column, so a model whose output does not
-   * match is a configuration error worth failing loudly on rather than
-   * silently indexing nothing.
+   * Все, что нужно одному прогону индексации, разрешенное **один раз**.
+   *
+   * Раньше `indexPage` пять раз ходил за настройками рабочего пространства, и
+   * полный проход по вики стоил пятикратного числа запросов и столько же
+   * расшифровок ключа. Хуже стоимости было другое: идентичность читалась
+   * внутри цикла, поэтому сохранение настроек во время прогона оставляло
+   * рабочее пространство разбитым на две идентичности без всякого признака.
    */
-  private async embeddingModel(workspaceId: string) {
+  private async embeddingRun(workspaceId: string): Promise<EmbeddingRun> {
     const config = await this.aiSettingsService.resolveEmbedding(workspaceId);
 
     // Ollama работает без ключа, остальным провайдерам ключ обязателен.
@@ -111,40 +130,48 @@ export class EmbeddingService {
       );
     }
 
-    return this.providerFactory.createEmbeddingModel(
-      config,
-      await this.modelName(workspaceId),
-    );
-  }
+    const identity = this.identityOf(config);
 
+    return {
+      identity,
+      model: this.providerFactory.createEmbeddingModel(
+        config,
+        identity.modelName,
+      ),
+      providerOptions: this.providerOptionsFor(identity),
+    };
+  }
 
   /**
    * text-embedding-3-large returns 3072 values by default, which will not fit
    * the column; asking for 1536 keeps the larger model usable as-is.
    */
-  private async providerOptions(workspaceId: string) {
-    const config = await this.aiSettingsService.resolveEmbedding(workspaceId);
-
+  private providerOptionsFor(identity: EmbeddingIdentity) {
     // Ключ `openai` в опциях понимают только клиенты с этим же API. У Gemini
     // и Ollama он был бы отправлен как неизвестное поле.
     if (
-      config.driver !== 'openai' &&
-      config.driver !== 'openrouter' &&
-      config.driver !== 'openai-compatible'
+      identity.driver !== 'openai' &&
+      identity.driver !== 'openrouter' &&
+      identity.driver !== 'openai-compatible'
     ) {
       return undefined;
     }
 
-    const model = (await this.modelName(workspaceId)).split('/').pop() ?? '';
+    const model = identity.modelName.split('/').pop() ?? '';
     if (!MRL_MODEL_PATTERNS.some((pattern) => pattern.test(model))) {
       return undefined;
     }
     return { openai: { dimensions: EMBEDDING_DIMENSION } };
   }
 
-
-  /** Rebuild the embeddings for one page. No-op for pages with no text. */
-  async indexPage(pageId: string): Promise<{ chunks: number }> {
+  /**
+   * Rebuild the embeddings for one page. No-op for pages with no text.
+   *
+   * `run` передается перестроением всего пространства: настройки разрешаются
+   * один раз на прогон, иначе сохранение настроек в середине оставит вики
+   * разбитой на две идентичности.
+   */
+  async indexPage(pageId: string, run?: EmbeddingRun): Promise<{ chunks: number }> {
     const page = await this.db
       .selectFrom('pages')
       .select(['id', 'title', 'textContent', 'spaceId', 'workspaceId', 'deletedAt'])
@@ -169,15 +196,17 @@ export class EmbeddingService {
     const title = page.title || 'Untitled';
     const inputs = chunks.map((chunk) => `${title}\n\n${chunk.text}`);
 
+    const resolved = run ?? (await this.embeddingRun(page.workspaceId));
+
     const { embeddings } = await embedMany({
-      model: await this.embeddingModel(page.workspaceId),
+      model: resolved.model,
       values: inputs,
-      providerOptions: await this.providerOptions(page.workspaceId),
+      providerOptions: resolved.providerOptions,
     });
 
     this.assertDimension(embeddings[0]?.length);
 
-    const { driver, modelName } = await this.identity(page.workspaceId);
+    const { driver, baseUrl, modelName } = resolved.identity;
 
     // Delete-then-insert inside one transaction: a page must never be left
     // with a mix of old and new chunks if the insert fails halfway.
@@ -196,6 +225,7 @@ export class EmbeddingService {
             workspaceId: page.workspaceId,
             modelName,
             driver,
+            baseUrl,
             modelDimensions: EMBEDDING_DIMENSION,
             embedding: sql`${JSON.stringify(embeddings[i])}::vector`,
             chunkIndex: i,
@@ -226,6 +256,7 @@ export class EmbeddingService {
     workspaceId: string,
   ): Promise<{ indexed: number; failed: number }> {
     const BATCH = 50;
+    const run = await this.embeddingRun(workspaceId);
     let after: string | null = null;
     let indexed = 0;
     let failed = 0;
@@ -246,7 +277,7 @@ export class EmbeddingService {
 
       for (const page of pages) {
         try {
-          await this.indexPage(page.id);
+          await this.indexPage(page.id, run);
           indexed += 1;
         } catch (err: any) {
           // Одна страница не должна останавливать перестроение всего
@@ -316,10 +347,12 @@ export class EmbeddingService {
     query: string,
     workspaceId: string,
   ): Promise<number[]> {
+    const run = await this.embeddingRun(workspaceId);
+
     const { embedding } = await embed({
-      model: await this.embeddingModel(workspaceId),
+      model: run.model,
       value: query,
-      providerOptions: await this.providerOptions(workspaceId),
+      providerOptions: run.providerOptions,
     });
 
     this.assertDimension(embedding.length);
@@ -333,6 +366,8 @@ export class EmbeddingService {
    * `dimensions`. У Gemini и Ollama такой опции нет, и модель на 768 значений
    * упала бы ошибкой Postgres при вставке, из которой не видно, что менять.
    */
+
+
   private assertDimension(length: number | undefined): void {
     if (length === undefined || length === EMBEDDING_DIMENSION) return;
 
@@ -389,6 +424,15 @@ export class EmbeddingService {
       .where('pages.spaceId', 'in', spaceIds)
       .where('pageEmbeddings.modelName', '=', current.modelName)
       .where('pageEmbeddings.driver', '=', current.driver)
+      // Пустой адрес значит «адрес провайдера по умолчанию». Сравнивать его
+      // через `=` нельзя: в SQL сравнение с NULL не совпадает никогда, и
+      // строки подавляющего большинства установок выпали бы из выдачи.
+      .$if(current.baseUrl === null, (qb) =>
+        qb.where('pageEmbeddings.baseUrl', 'is', null),
+      )
+      .$if(current.baseUrl !== null, (qb) =>
+        qb.where('pageEmbeddings.baseUrl', '=', current.baseUrl),
+      )
       .where('pages.deletedAt', 'is', null)
       // Over-fetch: several chunks of one page can crowd the top; the
       // page-permission filter below (after dedup) is what drops pages the
@@ -452,7 +496,13 @@ export class EmbeddingService {
               .select('pageEmbeddings.id')
               .whereRef('pageEmbeddings.pageId', '=', 'pages.id')
               .where('pageEmbeddings.modelName', '=', current.modelName)
-              .where('pageEmbeddings.driver', '=', current.driver),
+              .where('pageEmbeddings.driver', '=', current.driver)
+              .$if(current.baseUrl === null, (qb) =>
+                qb.where('pageEmbeddings.baseUrl', 'is', null),
+              )
+              .$if(current.baseUrl !== null, (qb) =>
+                qb.where('pageEmbeddings.baseUrl', '=', current.baseUrl),
+              ),
           ),
         ),
       )
@@ -471,6 +521,10 @@ export class EmbeddingService {
       .where('workspaceId', '=', workspaceId)
       .where('modelName', '=', current.modelName)
       .where('driver', '=', current.driver)
+      .$if(current.baseUrl === null, (qb) => qb.where('baseUrl', 'is', null))
+      .$if(current.baseUrl !== null, (qb) =>
+        qb.where('baseUrl', '=', current.baseUrl),
+      )
       .executeTakeFirst();
 
     return Number(row?.count ?? 0);

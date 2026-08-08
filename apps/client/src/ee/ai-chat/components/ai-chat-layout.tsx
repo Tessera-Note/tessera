@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useChatInfoQuery } from "../queries/ai-chat-query";
+import { isChatAccessError } from "../utils/chat-access-error";
 import { useChatStream } from "../hooks/use-chat-stream";
 import ChatMessageList from "./chat-message-list";
 import ChatEmptyState from "./chat-empty-state";
@@ -17,11 +18,15 @@ export default function AiChatLayout() {
   // If the URL points at a chat the user does not own, the info fetch 404s.
   // Bounce them back to /ai so they cannot interact with any chat UI (including
   // kicking off orphan uploads) tied to a chat they have no access to.
+  //
+  // Только на отказ по доступу: отказ по частоте запросов и ошибка сервера
+  // проходят сами, а увод с адреса терял открытый разговор и не объяснял
+  // причины.
   useEffect(() => {
-    if (chatId && chatInfoQuery.isError) {
+    if (chatId && isChatAccessError(chatInfoQuery.error)) {
       navigate("/ai", { replace: true });
     }
-  }, [chatId, chatInfoQuery.isError, navigate]);
+  }, [chatId, chatInfoQuery.error, navigate]);
   const {
     messages,
     streamingContent,
