@@ -1,0 +1,36 @@
+<div data-type="callout" data-callout-type="danger"><p><strong>Conteúdo restrito:</strong> não documente segredos nem detalhes de exploração. Vulnerabilidades devem seguir {{VULNERABILITY_REPORTING_CHANNEL}}.</p></div>
+
+<h1>Classificação e responsáveis</h1>
+<table><tbody><tr><th>Classificação do sistema</th><td>{{SYSTEM_SECURITY_CLASSIFICATION}}</td></tr><tr><th>Responsável técnico</th><td>{{SECURITY_TECH_OWNER}}</td></tr><tr><th>Responsável pelo negócio</th><td>{{SECURITY_BUSINESS_OWNER}}</td></tr><tr><th>Contato de incidentes</th><td>{{SECURITY_INCIDENT_CONTACT}}</td></tr></tbody></table>
+
+<h1>Modelo de ameaças</h1>
+<p><strong>Método:</strong> {{THREAT_MODEL_METHOD}}. <strong>Última revisão:</strong> {{THREAT_MODEL_REVIEW_DATE}}.</p>
+<table><thead><tr><th>Ameaça</th><th>Ativo</th><th>Vetor</th><th>Probabilidade</th><th>Impacto</th><th>Controle</th><th>Risco residual</th></tr></thead><tbody><tr><td>{{THREAT_1}}</td><td>{{THREAT_1_ASSET}}</td><td>{{THREAT_1_VECTOR}}</td><td>{{THREAT_1_PROBABILITY}}</td><td>{{THREAT_1_IMPACT}}</td><td>{{THREAT_1_CONTROL}}</td><td>{{THREAT_1_RESIDUAL_RISK}}</td></tr></tbody></table>
+
+<h1>Identidade e acesso</h1>
+<table><thead><tr><th>Ator</th><th>Autenticação</th><th>Autorização</th><th>Privilégio</th><th>Auditoria</th></tr></thead><tbody><tr><td>{{SECURITY_ACTOR_1}}</td><td>{{SECURITY_ACTOR_1_AUTHN}}</td><td>{{SECURITY_ACTOR_1_AUTHZ}}</td><td>{{SECURITY_ACTOR_1_PRIVILEGE}}</td><td>{{SECURITY_ACTOR_1_AUDIT}}</td></tr></tbody></table>
+
+<h2>Gestão de segredos</h2>
+<p>{{SECRET_MANAGEMENT_POLICY}}</p>
+<ul><li><strong>Provedor:</strong> {{SECRETS_PROVIDER}}</li><li><strong>Rotação:</strong> {{SECRET_ROTATION_POLICY}}</li><li><strong>Acesso emergencial:</strong> {{BREAK_GLASS_POLICY}}</li></ul>
+
+<h1>Proteção de dados</h1>
+<table><thead><tr><th>Controle</th><th>Em trânsito</th><th>Em repouso</th><th>Gestão de chaves</th><th>Evidência</th></tr></thead><tbody><tr><td>Criptografia</td><td>{{ENCRYPTION_IN_TRANSIT}}</td><td>{{ENCRYPTION_AT_REST}}</td><td>{{KEY_MANAGEMENT}}</td><td>{{ENCRYPTION_EVIDENCE}}</td></tr></tbody></table>
+
+<h1>Controles do ciclo de desenvolvimento</h1>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="false"><p>Análise de dependências e licenças automatizada.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Varredura de segredos habilitada antes do merge.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>SAST/DAST executado conforme risco.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Imagens e artefatos assinados e rastreáveis.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Correções críticas dentro do SLA definido.</p></li>
+</ul>
+
+<h1>Conformidade e privacidade</h1>
+<table><thead><tr><th>Norma / Lei</th><th>Aplicabilidade</th><th>Controles</th><th>Evidência</th><th>Responsável</th></tr></thead><tbody><tr><td>{{COMPLIANCE_1}}</td><td>{{COMPLIANCE_1_SCOPE}}</td><td>{{COMPLIANCE_1_CONTROLS}}</td><td>{{COMPLIANCE_1_EVIDENCE}}</td><td>{{COMPLIANCE_1_OWNER}}</td></tr></tbody></table>
+
+<h1>Resposta a incidentes</h1>
+<ol><li>Detectar e classificar.</li><li>Conter preservando evidências.</li><li>Erradicar a causa.</li><li>Recuperar e monitorar.</li><li>Executar post-mortem sem culpabilização.</li></ol>
+<p><strong>Plano oficial:</strong> {{SECURITY_INCIDENT_PLAN_URL}}</p>
+
+<details><summary>Riscos aceitos e exceções</summary><div data-type="detailsContent"><table><thead><tr><th>Risco</th><th>Justificativa</th><th>Aprovador</th><th>Validade</th><th>Mitigação</th></tr></thead><tbody><tr><td>{{ACCEPTED_RISK_1}}</td><td>{{ACCEPTED_RISK_1_REASON}}</td><td>{{ACCEPTED_RISK_1_APPROVER}}</td><td>{{ACCEPTED_RISK_1_EXPIRY}}</td><td>{{ACCEPTED_RISK_1_MITIGATION}}</td></tr></tbody></table></div></details>

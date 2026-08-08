@@ -1,0 +1,29 @@
+<div data-type="callout" data-callout-type="info"><p>ADRs registram decisões significativas e o contexto existente na época. Uma decisão substituída continua no histórico e aponta para o ADR sucessor.</p></div>
+
+<h1>Índice de decisões</h1>
+<table><thead><tr><th>ID</th><th>Título</th><th>Status</th><th>Data</th><th>Responsáveis</th><th>Substitui / Substituído por</th></tr></thead><tbody><tr><td>ADR-{{ADR_NUMBER}}</td><td>{{ADR_TITLE}}</td><td><span data-type="status" data-color="yellow">{{ADR_STATUS}}</span></td><td>{{ADR_DATE}}</td><td>{{ADR_OWNERS}}</td><td>{{ADR_RELATION}}</td></tr></tbody></table>
+
+<h1>Modelo de ADR</h1>
+<h2>ADR-{{ADR_NUMBER}} — {{ADR_TITLE}}</h2>
+<table><tbody><tr><th>Status</th><td>Proposto | Aceito | Rejeitado | Substituído | Obsoleto</td></tr><tr><th>Data</th><td>{{ADR_DATE}}</td></tr><tr><th>Decisores</th><td>{{ADR_DECIDERS}}</td></tr><tr><th>Referências</th><td>{{ADR_REFERENCES}}</td></tr></tbody></table>
+
+<h3>Contexto</h3>
+<p>{{ADR_CONTEXT}}</p>
+
+<h3>Forças de decisão</h3>
+<ul><li>{{ADR_DRIVER_1}}</li><li>{{ADR_DRIVER_2}}</li><li>{{ADR_DRIVER_3}}</li></ul>
+
+<h3>Opções consideradas</h3>
+<table><thead><tr><th>Opção</th><th>Vantagens</th><th>Desvantagens</th><th>Riscos</th><th>Custo</th></tr></thead><tbody><tr><td>{{ADR_OPTION_1}}</td><td>{{ADR_OPTION_1_PROS}}</td><td>{{ADR_OPTION_1_CONS}}</td><td>{{ADR_OPTION_1_RISKS}}</td><td>{{ADR_OPTION_1_COST}}</td></tr></tbody></table>
+
+<h3>Decisão</h3>
+<p>{{ADR_DECISION}}</p>
+
+<h3>Consequências</h3>
+<div data-type="columns" data-layout="two_equal"><div data-type="column"><h2>Positivas</h2><ul><li>{{ADR_POSITIVE_1}}</li></ul></div><div data-type="column"><h2>Negativas / Trade-offs</h2><ul><li>{{ADR_NEGATIVE_1}}</li></ul></div></div>
+
+<h3>Plano de implementação e validação</h3>
+<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><p>{{ADR_ACTION_1}}</p></li><li data-type="taskItem" data-checked="false"><p>{{ADR_ACTION_2}}</p></li></ul>
+<p><strong>Revisar decisão quando:</strong> {{ADR_REVIEW_TRIGGER}}</p>
+
+<details><summary>Alternativas descartadas em detalhe</summary><div data-type="detailsContent"><p>{{ADR_DISCARDED_OPTIONS_DETAIL}}</p></div></details>

@@ -1,0 +1,49 @@
+<div data-type="callout" data-callout-type="success"><p><strong>Meta de onboarding:</strong> uma pessoa com acesso e pré-requisitos deve executar testes e iniciar o ambiente local em até {{ONBOARDING_TARGET_TIME}}.</p></div>
+
+<h1>Pré-requisitos</h1>
+<table><thead><tr><th>Ferramenta</th><th>Versão</th><th>Finalidade</th><th>Como validar</th></tr></thead><tbody>
+  <tr><td>{{PREREQUISITE_1}}</td><td><code>{{PREREQUISITE_1_VERSION}}</code></td><td>{{PREREQUISITE_1_PURPOSE}}</td><td><code>{{PREREQUISITE_1_CHECK}}</code></td></tr>
+</tbody></table>
+
+<h1>Configuração local</h1>
+<ol><li>Clone o repositório.</li><li>Instale as dependências.</li><li>Crie a configuração local a partir do exemplo versionado.</li><li>Inicie dependências e aplicação.</li><li>Execute a verificação de saúde e os testes rápidos.</li></ol>
+
+<h2>Comandos</h2>
+<pre><code class="language-bash">git clone {{REPOSITORY_URL}}
+cd {{REPOSITORY_DIRECTORY}}
+{{INSTALL_COMMAND}}
+{{CONFIGURE_COMMAND}}
+{{START_COMMAND}}
+{{HEALTH_CHECK_COMMAND}}</code></pre>
+
+<div data-type="callout" data-callout-type="warning"><p>Nunca copie credenciais reais para arquivos versionados. Use <code>{{SECRETS_PROVIDER}}</code> e mantenha somente nomes e exemplos seguros no <code>{{ENV_EXAMPLE_FILE}}</code>.</p></div>
+
+<h1>Estrutura do repositório</h1>
+<pre><code class="language-text">{{REPOSITORY_TREE}}</code></pre>
+<table><thead><tr><th>Caminho</th><th>Responsabilidade</th><th>Dependências permitidas</th><th>Responsável</th></tr></thead><tbody><tr><td><code>{{MODULE_1_PATH}}</code></td><td>{{MODULE_1_RESPONSIBILITY}}</td><td>{{MODULE_1_ALLOWED_DEPENDENCIES}}</td><td>{{MODULE_1_OWNER}}</td></tr></tbody></table>
+
+<h1>Fluxo de desenvolvimento</h1>
+<table><thead><tr><th>Etapa</th><th>Regra</th><th>Automação / Evidência</th></tr></thead><tbody>
+  <tr><td>Branch</td><td>{{BRANCH_POLICY}}</td><td>{{BRANCH_POLICY_EVIDENCE}}</td></tr>
+  <tr><td>Commit</td><td>{{COMMIT_CONVENTION}}</td><td>{{COMMIT_CHECK}}</td></tr>
+  <tr><td>Pull request</td><td>{{PR_POLICY}}</td><td>{{PR_TEMPLATE_PATH}}</td></tr>
+  <tr><td>Revisão</td><td>{{REVIEW_POLICY}}</td><td>{{CODEOWNERS_PATH}}</td></tr>
+</tbody></table>
+
+<h2>Checklist antes do pull request</h2>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="false"><p>Testes novos ou atualizados.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Lint, tipos e build executados.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Contrato, migração e compatibilidade avaliados.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Logs sem dados sensíveis e métricas necessárias incluídas.</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Documentação e ADR atualizados quando aplicável.</p></li>
+</ul>
+
+<h1>Testes</h1>
+<table><thead><tr><th>Camada</th><th>Escopo</th><th>Comando</th><th>Meta</th></tr></thead><tbody>
+  <tr><td>Unitário</td><td>{{UNIT_TEST_SCOPE}}</td><td><code>{{UNIT_TEST_COMMAND}}</code></td><td>{{UNIT_TEST_TARGET}}</td></tr>
+  <tr><td>Integração</td><td>{{INTEGRATION_TEST_SCOPE}}</td><td><code>{{INTEGRATION_TEST_COMMAND}}</code></td><td>{{INTEGRATION_TEST_TARGET}}</td></tr>
+  <tr><td>E2E</td><td>{{E2E_TEST_SCOPE}}</td><td><code>{{E2E_TEST_COMMAND}}</code></td><td>{{E2E_TEST_TARGET}}</td></tr>
+</tbody></table>
+
+<details><summary>Solução de problemas locais</summary><div data-type="detailsContent"><table><thead><tr><th>Sintoma</th><th>Causa provável</th><th>Diagnóstico</th><th>Solução</th></tr></thead><tbody><tr><td>{{LOCAL_ISSUE_1}}</td><td>{{LOCAL_ISSUE_1_CAUSE}}</td><td><code>{{LOCAL_ISSUE_1_DIAGNOSIS}}</code></td><td>{{LOCAL_ISSUE_1_SOLUTION}}</td></tr></tbody></table></div></details>

@@ -1,0 +1,37 @@
+<div data-type="callout" data-callout-type="warning"><p>Esta página descreve estruturas e políticas, nunca dados reais. Exemplos devem ser sintéticos e anonimizados.</p></div>
+
+<h1>Visão geral dos dados</h1>
+<p>{{DATA_ARCHITECTURE_SUMMARY}}</p>
+
+<h1>Modelo de domínio</h1>
+<pre><code class="language-mermaid">erDiagram
+  {{ENTITY_1}} ||--o{ {{ENTITY_2}} : "{{RELATIONSHIP_1}}"
+  {{ENTITY_1}} {
+    uuid id PK
+    string {{ENTITY_1_FIELD}}
+  }
+  {{ENTITY_2}} {
+    uuid id PK
+    uuid {{ENTITY_1}}_id FK
+  }</code></pre>
+
+<h2>Dicionário de entidades</h2>
+<table><thead><tr><th>Entidade</th><th>Descrição</th><th>Identificador</th><th>Classificação</th><th>Retenção</th></tr></thead><tbody><tr><td>{{ENTITY_1}}</td><td>{{ENTITY_1_DESCRIPTION}}</td><td><code>{{ENTITY_1_ID}}</code></td><td>{{ENTITY_1_CLASSIFICATION}}</td><td>{{ENTITY_1_RETENTION}}</td></tr></tbody></table>
+
+<h1>Armazenamentos</h1>
+<table><thead><tr><th>Armazenamento</th><th>Tecnologia</th><th>Dados</th><th>Backup</th><th>Criptografia</th><th>Responsável</th></tr></thead><tbody><tr><td>{{DATA_STORE_1}}</td><td>{{DATA_STORE_1_TECH}}</td><td>{{DATA_STORE_1_CONTENT}}</td><td>{{DATA_STORE_1_BACKUP}}</td><td>{{DATA_STORE_1_ENCRYPTION}}</td><td>{{DATA_STORE_1_OWNER}}</td></tr></tbody></table>
+
+<h1>Migrações</h1>
+<p><strong>Ferramenta:</strong> {{MIGRATION_TOOL}}. <strong>Local:</strong> <code>{{MIGRATION_PATH}}</code>.</p>
+<pre><code class="language-bash">{{MIGRATION_CREATE_COMMAND}}
+{{MIGRATION_APPLY_COMMAND}}
+{{MIGRATION_STATUS_COMMAND}}</code></pre>
+<div data-type="callout" data-callout-type="danger"><p><strong>Rollback:</strong> {{MIGRATION_ROLLBACK_POLICY}}</p></div>
+
+<h1>Governança e ciclo de vida</h1>
+<table><thead><tr><th>Classe</th><th>Exemplos</th><th>Acesso</th><th>Retenção</th><th>Descarte</th></tr></thead><tbody><tr><td>{{DATA_CLASS_1}}</td><td>{{DATA_CLASS_1_EXAMPLES}}</td><td>{{DATA_CLASS_1_ACCESS}}</td><td>{{DATA_CLASS_1_RETENTION}}</td><td>{{DATA_CLASS_1_DISPOSAL}}</td></tr></tbody></table>
+
+<h1>Backup e restauração</h1>
+<table><tbody><tr><th>Frequência</th><td>{{BACKUP_FREQUENCY}}</td></tr><tr><th>Retenção</th><td>{{BACKUP_RETENTION}}</td></tr><tr><th>Último teste de restauração</th><td>{{LAST_RESTORE_TEST}}</td></tr><tr><th>Procedimento</th><td>{{RESTORE_RUNBOOK_URL}}</td></tr></tbody></table>
+
+<details><summary>Consultas de diagnóstico seguras</summary><div data-type="detailsContent"><pre><code class="language-sql">{{SAFE_DIAGNOSTIC_QUERY}}</code></pre></div></details>

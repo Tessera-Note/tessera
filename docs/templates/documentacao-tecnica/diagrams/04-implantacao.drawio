@@ -1,0 +1,19 @@
+<mxfile host="app.diagrams.net" modified="2026-07-14T00:00:00.000Z" agent="Tessera technical documentation template" version="24.7.17">
+  <diagram id="deployment" name="Implantação">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0"><root>
+      <mxCell id="0"/><mxCell id="1" parent="0"/>
+      <mxCell id="internet" value="Internet / Usuários" style="cloud;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666" vertex="1" parent="1"><mxGeometry x="60" y="260" width="170" height="100" as="geometry"/></mxCell>
+      <mxCell id="trust" value="{{TRUST_BOUNDARY}}" style="swimlane;html=1;startSize=34;rounded=1;dashed=1;fillColor=none;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1"><mxGeometry x="310" y="100" width="790" height="500" as="geometry"/></mxCell>
+      <mxCell id="edge" value="{{EDGE_COMPONENT}}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="trust"><mxGeometry x="60" y="190" width="170" height="90" as="geometry"/></mxCell>
+      <mxCell id="app1" value="{{APP_INSTANCE_1}}" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="trust"><mxGeometry x="320" y="100" width="180" height="90" as="geometry"/></mxCell>
+      <mxCell id="app2" value="{{APP_INSTANCE_2}}" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="trust"><mxGeometry x="320" y="280" width="180" height="90" as="geometry"/></mxCell>
+      <mxCell id="database" value="{{PRODUCTION_DATABASE}}" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="trust"><mxGeometry x="590" y="190" width="160" height="100" as="geometry"/></mxCell>
+      <mxCell id="e0" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="1" source="internet" target="edge"><mxGeometry relative="1" as="geometry"/></mxCell>
+      <mxCell id="e1" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="trust" source="edge" target="app1"><mxGeometry relative="1" as="geometry"/></mxCell>
+      <mxCell id="e2" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="trust" source="edge" target="app2"><mxGeometry relative="1" as="geometry"/></mxCell>
+      <mxCell id="e3" value="TLS" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="trust" source="app1" target="database"><mxGeometry relative="1" as="geometry"/></mxCell>
+      <mxCell id="e4" value="TLS" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="trust" source="app2" target="database"><mxGeometry relative="1" as="geometry"/></mxCell>
+    </root></mxGraphModel>
+  </diagram>
+</mxfile>
+

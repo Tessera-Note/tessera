@@ -1,0 +1,86 @@
+.env
+.env.*
+!.env.example
+data
+
+# Секреты и ключи не кладутся в индекс ни под каким именем.
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+# compiled output
+dist
+# Vite складывает вывод и под другими именами, когда сборку запускают с иным
+# outDir: правило `dist` такие каталоги не закрывает.
+dist-*/
+tsconfig.tsbuildinfo
+# Без завершающего слэша и без якоря: pnpm заводит node_modules в каждом
+# пакете, а `/node_modules` закрывал только корневой.
+node_modules/
+/.worktrees
+
+# Python, services/hub
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+coverage
+/.nyc_output
+
+# Резервные копии базы. `deploy/backup-db.sh` и `scripts/deploy-docker.sh`
+# пишут дамп в <DEPLOY_PATH>/backups, а при DEPLOY_PATH внутри чекаута он
+# оказался бы в рабочем дереве.
+backups/
+*.sql.gz
+*.dump
+
+__temp__/
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+.nx
+.nx/installation
+.nx/cache
+
+# Claude Code
+# settings.json коммитится, это общая конфигурация команды
+# settings.local.json и логи локальные
+.claude/logs/
+.claude/settings.local.json
+.claude/*.local.json
+.claude/*.local.*

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Выпуски — {{ product_name }}{% endblock %}
+{% block content %}
+<h1>Выпуски</h1>
+{% if releases %}
+  {% for release in releases %}
+  <div class="card">
+    <h2>
+      {{ release.version }}
+      {% if release.is_latest %}<span class="badge">последний</span>{% endif %}
+    </h2>
+    <p class="meta">{{ release.published_at.strftime("%d.%m.%Y") }}</p>
+    {{ release.notes_html | safe }}
+  </div>
+  {% endfor %}
+{% else %}
+<p class="meta">Выпуски еще не зарегистрированы.</p>
+{% endif %}
+{% endblock %}

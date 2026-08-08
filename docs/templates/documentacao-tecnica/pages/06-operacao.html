@@ -1,0 +1,47 @@
+<div data-type="callout" data-callout-type="danger"><p><strong>Incidente ativo?</strong> Siga primeiro o runbook {{INCIDENT_RUNBOOK_URL}} e comunique em {{INCIDENT_CHANNEL}}.</p></div>
+
+<h1>Ambientes</h1>
+<table><thead><tr><th>Ambiente</th><th>Finalidade</th><th>URL</th><th>Infraestrutura</th><th>Acesso</th></tr></thead><tbody>
+  <tr><td>Desenvolvimento</td><td>{{DEV_PURPOSE}}</td><td>{{DEV_URL}}</td><td>{{DEV_INFRA}}</td><td>{{DEV_ACCESS}}</td></tr>
+  <tr><td>Homologação</td><td>{{STAGING_PURPOSE}}</td><td>{{STAGING_URL}}</td><td>{{STAGING_INFRA}}</td><td>{{STAGING_ACCESS}}</td></tr>
+  <tr><td>Produção</td><td>{{PROD_PURPOSE}}</td><td>{{PROD_URL}}</td><td>{{PROD_INFRA}}</td><td>{{PROD_ACCESS}}</td></tr>
+</tbody></table>
+
+<h1>Topologia de implantação</h1>
+<p><strong>Fonte Draw.io:</strong> <code>diagrams/04-implantacao.drawio</code>.</p>
+<div data-type="drawio" data-title="Implantação de {{PROJECT_NAME}}" data-alt="Topologia dos ambientes e componentes de infraestrutura" data-align="center"></div>
+
+<h1>Pipeline e implantação</h1>
+<pre><code class="language-mermaid">flowchart LR
+  A[Commit] --> B[Qualidade]
+  B --> C[Build]
+  C --> D[Artefato imutável]
+  D --> E[Homologação]
+  E --> F{Aprovação}
+  F -->|Sim| G[Produção]
+  F -->|Não| H[Correção]</code></pre>
+
+<h2>Procedimento</h2>
+<ol><li>{{DEPLOY_STEP_1}}</li><li>{{DEPLOY_STEP_2}}</li><li>{{DEPLOY_STEP_3}}</li><li>{{DEPLOY_STEP_4}}</li></ol>
+
+<h2>Rollback</h2>
+<pre><code class="language-bash">{{ROLLBACK_COMMAND}}</code></pre>
+<p><strong>Critério:</strong> {{ROLLBACK_CRITERIA}}. <strong>Tempo esperado:</strong> {{ROLLBACK_EXPECTED_TIME}}.</p>
+
+<h1>Configuração</h1>
+<table><thead><tr><th>Variável</th><th>Obrigatória</th><th>Descrição</th><th>Exemplo seguro</th><th>Origem</th></tr></thead><tbody><tr><td><code>{{CONFIG_1_NAME}}</code></td><td>{{CONFIG_1_REQUIRED}}</td><td>{{CONFIG_1_DESCRIPTION}}</td><td><code>{{CONFIG_1_SAFE_EXAMPLE}}</code></td><td>{{CONFIG_1_SOURCE}}</td></tr></tbody></table>
+
+<h1>Observabilidade</h1>
+<table><thead><tr><th>Sinal</th><th>Ferramenta / Painel</th><th>Indicador-chave</th><th>Retenção</th></tr></thead><tbody>
+  <tr><td>Logs</td><td>{{LOGS_DASHBOARD}}</td><td>{{LOGS_KEY_FIELDS}}</td><td>{{LOGS_RETENTION}}</td></tr>
+  <tr><td>Métricas</td><td>{{METRICS_DASHBOARD}}</td><td>{{GOLDEN_SIGNALS}}</td><td>{{METRICS_RETENTION}}</td></tr>
+  <tr><td>Traces</td><td>{{TRACES_DASHBOARD}}</td><td>{{TRACE_PROPAGATION}}</td><td>{{TRACES_RETENTION}}</td></tr>
+</tbody></table>
+
+<h2>SLIs, SLOs e alertas</h2>
+<table><thead><tr><th>Indicador</th><th>Objetivo</th><th>Janela</th><th>Alerta</th><th>Runbook</th></tr></thead><tbody><tr><td>{{SLI_1}}</td><td>{{SLO_1}}</td><td>{{SLO_1_WINDOW}}</td><td>{{SLO_1_ALERT}}</td><td>{{SLO_1_RUNBOOK}}</td></tr></tbody></table>
+
+<h1>Runbooks essenciais</h1>
+<table><thead><tr><th>Cenário</th><th>Sintoma</th><th>Severidade</th><th>Primeira ação</th><th>Runbook</th></tr></thead><tbody><tr><td>{{RUNBOOK_1_SCENARIO}}</td><td>{{RUNBOOK_1_SYMPTOM}}</td><td>{{RUNBOOK_1_SEVERITY}}</td><td>{{RUNBOOK_1_FIRST_ACTION}}</td><td>{{RUNBOOK_1_URL}}</td></tr></tbody></table>
+
+<details><summary>Comandos de diagnóstico</summary><div data-type="detailsContent"><pre><code class="language-bash">{{SAFE_OPERATIONAL_DIAGNOSTICS}}</code></pre></div></details>

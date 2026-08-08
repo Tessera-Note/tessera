@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "templateKey": "documentacao-tecnica-rica",
+  "name": "Documentação técnica completa",
+  "description": "Árvore de páginas Tessera para documentação técnica detalhada e atualizável por IA.",
+  "contentFormat": "html",
+  "placeholderPattern": "\\{\\{[A-Z][A-Z0-9_]*\\}\\}",
+  "root": {
+    "key": "home",
+    "title": "{{PROJECT_NAME}} — Documentação técnica",
+    "icon": "📘",
+    "source": "pages/00-home.html",
+    "children": [
+      { "key": "how-to-use", "title": "00. Como usar este modelo", "icon": "🧰", "source": "pages/00-como-usar.html" },
+      { "key": "overview", "title": "01. Visão geral e contexto", "icon": "🎯", "source": "pages/01-visao-geral.html" },
+      {
+        "key": "architecture",
+        "title": "02. Arquitetura",
+        "icon": "🏗️",
+        "source": "pages/02-arquitetura.html",
+        "children": [
+          { "key": "architecture-context", "title": "02.1 Contexto e containers", "icon": "🌐", "source": "pages/02-01-contexto-containers.html" },
+          { "key": "architecture-components", "title": "02.2 Componentes e fluxos", "icon": "🧩", "source": "pages/02-02-componentes-fluxos.html" },
+          { "key": "architecture-integrations", "title": "02.3 Integrações e dependências", "icon": "🔌", "source": "pages/02-03-integracoes.html" }
+        ]
+      },
+      { "key": "development", "title": "03. Desenvolvimento", "icon": "💻", "source": "pages/03-desenvolvimento.html" },
+      { "key": "apis", "title": "04. APIs e contratos", "icon": "🔗", "source": "pages/04-apis.html" },
+      { "key": "data", "title": "05. Dados", "icon": "🗄️", "source": "pages/05-dados.html" },
+      { "key": "operations", "title": "06. Operação e implantação", "icon": "🚀", "source": "pages/06-operacao.html" },
+      { "key": "security", "title": "07. Segurança e conformidade", "icon": "🔐", "source": "pages/07-seguranca.html" },
+      { "key": "adrs", "title": "08. Decisões de arquitetura (ADRs)", "icon": "🧭", "source": "pages/08-adrs.html" },
+      { "key": "changelog", "title": "09. Histórico de mudanças", "icon": "📝", "source": "pages/09-historico.html" }
+    ]
+  },
+  "diagramSources": [
+    { "key": "system-context", "source": "diagrams/01-contexto.drawio", "targetPage": "architecture-context" },
+    { "key": "containers", "source": "diagrams/02-containers.drawio", "targetPage": "architecture-context" },
+    { "key": "main-flow", "source": "diagrams/03-fluxo-principal.drawio", "targetPage": "architecture-components" },
+    { "key": "deployment", "source": "diagrams/04-implantacao.drawio", "targetPage": "operations" }
+  ]
+}

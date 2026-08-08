@@ -1,0 +1,17 @@
+<mxfile host="app.diagrams.net" modified="2026-07-14T00:00:00.000Z" agent="Tessera technical documentation template" version="24.7.17">
+  <diagram id="system-context" name="Contexto">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Contexto — {{PROJECT_NAME}}" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1" vertex="1" parent="1"><mxGeometry x="300" y="30" width="560" height="40" as="geometry"/></mxCell>
+        <mxCell id="user" value="&lt;b&gt;{{PRIMARY_ACTOR}}&lt;/b&gt;&lt;br&gt;{{PRIMARY_ACTOR_DESCRIPTION}}" style="shape=mxgraph.c4.person2;html=1;align=center;verticalAlign=top;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="1"><mxGeometry x="80" y="250" width="160" height="120" as="geometry"/></mxCell>
+        <mxCell id="system" value="&lt;b&gt;{{PROJECT_NAME}}&lt;/b&gt;&lt;br&gt;{{PROJECT_DESCRIPTION}}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1f78d1;fontColor=#ffffff;strokeColor=#0b5394;fontSize=14" vertex="1" parent="1"><mxGeometry x="430" y="230" width="300" height="150" as="geometry"/></mxCell>
+        <mxCell id="external" value="&lt;b&gt;{{EXTERNAL_SYSTEM}}&lt;/b&gt;&lt;br&gt;{{EXTERNAL_SYSTEM_DESCRIPTION}}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6" vertex="1" parent="1"><mxGeometry x="900" y="250" width="210" height="120" as="geometry"/></mxCell>
+        <mxCell id="edge1" value="{{USER_INTERACTION}}" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block" edge="1" parent="1" source="user" target="system"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="edge2" value="{{INTEGRATION_PROTOCOL}} — {{INTEGRATION_DATA}}" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block" edge="1" parent="1" source="system" target="external"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="legend" value="Azul: sistema sob responsabilidade do time&#xa;Roxo: dependência externa&#xa;Toda seta deve indicar protocolo e dado" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="1"><mxGeometry x="430" y="500" width="300" height="100" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+

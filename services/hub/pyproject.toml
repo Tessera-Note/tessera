@@ -1,0 +1,38 @@
+[project]
+name = "tessera-hub"
+version = "0.1.0"
+description = "Внутренний сервис Tessera: релизы, телеметрия, документация, лицензия и поддержка"
+requires-python = ">=3.13"
+dependencies = [
+    "litestar[jinja,standard]==2.24.0",
+    "sqlalchemy[asyncio]==2.0.51",
+    "asyncpg==0.31.0",
+    "alembic==1.18.5",
+    "markdown-it-py==4.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.1",
+    "aiosqlite==0.22.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hub"]

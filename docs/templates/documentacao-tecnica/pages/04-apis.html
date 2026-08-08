@@ -1,0 +1,48 @@
+<div data-type="callout" data-callout-type="info"><p><strong>Contrato oficial:</strong> {{API_SPEC_URL}}. Exemplos desta página são sanitizados e devem permanecer executáveis.</p></div>
+
+<h1>Visão geral</h1>
+<div data-type="columns" data-layout="two_equal">
+  <div data-type="column"><h2>Base URL</h2><p><code>{{API_BASE_URL}}</code></p><p><strong>Versão:</strong> {{API_VERSION}}</p></div>
+  <div data-type="column"><h2>Formato</h2><p>{{API_STYLE}}</p><p><strong>Content-Type:</strong> <code>{{API_CONTENT_TYPE}}</code></p></div>
+</div>
+
+<h1>Autenticação e autorização</h1>
+<p>{{API_AUTH_DESCRIPTION}}</p>
+<pre><code class="language-http">Authorization: Bearer &lt;TOKEN&gt;
+Content-Type: application/json
+X-Correlation-Id: &lt;UUID&gt;</code></pre>
+
+<h1>Convenções do contrato</h1>
+<table><thead><tr><th>Tema</th><th>Convenção</th><th>Referência</th></tr></thead><tbody>
+  <tr><td>Paginação</td><td>{{API_PAGINATION}}</td><td>{{API_PAGINATION_REFERENCE}}</td></tr>
+  <tr><td>Idempotência</td><td>{{API_IDEMPOTENCY}}</td><td>{{API_IDEMPOTENCY_REFERENCE}}</td></tr>
+  <tr><td>Versionamento</td><td>{{API_VERSIONING}}</td><td>{{API_VERSIONING_REFERENCE}}</td></tr>
+  <tr><td>Rate limit</td><td>{{API_RATE_LIMIT}}</td><td>{{API_RATE_LIMIT_REFERENCE}}</td></tr>
+  <tr><td>Datas</td><td>ISO 8601 em UTC, salvo indicação contrária.</td><td>{{API_DATE_REFERENCE}}</td></tr>
+</tbody></table>
+
+<h1>Endpoints</h1>
+<h2><span data-type="status" data-color="green">POST</span> {{ENDPOINT_1_PATH}}</h2>
+<p>{{ENDPOINT_1_DESCRIPTION}}</p>
+<table><thead><tr><th>Campo</th><th>Local</th><th>Tipo</th><th>Obrigatório</th><th>Descrição</th></tr></thead><tbody><tr><td><code>{{ENDPOINT_1_FIELD}}</code></td><td>{{ENDPOINT_1_FIELD_LOCATION}}</td><td><code>{{ENDPOINT_1_FIELD_TYPE}}</code></td><td>{{ENDPOINT_1_FIELD_REQUIRED}}</td><td>{{ENDPOINT_1_FIELD_DESCRIPTION}}</td></tr></tbody></table>
+
+<h3>Exemplo</h3>
+<pre><code class="language-bash">curl --request POST '{{API_BASE_URL}}{{ENDPOINT_1_PATH}}' \
+  --header 'Authorization: Bearer &lt;TOKEN&gt;' \
+  --header 'Content-Type: application/json' \
+  --data '{{ENDPOINT_1_REQUEST_JSON}}'</code></pre>
+
+<pre><code class="language-json">{{ENDPOINT_1_RESPONSE_JSON}}</code></pre>
+
+<h1>Erros</h1>
+<table><thead><tr><th>HTTP</th><th>Código</th><th>Quando ocorre</th><th>Ação do cliente</th></tr></thead><tbody>
+  <tr><td>400</td><td><code>{{ERROR_BAD_REQUEST}}</code></td><td>{{ERROR_BAD_REQUEST_CAUSE}}</td><td>{{ERROR_BAD_REQUEST_ACTION}}</td></tr>
+  <tr><td>401</td><td><code>{{ERROR_UNAUTHORIZED}}</code></td><td>{{ERROR_UNAUTHORIZED_CAUSE}}</td><td>Renovar credencial; não repetir indefinidamente.</td></tr>
+  <tr><td>429</td><td><code>{{ERROR_RATE_LIMIT}}</code></td><td>Limite excedido.</td><td>Respeitar <code>Retry-After</code> e aplicar backoff.</td></tr>
+  <tr><td>500</td><td><code>{{ERROR_INTERNAL}}</code></td><td>Falha inesperada.</td><td>Registrar correlation ID e repetir somente operação segura.</td></tr>
+</tbody></table>
+
+<details><summary>Webhook / Eventos</summary><div data-type="detailsContent"><p>{{WEBHOOK_DESCRIPTION}}</p><pre><code class="language-json">{{WEBHOOK_PAYLOAD_EXAMPLE}}</code></pre><p><strong>Assinatura:</strong> {{WEBHOOK_SIGNATURE}}. <strong>Retry:</strong> {{WEBHOOK_RETRY}}.</p></div></details>
+
+<h1>Compatibilidade e depreciação</h1>
+<p>{{API_COMPATIBILITY_POLICY}}</p>

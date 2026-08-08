@@ -1,0 +1,109 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm clean:*)",
+      "Bash(pnpm --filter client dev:*)",
+      "Bash(pnpm --filter client build:*)",
+      "Bash(pnpm --filter client lint:*)",
+      "Bash(pnpm --filter client test:*)",
+      "Bash(pnpm --filter client preview:*)",
+      "Bash(pnpm --filter server build:*)",
+      "Bash(pnpm --filter server lint:*)",
+      "Bash(pnpm --filter server test:*)",
+      "Bash(pnpm --filter server start:dev:*)",
+      "Bash(pnpm --filter server migration:create:*)",
+      "Bash(pnpm --filter server migration:up:*)",
+      "Bash(pnpm --filter server migration:latest:*)",
+      "Bash(pnpm --filter @docmost/editor-ext build:*)",
+      "Bash(pnpm --filter @docmost/base-formula build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier --check:*)",
+      "Bash(npx nx:*)",
+      "Bash(curl -sS --max-time 5 http://localhost:*)",
+      "Bash(curl -sS --max-time 5 http://127.0.0.1:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(pkill -f \"nest start\")",
+      "Bash(pkill -f \"vite\")"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(sudo:*)",
+      "Bash(npm publish:*)",
+      "Bash(pnpm publish:*)",
+      "Bash(npm version:*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(pnpm --filter server migration:reset:*)",
+      "Bash(pnpm --filter server migration:down:*)",
+      "Bash(docker compose down -v:*)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Edit(pnpm-lock.yaml)",
+      "Write(pnpm-lock.yaml)",
+      "Edit(node_modules/**)",
+      "Write(node_modules/**)",
+      "Edit(apps/*/dist/**)",
+      "Write(apps/*/dist/**)",
+      "Edit(packages/*/dist/**)",
+      "Write(packages/*/dist/**)",
+      "Edit(apps/server/src/database/types/db.d.ts)",
+      "Write(apps/server/src/database/types/db.d.ts)",
+      "Edit(patches/**)",
+      "Write(patches/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/protect-paths.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/protect-bash.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-edit.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-status.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/statusline.sh"
+  }
+}

@@ -1,0 +1,23 @@
+<h1>Diagrama de contexto</h1>
+<p><strong>Escopo:</strong> pessoas e sistemas externos que interagem com {{PROJECT_NAME}}. <strong>Fonte Draw.io:</strong> <code>diagrams/01-contexto.drawio</code>.</p>
+<div data-type="drawio" data-title="Contexto do sistema {{PROJECT_NAME}}" data-alt="Diagrama de contexto com usuários e sistemas externos" data-align="center"></div>
+
+<h2>Elementos do contexto</h2>
+<table><thead><tr><th>Elemento</th><th>Tipo</th><th>Responsabilidade</th><th>Interação</th><th>Proprietário</th></tr></thead><tbody>
+  <tr><td>{{CONTEXT_ELEMENT_1}}</td><td>{{CONTEXT_ELEMENT_1_TYPE}}</td><td>{{CONTEXT_ELEMENT_1_RESPONSIBILITY}}</td><td>{{CONTEXT_ELEMENT_1_INTERACTION}}</td><td>{{CONTEXT_ELEMENT_1_OWNER}}</td></tr>
+</tbody></table>
+
+<h1>Diagrama de containers</h1>
+<p><strong>Escopo:</strong> aplicações e armazenamentos implantáveis. <strong>Fonte Draw.io:</strong> <code>diagrams/02-containers.drawio</code>.</p>
+<div data-type="drawio" data-title="Containers de {{PROJECT_NAME}}" data-alt="Diagrama dos containers implantáveis e suas comunicações" data-align="center"></div>
+
+<h2>Catálogo de containers</h2>
+<table><thead><tr><th>Container</th><th>Tecnologia</th><th>Responsabilidade</th><th>Escala</th><th>Dados</th></tr></thead><tbody>
+  <tr><td>{{CONTAINER_1}}</td><td>{{CONTAINER_1_TECH}}</td><td>{{CONTAINER_1_RESPONSIBILITY}}</td><td>{{CONTAINER_1_SCALE}}</td><td>{{CONTAINER_1_DATA}}</td></tr>
+  <tr><td>{{CONTAINER_2}}</td><td>{{CONTAINER_2_TECH}}</td><td>{{CONTAINER_2_RESPONSIBILITY}}</td><td>{{CONTAINER_2_SCALE}}</td><td>{{CONTAINER_2_DATA}}</td></tr>
+</tbody></table>
+
+<h1>Comunicações</h1>
+<table><thead><tr><th>Origem</th><th>Destino</th><th>Protocolo</th><th>Autenticação</th><th>Timeout / Retry</th><th>Dados</th></tr></thead><tbody><tr><td>{{COMM_1_SOURCE}}</td><td>{{COMM_1_TARGET}}</td><td>{{COMM_1_PROTOCOL}}</td><td>{{COMM_1_AUTH}}</td><td>{{COMM_1_RESILIENCE}}</td><td>{{COMM_1_DATA}}</td></tr></tbody></table>
+
+<details><summary>Legenda e convenções dos diagramas</summary><div data-type="detailsContent"><ul><li>Azul: componentes sob responsabilidade do time.</li><li>Cinza: dependências externas.</li><li>Vermelho tracejado: fronteira de confiança.</li><li>Setas devem informar protocolo e direção do fluxo.</li></ul></div></details>

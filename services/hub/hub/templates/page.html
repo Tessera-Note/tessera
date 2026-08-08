@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — {{ product_name }}{% endblock %}
+{% block content %}
+{{ body_html | safe }}
+<p class="meta">
+  Обновлено {{ updated_at.strftime("%d.%m.%Y") }}. Обращения по адресу
+  <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+</p>
+{% endblock %}

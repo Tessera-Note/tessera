@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Документация — {{ product_name }}{% endblock %}
+{% block content %}
+<h1>Документация {{ product_name }}</h1>
+{% if pages %}
+<ul>
+  {% for page in pages %}
+  <li><a href="{{ base_url }}/docs/{{ page.slug }}">{{ page.title }}</a></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="meta">Страницы еще не добавлены.</p>
+{% endif %}
+<h2>Прочее</h2>
+<ul>
+  <li><a href="{{ base_url }}/releases">Выпуски</a></li>
+  <li><a href="{{ base_url }}/license">Лицензия</a></li>
+  <li><a href="{{ base_url }}/support">Поддержка</a></li>
+</ul>
+{% endblock %}

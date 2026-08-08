@@ -1,0 +1,22 @@
+/* Only meaningful to the print engine that generates the PDF. */
+.pageBreak {
+  break-before: page;
+  page-break-before: always;
+}
+
+/*
+ * The editor keeps its interactive chrome in read-only mode — the code block's
+ * language picker and copy button, for instance. On screen that is helpful; in a
+ * PDF it is a widget printed onto paper.
+ */
+.printRoot :global(button),
+.printRoot :global(select),
+.printRoot :global(.mantine-Select-root),
+.printRoot :global(.mantine-ActionIcon-root) {
+  display: none !important;
+}
+
+/* Checkboxes are content, not chrome: a task list must still show its state. */
+.printRoot :global(input[type="checkbox"]) {
+  display: inline-block !important;
+}
