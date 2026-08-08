@@ -59,9 +59,40 @@ describe('getEmbedUrlAndProvider, документы Google', () => {
     expect(embedUrl).toContain('/viewform');
   });
 
-  // Таблицы работали и должны продолжать работать как прежде.
-  it('таблица по-прежнему отдается как есть', () => {
-    const url = 'https://docs.google.com/spreadsheets/d/SHEET1/edit#gid=0';
+  /**
+   * Таблица отдавалась как есть, то есть встраивался адрес редактора со всеми
+   * его параметрами. Приведена к той же форме, что документ и презентация.
+   */
+  it('таблица приводится к форме просмотра', () => {
+    const { provider, embedUrl } = getEmbedUrlAndProvider(
+      'https://docs.google.com/spreadsheets/d/SHEET1/edit?usp=drivesdk&ouid=9',
+    );
+
+    expect(provider).toBe('google sheets');
+    expect(embedUrl).toBe(
+      'https://docs.google.com/spreadsheets/d/SHEET1/preview',
+    );
+  });
+
+  // В адресе редактора номер листа выбирает вкладку: без него встроенная
+  // таблица открылась бы не на той, что дал человек.
+  it('номер листа переносится', () => {
+    const { embedUrl } = getEmbedUrlAndProvider(
+      'https://docs.google.com/spreadsheets/d/SHEET1/edit#gid=1234567',
+    );
+
+    expect(embedUrl).toBe(
+      'https://docs.google.com/spreadsheets/d/SHEET1/preview#gid=1234567',
+    );
+  });
+
+  /**
+   * У опубликованной таблицы вместо идентификатора отдельный маркер, и это
+   * уже готовая для встраивания форма: приводить ее к просмотру нечем.
+   */
+  it('опубликованная таблица отдается как есть', () => {
+    const url =
+      'https://docs.google.com/spreadsheets/d/e/2PACX-abc/pubhtml?gid=5&single=true';
     const { provider, embedUrl } = getEmbedUrlAndProvider(url);
 
     expect(provider).toBe('google sheets');

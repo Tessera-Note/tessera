@@ -107,12 +107,25 @@ export const embedProviders: IEmbedProvider[] = [
     },
   },
   {
+    // Таблица отдавалась как есть, то есть встраивался адрес редактора со
+    // всеми его параметрами. Приводится к той же встраиваемой форме, что у
+    // документа, презентации и файла Drive.
+    //
+    // Номер листа переносится: в адресе редактора он выбирает вкладку, и без
+    // него встроенная таблица открывалась бы не на той, что дал человек.
     id: "gsheets",
     name: "Google Sheets",
     regex:
-      /^((?:https?:)?\/\/)?((?:www|m)\.)?(docs\.google\.com)\/spreadsheets\/d\/([a-zA-Z0-9_-]+)\/.*$/,
+      /^((?:https?:)?\/\/)?((?:www|m)\.)?(docs\.google\.com)\/spreadsheets\/d\/([a-zA-Z0-9_-]+)(\/.*)?$/,
     getEmbedUrl: (match, url: string) => {
-      return url;
+      // Опубликованная таблица это уже готовая для встраивания форма с
+      // отдельным маркером вместо идентификатора: `/d/e/<маркер>/pubhtml`.
+      // Приводить ее к `/preview` нечем, идентификатора там нет.
+      if (/\/spreadsheets\/d\/e\//.test(url)) return url;
+
+      const gid = url.match(/[#?&]gid=(\d+)/);
+      const base = `https://docs.google.com/spreadsheets/d/${match[4]}/preview`;
+      return gid ? `${base}#gid=${gid[1]}` : base;
     },
   },
   {
