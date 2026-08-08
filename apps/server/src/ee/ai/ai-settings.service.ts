@@ -32,28 +32,14 @@ export type WebSearchDriver = (typeof WEB_SEARCH_DRIVERS)[number];
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
 /**
- * Модели эмбеддингов OpenRouter, проверенные живым вызовом.
+ * Каталог моделей эмбеддингов OpenRouter.
  *
- * Перечислением потому, что каталог их не отдает: `GET /models` возвращает
- * 400 моделей и ни одной с эмбеддингами, фильтры `category=embedding` и
- * `category=embeddings` отвечают 400, а `GET /models/embeddings` не
- * существует. При этом `POST /embeddings` работает, поддерживает пакет
- * значений и параметр `dimensions`. Именно отсутствие моделей в каталоге, а
- * не отсутствие поддержки, и создавало впечатление, что эмбеддингов у
- * OpenRouter нет.
- *
- * В списке только то, что дает ровно 1536 значений, то есть ширину колонки
- * `page_embeddings.embedding`: напрямую либо через `dimensions`. Проверенные
- * и не попавшие сюда: `baai/bge-m3` и `intfloat/multilingual-e5-large`
- * возвращают 1024 и параметр игнорируют, `qwen/qwen3-embedding-4b` дает 2560.
+ * Обычный `GET /models` их не показывает: там только то, что отвечает
+ * текстом. Модели эмбеддингов отдаются фильтром по выходной модальности, и
+ * ключ для этого запроса не нужен. Раньше здесь стояло перечисление, потому
+ * что фильтр не был найден, а `category=embedding` отвечает 400.
  */
-const OPENROUTER_EMBEDDING_MODELS = [
-  'openai/text-embedding-3-small',
-  'openai/text-embedding-3-large',
-  'openai/text-embedding-ada-002',
-  'google/gemini-embedding-001',
-  'qwen/qwen3-embedding-8b',
-];
+const OPENROUTER_EMBEDDING_MODELS_URL = `${OPENROUTER_BASE_URL}/models?output_modalities=embeddings`;
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const OLLAMA_DEFAULT_URL = 'http://localhost:11434';
 const GEMINI_MODELS_URL =
@@ -454,18 +440,21 @@ export class AiSettingsService {
       embedding.baseUrl,
     );
 
-    // Ollama работает без ключа, остальным провайдерам ключ обязателен.
-    if (!apiKey && driver !== 'ollama') {
+    // Ollama работает без ключа, каталог OpenRouter тоже отдается без него.
+    // Остальным провайдерам ключ обязателен.
+    if (!apiKey && driver !== 'ollama' && driver !== 'openrouter') {
       throw new BadRequestException('Enter an embedding API key first.');
     }
 
     try {
       if (driver === 'openrouter') {
-        return {
-          models: this.sortModels(
-            OPENROUTER_EMBEDDING_MODELS.map((id) => ({ id, label: id })),
-          ),
-        };
+        const body = await this.fetchJson(OPENROUTER_EMBEDDING_MODELS_URL);
+        const models = (body?.data ?? [])
+          .filter((m: any) =>
+            (m.architecture?.output_modalities ?? []).includes('embeddings'),
+          )
+          .map((m: any) => ({ id: m.id, label: m.name || m.id }));
+        return { models: this.sortModels(models) };
       }
 
       if (driver === 'gemini') {

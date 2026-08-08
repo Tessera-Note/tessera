@@ -187,3 +187,71 @@ describe('AiProviderFactory.createEmbeddingModel', () => {
     ).toThrow(BadRequestException);
   });
 });
+
+/**
+ * Обычный `GET /models` моделей эмбеддингов не показывает: там только то, что
+ * отвечает текстом. Их отдает фильтр по выходной модальности, и ключ для
+ * этого запроса не нужен.
+ */
+describe('listEmbeddingModels у OpenRouter', () => {
+  function withCatalog(payload: unknown) {
+    const { service } = build({
+      driver: 'openrouter',
+      embeddingDriver: null,
+      apiKeyEncrypted: null,
+    });
+    const fetchJson = jest.fn(async () => payload);
+    (service as any).fetchJson = fetchJson;
+    return { service, fetchJson };
+  }
+
+  const CATALOG = {
+    data: [
+      {
+        id: 'openai/text-embedding-3-small',
+        name: 'OpenAI: Text Embedding 3 Small',
+        architecture: { output_modalities: ['embeddings'] },
+      },
+      {
+        id: 'qwen/qwen3-embedding-8b',
+        name: 'Qwen: Qwen3 Embedding 8B',
+        architecture: { output_modalities: ['embeddings'] },
+      },
+      {
+        id: 'openai/gpt-4o-mini',
+        name: 'чат, не эмбеддинги',
+        architecture: { output_modalities: ['text'] },
+      },
+    ],
+  };
+
+  it('каталог запрашивается фильтром по выходной модальности', async () => {
+    const { service, fetchJson } = withCatalog(CATALOG);
+
+    await service.listModels('ws-1', { kind: 'embedding' });
+
+    expect(fetchJson).toHaveBeenCalledWith(
+      'https://openrouter.ai/api/v1/models?output_modalities=embeddings',
+    );
+  });
+
+  it('в список попадают только модели с выходом embeddings', async () => {
+    const { service } = withCatalog(CATALOG);
+
+    const { models } = await service.listModels('ws-1', { kind: 'embedding' });
+
+    expect(models.map((m: any) => m.id)).toEqual([
+      'openai/text-embedding-3-small',
+      'qwen/qwen3-embedding-8b',
+    ]);
+  });
+
+  // Ключ каталогу не нужен, поэтому его отсутствие не должно отбивать запрос.
+  it('без ключа список все равно отдается', async () => {
+    const { service } = withCatalog(CATALOG);
+
+    await expect(
+      service.listModels('ws-1', { kind: 'embedding' }),
+    ).resolves.toBeTruthy();
+  });
+});
