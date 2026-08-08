@@ -82,7 +82,8 @@ export class AiSettingsController {
       // Адрес шлюза тоже часть идентичности: два разных OpenAI-совместимых
       // сервиса дают одну и ту же пару провайдер и модель, но несовместимые
       // векторы.
-      (identityBefore.baseUrl ?? null) !== (identityAfter.baseUrl ?? null);
+      (identityBefore.baseUrlOverride ?? null) !==
+        (identityAfter.baseUrlOverride ?? null);
 
     if (embeddingChanged && workspace.settings?.['ai']?.search) {
       await this.aiQueue.add(QueueJob.WORKSPACE_CREATE_EMBEDDINGS, {

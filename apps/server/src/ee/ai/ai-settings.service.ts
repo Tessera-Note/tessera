@@ -67,6 +67,13 @@ export interface ResolvedAiConfig {
 export interface ResolvedEmbeddingConfig {
   driver: AiDriver | '';
   baseUrl: string | null;
+  /**
+   * Адрес, заданный администратором явно, без подстановки адреса провайдера
+   * по умолчанию. Именно он различает два OpenAI-совместимых шлюза, тогда как
+   * разрешенный адрес у одного провайдера всегда один и тот же и ничего к
+   * идентичности не добавляет.
+   */
+  baseUrlOverride: string | null;
   apiKey: string | null;
   model: string | null;
 }
@@ -200,6 +207,7 @@ export class AiSettingsService {
 
     return {
       driver,
+      baseUrlOverride: row?.embeddingBaseUrl ?? null,
       baseUrl: this.effectiveBaseUrl(
         driver,
         row?.embeddingBaseUrl,

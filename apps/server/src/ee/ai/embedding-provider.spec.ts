@@ -105,6 +105,9 @@ describe('resolveEmbedding, выбор провайдера', () => {
     const config = await service.resolveEmbedding('ws-1');
 
     expect(config.baseUrl).toBe('http://tessera-embed:8080/v1');
+    // Идентичность берет именно явный адрес: разрешенный у одного провайдера
+    // всегда один и тот же.
+    expect(config.baseUrlOverride).toBe('http://tessera-embed:8080/v1');
   });
 
   /**
@@ -150,7 +153,13 @@ describe('AiProviderFactory.createEmbeddingModel', () => {
   it('без провайдера отказывает, а не собирает клиента по умолчанию', () => {
     expect(() =>
       factory.createEmbeddingModel(
-        { driver: '', baseUrl: null, apiKey: 'k', model: null },
+        {
+          driver: '',
+          baseUrl: null,
+          baseUrlOverride: null,
+          apiKey: 'k',
+          model: null ,
+        },
         'text-embedding-3-small',
       ),
     ).toThrow(BadRequestException);
@@ -163,6 +172,7 @@ describe('AiProviderFactory.createEmbeddingModel', () => {
         {
           driver: driver as any,
           baseUrl: driver === 'ollama' ? 'http://localhost:11434' : null,
+          baseUrlOverride: null,
           apiKey: 'k',
           model: null,
         },
@@ -179,6 +189,7 @@ describe('AiProviderFactory.createEmbeddingModel', () => {
         {
           driver: 'нет-такого' as any,
           baseUrl: null,
+          baseUrlOverride: null,
           apiKey: 'k',
           model: null,
         },

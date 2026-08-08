@@ -84,13 +84,17 @@ export class EmbeddingService {
    * разных пространств возвращает правдоподобный шум, а не ошибку.
    *
    * Адрес входит по той же причине: два разных OpenAI-совместимых шлюза дают
-   * одну и ту же пару провайдер и модель, но несовместимые векторы. Пустой
-   * адрес это адрес провайдера по умолчанию и отличается от заданного явно.
+   * одну и ту же пару провайдер и модель, но несовместимые векторы.
+   *
+   * Берется адрес, заданный **явно**, а не разрешенный: у одного провайдера
+   * разрешенный адрес всегда один и тот же и к идентичности ничего не
+   * добавляет, зато пустое значение в строке тогда значило бы разное в
+   * зависимости от провайдера.
    */
   private identityOf(config: ResolvedEmbeddingConfig): EmbeddingIdentity {
     return {
       driver: config.driver || 'openai',
-      baseUrl: config.baseUrl || null,
+      baseUrl: config.baseUrlOverride || null,
       modelName:
         config.model ||
         this.environmentService.getAiEmbeddingModel() ||
