@@ -23,6 +23,7 @@ import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
 import { needsWebSearch } from '../ai/freshness.util';
 import { buildWebSearchQuery } from '../ai/search-query.util';
+import { buildHistoryRecap } from './history-recap.util';
 import {
   editRefusalNotice,
   languageFromLocale,
@@ -44,6 +45,8 @@ type EditRefusal = 'bad-reference' | 'not-found' | 'forbidden';
 
 type EditOutcome = {
   pageId: string;
+  /** Нужен пересказу истории: по одному идентификатору ход не прочитать. */
+  title?: string;
   action: 'content' | 'title' | 'create';
   applied: boolean;
   reason?: string;
@@ -312,7 +315,9 @@ export class AiChatService {
     // Get conversation history
     const history = await this.db
       .selectFrom('aiChatMessages')
-      .select(['role', 'content'])
+      // `toolCalls` нужны для пересказа прошлых ходов: адреса созданных
+      // страниц и найденное живут только там.
+      .select(['role', 'content', 'toolCalls'])
       .where('chatId', '=', chatId)
       .where('deletedAt', 'is', null)
       .orderBy('createdAt', 'asc')
@@ -469,9 +474,16 @@ export class AiChatService {
     }
 
     // Build messages for AI SDK
+    //
+    // К содержимому ответа приписывается пересказ того, что на том ходе было
+    // сделано: без него агент не знает адреса страницы, которую сам создал, и
+    // на просьбу «расширь страницу» просит прислать ссылку на нее же.
     const messages: any[] = history.map((msg) => ({
       role: msg.role as 'user' | 'assistant',
-      content: msg.content || '',
+      content:
+        msg.role === 'assistant'
+          ? `${msg.content || ''}${buildHistoryRecap(msg.toolCalls)}`
+          : msg.content || '',
     }));
 
     const systemPrompt = this.buildSystemPrompt(
@@ -521,15 +533,22 @@ export class AiChatService {
     for (const [index, edit] of edits.entries()) {
       const callId = `edit-${chatId}-${history.length}-${index}`;
       const name =
-        edit.action === 'title' ? 'update_page_title' : 'update_page';
+        edit.action === 'title'
+          ? 'update_page_title'
+          : edit.action === 'create'
+            ? 'create_page'
+            : 'update_page';
+      const args = edit.title
+        ? { pageId: edit.pageId, title: edit.title }
+        : { pageId: edit.pageId };
       const result = edit.applied
         ? { status: 'applied' }
         : { status: 'refused', reason: edit.reason };
 
-      yield { type: 'tool_call', id: callId, name, args: { pageId: edit.pageId } };
+      yield { type: 'tool_call', id: callId, name, args };
       yield { type: 'tool_result', id: callId, result };
 
-      toolCalls.push({ id: callId, name, args: { pageId: edit.pageId }, result });
+      toolCalls.push({ id: callId, name, args, result });
     }
 
     // The model has already claimed the edit was made by this point, so a
@@ -904,7 +923,7 @@ export class AiChatService {
         );
       }
 
-      return { pageId: page.id, action: 'create', applied: true };
+      return { pageId: page.id, title, action: 'create', applied: true };
     } catch (err) {
       this.logger.warn(
         `Не удалось создать страницу по команде агента: ${
@@ -1030,6 +1049,19 @@ export class AiChatService {
       'that you cannot search the internet from this chat, and never hand ' +
       'back an empty template with placeholders when the answer requires ' +
       'fresh data you were given.\n' +
+      // Замечено на живом сценарии: на просьбу про «текущий прокат» агент сам
+      // выбрал рынок одной страны, потому что источник в выдаче оказался
+      // региональным, и подал это как условие задачи.
+      'Do not narrow the request on your own. If the user did not name a ' +
+      'country, market, region or period, do not pick one because a source ' +
+      'you found happens to cover it — answer the question as asked and say ' +
+      'plainly which part you could not confirm.\n' +
+      // Пересказ прошлых ходов приписывается к истории, но модель должна знать,
+      // что этим можно пользоваться, а не просить у человека то, что уже есть.
+      'Your previous messages carry a bracketed note listing the pages you ' +
+      'created or edited and what you found. Those ids are yours to reuse: ' +
+      'when the user says «that page» or asks to extend what you just made, ' +
+      'act on the id from that note instead of asking for a link.\n' +
       'You can create and edit document pages directly. When the user asks you to edit, update, add text to, format, or modify a page, ' +
       'include an edit command block in your response using this exact format:\n\n' +
       ':::EDIT_PAGE:::\n' +
