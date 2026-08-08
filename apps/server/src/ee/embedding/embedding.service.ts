@@ -264,6 +264,37 @@ export class EmbeddingService {
     return { indexed, failed };
   }
 
+  /**
+   * Перенести строки векторов вслед за страницей, сменившей пространство.
+   *
+   * `page_embeddings.space_id` это копия, и она устаревает при переносе
+   * страницы. Выдача поиска фильтруется по пространствам читателя, а права
+   * страницы без собственных ограничений «доверяются пространству», поэтому
+   * устаревшая копия пускала бы читателя прежнего пространства к содержимому
+   * страницы, переехавшей туда, куда ему доступа нет.
+   */
+  async moveToSpace(pageIds: string[], spaceId: string): Promise<number> {
+    if (pageIds.length === 0) return 0;
+
+    const result = await this.db
+      .updateTable('pageEmbeddings')
+      .set({ spaceId })
+      .where('pageId', 'in', pageIds)
+      .executeTakeFirst();
+
+    return Number(result?.numUpdatedRows ?? 0);
+  }
+
+  /** Снять эмбеддинги удаленного пространства. */
+  async removeSpace(spaceId: string): Promise<number> {
+    const result = await this.db
+      .deleteFrom('pageEmbeddings')
+      .where('spaceId', '=', spaceId)
+      .executeTakeFirst();
+
+    return Number(result?.numDeletedRows ?? 0);
+  }
+
   /** Снять эмбеддинги всего рабочего пространства. */
   async removeWorkspace(workspaceId: string): Promise<number> {
     const result = await this.db
@@ -352,7 +383,10 @@ export class EmbeddingService {
         ),
       ])
       .where('pageEmbeddings.workspaceId', '=', workspaceId)
-      .where('pageEmbeddings.spaceId', 'in', spaceIds)
+      // Пространство берется у самой страницы, а не из копии в строке
+      // вектора: копия устаревает при переносе, а права страницы без
+      // собственных ограничений доверяются пространству.
+      .where('pages.spaceId', 'in', spaceIds)
       .where('pageEmbeddings.modelName', '=', current.modelName)
       .where('pageEmbeddings.driver', '=', current.driver)
       .where('pages.deletedAt', 'is', null)

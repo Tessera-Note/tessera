@@ -41,11 +41,14 @@ describe('EmbeddingService.search', () => {
     service.pagePermissionRepo = {
       filterAccessiblePageIds: jest.fn().mockResolvedValue(['page-a']),
     };
-    // search() reaches for exactly these four: db, embedQuery, modelName and
+    // search() reaches for exactly these four: db, embedQuery, identity and
     // pagePermissionRepo. Keep this list aligned with it — a new dependency
     // inside search() surfaces here as an undefined-property TypeError.
     service.embedQuery = jest.fn().mockResolvedValue([0.1, 0.2]);
-    service.modelName = jest.fn().mockResolvedValue('text-embedding-3-small');
+    service.identity = jest.fn().mockResolvedValue({
+      driver: 'openrouter',
+      modelName: 'openai/text-embedding-3-small',
+    });
 
     const results = await service.search({
       query: 'alpha',
@@ -67,7 +70,14 @@ describe('EmbeddingService.search', () => {
     expect(query.where).toHaveBeenCalledWith(
       'pageEmbeddings.modelName',
       '=',
-      'text-embedding-3-small',
+      'openai/text-embedding-3-small',
+    );
+    // То же имя модели у другого провайдера это другой набор векторов, и
+    // сравнение с ним дает не ошибку, а правдоподобный шум.
+    expect(query.where).toHaveBeenCalledWith(
+      'pageEmbeddings.driver',
+      '=',
+      'openrouter',
     );
   });
 

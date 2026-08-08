@@ -496,8 +496,12 @@ export class PageService {
           },
         );
 
+        // Пространство передается задаче: копия в `page_embeddings.space_id`
+        // обязана ехать вместе со страницей, по ней фильтруется выдача
+        // семантического поиска.
         await this.aiQueue.add(QueueJob.PAGE_MOVED_TO_SPACE, {
           pageIds: pageIdsToMove,
+          spaceId,
           workspaceId: rootPage.workspaceId,
         });
       }

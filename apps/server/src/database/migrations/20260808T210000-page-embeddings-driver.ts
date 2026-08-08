@@ -39,6 +39,21 @@ export async function up(db: Kysely<any>): Promise<void> {
     db,
   );
 
+  // Метка ставится правдивая, а не подогнанная под текущую настройку: вектор
+  // посчитан тем провайдером, который его посчитал. Но там, где действующий
+  // провайдер заведомо другой, строки уже никогда не совпадут с
+  // идентичностью и останутся невидимым мусором в индексе HNSW: выдача их не
+  // покажет, а `findUnindexedPageIds` и `countIndexedPages` будут отчитываться
+  // так, будто страницы проиндексированы. Такие строки снимаются, чтобы
+  // состояние было честным и переиндексация видела настоящий объем работы.
+  await sql`
+    delete from page_embeddings pe
+    using workspace_ai_settings s
+    where s.workspace_id = pe.workspace_id
+      and coalesce(s.embedding_driver, s.driver) is not null
+      and coalesce(s.embedding_driver, s.driver) <> pe.driver
+  `.execute(db);
+
   // Выборка поиска фильтрует по рабочему пространству, провайдеру и модели.
   await sql`
     create index if not exists page_embeddings_identity_idx

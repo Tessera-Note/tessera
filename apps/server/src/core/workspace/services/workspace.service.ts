@@ -548,12 +548,22 @@ export class WorkspaceService {
       );
     });
 
+    const deleteJobId = `ai-search-disabled-${workspaceId}`;
+
     if (after.aiSearch === true) {
+      // Отложенное снятие векторов обязано отменяться при обратном включении.
+      // Задача ставится с задержкой в сутки, и без отмены она срабатывала бы
+      // уже при работающем поиске, стирая только что перестроенный индекс.
+      // Пока обработчик этой задачи отсутствовал, дефект был не виден.
+      const pendingDelete = await this.aiQueue.getJob(deleteJobId);
+      if (pendingDelete) {
+        await pendingDelete.remove();
+      }
+
       await this.aiQueue.add(QueueJob.WORKSPACE_CREATE_EMBEDDINGS, {
         workspaceId,
       });
     } else if (after.aiSearch === false) {
-      const deleteJobId = `ai-search-disabled-${workspaceId}`;
       await this.aiQueue.add(
         QueueJob.WORKSPACE_DELETE_EMBEDDINGS,
         { workspaceId },

@@ -1314,5 +1314,11 @@
   "Same as chat provider": "Той самий, що в чаті",
   "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Залиште провайдера чату, якщо ембединги не живуть окремо. OpenRouter ембединги віддає, але в каталозі цих моделей немає, тож оберіть модель зі списку тут.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Ембединги мають власні ключ, адресу та модель, тому пошук не залежить від налаштування чату. Зміна провайдера або моделі переіндексує робочий простір.",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "потім оберіть будь-яку доступну модель, наприклад anthropic/claude-sonnet-4.5. Ембединги налаштовуються окремо нижче."
+  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "потім оберіть будь-яку доступну модель, наприклад anthropic/claude-sonnet-4.5. Ембединги налаштовуються окремо нижче.",
+  "Paste an API key used only for embeddings": "Вставте ключ API, що використовується лише для ембедингів",
+  "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "Необов'язково. Береться ключ чату, якщо провайдер ембедингів збігається з провайдером чату.",
+  "Optional. Defaults to the address of the selected provider.": "Необов'язково. За замовчуванням адреса обраного провайдера.",
+  "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "Модель має повертати 1536 значень, ширину індексу. Моделі, що розуміють параметр dimensions, звужуються до неї автоматично.",
+  "Must start with http:// or https://": "Має починатися з http:// або https://",
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Має бути повна адреса, наприклад https://openrouter.ai/api/v1"
 }

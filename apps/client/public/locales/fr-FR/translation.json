@@ -1314,5 +1314,11 @@
   "Same as chat provider": "Identique au fournisseur de chat",
   "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Conservez le fournisseur de chat sauf si les embeddings sont ailleurs. OpenRouter fournit des embeddings mais ne liste pas ces modèles : choisissez-en un dans la liste ici.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Les embeddings ont leur propre clé, adresse et modèle : la recherche ne dépend donc pas de la configuration du chat. Changer de fournisseur ou de modèle réindexe l'espace de travail.",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "puis choisissez n'importe quel modèle proposé, par exemple anthropic/claude-sonnet-4.5. Les embeddings se configurent séparément ci-dessous."
+  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "puis choisissez n'importe quel modèle proposé, par exemple anthropic/claude-sonnet-4.5. Les embeddings se configurent séparément ci-dessous.",
+  "Paste an API key used only for embeddings": "Collez une clé d'API utilisée uniquement pour les embeddings",
+  "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "Facultatif. Utilise la clé du chat lorsque le fournisseur d'embeddings est le même que celui du chat.",
+  "Optional. Defaults to the address of the selected provider.": "Facultatif. Par défaut, l'adresse du fournisseur sélectionné.",
+  "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "Le modèle doit renvoyer 1536 valeurs, la largeur de l'index. Les modèles gérant le paramètre dimensions y sont réduits automatiquement.",
+  "Must start with http:// or https://": "Doit commencer par http:// ou https://",
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Doit être une URL complète, par exemple https://openrouter.ai/api/v1"
 }

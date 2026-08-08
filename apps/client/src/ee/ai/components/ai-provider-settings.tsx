@@ -74,7 +74,12 @@ const NO_AUTOFILL = {
   "data-lpignore": "true",
 } as const;
 
-function baseUrlError(value: string): string | null {
+/**
+ * Возвращается ключ словаря, а не готовый текст: функция объявлена вне
+ * компонента, где `t` недоступен, а строки видны пользователю и обязаны идти
+ * через i18next. Перевод делают места вызова.
+ */
+function baseUrlErrorKey(value: string): string | null {
   if (!value.trim()) return null;
   try {
     const parsed = new URL(value.trim());
@@ -151,6 +156,8 @@ export default function AiProviderSettings() {
     });
   }, [settings]);
 
+  const translateBaseUrlError = (key: string | null) => (key ? t(key) : null);
+
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -159,7 +166,7 @@ export default function AiProviderSettings() {
     : t("Enter the provider key");
 
   const hasUrlError = Boolean(
-    baseUrlError(form.baseUrl) || baseUrlError(form.embeddingBaseUrl),
+    baseUrlErrorKey(form.baseUrl) || baseUrlErrorKey(form.embeddingBaseUrl),
   );
   const needsBaseUrl = BASE_URL_REQUIRED.includes(form.driver);
   const canListModels = SUPPORTS_MODEL_LISTING.includes(form.driver);
@@ -175,7 +182,7 @@ export default function AiProviderSettings() {
     if (settings?.hasEmbeddingApiKey) {
       return `${t("Stored")}: ${settings.embeddingApiKeyPreview}`;
     }
-    return t("Paste an OpenAI API key used only for embeddings");
+    return t("Paste an API key used only for embeddings");
   }, [settings, t]);
 
   const handleLoadModels = async (kind: "chat" | "embedding") => {
@@ -364,7 +371,7 @@ export default function AiProviderSettings() {
             value={form.baseUrl}
             onChange={(e) => set("baseUrl", e.currentTarget.value)}
             disabled={!hasAccess}
-            error={baseUrlError(form.baseUrl)}
+            error={translateBaseUrlError(baseUrlErrorKey(form.baseUrl))}
             {...NO_AUTOFILL}
           />
 
@@ -456,7 +463,7 @@ export default function AiProviderSettings() {
       <PasswordInput
         label={t("Embedding API key")}
         description={t(
-          "Optional. Falls back to the chat key when the provider is OpenAI.",
+          "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.",
         )}
         placeholder={embeddingKeyPlaceholder}
         value={form.embeddingApiKey}
@@ -468,25 +475,21 @@ export default function AiProviderSettings() {
 
       <TextInput
         label={t("Embedding base URL")}
-        description={t("Optional. Defaults to the OpenAI API.")}
+        description={t("Optional. Defaults to the address of the selected provider.")}
         placeholder="https://api.openai.com/v1"
         value={form.embeddingBaseUrl}
         onChange={(e) => set("embeddingBaseUrl", e.currentTarget.value)}
         disabled={!hasAccess}
-        error={baseUrlError(form.embeddingBaseUrl)}
+        error={translateBaseUrlError(baseUrlErrorKey(form.embeddingBaseUrl))}
         {...NO_AUTOFILL}
       />
 
       <Autocomplete
         label={t("Embedding model")}
         description={t(
-          "text-embedding-3-small and text-embedding-3-large are both supported; output is truncated to the 1536 dimensions the index uses.",
+          "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.",
         )}
-        data={
-          embeddingModels.length > 0
-            ? embeddingModels
-            : ["text-embedding-3-small", "text-embedding-3-large"]
-        }
+        data={embeddingModels}
         value={form.embeddingModel}
         onChange={(value) => set("embeddingModel", value)}
         placeholder="text-embedding-3-small"

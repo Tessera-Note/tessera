@@ -1314,5 +1314,11 @@
   "Same as chat provider": "与对话提供方相同",
   "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "除非嵌入向量另有归属，否则保持与对话相同的提供方。OpenRouter 提供嵌入向量，但不在目录中列出这些模型，请在此从列表中选择。",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "嵌入向量拥有独立的密钥、地址与模型，因此搜索不依赖对话配置。更换提供方或模型会重新索引工作空间。",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "然后选择它提供的任意模型，例如 anthropic/claude-sonnet-4.5。嵌入向量在下方单独配置。"
+  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "然后选择它提供的任意模型，例如 anthropic/claude-sonnet-4.5。嵌入向量在下方单独配置。",
+  "Paste an API key used only for embeddings": "粘贴仅用于嵌入向量的 API 密钥",
+  "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "可选。当嵌入向量提供方与对话提供方相同时，使用对话的密钥。",
+  "Optional. Defaults to the address of the selected provider.": "可选。默认使用所选提供方的地址。",
+  "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "模型必须返回 1536 个值，即索引宽度。支持 dimensions 参数的模型会自动收窄到该宽度。",
+  "Must start with http:// or https://": "必须以 http:// 或 https:// 开头",
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "必须是完整地址，例如 https://openrouter.ai/api/v1"
 }

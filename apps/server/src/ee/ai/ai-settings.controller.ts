@@ -59,20 +59,26 @@ export class AiSettingsController {
   ) {
     this.assertCanManage(user, workspace);
 
-    const before = await this.aiSettingsService.getView(workspace.id);
+    // Сравнивается разрешенная идентичность векторного пространства, а не
+    // поля запроса. Провайдер эмбеддингов при пустом значении наследуется от
+    // чата, поэтому смена одного только чат-провайдера тоже обесценивает
+    // индекс: выдача поиска фильтруется по паре провайдер и модель и после
+    // такой смены молча вернула бы пусто.
+    const identityBefore = await this.aiSettingsService.resolveEmbedding(
+      workspace.id,
+    );
+
     const view = await this.aiSettingsService.update(workspace.id, dto);
+
+    const identityAfter = await this.aiSettingsService.resolveEmbedding(
+      workspace.id,
+    );
 
     // Vectors from two different embedding models are not comparable, so the
     // workspace has to be re-embedded before search means anything again.
-    //
-    // Смена провайдера считается наравне со сменой модели: одно и то же имя
-    // модели у разных провайдеров дает разные векторы, а выдача поиска
-    // фильтруется только по имени, и старые векторы остались бы в ней.
     const embeddingChanged =
-      (dto.embeddingModel !== undefined &&
-        (view.embeddingModel ?? null) !== (before.embeddingModel ?? null)) ||
-      (dto.embeddingDriver !== undefined &&
-        view.embeddingDriver !== before.embeddingDriver);
+      identityBefore.driver !== identityAfter.driver ||
+      (identityBefore.model ?? null) !== (identityAfter.model ?? null);
 
     if (embeddingChanged && workspace.settings?.['ai']?.search) {
       await this.aiQueue.add(QueueJob.WORKSPACE_CREATE_EMBEDDINGS, {

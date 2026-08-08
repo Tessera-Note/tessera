@@ -107,6 +107,30 @@ describe('resolveEmbedding, выбор провайдера', () => {
     expect(config.baseUrl).toBe('http://tessera-embed:8080/v1');
   });
 
+  /**
+   * Наследование делает смену чат-провайдера сменой провайдера эмбеддингов.
+   * Переиндексация ставится по разрешенной идентичности именно поэтому.
+   */
+  it('смена провайдера чата меняет провайдера эмбеддингов при наследовании', async () => {
+    const before = build({
+      driver: 'openai',
+      embeddingDriver: null,
+      apiKeyEncrypted: 'enc:k',
+    });
+    const after = build({
+      driver: 'openrouter',
+      embeddingDriver: null,
+      apiKeyEncrypted: 'enc:k',
+    });
+
+    expect((await before.service.resolveEmbedding('ws-1')).driver).toBe(
+      'openai',
+    );
+    expect((await after.service.resolveEmbedding('ws-1')).driver).toBe(
+      'openrouter',
+    );
+  });
+
   it('без строки настроек провайдер берется из окружения', async () => {
     const { service } = build(null, {
       aiDriver: 'openai',

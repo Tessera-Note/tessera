@@ -4,7 +4,11 @@ import { Job } from 'bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { EmbeddingService } from './embedding.service';
 
-type PageJob = { pageIds?: string[]; workspaceId?: string };
+type PageJob = {
+  pageIds?: string[];
+  workspaceId?: string;
+  spaceId?: string;
+};
 
 /**
  * Consumes AI_QUEUE. Until this existed the queue had no worker at all, so
@@ -39,6 +43,29 @@ export class EmbeddingProcessor extends WorkerHost {
         return;
       }
 
+      // Пространство и рабочее пространство исчезли: векторы удаленных
+      // страниц иначе остались бы в таблице и всплывали в выдаче.
+      case QueueJob.SPACE_DELETED: {
+        const spaceId = job.data?.spaceId;
+        if (!spaceId) return;
+        const removed = await this.embeddingService.removeSpace(spaceId);
+        this.logger.debug(
+          `Removed ${removed} embedding row(s) of space ${spaceId}`,
+        );
+        return;
+      }
+
+      case QueueJob.WORKSPACE_DELETED: {
+        if (!workspaceId) return;
+        const removed = await this.embeddingService.removeWorkspace(
+          workspaceId,
+        );
+        this.logger.debug(
+          `Removed ${removed} embedding row(s) of deleted workspace ${workspaceId}`,
+        );
+        return;
+      }
+
       case QueueJob.WORKSPACE_CREATE_EMBEDDINGS: {
         if (!workspaceId) return;
         if (!(await this.embeddingService.isConfigured(workspaceId))) {
@@ -60,6 +87,26 @@ export class EmbeddingProcessor extends WorkerHost {
     if (pageIds.length === 0) return;
 
     switch (job.name) {
+      // Копия пространства в строке вектора обязана ехать вместе со
+      // страницей: по ней фильтруется выдача поиска.
+      case QueueJob.PAGE_MOVED_TO_SPACE: {
+        const spaceId = job.data?.spaceId;
+        if (spaceId) {
+          const moved = await this.embeddingService.moveToSpace(
+            pageIds,
+            spaceId,
+          );
+          this.logger.debug(`Moved ${moved} embedding row(s) to ${spaceId}`);
+        } else {
+          // Пространство в задаче не пришло, поэтому строки пересобираются:
+          // индексация проставит действующее пространство сама.
+          for (const pageId of pageIds) {
+            await this.embeddingService.removePage(pageId);
+          }
+        }
+        return;
+      }
+
       case QueueJob.PAGE_DELETED:
       case QueueJob.PAGE_SOFT_DELETED:
         // Removal must work even without an API key, otherwise deleted pages

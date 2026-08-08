@@ -1314,5 +1314,11 @@
   "Same as chat provider": "Тот же, что у чата",
   "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Оставьте провайдера чата, если эмбеддинги не живут отдельно. OpenRouter эмбеддинги отдает, но в каталоге этих моделей нет, поэтому выберите модель из списка здесь.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "У эмбеддингов свои ключ, адрес и модель, поэтому поиск не зависит от настройки чата. Смена провайдера или модели переиндексирует рабочее пространство.",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "затем выберите любую доступную модель, например anthropic/claude-sonnet-4.5. Эмбеддинги настраиваются отдельно ниже."
+  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "затем выберите любую доступную модель, например anthropic/claude-sonnet-4.5. Эмбеддинги настраиваются отдельно ниже.",
+  "Paste an API key used only for embeddings": "Вставьте ключ API, используемый только для эмбеддингов",
+  "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "Необязательно. Берется ключ чата, если провайдер эмбеддингов совпадает с провайдером чата.",
+  "Optional. Defaults to the address of the selected provider.": "Необязательно. По умолчанию адрес выбранного провайдера.",
+  "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "Модель обязана возвращать 1536 значений, ширину индекса. Модели, понимающие параметр dimensions, сужаются до нее автоматически.",
+  "Must start with http:// or https://": "Должно начинаться с http:// или https://",
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Должен быть полный адрес, например https://openrouter.ai/api/v1"
 }

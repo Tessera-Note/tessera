@@ -737,12 +737,8 @@
   "Create an OpenRouter key": "Criar uma chave do OpenRouter",
   "Embeddings (semantic search)": "Embeddings (busca semântica)",
   "Embedding API key": "Chave de API de embedding",
-  "Optional. Falls back to the chat key when the provider is OpenAI.": "Opcional. Usa a chave do chat quando o provedor for OpenAI.",
-  "Paste an OpenAI API key used only for embeddings": "Cole uma chave de API da OpenAI usada apenas para embeddings",
   "Embedding base URL": "URL base de embedding",
-  "Optional. Defaults to the OpenAI API.": "Opcional. Por padrão usa a API da OpenAI.",
   "Embedding model": "Modelo de embedding",
-  "text-embedding-3-small and text-embedding-3-large are both supported; output is truncated to the 1536 dimensions the index uses.": "text-embedding-3-small e text-embedding-3-large são suportados; a saída é truncada para as 1536 dimensões usadas pelo índice.",
   "Test connection": "Testar conexão",
   "Clear and use environment": "Limpar e usar o ambiente",
   "AI provider settings saved.": "Configurações do provedor de IA salvas.",
@@ -1358,5 +1354,11 @@
   "Same as chat provider": "O mesmo do provedor de chat",
   "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Mantenha o provedor de chat, a menos que os embeddings fiquem em outro lugar. O OpenRouter serve embeddings mas não lista esses modelos, então escolha um da lista aqui.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Os embeddings têm chave, endereço e modelo próprios, portanto a busca não depende da configuração do chat. Trocar o provedor ou o modelo reindexa o espaço de trabalho.",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "depois escolha qualquer modelo oferecido, por exemplo anthropic/claude-sonnet-4.5. Os embeddings são configurados separadamente abaixo."
+  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "depois escolha qualquer modelo oferecido, por exemplo anthropic/claude-sonnet-4.5. Os embeddings são configurados separadamente abaixo.",
+  "Paste an API key used only for embeddings": "Cole uma chave de API usada apenas para embeddings",
+  "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "Opcional. Usa a chave do chat quando o provedor de embeddings é o mesmo do chat.",
+  "Optional. Defaults to the address of the selected provider.": "Opcional. Por padrão, o endereço do provedor selecionado.",
+  "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "O modelo deve devolver 1536 valores, a largura do índice. Modelos que suportam o parâmetro dimensions são reduzidos a ela automaticamente.",
+  "Must start with http:// or https://": "Deve começar com http:// ou https://",
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Deve ser uma URL completa, por exemplo https://openrouter.ai/api/v1"
 }
