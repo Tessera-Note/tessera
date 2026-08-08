@@ -69,11 +69,37 @@ describe('getEmbedUrlAndProvider, документы Google', () => {
   });
 
   it('файл Drive не перехватывается новыми правилами', () => {
-    const { provider } = getEmbedUrlAndProvider(
+    const { provider, embedUrl } = getEmbedUrlAndProvider(
       'https://drive.google.com/file/d/FILE1/view',
     );
 
     expect(provider).toBe('google drive');
+    expect(embedUrl).toBe('https://drive.google.com/file/d/FILE1/preview');
+  });
+
+  /**
+   * Drive распознавался только по ссылке на файл: папка и старая форма
+   * `open?id=` проваливались в общий iframe, где Drive показывает отказ.
+   */
+  it.each([
+    'https://drive.google.com/drive/folders/FOLDER1',
+    'https://drive.google.com/drive/u/0/folders/FOLDER1',
+  ])('папка %s получает свою встраиваемую форму', (url) => {
+    const { provider, embedUrl } = getEmbedUrlAndProvider(url);
+
+    expect(provider).toBe('google drive');
+    expect(embedUrl).toBe(
+      'https://drive.google.com/embeddedfolderview?id=FOLDER1',
+    );
+  });
+
+  it('старая форма ссылки на файл приводится к просмотру', () => {
+    const { provider, embedUrl } = getEmbedUrlAndProvider(
+      'https://drive.google.com/open?id=FILE2',
+    );
+
+    expect(provider).toBe('google drive');
+    expect(embedUrl).toBe('https://drive.google.com/file/d/FILE2/preview');
   });
 
   it('посторонний адрес по-прежнему идет через iframe', () => {

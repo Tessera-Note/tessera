@@ -87,12 +87,23 @@ export const embedProviders: IEmbedProvider[] = [
     },
   },
   {
+    // Drive распознавался только по ссылке на файл. Ссылка на папку и старая
+    // форма `open?id=` проваливались в общий iframe, где Drive показывает
+    // отказ. Все три вида ведут к одному сервису, поэтому обрабатываются
+    // одним провайдером: человек не обязан знать, какой из них у него в
+    // буфере обмена.
     id: "gdrive",
     name: "Google Drive",
     regex:
-      /^((?:https?:)?\/\/)?((?:www|m)\.)?(drive\.google\.com)\/file\/d\/([a-zA-Z0-9_-]+)\/.*$/,
+      /^((?:https?:)?\/\/)?((?:www|m)\.)?drive\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|drive\/(?:u\/\d+\/)?folders\/([a-zA-Z0-9_-]+)|open\?id=([a-zA-Z0-9_-]+))/,
     getEmbedUrl: (match) => {
-      return `https://drive.google.com/file/d/${match[4]}/preview`;
+      const fileId = match[3] ?? match[5];
+      if (fileId) {
+        return `https://drive.google.com/file/d/${fileId}/preview`;
+      }
+      // Своя встраиваемая форма: обычный адрес папки Drive во фрейме не
+      // открывается.
+      return `https://drive.google.com/embeddedfolderview?id=${match[4]}`;
     },
   },
   {
