@@ -105,6 +105,41 @@ export const embedProviders: IEmbedProvider[] = [
     },
   },
   {
+    // Таблицы на docs.google.com распознавались, а документы и презентации
+    // нет: их ссылка проваливалась в общий iframe и встраивался адрес
+    // редактора со всеми параметрами вида `?pli=1&tab=t.0#heading=...`.
+    // Встраиваемая форма у документа это `/preview`, как и у файла Drive.
+    id: "gdocs",
+    name: "Google Docs",
+    regex:
+      /^((?:https?:)?\/\/)?((?:www|m)\.)?(docs\.google\.com)\/document\/d\/([a-zA-Z0-9_-]+)(\/.*)?$/,
+    getEmbedUrl: (match) => {
+      return `https://docs.google.com/document/d/${match[4]}/preview`;
+    },
+  },
+  {
+    id: "gslides",
+    name: "Google Slides",
+    regex:
+      /^((?:https?:)?\/\/)?((?:www|m)\.)?(docs\.google\.com)\/presentation\/d\/([a-zA-Z0-9_-]+)(\/.*)?$/,
+    getEmbedUrl: (match) => {
+      return `https://docs.google.com/presentation/d/${match[4]}/embed`;
+    },
+  },
+  {
+    // Форма без `/viewform` открывается на редактирование и во фрейме
+    // показывает отказ.
+    id: "gforms",
+    name: "Google Forms",
+    regex:
+      /^((?:https?:)?\/\/)?((?:www|m)\.)?(docs\.google\.com)\/forms\/d\/(?:e\/)?([a-zA-Z0-9_-]+)(\/.*)?$/,
+    getEmbedUrl: (match, url: string) => {
+      return url.includes("/viewform")
+        ? url
+        : `https://docs.google.com/forms/d/e/${match[4]}/viewform?embedded=true`;
+    },
+  },
+  {
     id: "iframe",
     name: "Iframe",
     regex: /any-iframe/,

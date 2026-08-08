@@ -52,6 +52,8 @@ import {
   FramerIcon,
   GoogleDriveIcon,
   GoogleSheetsIcon,
+  GoogleDocsIcon,
+  GoogleSlidesIcon,
   LoomIcon,
   MiroIcon,
   TypeformIcon,
@@ -780,6 +782,34 @@ const CommandGroups: SlashMenuGroupedItemsType = {
           .focus()
           .deleteRange(range)
           .setEmbed({ provider: "gsheets" })
+          .run();
+      },
+    },
+    {
+      title: "Google Docs",
+      description: "Embed Google Docs content",
+      searchTerms: ["google docs", "gdocs", "document"],
+      icon: GoogleDocsIcon,
+      command: ({ editor, range }: CommandProps) => {
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .setEmbed({ provider: "gdocs" })
+          .run();
+      },
+    },
+    {
+      title: "Google Slides",
+      description: "Embed Google Slides content",
+      searchTerms: ["google slides", "gslides", "presentation"],
+      icon: GoogleSlidesIcon,
+      command: ({ editor, range }: CommandProps) => {
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .setEmbed({ provider: "gslides" })
           .run();
       },
     },
