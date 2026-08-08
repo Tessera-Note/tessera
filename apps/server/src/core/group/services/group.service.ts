@@ -181,30 +181,40 @@ export class GroupService {
       this.spaceMemberRepo.getSpaceIdsByGroupId(groupId),
     ]);
 
-    // Удаление группы уносит каскадом ее гранты на пространства. Если группа
-    // была единственным носителем роли администратора, пространство осталось
-    // бы без администратора, а починить это изнутри уже нечем. Ручное
-    // исключение участника такую проверку делает, удаление группы не делало.
-    //
-    // Сравнивается «было» с «станет»: пространство, где живых
-    // администраторов нет и так, эту операцию блокировать не должно.
-    for (const spaceId of spaceIds) {
-      const [before, after] = await Promise.all([
-        this.spaceMemberRepo.adminUserCountBySpaceId(spaceId),
-        this.spaceMemberRepo.adminUserCountBySpaceId(spaceId, {
-          excludeGroupId: groupId,
-        }),
-      ]);
-
-      if (before > 0 && after === 0) {
-        throw new BadRequestException(
-          'There must be at least one space admin with full access',
-        );
-      }
-    }
 
     // TODO: use queue instead
     await executeTx(this.db, async (trx) => {
+      // Удаление группы уносит каскадом ее гранты на пространства. Если
+      // группа была единственным носителем роли администратора, пространство
+      // осталось бы без администратора, а починить это изнутри уже нечем.
+      // Ручное исключение участника такую проверку делает, удаление группы не
+      // делало.
+      //
+      // Сравнивается «было» с «станет»: пространство, где живых
+      // администраторов нет и так, эту операцию блокировать не должно.
+      //
+      // Считается в той же транзакции и под блокировкой пространства: иначе
+      // два параллельных удаления проходят каждое по отдельности и оба
+      // фиксируются.
+      for (const spaceId of spaceIds) {
+        await this.spaceMemberRepo.lockSpaceForAdminCheck(spaceId, trx);
+
+        const [before, after] = await Promise.all([
+          this.spaceMemberRepo.adminUserCountBySpaceId(spaceId, undefined, trx),
+          this.spaceMemberRepo.adminUserCountBySpaceId(
+            spaceId,
+            { excludeGroupId: groupId },
+            trx,
+          ),
+        ]);
+
+        if (before > 0 && after === 0) {
+          throw new BadRequestException(
+            'There must be at least one space admin with full access',
+          );
+        }
+      }
+
       await this.groupRepo.delete(groupId, workspaceId, { trx });
 
       for (const spaceId of spaceIds) {

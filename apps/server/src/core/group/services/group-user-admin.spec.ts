@@ -16,6 +16,7 @@ function build(remainingAdmins: number, currentAdmins = 1) {
     adminUserCountBySpaceId: jest.fn(async (_spaceId: string, opts?: any) =>
       opts ? remainingAdmins : currentAdmins,
     ),
+    lockSpaceForAdminCheck: jest.fn(async () => {}),
   };
   const userRepo: any = {
     findById: jest.fn(async () => ({ id: 'u-1', name: 'Кто-то' })),
@@ -86,6 +87,27 @@ describe('GroupUserService.removeUserFromGroup, последний админи�
     expect(spaceMemberRepo.adminUserCountBySpaceId).toHaveBeenCalledWith(
       'space-1',
       { excludeUserId: 'u-1' },
+      expect.anything(),
+    );
+  });
+});
+
+/**
+ * Инвариант считается запросом, а решение принимается снаружи, поэтому без
+ * блокировки два параллельных снятия проходили каждое по отдельности и оба
+ * фиксировались, оставляя пространство без администратора.
+ */
+describe('блокировка пространства', () => {
+  it('берется перед подсчетом', async () => {
+    const { service, spaceMemberRepo } = build(1, 2);
+
+    await service.removeUserFromGroup('u-1', 'g-1', 'ws-1');
+
+    expect(spaceMemberRepo.lockSpaceForAdminCheck).toHaveBeenCalled();
+    expect(
+      spaceMemberRepo.lockSpaceForAdminCheck.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      spaceMemberRepo.adminUserCountBySpaceId.mock.invocationCallOrder[0],
     );
   });
 });

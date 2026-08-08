@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { SpaceMemberService } from './space-member.service';
 
+/** Проверка идет в той же транзакции, что и само изменение. */
+const TRX = {} as any;
+
 /**
  * Метод самодостаточен: он ходит только в `spaceMemberRepo`. Поднимать весь
  * сервис с его зависимостями ради него не нужно.
@@ -10,6 +13,7 @@ function build(remaining: number, current = remaining) {
     adminUserCountBySpaceId: jest.fn(async (_spaceId: string, opts?: any) =>
       opts ? remaining : current,
     ),
+    lockSpaceForAdminCheck: jest.fn(async () => {}),
   };
   const service: SpaceMemberService = Object.create(
     SpaceMemberService.prototype,
@@ -22,7 +26,7 @@ describe('SpaceMemberService.validateLastAdmin', () => {
   it('пространство без администраторов не проходит проверку', async () => {
     const { service } = build(0, 0);
 
-    await expect(service.validateLastAdmin('space-1')).rejects.toThrow(
+    await expect(service.validateLastAdmin('space-1', undefined, TRX)).rejects.toThrow(
       BadRequestException,
     );
   });
@@ -30,14 +34,14 @@ describe('SpaceMemberService.validateLastAdmin', () => {
   it('один администратор проверку проходит', async () => {
     const { service } = build(1, 1);
 
-    await expect(service.validateLastAdmin('space-1')).resolves.toBeUndefined();
+    await expect(service.validateLastAdmin('space-1', undefined, TRX)).resolves.toBeUndefined();
   });
 
   it('снятие последнего администратора отбивается', async () => {
     const { service } = build(0, 1);
 
     await expect(
-      service.validateLastAdmin('space-1', { memberId: 'sm-1' }),
+      service.validateLastAdmin('space-1', { memberId: 'sm-1' }, TRX),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -50,14 +54,14 @@ describe('SpaceMemberService.validateLastAdmin', () => {
     const { service } = build(1, 2);
 
     await expect(
-      service.validateLastAdmin('space-1', { memberId: 'sm-1' }),
+      service.validateLastAdmin('space-1', { memberId: 'sm-1' }, TRX),
     ).resolves.toBeUndefined();
   });
 
   it('исключение строки членства уходит в счетчик', async () => {
     const { service, spaceMemberRepo } = build(1, 2);
 
-    await service.validateLastAdmin('space-1', { memberId: 'sm-1' });
+    await service.validateLastAdmin('space-1', { memberId: 'sm-1' }, TRX);
 
     expect(spaceMemberRepo.adminUserCountBySpaceId).toHaveBeenCalledWith(
       'space-1',
@@ -66,13 +70,14 @@ describe('SpaceMemberService.validateLastAdmin', () => {
         excludeGroupId: undefined,
         excludeUserId: undefined,
       },
+      TRX,
     );
   });
 
   it('исключение группы уходит в счетчик', async () => {
     const { service, spaceMemberRepo } = build(1, 2);
 
-    await service.validateLastAdmin('space-1', { groupId: 'g-1' });
+    await service.validateLastAdmin('space-1', { groupId: 'g-1' }, TRX);
 
     expect(spaceMemberRepo.adminUserCountBySpaceId).toHaveBeenCalledWith(
       'space-1',
@@ -81,16 +86,19 @@ describe('SpaceMemberService.validateLastAdmin', () => {
         excludeGroupId: 'g-1',
         excludeUserId: undefined,
       },
+      TRX,
     );
   });
 
   it('без исключений считается текущее состояние', async () => {
     const { service, spaceMemberRepo } = build(2, 2);
 
-    await service.validateLastAdmin('space-1');
+    await service.validateLastAdmin('space-1', undefined, TRX);
 
     expect(spaceMemberRepo.adminUserCountBySpaceId).toHaveBeenCalledWith(
       'space-1',
+      undefined,
+      TRX,
     );
   });
 
@@ -104,7 +112,7 @@ describe('SpaceMemberService.validateLastAdmin', () => {
     const { service } = build(0, 0);
 
     await expect(
-      service.validateLastAdmin('space-1', { groupId: 'g-1' }),
+      service.validateLastAdmin('space-1', { groupId: 'g-1' }, TRX),
     ).resolves.toBeUndefined();
   });
 
@@ -112,7 +120,25 @@ describe('SpaceMemberService.validateLastAdmin', () => {
     const { service } = build(0, 1);
 
     await expect(
-      service.validateLastAdmin('space-1', { groupId: 'g-1' }),
+      service.validateLastAdmin('space-1', { groupId: 'g-1' }, TRX),
     ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('SpaceMemberService.validateLastAdmin, блокировка', () => {
+  it('пространство блокируется до подсчета', async () => {
+    const { service, spaceMemberRepo } = build(1, 2);
+
+    await service.validateLastAdmin('space-1', { memberId: 'sm-1' }, TRX);
+
+    expect(spaceMemberRepo.lockSpaceForAdminCheck).toHaveBeenCalledWith(
+      'space-1',
+      TRX,
+    );
+    expect(
+      spaceMemberRepo.lockSpaceForAdminCheck.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      spaceMemberRepo.adminUserCountBySpaceId.mock.invocationCallOrder[0],
+    );
   });
 });

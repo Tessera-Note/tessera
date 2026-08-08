@@ -136,27 +136,36 @@ export class GroupUserService {
 
     const spaceIds = await this.spaceMemberRepo.getSpaceIdsByGroupId(groupId);
 
-    // Тот же инвариант, что у удаления группы и у снятия участника
-    // пространства: если группа единственный носитель роли администратора и
-    // человек в ней последний, вывод из группы оставил бы пространство без
-    // администратора. Правило одно на все три пути, иначе оно разъедется.
-    for (const spaceId of spaceIds) {
-      const [before, after] = await Promise.all([
-        this.spaceMemberRepo.adminUserCountBySpaceId(spaceId),
-        this.spaceMemberRepo.adminUserCountBySpaceId(spaceId, {
-          excludeUserId: userId,
-        }),
-      ]);
-
-      if (before > 0 && after === 0) {
-        throw new BadRequestException(
-          'There must be at least one space admin with full access',
-        );
-      }
-    }
 
     // TODO: use queue instead
     await executeTx(this.db, async (trx) => {
+      // Тот же инвариант, что у удаления группы и у снятия участника
+      // пространства: если группа единственный носитель роли администратора и
+      // человек в ней последний, вывод из группы оставил бы пространство без
+      // администратора. Правило одно на все три пути, иначе оно разъедется.
+      //
+      // Считается в той же транзакции и под блокировкой пространства: иначе
+      // два параллельных вывода проходят каждое по отдельности и оба
+      // фиксируются.
+      for (const spaceId of spaceIds) {
+        await this.spaceMemberRepo.lockSpaceForAdminCheck(spaceId, trx);
+
+        const [before, after] = await Promise.all([
+          this.spaceMemberRepo.adminUserCountBySpaceId(spaceId, undefined, trx),
+          this.spaceMemberRepo.adminUserCountBySpaceId(
+            spaceId,
+            { excludeUserId: userId },
+            trx,
+          ),
+        ]);
+
+        if (before > 0 && after === 0) {
+          throw new BadRequestException(
+            'There must be at least one space admin with full access',
+          );
+        }
+      }
+
       await this.groupUserRepo.delete(userId, groupId, { trx });
 
       for (const spaceId of spaceIds) {
