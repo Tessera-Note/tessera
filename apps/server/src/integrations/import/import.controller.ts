@@ -78,7 +78,12 @@ export class ImportController {
     if (
       !validFileExtensions.includes(path.extname(file.filename).toLowerCase())
     ) {
-      throw new BadRequestException('Invalid import file type.');
+      // Сообщение называет допустимые расширения: Google Docs выгружает
+      // документ в семи форматах, принимаются из них два, и без перечисления
+      // человек не понимает, что именно менять при выгрузке.
+      throw new BadRequestException(
+        `Invalid import file type. Supported: ${validFileExtensions.join(', ')}.`,
+      );
     }
 
     const spaceId = file.fields?.spaceId?.value;
@@ -160,7 +165,9 @@ export class ImportController {
     if (
       !validFileExtensions.includes(path.extname(file.filename).toLowerCase())
     ) {
-      throw new BadRequestException('Invalid import file extension.');
+      throw new BadRequestException(
+        `Invalid import file extension. Supported: ${validFileExtensions.join(', ')}.`,
+      );
     }
 
     const spaceId = file.fields?.spaceId?.value;
