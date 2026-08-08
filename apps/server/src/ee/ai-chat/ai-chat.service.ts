@@ -22,6 +22,7 @@ import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo'
 import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
 import { needsWebSearch } from '../ai/freshness.util';
+import { buildWebSearchQuery } from '../ai/search-query.util';
 import {
   editRefusalNotice,
   languageFromLocale,
@@ -419,15 +420,20 @@ export class AiChatService {
     ) {
       const webCallId = `websearch-${chatId}-${history.length}`;
 
+      // В поиск уходит запрос, собранный из сообщения, а не сообщение
+      // целиком: обращение к агенту вроде «создай страницу» уводит выдачу в
+      // сторону сильнее, чем помогают остальные слова.
+      const webQuery = buildWebSearchQuery(params.content);
+
       yield {
         type: 'tool_call',
         id: webCallId,
         name: 'search_web',
-        args: { query: params.content },
+        args: { query: webQuery },
       };
 
       const webResults = await this.webSearchService.search(
-        params.content,
+        webQuery,
         workspaceId,
       );
 
@@ -443,7 +449,7 @@ export class AiChatService {
       webToolCall = {
         id: webCallId,
         name: 'search_web',
-        args: { query: params.content },
+        args: { query: webQuery },
         result: {
           count: webResults.length,
           results: webResults.map((r) => ({ title: r.title, url: r.url })),
