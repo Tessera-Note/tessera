@@ -1312,7 +1312,6 @@
   "Leave empty to use the bundled service at http://tessera-searxng:8080.": "空欄のままにすると、同梱サービス http://tessera-searxng:8080 が使われます。",
   "Embedding provider": "埋め込みプロバイダー",
   "Same as chat provider": "チャットと同じプロバイダー",
-  "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "埋め込みが別の場所にない限り、チャットのプロバイダーのままにしてください。OpenRouter は埋め込みを提供しますが、それらのモデルを一覧に出さないため、ここで一覧から選んでください。",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "埋め込みは独自のキー、アドレス、モデルを持つため、検索はチャットの設定に依存しません。プロバイダーまたはモデルを変更するとワークスペースが再インデックスされます。",
   "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "次に提供されている任意のモデル、たとえば anthropic/claude-sonnet-4.5 を選んでください。埋め込みは下で個別に設定します。",
   "Paste an API key used only for embeddings": "埋め込み専用の API キーを貼り付けてください",
@@ -1320,5 +1319,6 @@
   "Optional. Defaults to the address of the selected provider.": "任意。既定では選択したプロバイダーのアドレスです。",
   "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "モデルはインデックスの幅である 1536 個の値を返す必要があります。dimensions パラメータに対応するモデルは自動的にその幅へ縮められます。",
   "Must start with http:// or https://": "http:// または https:// で始まる必要があります",
-  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "完全な URL が必要です。例: https://openrouter.ai/api/v1"
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "完全な URL が必要です。例: https://openrouter.ai/api/v1",
+  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "埋め込みが別の場所にない限り、チャットのプロバイダーのままにしてください。モデル一覧はプロバイダーから自動で読み込まれます。"
 }

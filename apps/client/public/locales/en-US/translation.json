@@ -1374,7 +1374,6 @@
   "Leave empty to use the bundled service at http://tessera-searxng:8080.": "Leave empty to use the bundled service at http://tessera-searxng:8080.",
   "Embedding provider": "Embedding provider",
   "Same as chat provider": "Same as chat provider",
-  "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.",
   "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.",
   "Paste an API key used only for embeddings": "Paste an API key used only for embeddings",
@@ -1382,5 +1381,6 @@
   "Optional. Defaults to the address of the selected provider.": "Optional. Defaults to the address of the selected provider.",
   "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.",
   "Must start with http:// or https://": "Must start with http:// or https://",
-  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Must be a full URL, e.g. https://openrouter.ai/api/v1"
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Must be a full URL, e.g. https://openrouter.ai/api/v1",
+  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically."
 }

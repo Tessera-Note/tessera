@@ -1312,7 +1312,6 @@
   "Leave empty to use the bundled service at http://tessera-searxng:8080.": "비워 두면 내장 서비스 http://tessera-searxng:8080 을 사용합니다.",
   "Embedding provider": "임베딩 제공자",
   "Same as chat provider": "채팅 제공자와 동일",
-  "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "임베딩이 다른 곳에 있지 않다면 채팅 제공자를 그대로 두십시오. OpenRouter는 임베딩을 제공하지만 해당 모델을 목록에 넣지 않으므로 여기 목록에서 선택하십시오.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "임베딩은 자체 키, 주소, 모델을 사용하므로 검색은 채팅 설정에 의존하지 않습니다. 제공자나 모델을 바꾸면 작업 공간이 다시 색인됩니다.",
   "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "그런 다음 제공되는 아무 모델, 예를 들어 anthropic/claude-sonnet-4.5 를 선택하십시오. 임베딩은 아래에서 별도로 설정합니다.",
   "Paste an API key used only for embeddings": "임베딩에만 사용되는 API 키를 붙여넣으십시오",
@@ -1320,5 +1319,6 @@
   "Optional. Defaults to the address of the selected provider.": "선택 사항. 기본값은 선택한 제공자의 주소입니다.",
   "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "모델은 색인 폭인 1536개의 값을 반환해야 합니다. dimensions 매개변수를 지원하는 모델은 자동으로 그 폭으로 축소됩니다.",
   "Must start with http:// or https://": "http:// 또는 https:// 로 시작해야 합니다",
-  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "전체 URL이어야 합니다. 예: https://openrouter.ai/api/v1"
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "전체 URL이어야 합니다. 예: https://openrouter.ai/api/v1",
+  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "임베딩이 다른 곳에 있지 않다면 채팅 제공자를 그대로 두십시오. 모델 목록은 제공자에서 자동으로 불러옵니다."
 }

@@ -150,11 +150,43 @@ export default function AiProviderSettings() {
       embeddingBaseUrl: settings.embeddingBaseUrl ?? "",
       embeddingApiKey: "",
       embeddingModel: settings.embeddingModel ?? "",
-      webSearchDriver: settings.webSearchDriver ?? "",
+      // `searxng` и пустое значение означают одно и то же, свой сервис в
+      // compose. Приводим к пустому, иначе в списке пришлось бы держать два
+      // одинаковых по подписи пункта.
+      webSearchDriver:
+        settings.webSearchDriver === "searxng"
+          ? ""
+          : (settings.webSearchDriver ?? ""),
       webSearchBaseUrl: settings.webSearchBaseUrl ?? "",
       webSearchApiKey: "",
     });
   }, [settings]);
+
+  /**
+   * Каталог моделей эмбеддингов подтягивается сам, без нажатия кнопки.
+   *
+   * Список был пуст до явного нажатия, поэтому выбрать модель было не из
+   * чего: поле со свободным вводом требовало знать имя наизусть. Молча,
+   * потому что это фон: отказ провайдера здесь не событие для человека, а
+   * кнопка рядом остается для повторной загрузки.
+   *
+   * Провайдеры, которым для каталога нужен ключ, пропускаются, пока ключа
+   * нет: запрос все равно вернул бы отказ.
+   */
+  useEffect(() => {
+    if (!hasAccess) return;
+    const driver = form.embeddingDriver || form.driver;
+    if (!driver) return;
+
+    const needsKey = driver !== "openrouter" && driver !== "ollama";
+    if (needsKey && !settings?.hasApiKey && !settings?.hasEmbeddingApiKey) {
+      return;
+    }
+
+    void handleLoadModels("embedding", { silent: true });
+    // Перезагрузка только при смене провайдера: список зависит от него.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAccess, form.embeddingDriver, form.driver]);
 
   const translateBaseUrlError = (key: string | null) => (key ? t(key) : null);
 
@@ -185,7 +217,10 @@ export default function AiProviderSettings() {
     return t("Paste an API key used only for embeddings");
   }, [settings, t]);
 
-  const handleLoadModels = async (kind: "chat" | "embedding") => {
+  const handleLoadModels = async (
+    kind: "chat" | "embedding",
+    opts?: { silent?: boolean },
+  ) => {
     const mutation = kind === "chat" ? chatModelsMutation : embeddingModelsMutation;
     try {
       const { models } = await mutation.mutateAsync({
@@ -203,13 +238,14 @@ export default function AiProviderSettings() {
       if (kind === "chat") setChatModels(ids);
       else setEmbeddingModels(ids);
 
-      if (ids.length === 0) {
+      if (ids.length === 0 && !opts?.silent) {
         notifications.show({
           message: t("The provider returned no models."),
           color: "yellow",
         });
       }
     } catch (err: any) {
+      if (opts?.silent) return;
       notifications.show({
         message: err?.response?.data?.message ?? err?.message,
         color: "red",
@@ -448,7 +484,7 @@ export default function AiProviderSettings() {
       <Select
         label={t("Embedding provider")}
         description={t(
-          "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.",
+          "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.",
         )}
         data={EMBEDDING_DRIVER_OPTIONS.map((o) => ({
           value: o.value,
@@ -524,20 +560,11 @@ export default function AiProviderSettings() {
       <Select
         label={t("Search provider")}
         data={[
-          // Пустое значение и searxng означают одно и то же, свой сервис в
-          // compose. Обе опции нужны в списке: с сервера может прийти любое
-          // из двух, и Select без совпадающего значения отрисуется пустым.
           { value: "", label: t("Bundled search service (no key needed)") },
-          {
-            value: "searxng",
-            label: t("Bundled search service (no key needed)"),
-          },
           { value: "tavily", label: "Tavily" },
           { value: "brave", label: "Brave Search" },
           { value: "off", label: t("Disabled") },
-        ].filter(
-          (option) => option.value !== "" || form.webSearchDriver === "",
-        )}
+        ]}
         value={form.webSearchDriver}
         onChange={(value) => set("webSearchDriver", value ?? "")}
         disabled={!hasAccess}

@@ -1312,7 +1312,6 @@
   "Leave empty to use the bundled service at http://tessera-searxng:8080.": "Laat leeg om de meegeleverde dienst op http://tessera-searxng:8080 te gebruiken.",
   "Embedding provider": "Embedding-aanbieder",
   "Same as chat provider": "Zelfde als chat-aanbieder",
-  "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Laat de chat-aanbieder staan tenzij embeddings elders draaien. OpenRouter levert embeddings maar toont die modellen niet in de catalogus, kies er hier dus een uit de lijst.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Embeddings hebben een eigen sleutel, adres en model, zodat zoeken niet afhangt van de chat-instelling. Het wijzigen van de aanbieder of het model indexeert de werkruimte opnieuw.",
   "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "kies daarna een willekeurig aangeboden model, bijvoorbeeld anthropic/claude-sonnet-4.5. Embeddings worden hieronder apart ingesteld.",
   "Paste an API key used only for embeddings": "Plak een API-sleutel die alleen voor embeddings wordt gebruikt",
@@ -1320,5 +1319,6 @@
   "Optional. Defaults to the address of the selected provider.": "Optioneel. Standaard het adres van de gekozen aanbieder.",
   "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "Het model moet 1536 waarden teruggeven, de breedte van de index. Modellen die de parameter dimensions ondersteunen worden daar automatisch toe versmald.",
   "Must start with http:// or https://": "Moet beginnen met http:// of https://",
-  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Moet een volledige URL zijn, bijvoorbeeld https://openrouter.ai/api/v1"
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Moet een volledige URL zijn, bijvoorbeeld https://openrouter.ai/api/v1",
+  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "Laat de chat-aanbieder staan tenzij embeddings elders draaien. De modellijst wordt automatisch bij de aanbieder opgehaald."
 }

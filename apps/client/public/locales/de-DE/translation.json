@@ -1312,7 +1312,6 @@
   "Leave empty to use the bundled service at http://tessera-searxng:8080.": "Leer lassen, um den mitgelieferten Dienst unter http://tessera-searxng:8080 zu verwenden.",
   "Embedding provider": "Embedding-Anbieter",
   "Same as chat provider": "Wie beim Chat-Anbieter",
-  "Leave as the chat provider unless embeddings live elsewhere. OpenRouter serves embeddings but does not list those models, so pick one from the list here.": "Belassen Sie den Chat-Anbieter, sofern Embeddings nicht anderswo liegen. OpenRouter liefert Embeddings, listet diese Modelle aber nicht auf; wählen Sie hier eines aus der Liste.",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Embeddings haben eigenen Schlüssel, eigene Adresse und eigenes Modell, daher hängt die Suche nicht von der Chat-Einrichtung ab. Ein Wechsel von Anbieter oder Modell indiziert den Arbeitsbereich neu.",
   "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "wählen Sie dann ein beliebiges angebotenes Modell, z. B. anthropic/claude-sonnet-4.5. Embeddings werden unten separat konfiguriert.",
   "Paste an API key used only for embeddings": "Fügen Sie einen API-Schlüssel ein, der nur für Embeddings verwendet wird",
@@ -1320,5 +1319,6 @@
   "Optional. Defaults to the address of the selected provider.": "Optional. Standardmäßig die Adresse des gewählten Anbieters.",
   "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "Das Modell muss 1536 Werte liefern, die Breite des Index. Modelle mit dem Parameter dimensions werden automatisch darauf verengt.",
   "Must start with http:// or https://": "Muss mit http:// oder https:// beginnen",
-  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Muss eine vollständige URL sein, z. B. https://openrouter.ai/api/v1"
+  "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Muss eine vollständige URL sein, z. B. https://openrouter.ai/api/v1",
+  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "Belassen Sie den Chat-Anbieter, sofern Embeddings nicht anderswo liegen. Die Modellliste wird automatisch vom Anbieter geladen."
 }
