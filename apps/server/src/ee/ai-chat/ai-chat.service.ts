@@ -23,11 +23,11 @@ import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
 import { needsWebSearch } from '../ai/freshness.util';
 import { buildSearchPlan } from '../ai/search-plan.util';
+import { languageForRequest } from '../ai/request-language.util';
 import { buildImageQuery, needsImages } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import {
   editRefusalNotice,
-  languageFromLocale,
 } from '../ai/ai-language.util';
 
 /** How many wiki pages get pulled into the prompt when retrieving context. */
@@ -523,7 +523,9 @@ export class AiChatService {
     const systemPrompt = this.buildSystemPrompt(
       contextText,
       params.contextPageId,
-      languageFromLocale(user.locale),
+      // Язык решает сервер, а не модель: на смешанном тексте модель угадывает
+      // по-разному от раза к разу, и ответ зависел бы от одной опечатки.
+      languageForRequest(params.content, user.locale),
     );
 
     // Stream the AI response (without SDK tools due to Zod v4 incompatibility)
@@ -1074,11 +1076,10 @@ export class AiChatService {
       // Запасное значение то же, что у `DEFAULT_AI_LANGUAGE`: португальский
       // здесь был вторым наследием форка, и при незаданной локали агент
       // отвечал не на языке интерфейса.
-      `The interface language of this user is ${language ?? 'English'}. ` +
-      'Write in the language the user writes to you in, and fall back to the ' +
-      'interface language only when that is unclear. This applies to page ' +
-      'content too: a page you create for a request written in one language ' +
-      'must be in that language, not in the interface language. ' +
+      `Write in ${language ?? 'English'}. This has already been decided for ` +
+      'you from the language of the request and the user profile — do not ' +
+      'override it because a source you found is in another language. It ' +
+      'applies to page content too, not just to your reply. ' +
       'When a question needs current information — today\'s events, recent ' +
       'releases, prices, schedules, anything time-sensitive — a web search is ' +
       'run for you automatically and its results appear under "Results from ' +
