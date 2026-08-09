@@ -65,7 +65,7 @@ export class AiProviderFactory {
         return ollama.textEmbeddingModel(modelId);
       }
       default:
-        throw new BadRequestException(`Unknown AI driver: ${config.driver}`);
+        throw badRequest('error.ai.unknown_driver', { driver: config.driver });
     }
   }
 
@@ -105,7 +105,7 @@ export class AiProviderFactory {
         return ollama(effectiveModel);
       }
       default:
-        throw new BadRequestException(`Unknown AI driver: ${config.driver}`);
+        throw badRequest('error.ai.unknown_driver', { driver: config.driver });
     }
   }
 }

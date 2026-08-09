@@ -80,9 +80,9 @@ export class ImportController {
       // Сообщение называет допустимые расширения: Google Docs выгружает
       // документ в семи форматах, принимаются из них два, и без перечисления
       // человек не понимает, что именно менять при выгрузке.
-      throw new BadRequestException(
-        `Invalid import file type. Supported: ${validFileExtensions.join(', ')}.`,
-      );
+      throw badRequest('error.integrations.import_type_unsupported', {
+        supported: validFileExtensions.join(', '),
+      });
     }
 
     const spaceId = file.fields?.spaceId?.value;
@@ -151,9 +151,9 @@ export class ImportController {
     } catch (err: any) {
       this.logger.error(err.message);
       if (err?.statusCode === 413) {
-        throw new BadRequestException(
-          `File too large. Exceeds the ${this.environmentService.getFileImportSizeLimit()} import limit`,
-        );
+        throw badRequest('error.integrations.import_file_too_large', {
+          limit: this.environmentService.getFileImportSizeLimit(),
+        });
       }
     }
 
@@ -164,9 +164,9 @@ export class ImportController {
     if (
       !validFileExtensions.includes(path.extname(file.filename).toLowerCase())
     ) {
-      throw new BadRequestException(
-        `Invalid import file extension. Supported: ${validFileExtensions.join(', ')}.`,
-      );
+      throw badRequest('error.integrations.import_extension_unsupported', {
+        supported: validFileExtensions.join(', '),
+      });
     }
 
     const spaceId = file.fields?.spaceId?.value;

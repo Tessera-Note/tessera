@@ -2378,7 +2378,7 @@ export class McpService {
       }
 
       default:
-        throw new BadRequestException(`Unknown tool: ${name}`);
+        throw badRequest('error.mcp.unknown_tool', { tool: name });
     }
   }
 
@@ -2396,9 +2396,9 @@ export class McpService {
     const payload = input.replace(/^data:[^;]+;base64,/, '').trim();
 
     if (payload.length > MAX_UPLOAD_BASE64_CHARS) {
-      throw new BadRequestException(
-        `File too large for MCP upload (limit ~${MAX_UPLOAD_BYTES / (1024 * 1024)}MB). Upload it through the web UI instead.`,
-      );
+      throw badRequest('error.mcp.upload_too_large', {
+        limit: MAX_UPLOAD_BYTES / (1024 * 1024),
+      });
     }
 
     let buffer: Buffer;

@@ -50,8 +50,8 @@ export function validateAllowedEmail(userEmail: string, workspace: Workspace) {
     workspace.emailDomains?.length > 0 &&
     !workspace.emailDomains.includes(emailDomain)
   ) {
-    throw new BadRequestException(
-      `The email domain "${emailDomain}" is not approved for this workspace.`,
-    );
+    throw badRequest('error.auth.email_domain_not_approved', {
+      domain: emailDomain,
+    });
   }
 }

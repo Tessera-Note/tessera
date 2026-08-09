@@ -888,9 +888,10 @@ export class PageVerificationService {
     action: string,
   ): void {
     if (!allowed.includes(current ?? 'pending')) {
-      throw new BadRequestException(
-        `Cannot ${action} from status "${current}"`,
-      );
+      throw badRequest('error.page_verification.transition_not_allowed', {
+        action,
+        status: current ?? 'pending',
+      });
     }
   }
 

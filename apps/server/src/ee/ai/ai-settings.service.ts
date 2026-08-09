@@ -428,9 +428,9 @@ export class AiSettingsService {
       return { models: this.sortModels(models) };
     } catch (err: any) {
       this.logger.warn(`Listing ${driver} models failed: ${err?.message}`);
-      throw new BadRequestException(
-        `Could not list models from the provider: ${err?.message ?? 'request failed'}`,
-      );
+      throw badRequest('error.ai.models_unavailable', {
+        reason: err?.message ?? 'request failed',
+      });
     }
   }
 
@@ -512,9 +512,9 @@ export class AiSettingsService {
       return { models: this.sortModels(models) };
     } catch (err: any) {
       this.logger.warn(`Listing embedding models failed: ${err?.message}`);
-      throw new BadRequestException(
-        `Could not list embedding models: ${err?.message ?? 'request failed'}`,
-      );
+      throw badRequest('error.ai.embedding_models_unavailable', {
+        reason: err?.message ?? 'request failed',
+      });
     }
   }
 

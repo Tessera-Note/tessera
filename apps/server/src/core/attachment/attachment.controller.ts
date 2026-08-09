@@ -99,9 +99,9 @@ export class AttachmentController {
     } catch (err: any) {
       this.logger.error(err.message);
       if (err?.statusCode === 413) {
-        throw new BadRequestException(
-          `File too large. Exceeds the ${this.environmentService.getFileUploadSizeLimit()} limit`,
-        );
+        throw badRequest('error.attachment.file_too_large', {
+          limit: this.environmentService.getFileUploadSizeLimit(),
+        });
       }
     }
 
@@ -278,9 +278,9 @@ export class AttachmentController {
       });
     } catch (err: any) {
       if (err?.statusCode === 413) {
-        throw new BadRequestException(
-          `File too large. Exceeds the ${MAX_AVATAR_SIZE} limit`,
-        );
+        throw badRequest('error.attachment.file_too_large', {
+          limit: MAX_AVATAR_SIZE,
+        });
       }
     }
 

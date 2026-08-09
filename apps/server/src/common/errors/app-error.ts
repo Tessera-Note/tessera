@@ -375,6 +375,32 @@ export const ErrorMessage = {
     'Invalid import source. Import source must either be generic, notion or confluence.',
   'error.integrations.this_feature_requires_a_valid_enterprise':
     'This feature requires a valid enterprise license.',
+
+  // Отказы с подстановкой значения в текст.
+  'error.attachment.file_too_large':
+    'File too large. Exceeds the {{limit}} limit',
+  'error.auth.email_domain_not_approved':
+    'The email domain "{{domain}}" is not approved for this workspace',
+  'error.ai.unknown_driver': 'Unknown AI driver: {{driver}}',
+  'error.ai.models_unavailable':
+    'Could not list models from the provider: {{reason}}',
+  'error.ai.embedding_models_unavailable':
+    'Could not list embedding models: {{reason}}',
+  'error.embedding.dimension_mismatch':
+    'AI_EMBEDDING_DIMENSION is {{configured}} but the page_embeddings column is {{column}}. Change the variable or migrate the column.',
+  'error.embedding.model_width_mismatch':
+    'The embedding model returns {{length}} values, but the page_embeddings column is {{column}}. Pick a model of that width in Settings → AI.',
+  'error.mcp.unknown_tool': 'Unknown tool: {{tool}}',
+  'error.mcp.upload_too_large':
+    'File too large for MCP upload (limit about {{limit}}MB). Upload it through the web interface instead.',
+  'error.page_verification.transition_not_allowed':
+    'Cannot {{action}} from status "{{status}}"',
+  'error.integrations.import_type_unsupported':
+    'Invalid import file type. Supported: {{supported}}.',
+  'error.integrations.import_file_too_large':
+    'File too large. Exceeds the {{limit}} import limit',
+  'error.integrations.import_extension_unsupported':
+    'Invalid import file extension. Supported: {{supported}}.',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorMessage;

@@ -1806,5 +1806,18 @@
   "error.integrations.file_too_large_exceeds_the_10mb": "Файл больше предела импорта в 10 МБ",
   "error.integrations.failed_to_upload_file": "Не удалось загрузить файл",
   "error.integrations.invalid_import_source_import_source_must": "Неизвестный источник импорта: допустимы generic, notion и confluence.",
-  "error.integrations.this_feature_requires_a_valid_enterprise": "Возможность требует действующей корпоративной лицензии."
+  "error.integrations.this_feature_requires_a_valid_enterprise": "Возможность требует действующей корпоративной лицензии.",
+  "error.attachment.file_too_large": "Файл больше предела {{limit}}",
+  "error.auth.email_domain_not_approved": "Домен «{{domain}}» не разрешен в этом рабочем пространстве",
+  "error.ai.unknown_driver": "Неизвестный поставщик ИИ: {{driver}}",
+  "error.ai.models_unavailable": "Не удалось получить список моделей у поставщика: {{reason}}",
+  "error.ai.embedding_models_unavailable": "Не удалось получить список моделей эмбеддингов: {{reason}}",
+  "error.embedding.dimension_mismatch": "AI_EMBEDDING_DIMENSION равен {{configured}}, а колонка page_embeddings рассчитана на {{column}}. Измените переменную или колонку миграцией.",
+  "error.embedding.model_width_mismatch": "Модель эмбеддингов возвращает {{length}} значений, а колонка page_embeddings рассчитана на {{column}}. Выберите модель такой ширины в разделе «Настройки → ИИ».",
+  "error.mcp.unknown_tool": "Неизвестный инструмент: {{tool}}",
+  "error.mcp.upload_too_large": "Файл больше предела загрузки через MCP, около {{limit}} МБ. Загрузите его через интерфейс.",
+  "error.page_verification.transition_not_allowed": "Из состояния «{{status}}» действие {{action}} невозможно",
+  "error.integrations.import_type_unsupported": "Такой тип файла не импортируется. Допустимы: {{supported}}.",
+  "error.integrations.import_file_too_large": "Файл больше предела импорта {{limit}}",
+  "error.integrations.import_extension_unsupported": "Такое расширение не импортируется. Допустимы: {{supported}}."
 }

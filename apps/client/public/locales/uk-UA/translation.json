@@ -1806,5 +1806,18 @@
   "error.integrations.file_too_large_exceeds_the_10mb": "Файл більший за межу імпорту в 10 МБ",
   "error.integrations.failed_to_upload_file": "Не вдалося завантажити файл",
   "error.integrations.invalid_import_source_import_source_must": "Невідоме джерело імпорту: припустимі generic, notion і confluence.",
-  "error.integrations.this_feature_requires_a_valid_enterprise": "Можливість потребує чинної корпоративної ліцензії."
+  "error.integrations.this_feature_requires_a_valid_enterprise": "Можливість потребує чинної корпоративної ліцензії.",
+  "error.attachment.file_too_large": "Файл більший за межу {{limit}}",
+  "error.auth.email_domain_not_approved": "Домен «{{domain}}» не дозволений у цьому робочому просторі",
+  "error.ai.unknown_driver": "Невідомий постачальник ШІ: {{driver}}",
+  "error.ai.models_unavailable": "Не вдалося отримати список моделей у постачальника: {{reason}}",
+  "error.ai.embedding_models_unavailable": "Не вдалося отримати список моделей ембедингів: {{reason}}",
+  "error.embedding.dimension_mismatch": "AI_EMBEDDING_DIMENSION дорівнює {{configured}}, а колонка page_embeddings розрахована на {{column}}. Змініть змінну або колонку міграцією.",
+  "error.embedding.model_width_mismatch": "Модель ембедингів повертає {{length}} значень, а колонка page_embeddings розрахована на {{column}}. Виберіть модель такої ширини в розділі «Налаштування → ШІ».",
+  "error.mcp.unknown_tool": "Невідомий інструмент: {{tool}}",
+  "error.mcp.upload_too_large": "Файл більший за межу завантаження через MCP, близько {{limit}} МБ. Завантажте його через інтерфейс.",
+  "error.page_verification.transition_not_allowed": "Зі стану «{{status}}» дія {{action}} неможлива",
+  "error.integrations.import_type_unsupported": "Такий тип файлу не імпортується. Припустимі: {{supported}}.",
+  "error.integrations.import_file_too_large": "Файл більший за межу імпорту {{limit}}",
+  "error.integrations.import_extension_unsupported": "Таке розширення не імпортується. Припустимі: {{supported}}."
 }

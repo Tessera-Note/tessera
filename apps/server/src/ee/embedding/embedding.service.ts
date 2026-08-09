@@ -130,9 +130,10 @@ export class EmbeddingService {
 
     const configured = this.environmentService.getAiEmbeddingDimension();
     if (!Number.isNaN(configured) && configured !== EMBEDDING_DIMENSION) {
-      throw new BadRequestException(
-        `AI_EMBEDDING_DIMENSION is ${configured} but the page_embeddings column is ${EMBEDDING_DIMENSION}. Change the variable or migrate the column.`,
-      );
+      throw badRequest('error.embedding.dimension_mismatch', {
+        configured,
+        column: EMBEDDING_DIMENSION,
+      });
     }
 
     const identity = this.identityOf(config);
@@ -385,9 +386,10 @@ export class EmbeddingService {
   private assertDimension(length: number | undefined): void {
     if (length === undefined || length === EMBEDDING_DIMENSION) return;
 
-    throw new BadRequestException(
-      `The embedding model returns ${length} values, but the page_embeddings column is ${EMBEDDING_DIMENSION}. Pick a model of that width in Settings → AI.`,
-    );
+    throw badRequest('error.embedding.model_width_mismatch', {
+      length,
+      column: EMBEDDING_DIMENSION,
+    });
   }
 
   /**
