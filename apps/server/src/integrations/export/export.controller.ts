@@ -35,6 +35,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { notFound } from '../../common/errors/app-error';
 
 @Controller()
 export class ExportController {
@@ -59,7 +60,7 @@ export class ExportController {
     });
 
     if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);

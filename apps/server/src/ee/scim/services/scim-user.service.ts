@@ -47,6 +47,7 @@ import {
  * резолвит именно пропатченную сборку.
  */
 import * as scimmy from 'scimmy';
+import { badRequest } from '../../../common/errors/app-error';
 
 /** То, что журналу нужно знать о предъявленном токене. */
 export type ScimTokenContext = { id: string; name: string | null };
@@ -556,7 +557,7 @@ export class ScimUserService {
     const email = payload?.userName || fromEmails;
 
     if (typeof email !== 'string' || !email.includes('@')) {
-      throw new BadRequestException('userName must be a valid email address');
+      throw badRequest('error.scim.username_must_be_a_valid_email');
     }
     return email.toLowerCase();
   }

@@ -13,6 +13,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { hashScimToken } from '../scim-token.util';
+import { forbidden, unauthorized } from '../../../common/errors/app-error';
 
 /**
  * Аутентификация провайдера по токену SCIM.
@@ -39,13 +40,13 @@ export class ScimAuthGuard implements CanActivate {
     const workspace = request.raw?.workspace;
 
     if (!workspace?.id) {
-      throw new UnauthorizedException('Workspace could not be determined');
+      throw unauthorized('error.scim.workspace_could_not_be_determined');
     }
 
     const token = this.bearerOf(request.headers?.authorization);
     if (!token) {
-      throw new UnauthorizedException(
-        'Missing or malformed Authorization header',
+      throw unauthorized(
+        'error.scim.missing_or_malformed_authorization_header',
       );
     }
 
@@ -53,7 +54,7 @@ export class ScimAuthGuard implements CanActivate {
     // Проверка стоит до поиска токена: выключенный SCIM означает отказ
     // независимо от того, действителен ли предъявленный токен.
     if (!workspace.isScimEnabled) {
-      throw new ForbiddenException('SCIM provisioning is disabled');
+      throw forbidden('error.scim.scim_provisioning_is_disabled');
     }
 
     const record = await this.scimTokenRepo.findActiveByHash(
@@ -65,7 +66,7 @@ export class ScimAuthGuard implements CanActivate {
       this.logger.warn(
         `Отклонен токен SCIM в пространстве ${workspace.id}: не найден, отозван или принадлежит другому пространству`,
       );
-      throw new UnauthorizedException('Invalid SCIM token');
+      throw unauthorized('error.scim.invalid_scim_token');
     }
 
     await this.scimTokenRepo.touchLastUsed(record.id);

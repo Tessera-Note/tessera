@@ -38,6 +38,7 @@ import {
   DeleteViewDto,
 } from './dto/base.dto';
 import { WsService } from '../../ws/ws.service';
+import { badRequest } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('bases')
@@ -56,7 +57,7 @@ export class BaseController {
     @AuthWorkspace() workspace: Workspace,
   ) {
     if (!dto.spaceId && !dto.parentPageId) {
-      throw new BadRequestException('spaceId or parentPageId is required');
+      throw badRequest('error.common.spaceid_or_parentpageid_is_required');
     }
 
     if (dto.spaceId) {

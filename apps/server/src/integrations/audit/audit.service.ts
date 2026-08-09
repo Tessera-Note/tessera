@@ -54,10 +54,7 @@ export class NoopAuditService implements IAuditService {
     // No-op
   }
 
-  updateRetention(
-    _workspaceId: string,
-    _retentionDays: number,
-  ): void {
+  updateRetention(_workspaceId: string, _retentionDays: number): void {
     // No-op
   }
 }

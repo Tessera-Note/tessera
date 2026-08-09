@@ -133,7 +133,12 @@ export class AccessSweepExtension implements Extension, OnModuleDestroy {
 
   private async sweepUser(
     userId: string,
-    page: { id: string; spaceId: string; workspaceId: string; deletedAt?: Date | null },
+    page: {
+      id: string;
+      spaceId: string;
+      workspaceId: string;
+      deletedAt?: Date | null;
+    },
     connections: Connection[],
     document: Document,
   ): Promise<void> {

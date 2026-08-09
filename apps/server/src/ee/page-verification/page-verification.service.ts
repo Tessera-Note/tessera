@@ -28,6 +28,7 @@ import {
   QueueJob,
   QueueName,
 } from '../../integrations/queue/constants/queue.constants';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 /**
  * Сколько раз выдача добирает строки, если отбор по правам снял часть.
@@ -386,7 +387,7 @@ export class PageVerificationService {
     await this.assertCanManage(dto.pageId, user);
 
     const page = await this.pageRepo.findById(dto.pageId);
-    if (!page) throw new NotFoundException('Page not found');
+    if (!page) throw notFound('error.common.page_not_found');
 
     const existing = await this.db
       .selectFrom('pageVerifications')
@@ -395,7 +396,9 @@ export class PageVerificationService {
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
     if (existing) {
-      throw new BadRequestException('Verification is already configured');
+      throw badRequest(
+        'error.page_verification.verification_is_already_configured',
+      );
     }
 
     const verificationId = randomUUID();
@@ -463,7 +466,7 @@ export class PageVerificationService {
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
     if (!verification) {
-      throw new NotFoundException('Verification not found');
+      throw notFound('error.page_verification.verification_not_found');
     }
 
     await executeTx(this.db, async (trx) => {
@@ -512,7 +515,7 @@ export class PageVerificationService {
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
     if (!verification) {
-      throw new NotFoundException('Verification not found');
+      throw notFound('error.page_verification.verification_not_found');
     }
 
     await executeTx(this.db, async (trx) => {
@@ -577,7 +580,8 @@ export class PageVerificationService {
       .where('pageId', '=', pageId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
-    if (!verification) throw new NotFoundException('Verification not found');
+    if (!verification)
+      throw notFound('error.page_verification.verification_not_found');
 
     const verifiedAt = new Date();
     await this.db
@@ -872,7 +876,8 @@ export class PageVerificationService {
       .where('pageId', '=', pageId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
-    if (!verification) throw new NotFoundException('Verification not found');
+    if (!verification)
+      throw notFound('error.page_verification.verification_not_found');
     return verification;
   }
 
@@ -906,7 +911,8 @@ export class PageVerificationService {
       .where('pageId', '=', pageId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
-    if (!verification) throw new NotFoundException('Verification not found');
+    if (!verification)
+      throw notFound('error.page_verification.verification_not_found');
 
     await this.db
       .updateTable('pageVerifications')

@@ -28,6 +28,7 @@ import { FileTaskIdDto } from './dto/file-task-dto';
 import { SpaceMemberRepo } from '@tessera/db/repos/space/space-member.repo';
 import { PaginationOptions } from '@tessera/db/pagination/pagination-options';
 import { executeWithCursorPagination } from '@tessera/db/pagination/cursor-pagination';
+import { notFound } from '../../common/errors/app-error';
 
 @Controller('file-tasks')
 export class FileTaskController {
@@ -82,7 +83,7 @@ export class FileTaskController {
       .executeTakeFirst();
 
     if (!fileTask || !fileTask.spaceId) {
-      throw new NotFoundException('File task not found');
+      throw notFound('error.common.file_task_not_found');
     }
 
     const ability = await this.spaceAbility.createForUser(

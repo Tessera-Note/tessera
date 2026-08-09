@@ -52,10 +52,7 @@ describe('WsService.syncSpaceMembership', () => {
 
   // Права приходят и через группу: доступ мог остаться другим путем.
   it('доступ другим путем комнату сохраняет', async () => {
-    const { service, left } = build(
-      { 'u-1': ['space-1', 'space-2'] },
-      ['u-1'],
-    );
+    const { service, left } = build({ 'u-1': ['space-1', 'space-2'] }, ['u-1']);
 
     await service.syncSpaceMembership(['u-1'], 'space-1');
 

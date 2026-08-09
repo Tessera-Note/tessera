@@ -26,6 +26,7 @@ import {
   RemovePagePermissionDto,
   UpdatePagePermissionRoleDto,
 } from './dto/page-permission.dto';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 /**
  * Ограничения доступа к отдельной странице.
@@ -107,9 +108,7 @@ export class PagePermissionService {
     const groupIds = dto.groupIds ?? [];
 
     if (userIds.length === 0 && groupIds.length === 0) {
-      throw new BadRequestException(
-        'Provide at least one user or group to grant access to',
-      );
+      throw badRequest('error.page_permission.provide_at_least_one_user_or');
     }
 
     await executeTx(this.db, async (trx) => {
@@ -173,9 +172,7 @@ export class PagePermissionService {
     const groupIds = dto.groupIds ?? [];
 
     if (userIds.length === 0 && groupIds.length === 0) {
-      throw new BadRequestException(
-        'Provide at least one user or group to remove access from',
-      );
+      throw badRequest('error.page_permission.provide_at_least_one_user_or_2');
     }
 
     await executeTx(this.db, async (trx) => {
@@ -205,7 +202,7 @@ export class PagePermissionService {
     const access = await this.requireAccess(page.id);
 
     if (!dto.userId && !dto.groupId) {
-      throw new BadRequestException('Provide a user or a group');
+      throw badRequest('error.page_permission.provide_a_user_or_a_group');
     }
 
     await executeTx(this.db, async (trx) => {
@@ -301,9 +298,7 @@ export class PagePermissionService {
     );
 
     if (writers === 0) {
-      throw new BadRequestException(
-        'There must be at least one member with edit access to a restricted page',
-      );
+      throw badRequest('error.page_permission.there_must_be_at_least_one_msg');
     }
   }
 
@@ -311,7 +306,7 @@ export class PagePermissionService {
     const access = await this.pagePermissionRepo.findPageAccessByPageId(pageId);
 
     if (!access) {
-      throw new BadRequestException('This page is not restricted');
+      throw badRequest('error.page_permission.this_page_is_not_restricted');
     }
 
     return access;
@@ -326,7 +321,7 @@ export class PagePermissionService {
     const page = await this.pageRepo.findById(pageId);
 
     if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     const access = await this.pagePermissionRepo.canUserEditPage(

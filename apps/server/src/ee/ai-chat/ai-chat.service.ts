@@ -27,6 +27,7 @@ import { buildImageQuery } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import { editRefusalNotice } from '../ai/ai-language.util';
 import { AGENT_MAX_STEPS, buildAgentTools } from './agent-tools';
+import { badRequest, forbidden, notFound } from '../../common/errors/app-error';
 
 /** How many wiki pages get pulled into the prompt when retrieving context. */
 const RETRIEVAL_LIMIT = 5;
@@ -127,11 +128,11 @@ export class AiChatService {
       .executeTakeFirst();
 
     if (!chat) {
-      throw new NotFoundException('Chat not found');
+      throw notFound('error.ai_chat.chat_not_found');
     }
 
     if (chat.creatorId !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw forbidden('error.ai_chat.access_denied');
     }
 
     const messages = await this.db
@@ -156,7 +157,7 @@ export class AiChatService {
       .executeTakeFirst();
 
     if (!chat) {
-      throw new NotFoundException('Chat not found');
+      throw notFound('error.ai_chat.chat_not_found');
     }
 
     await this.db
@@ -182,7 +183,7 @@ export class AiChatService {
       .executeTakeFirst();
 
     if (!chat) {
-      throw new NotFoundException('Chat not found');
+      throw notFound('error.ai_chat.chat_not_found');
     }
 
     await this.db
@@ -270,7 +271,7 @@ export class AiChatService {
     workspaceId: string,
   ) {
     if (!(await this.providerFactory.isConfigured(workspaceId))) {
-      throw new BadRequestException('AI is not configured');
+      throw badRequest('error.common.ai_is_not_configured');
     }
 
     const userId = user.id;
@@ -294,7 +295,7 @@ export class AiChatService {
       .executeTakeFirst();
 
     if (!chat) {
-      throw new NotFoundException('Chat not found');
+      throw notFound('error.ai_chat.chat_not_found');
     }
 
     // Save user message

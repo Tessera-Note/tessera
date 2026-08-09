@@ -20,6 +20,7 @@ import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { User, Workspace } from '@tessera/db/types/entity.types';
 import { McpService } from './mcp.service';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
+import { forbidden } from '../../common/errors/app-error';
 
 @Controller(['mcp', 'api/mcp'])
 export class McpController {
@@ -50,7 +51,7 @@ export class McpController {
     @AuthWorkspace() workspace: Workspace,
   ) {
     if (!workspace?.settings?.['ai']?.mcp) {
-      throw new ForbiddenException('MCP is disabled for this workspace');
+      throw forbidden('error.mcp.mcp_is_disabled_for_this_workspace');
     }
     return this.mcpService.handleRpcRequest(body, user, workspace);
   }

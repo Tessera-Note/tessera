@@ -13,9 +13,7 @@ export class SpaceEvent {
 export class SpaceListener {
   private readonly logger = new Logger(SpaceListener.name);
 
-  constructor(
-    @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
-  ) {}
+  constructor(@InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue) {}
 
   @OnEvent(EventName.SPACE_DELETED)
   async handleSpaceDeleted(event: SpaceEvent) {
@@ -23,5 +21,4 @@ export class SpaceListener {
 
     await this.aiQueue.add(QueueJob.SPACE_DELETED, { spaceId });
   }
-
 }

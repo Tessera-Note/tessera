@@ -1,9 +1,9 @@
-import { htmlToJson, jsonToHtml } from '../../../collaboration/collaboration.util';
+import {
+  htmlToJson,
+  jsonToHtml,
+} from '../../../collaboration/collaboration.util';
 
-const findFirstChild = (
-  json: any,
-  type: string,
-): any | undefined => {
+const findFirstChild = (json: any, type: string): any | undefined => {
   if (!json || typeof json !== 'object') return undefined;
   if (json.type === type) return json;
   if (Array.isArray(json.content)) {

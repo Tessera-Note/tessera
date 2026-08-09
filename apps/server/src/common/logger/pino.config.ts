@@ -41,7 +41,10 @@ export function createPinoConfig(): Params {
             for (const arg of inputArgs) {
               if (typeof arg === 'object' && arg !== null && 'context' in arg) {
                 const context = (arg as Record<string, unknown>)['context'];
-                if (typeof context === 'string' && CONTEXTS_TO_IGNORE.includes(context)) {
+                if (
+                  typeof context === 'string' &&
+                  CONTEXTS_TO_IGNORE.includes(context)
+                ) {
                   return;
                 }
               }

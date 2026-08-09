@@ -35,9 +35,10 @@ describe('порог входа через каталог задан на мар
   // каждом контроллере: следующий контроллер не обязан помнить про чужой
   // счетчик.
   it('в общей настройке порог свободный', async () => {
-    const source = (
-      await import('fs')
-    ).readFileSync(`${__dirname}/throttle.module.ts`, 'utf-8');
+    const source = (await import('fs')).readFileSync(
+      `${__dirname}/throttle.module.ts`,
+      'utf-8',
+    );
 
     expect(source).toContain(
       `{ name: LDAP_LOGIN_THROTTLER, ttl: 300_000, limit: 1_000_000 }`,

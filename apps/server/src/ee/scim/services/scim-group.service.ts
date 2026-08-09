@@ -43,6 +43,7 @@ import { ScimTokenContext } from './scim-user.service';
  * commonjs, поэтому обычный импорт резолвит именно пропатченный вариант.
  */
 import * as scimmy from 'scimmy';
+import { badRequest } from '../../../common/errors/app-error';
 
 /**
  * Строка группы и строка участника выводятся из самого репозитория, а не
@@ -651,7 +652,7 @@ export class ScimGroupService {
   private requireDisplayName(payload: any): string {
     const value = payload?.displayName;
     if (typeof value !== 'string' || !value.trim()) {
-      throw new BadRequestException('displayName is required');
+      throw badRequest('error.scim.displayname_is_required');
     }
     return value.trim();
   }

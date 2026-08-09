@@ -121,7 +121,7 @@ export class MfaService {
       user.password,
     );
     if (!matches) {
-      throw new UnauthorizedException('Email or password does not match');
+      throw unauthorized('error.mfa.email_or_password_does_not_match');
     }
 
     // Те же две проверки, что и у парольного входа, и в том же порядке.
@@ -130,7 +130,7 @@ export class MfaService {
     // неподтвержденная почта не проверялась вовсе, то есть путь второго
     // фактора обходил требование подтверждения.
     if (isUserDisabled(user)) {
-      throw new UnauthorizedException('Email or password does not match');
+      throw unauthorized('error.mfa.email_or_password_does_not_match');
     }
 
     throwIfEmailNotVerified({

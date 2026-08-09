@@ -10,6 +10,7 @@ import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo'
 import { chunkText } from './chunk-text';
 import type { ResolvedEmbeddingConfig } from '../ai/ai-settings.service';
 import type { EmbeddingModel } from 'ai';
+import { badRequest } from '../../common/errors/app-error';
 
 /** Провайдер, адрес шлюза и модель: чем определяется набор векторов. */
 type EmbeddingIdentity = {
@@ -122,8 +123,8 @@ export class EmbeddingService {
 
     // Ollama работает без ключа, остальным провайдерам ключ обязателен.
     if (!config.apiKey && config.driver !== 'ollama') {
-      throw new BadRequestException(
-        'Semantic search needs an embedding API key. Set one in Settings → AI, or set OPENAI_API_KEY.',
+      throw badRequest(
+        'error.embedding.semantic_search_needs_an_embedding_api',
       );
     }
 

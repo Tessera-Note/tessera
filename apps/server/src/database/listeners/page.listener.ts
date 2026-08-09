@@ -14,9 +14,7 @@ export class PageEvent {
 export class PageListener {
   private readonly logger = new Logger(PageListener.name);
 
-  constructor(
-    @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
-  ) {}
+  constructor(@InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue) {}
 
   @OnEvent(EventName.PAGE_CREATED)
   async handlePageCreated(event: PageEvent) {
@@ -28,7 +26,6 @@ export class PageListener {
   @OnEvent(EventName.PAGE_UPDATED)
   async handlePageUpdated(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-
 
     // Without this an edited page keeps its original embeddings, so semantic
     // search would answer from stale content.
@@ -46,7 +43,6 @@ export class PageListener {
   async handlePageSoftDeleted(event: PageEvent) {
     const { pageIds, workspaceId } = event;
 
-
     await this.aiQueue.add(QueueJob.PAGE_SOFT_DELETED, {
       pageIds,
       workspaceId,
@@ -59,5 +55,4 @@ export class PageListener {
 
     await this.aiQueue.add(QueueJob.PAGE_RESTORED, { pageIds, workspaceId });
   }
-
 }

@@ -22,6 +22,7 @@ import {
   CacheKey,
   PERMISSION_CACHE_TTL_MS,
 } from '../../../common/helpers/cache-keys';
+import { badRequest } from '../../../common/errors/app-error';
 
 /**
  * Пространство ключей рекомендательных блокировок: второй аргумент это хеш
@@ -134,7 +135,7 @@ export class SpaceMemberRepo {
     } else if (opts.groupId) {
       query = query.where('groupId', '=', opts.groupId);
     } else {
-      throw new BadRequestException('Please provide a userId or groupId');
+      throw badRequest('error.database.please_provide_a_userid_or_groupid');
     }
     return query.executeTakeFirst();
   }

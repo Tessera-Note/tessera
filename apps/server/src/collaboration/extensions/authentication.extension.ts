@@ -12,6 +12,7 @@ import { isUserDisabled } from '../../common/helpers';
 import { CollabAccessService } from '../services/collab-access.service';
 import { getPageId } from '../collaboration.util';
 import { JwtCollabPayload, JwtType } from '../../core/auth/dto/jwt-payload';
+import { notFound, unauthorized } from '../../common/errors/app-error';
 
 @Injectable()
 export class AuthenticationExtension implements Extension {
@@ -33,7 +34,7 @@ export class AuthenticationExtension implements Extension {
     try {
       jwtPayload = await this.tokenService.verifyJwt(token, JwtType.COLLAB);
     } catch (error) {
-      throw new UnauthorizedException('Invalid collab token');
+      throw unauthorized('error.collaboration.invalid_collab_token');
     }
 
     const userId = jwtPayload.sub;
@@ -52,7 +53,7 @@ export class AuthenticationExtension implements Extension {
     const page = await this.pageRepo.findById(pageId);
     if (!page) {
       this.logger.debug(`Page not found: ${pageId}`);
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     // Правило доступа общее с периодической перепроверкой открытых

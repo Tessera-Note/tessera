@@ -27,7 +27,7 @@ import {
   UpdateViewDto,
 } from './dto/base.dto';
 import { matchesBaseRowFilter, collectPushdownConditions } from './base-filter';
-import { badRequest } from '../../common/errors/app-error';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 /**
  * Значение для jsonb-колонки.
@@ -146,18 +146,16 @@ export class BaseService {
         .executeTakeFirst();
 
       if (!parentPage) {
-        throw new NotFoundException('Parent page not found');
+        throw notFound('error.common.parent_page_not_found');
       }
       if (spaceId && parentPage.spaceId !== spaceId) {
-        throw new BadRequestException(
-          'Parent page belongs to a different space',
-        );
+        throw badRequest('error.base.parent_page_belongs_to_a_different');
       }
       spaceId = parentPage.spaceId;
     }
 
     if (!spaceId) {
-      throw new BadRequestException('spaceId or parentPageId is required');
+      throw badRequest('error.common.spaceid_or_parentpageid_is_required');
     }
 
     const title =
@@ -346,7 +344,7 @@ export class BaseService {
       .executeTakeFirst();
 
     if (!page) {
-      throw new NotFoundException('Base not found');
+      throw notFound('error.common.base_not_found');
     }
 
     const properties = await this.db
@@ -783,7 +781,7 @@ export class BaseService {
       .where('deletedAt', 'is', null)
       .executeTakeFirst();
 
-    if (!row) throw new NotFoundException('Row not found');
+    if (!row) throw notFound('error.base.row_not_found');
 
     return {
       ...row,
@@ -825,7 +823,7 @@ export class BaseService {
       .returningAll()
       .executeTakeFirst();
 
-    if (!row) throw new NotFoundException('Row not found');
+    if (!row) throw notFound('error.base.row_not_found');
 
     this.baseWs.emitToBase(dto.pageId, {
       operation: 'base:row:updated',

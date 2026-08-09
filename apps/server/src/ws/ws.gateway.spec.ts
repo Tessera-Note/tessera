@@ -42,7 +42,9 @@ describe('WsGateway', () => {
         sessionId: 'session-1',
       }),
     };
-    const spaceMemberRepo = { getUserSpaceIds: jest.fn().mockResolvedValue([]) };
+    const spaceMemberRepo = {
+      getUserSpaceIds: jest.fn().mockResolvedValue([]),
+    };
     const wsService = {
       setServer: jest.fn(),
       isTreeEvent: jest.fn(),
@@ -97,7 +99,10 @@ describe('WsGateway', () => {
     await gateway.handleConnection(client);
 
     expect(client.data.sessionId).toBe('session-1');
-    expect(client.join).toHaveBeenCalledWith(['user-user-1', 'workspace-workspace-1']);
+    expect(client.join).toHaveBeenCalledWith([
+      'user-user-1',
+      'workspace-workspace-1',
+    ]);
   });
 
   it('does not join rooms when a concurrent session revocation disconnects the client during session validation', async () => {

@@ -8,6 +8,7 @@ import {
   ResolvedAiConfig,
   ResolvedEmbeddingConfig,
 } from './ai-settings.service';
+import { badRequest } from '../../common/errors/app-error';
 
 @Injectable()
 export class AiProviderFactory {
@@ -38,9 +39,7 @@ export class AiProviderFactory {
     modelId: string,
   ): EmbeddingModel {
     if (!config.driver) {
-      throw new BadRequestException(
-        'AI is not configured. Set it up in Settings → AI, or set AI_DRIVER in your environment.',
-      );
+      throw badRequest('error.ai.ai_is_not_configured_set_it');
     }
 
     switch (config.driver) {
@@ -73,9 +72,7 @@ export class AiProviderFactory {
   /** Used by the settings screen to exercise a config before relying on it. */
   createModel(config: ResolvedAiConfig, modelId?: string): LanguageModel {
     if (!config.driver) {
-      throw new BadRequestException(
-        'AI is not configured. Set it up in Settings → AI, or set AI_DRIVER in your environment.',
-      );
+      throw badRequest('error.ai.ai_is_not_configured_set_it');
     }
 
     const effectiveModel =

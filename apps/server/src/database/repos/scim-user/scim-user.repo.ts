@@ -77,7 +77,12 @@ export class ScimUserRepo {
    */
   async list(
     workspaceId: string,
-    opts: { startIndex: number; count: number; email?: string; externalId?: string },
+    opts: {
+      startIndex: number;
+      count: number;
+      email?: string;
+      externalId?: string;
+    },
   ) {
     let query = this.base(workspaceId);
     let countQuery = this.db

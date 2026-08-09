@@ -19,8 +19,7 @@ interface WorkspacesWithNumericRetention extends Omit<
   trashRetentionDays: Generated<number>;
 }
 
-export interface DbInterface
-  extends Omit<DB, 'workspaces' | 'pageEmbeddings'> {
+export interface DbInterface extends Omit<DB, 'workspaces' | 'pageEmbeddings'> {
   pageEmbeddings: PageEmbeddings;
   workspaceAiSettings: WorkspaceAiSettings;
   workspaces: WorkspacesWithNumericRetention;

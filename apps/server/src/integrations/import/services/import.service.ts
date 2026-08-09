@@ -31,6 +31,7 @@ import { QueueJob, QueueName } from '../../queue/constants';
 import { ModuleRef } from '@nestjs/core';
 import { load } from 'cheerio';
 import { normalizeImportHtml } from '../utils/import-formatter';
+import { badRequest } from '../../../common/errors/app-error';
 
 @Injectable()
 export class ImportService {
@@ -182,8 +183,8 @@ export class ImportService {
       this.logger.error(
         'DOCX import requested but EE module not bundled in this build',
       );
-      throw new BadRequestException(
-        'This feature requires a valid enterprise license.',
+      throw badRequest(
+        'error.integrations.this_feature_requires_a_valid_enterprise',
       );
     }
 
@@ -218,8 +219,8 @@ export class ImportService {
       this.logger.error(
         'PDF import requested but EE module not bundled in this build',
       );
-      throw new BadRequestException(
-        'This feature requires a valid enterprise license.',
+      throw badRequest(
+        'error.integrations.this_feature_requires_a_valid_enterprise',
       );
     }
 

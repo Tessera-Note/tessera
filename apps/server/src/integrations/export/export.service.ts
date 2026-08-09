@@ -39,6 +39,7 @@ import {
   getProsemirrorContent,
 } from '../../common/helpers/prosemirror/utils';
 import { htmlToMarkdown } from '@tessera/editor-ext';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 type AllowedAttachment = { id: string; fileName: string; filePath: string };
 
@@ -129,7 +130,7 @@ export class ExportService {
     }
 
     if (!pages || pages.length === 0) {
-      throw new BadRequestException('No pages to export');
+      throw badRequest('error.integrations.no_pages_to_export');
     }
 
     if (!ignorePermissions && userId) {
@@ -140,7 +141,7 @@ export class ExportService {
         pages[0].spaceId,
       );
       if (pages.length === 0) {
-        throw new BadRequestException('No accessible pages to export');
+        throw badRequest('error.integrations.no_accessible_pages_to_export');
       }
     }
 
@@ -148,7 +149,7 @@ export class ExportService {
 
     //After filtering by permissions, if the root page itself is not accessible to the user, findIndex returns -1
     if (parentPageIndex === -1) {
-      throw new BadRequestException('Root page is not accessible');
+      throw badRequest('error.integrations.root_page_is_not_accessible');
     }
     // set to null to make export of pages with parentId work
     pages[parentPageIndex].parentPageId = null;
@@ -197,7 +198,7 @@ export class ExportService {
       .executeTakeFirst();
 
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     let pages = await this.db
@@ -227,7 +228,7 @@ export class ExportService {
         spaceId,
       );
       if (pages.length === 0) {
-        throw new BadRequestException('No accessible pages to export');
+        throw badRequest('error.integrations.no_accessible_pages_to_export');
       }
     }
 
@@ -310,7 +311,11 @@ export class ExportService {
         );
 
         if (includeAttachments) {
-          await this.zipAttachments(updatedJsonContent, folder, allowedAttachments);
+          await this.zipAttachments(
+            updatedJsonContent,
+            folder,
+            allowedAttachments,
+          );
           updatedJsonContent =
             updateAttachmentUrlsToLocalPaths(updatedJsonContent);
         }
@@ -390,7 +395,9 @@ export class ExportService {
     for (const siblings of Object.values(tree)) {
       for (const page of siblings) {
         if (!spaceId) spaceId = page.spaceId;
-        for (const id of getAttachmentIds(getProsemirrorContent(page.content))) {
+        for (const id of getAttachmentIds(
+          getProsemirrorContent(page.content),
+        )) {
           allAttachmentIds.add(id);
         }
       }
@@ -411,9 +418,7 @@ export class ExportService {
     if (!ignorePermissions && userId) {
       const ownerPageIds = [
         ...new Set(
-          attachments
-            .map((a) => a.pageId)
-            .filter((id): id is string => !!id),
+          attachments.map((a) => a.pageId).filter((id): id is string => !!id),
         ),
       ];
       const accessible = ownerPageIds.length

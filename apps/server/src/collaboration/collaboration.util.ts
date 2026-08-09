@@ -110,7 +110,7 @@ export const tiptapExtensions = [
   Status,
   TransclusionSource,
   TransclusionReference,
-  BaseEmbed
+  BaseEmbed,
 ] as any;
 
 export function jsonToHtml(tiptapJson: any) {

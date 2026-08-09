@@ -12,6 +12,7 @@ import {
   SpaceCaslAction,
   SpaceCaslSubject,
 } from '../../core/casl/interfaces/space-ability.type';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 /**
  * The REST surface for bases reached production checking only workspaceId,
@@ -78,7 +79,7 @@ export class BaseAccessService {
 
   async assertCanViewSpace(spaceId: string, user: User): Promise<void> {
     if (!spaceId) {
-      throw new BadRequestException('spaceId is required');
+      throw badRequest('error.common.spaceid_is_required');
     }
     // createForUser throws when the user is not a member of the space
     const ability = await this.spaceAbility.createForUser(user, spaceId);
@@ -89,7 +90,7 @@ export class BaseAccessService {
 
   async assertCanCreateInSpace(spaceId: string, user: User): Promise<void> {
     if (!spaceId) {
-      throw new BadRequestException('spaceId is required');
+      throw badRequest('error.common.spaceid_is_required');
     }
     const ability = await this.spaceAbility.createForUser(user, spaceId);
     if (ability.cannot(SpaceCaslAction.Create, SpaceCaslSubject.Page)) {
@@ -100,20 +101,20 @@ export class BaseAccessService {
   private async getBase(pageId: string, workspaceId: string): Promise<Page> {
     const page = await this.getPage(pageId, workspaceId);
     if (!page.isBase) {
-      throw new NotFoundException('Base not found');
+      throw notFound('error.common.base_not_found');
     }
     return page;
   }
 
   private async getPage(pageId: string, workspaceId: string): Promise<Page> {
     if (!pageId) {
-      throw new BadRequestException('pageId is required');
+      throw badRequest('error.common.pageid_is_required');
     }
 
     const page = await this.pageRepo.findById(pageId);
 
     if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
-      throw new NotFoundException('Base not found');
+      throw notFound('error.common.base_not_found');
     }
 
     return page;

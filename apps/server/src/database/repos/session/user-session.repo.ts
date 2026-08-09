@@ -118,10 +118,7 @@ export class UserSessionRepo {
     return sessions.map((session) => session.id);
   }
 
-  async deleteByUserId(
-    userId: string,
-    workspaceId: string,
-  ): Promise<string[]> {
+  async deleteByUserId(userId: string, workspaceId: string): Promise<string[]> {
     const sessions = await this.db
       .deleteFrom('userSessions')
       .where('userId', '=', userId)
@@ -153,10 +150,7 @@ export class UserSessionRepo {
     await this.db
       .deleteFrom('userSessions')
       .where((eb) =>
-        eb.or([
-          eb('revokedAt', '<', cutoff),
-          eb('expiresAt', '<', cutoff),
-        ]),
+        eb.or([eb('revokedAt', '<', cutoff), eb('expiresAt', '<', cutoff)]),
       )
       .execute();
   }

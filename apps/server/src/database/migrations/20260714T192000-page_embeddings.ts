@@ -7,7 +7,9 @@ export async function up(db: Kysely<any>): Promise<void> {
   // 2. Create page_embeddings table
   await db.schema
     .createTable('page_embeddings')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_uuid_v7()` ))
+    .addColumn('id', 'uuid', (col) =>
+      col.primaryKey().defaultTo(sql`gen_uuid_v7()`),
+    )
     .addColumn('page_id', 'uuid', (col) => col.notNull())
     .addColumn('space_id', 'uuid', (col) => col.notNull())
     .addColumn('model_name', 'varchar', (col) => col.notNull())
@@ -19,22 +21,26 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('chunk_start', 'integer', (col) => col.notNull().defaultTo(0))
     .addColumn('chunk_length', 'integer', (col) => col.notNull().defaultTo(0))
     .addColumn('metadata', 'jsonb', (col) => col.notNull().defaultTo('{}'))
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()` ))
-    .addColumn('updated_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()` ))
+    .addColumn('created_at', 'timestamptz', (col) =>
+      col.notNull().defaultTo(sql`now()`),
+    )
+    .addColumn('updated_at', 'timestamptz', (col) =>
+      col.notNull().defaultTo(sql`now()`),
+    )
     .addColumn('deleted_at', 'timestamptz')
     .addForeignKeyConstraint(
       'page_embeddings_page_id_fkey',
       ['page_id'],
       'pages',
       ['id'],
-      (cb) => cb.onDelete('cascade')
+      (cb) => cb.onDelete('cascade'),
     )
     .addForeignKeyConstraint(
       'page_embeddings_workspace_id_fkey',
       ['workspace_id'],
       'workspaces',
       ['id'],
-      (cb) => cb.onDelete('cascade')
+      (cb) => cb.onDelete('cascade'),
     )
     .execute();
 }

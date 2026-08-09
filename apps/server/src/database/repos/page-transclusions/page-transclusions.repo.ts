@@ -108,5 +108,4 @@ export class PageTransclusionsRepo {
       .where('transclusionId', 'in', transclusionIds)
       .execute();
   }
-
 }

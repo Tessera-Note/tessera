@@ -38,6 +38,7 @@ import {
   UpdateTemplateDto,
   UseTemplateDto,
 } from './dto/template.dto';
+import { badRequest, conflict, notFound } from '../../common/errors/app-error';
 
 export const EMPTY_DOC: JSONContent = {
   type: 'doc',
@@ -129,7 +130,7 @@ export class TemplateService {
     await this.authorizeTemplateScope(template.spaceId, user, workspace, true);
 
     if (!mutableFields.some((field) => dto[field] !== undefined)) {
-      throw new BadRequestException('No fields to update');
+      throw badRequest('error.template.no_fields_to_update');
     }
 
     if (dto.spaceId !== undefined && dto.spaceId !== null) {
@@ -163,7 +164,7 @@ export class TemplateService {
     );
 
     if (!updated) {
-      throw new ConflictException('Template scope changed. Please retry');
+      throw conflict('error.template.template_scope_changed_please_retry');
     }
 
     const updatedTemplate = await this.findTemplate(template.id, workspace.id);
@@ -186,7 +187,7 @@ export class TemplateService {
     );
 
     if (!deleted) {
-      throw new ConflictException('Template scope changed. Please retry');
+      throw conflict('error.template.template_scope_changed_please_retry');
     }
   }
 
@@ -203,7 +204,7 @@ export class TemplateService {
         parentPage.deletedAt ||
         parentPage.spaceId !== dto.spaceId
       ) {
-        throw new NotFoundException('Parent page not found');
+        throw notFound('error.common.parent_page_not_found');
       }
       await this.pageAccessService.validateCanEdit(parentPage, user);
     } else {
@@ -241,7 +242,7 @@ export class TemplateService {
     });
 
     if (!template) {
-      throw new NotFoundException('Template not found');
+      throw notFound('error.template.template_not_found');
     }
 
     return template;
@@ -250,7 +251,7 @@ export class TemplateService {
   private async findSpace(spaceId: string, workspaceId: string) {
     const space = await this.spaceRepo.findById(spaceId, workspaceId);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
     return space;
   }
@@ -351,7 +352,7 @@ export class TemplateService {
         ydoc: createYdocFromJson(content),
       };
     } catch {
-      throw new BadRequestException('Invalid content format');
+      throw badRequest('error.template.invalid_content_format');
     }
   }
 }

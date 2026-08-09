@@ -37,8 +37,7 @@ export class AzureDriver implements StorageDriver {
     }
 
     this.accountUrl =
-      config.endpoint ??
-      `https://${config.accountName}.blob.core.windows.net`;
+      config.endpoint ?? `https://${config.accountName}.blob.core.windows.net`;
 
     this.sharedKeyCredential = new StorageSharedKeyCredential(
       config.accountName,

@@ -8,6 +8,7 @@ import { StorageService } from '../../integrations/storage/storage.service';
 import { jsonToNode } from '../../collaboration/collaboration.util';
 import { getProsemirrorContent } from '../../common/helpers/prosemirror/utils';
 import { getSafePageTitle } from '../../integrations/export/utils';
+import { notFound } from '../../common/errors/app-error';
 
 /**
  * Идентификатор вложения в ссылке вида /files/<id>/<имя> или /api/files/...
@@ -47,7 +48,7 @@ export class DocxExportService {
       includeContent: true,
     });
     if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -67,7 +68,7 @@ export class DocxExportService {
 
     const doc = jsonToNode(prosemirrorJson);
     if (!doc) {
-      throw new NotFoundException('Page content is empty');
+      throw notFound('error.docx_export.page_content_is_empty');
     }
 
     const buffer = await pageNodeToDocxBuffer(doc, (src: string) =>

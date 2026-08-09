@@ -51,7 +51,9 @@ describe('WsService', () => {
     };
     const service = createService();
     service.setServer({
-      fetchSockets: jest.fn().mockResolvedValue([failingSocket, matchingSocket]),
+      fetchSockets: jest
+        .fn()
+        .mockResolvedValue([failingSocket, matchingSocket]),
     } as any);
 
     await service.disconnectSessions(['session-to-revoke']);
@@ -71,7 +73,9 @@ describe('WsService', () => {
     const service = createService();
     service.setServer({
       in: jest.fn(() => ({
-        fetchSockets: jest.fn().mockRejectedValue(new Error('Redis unavailable')),
+        fetchSockets: jest
+          .fn()
+          .mockRejectedValue(new Error('Redis unavailable')),
       })),
     } as any);
     (service as any).spaceHasRestrictions = jest.fn().mockResolvedValue(true);
@@ -107,13 +111,19 @@ describe('WsService', () => {
     const pagePermissionRepo = {
       hasRestrictedPagesInSpace: jest.fn().mockResolvedValue(true),
       hasRestrictedAncestor: jest.fn().mockResolvedValue(true),
-      getUserIdsWithPageAccess: jest.fn().mockResolvedValue(['authorized-user']),
+      getUserIdsWithPageAccess: jest
+        .fn()
+        .mockResolvedValue(['authorized-user']),
     };
     const cacheManager = {
       get: jest.fn().mockResolvedValue(undefined),
       set: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new WsService(pagePermissionRepo as any, {} as any, cacheManager as any);
+    const service = new WsService(
+      pagePermissionRepo as any,
+      {} as any,
+      cacheManager as any,
+    );
     service.setServer({
       in: jest.fn(() => ({
         fetchSockets: jest.fn().mockResolvedValue([

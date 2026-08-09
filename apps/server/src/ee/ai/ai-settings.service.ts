@@ -3,6 +3,7 @@ import { WorkspaceAiSettingsRepo } from '@tessera/db/repos/workspace/workspace-a
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { decryptSecret, encryptSecret, maskSecret } from './ai-secret.util';
 import { UpdateAiSettingsDto } from './dto/update-ai-settings.dto';
+import { badRequest } from '../../common/errors/app-error';
 
 export const AI_DRIVERS = [
   'openai',
@@ -375,7 +376,7 @@ export class AiSettingsService {
 
     const driver = (override?.driver || resolved.driver) as AiDriver | '';
     if (!driver) {
-      throw new BadRequestException('Select a provider first.');
+      throw badRequest('error.ai.select_a_provider_first');
     }
 
     const baseUrl = this.effectiveBaseUrl(
@@ -386,7 +387,7 @@ export class AiSettingsService {
     const apiKey = override?.apiKey?.trim() || resolved.apiKey;
 
     if (driver !== 'ollama' && !apiKey) {
-      throw new BadRequestException('Enter an API key first.');
+      throw badRequest('error.ai.enter_an_api_key_first');
     }
 
     try {
@@ -461,7 +462,7 @@ export class AiSettingsService {
     // Ollama работает без ключа, каталог OpenRouter тоже отдается без него.
     // Остальным провайдерам ключ обязателен.
     if (!apiKey && driver !== 'ollama' && driver !== 'openrouter') {
-      throw new BadRequestException('Enter an embedding API key first.');
+      throw badRequest('error.ai.enter_an_embedding_api_key_first');
     }
 
     try {

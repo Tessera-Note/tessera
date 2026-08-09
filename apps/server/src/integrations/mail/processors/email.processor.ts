@@ -27,7 +27,9 @@ export class EmailProcessor extends WorkerHost implements OnModuleDestroy {
       try {
         await this.notificationRepo.markAsEmailed(job.data.notificationId);
       } catch (err) {
-        this.logger.warn(`Failed to mark notification ${job.data.notificationId} as emailed`);
+        this.logger.warn(
+          `Failed to mark notification ${job.data.notificationId} as emailed`,
+        );
       }
     }
   }

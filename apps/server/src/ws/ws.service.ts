@@ -44,10 +44,7 @@ export class WsService {
    * Канал `/collab` живет отдельно и закрывает этот случай своим обходом
    * соединений, подменять одно другим нельзя.
    */
-  async syncSpaceMembership(
-    userIds: string[],
-    spaceId: string,
-  ): Promise<void> {
+  async syncSpaceMembership(userIds: string[], spaceId: string): Promise<void> {
     if (!this.server || userIds.length === 0) return;
 
     const room = getSpaceRoomName(spaceId);
@@ -92,7 +89,10 @@ export class WsService {
     try {
       sockets = await this.server.fetchSockets();
     } catch (err) {
-      this.logger.warn('Failed to fetch sockets for session disconnection', err);
+      this.logger.warn(
+        'Failed to fetch sockets for session disconnection',
+        err,
+      );
       return;
     }
 
@@ -137,9 +137,7 @@ export class WsService {
       const sockets = await this.server.in(room).fetchSockets();
       const userIds = Array.from(
         new Set(
-          sockets
-            .map((socket) => socket.data.userId as string)
-            .filter(Boolean),
+          sockets.map((socket) => socket.data.userId as string).filter(Boolean),
         ),
       );
       const authorizedUserIds =

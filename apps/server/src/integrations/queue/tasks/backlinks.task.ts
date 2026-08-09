@@ -77,9 +77,7 @@ export async function processBacklinks(
       }));
 
       await backlinkRepo.insertBacklink(newBacklinks, trx);
-      logger.debug(
-        `Added ${newBacklinks.length} new backlinks to ${pageId}`,
-      );
+      logger.debug(`Added ${newBacklinks.length} new backlinks to ${pageId}`);
     }
 
     if (backlinksToRemove.length > 0) {

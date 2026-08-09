@@ -12,9 +12,10 @@ export interface Response<T> {
 }
 
 @Injectable()
-export class TransformHttpResponseInterceptor<T>
-  implements NestInterceptor<T, Response<T>>
-{
+export class TransformHttpResponseInterceptor<T> implements NestInterceptor<
+  T,
+  Response<T>
+> {
   constructor(private reflector: Reflector) {}
 
   intercept(

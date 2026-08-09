@@ -12,6 +12,7 @@ import { PaginationOptions } from '../../pagination/pagination-options';
 import { executeWithCursorPagination } from '@tessera/db/pagination/cursor-pagination';
 import { GroupRepo } from '@tessera/db/repos/group/group.repo';
 import { UserRepo } from '@tessera/db/repos/user/user.repo';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class GroupUserRepo {
@@ -96,7 +97,7 @@ export class GroupUserRepo {
           trx,
         });
         if (!group) {
-          throw new NotFoundException('Group not found');
+          throw notFound('error.database.group_not_found');
         }
 
         const user = await this.userRepo.findById(userId, workspaceId, {
@@ -104,7 +105,7 @@ export class GroupUserRepo {
         });
 
         if (!user) {
-          throw new NotFoundException('User not found');
+          throw notFound('error.database.user_not_found');
         }
 
         const groupUserExists = await this.getGroupUserById(
@@ -114,9 +115,7 @@ export class GroupUserRepo {
         );
 
         if (groupUserExists) {
-          throw new BadRequestException(
-            'User is already a member of this group',
-          );
+          throw badRequest('error.database.user_is_already_a_member_of');
         }
 
         // Проверка выше отвечает за понятное сообщение, а не за целостность:
@@ -132,9 +131,7 @@ export class GroupUserRepo {
         );
 
         if (!inserted) {
-          throw new BadRequestException(
-            'User is already a member of this group',
-          );
+          throw badRequest('error.database.user_is_already_a_member_of');
         }
       },
       trx,

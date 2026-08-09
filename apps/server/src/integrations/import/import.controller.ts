@@ -31,6 +31,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { WsService } from '../../ws/ws.service';
+import { badRequest } from '../../common/errors/app-error';
 
 @Controller()
 export class ImportController {
@@ -65,14 +66,12 @@ export class ImportController {
     } catch (err: any) {
       this.logger.error(err.message);
       if (err?.statusCode === 413) {
-        throw new BadRequestException(
-          `File too large. Exceeds the 10mb import limit`,
-        );
+        throw badRequest('error.integrations.file_too_large_exceeds_the_10mb');
       }
     }
 
     if (!file) {
-      throw new BadRequestException('Failed to upload file');
+      throw badRequest('error.integrations.failed_to_upload_file');
     }
 
     if (
@@ -89,7 +88,7 @@ export class ImportController {
     const spaceId = file.fields?.spaceId?.value;
 
     if (!spaceId) {
-      throw new BadRequestException('spaceId is required');
+      throw badRequest('error.common.spaceid_is_required');
     }
 
     const ability = await this.spaceAbility.createForUser(user, spaceId);
@@ -159,7 +158,7 @@ export class ImportController {
     }
 
     if (!file) {
-      throw new BadRequestException('Failed to upload file');
+      throw badRequest('error.integrations.failed_to_upload_file');
     }
 
     if (
@@ -175,13 +174,13 @@ export class ImportController {
 
     const validZipSources = ['generic', 'notion', 'confluence'];
     if (!validZipSources.includes(source)) {
-      throw new BadRequestException(
-        'Invalid import source. Import source must either be generic, notion or confluence.',
+      throw badRequest(
+        'error.integrations.invalid_import_source_import_source_must',
       );
     }
 
     if (!spaceId) {
-      throw new BadRequestException('spaceId is required');
+      throw badRequest('error.common.spaceid_is_required');
     }
 
     const ability = await this.spaceAbility.createForUser(user, spaceId);

@@ -28,6 +28,11 @@ import { Page, User, Workspace } from '@tessera/db/types/entity.types';
 import { PageAccessService } from '../../core/page/page-access/page-access.service';
 import { JwtType } from '../../core/auth/dto/jwt-payload';
 import { sanitizeFileName } from '../../common/helpers/utils';
+import {
+  badRequest,
+  notFound,
+  unauthorized,
+} from '../../common/errors/app-error';
 
 /** Page numbers only; Gotenberg requires a full document for header/footer. */
 const FOOTER_HTML = `<!doctype html>
@@ -100,7 +105,7 @@ export class PdfExportService {
 
     const page = await this.pageRepo.findById(pageId);
     if (!page || page.deletedAt || page.workspaceId !== workspace.id) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     // Viewing is enough to export: the PDF contains nothing the user cannot
@@ -163,7 +168,7 @@ export class PdfExportService {
     try {
       payload = await this.tokenService.verifyJwt(token, JwtType.PDF_RENDER);
     } catch {
-      throw new UnauthorizedException('Invalid or expired render token');
+      throw unauthorized('error.pdf_export.invalid_or_expired_render_token');
     }
 
     const fileTask = await this.db
@@ -174,7 +179,7 @@ export class PdfExportService {
       .executeTakeFirst();
 
     if (!fileTask) {
-      throw new NotFoundException('Export not found');
+      throw notFound('error.pdf_export.export_not_found');
     }
 
     // Tolerate both shapes: rows written before the jsonb cast was fixed hold a
@@ -183,7 +188,7 @@ export class PdfExportService {
     const pageIds = metadata.pageIds ?? [];
 
     if (pageIds.length === 0) {
-      throw new NotFoundException('Export has no pages');
+      throw notFound('error.pdf_export.export_has_no_pages');
     }
 
     const rows = await this.db
@@ -263,7 +268,7 @@ export class PdfExportService {
       .executeTakeFirst();
 
     if (!fileTask) {
-      throw new NotFoundException('File task not found');
+      throw notFound('error.common.file_task_not_found');
     }
 
     if (!fileTask.pageId) {
@@ -311,9 +316,7 @@ export class PdfExportService {
   private async renderPdf(pageId: string, token: string): Promise<Buffer> {
     const gotenbergUrl = this.environmentService.getGotenbergUrl();
     if (!gotenbergUrl) {
-      throw new BadRequestException(
-        'PDF export needs GOTENBERG_URL to point at a Gotenberg service.',
-      );
+      throw badRequest('error.pdf_export.pdf_export_needs_gotenberg_url_to');
     }
 
     const baseUrl = this.environmentService.getPdfRenderBaseUrl();
@@ -389,11 +392,11 @@ export class PdfExportService {
       .executeTakeFirst();
 
     if (!fileTask || fileTask.type !== FileTaskType.Export) {
-      throw new NotFoundException('Export not found');
+      throw notFound('error.pdf_export.export_not_found');
     }
 
     if (fileTask.status !== FileTaskStatus.Success) {
-      throw new BadRequestException('Export is not ready yet');
+      throw badRequest('error.pdf_export.export_is_not_ready_yet');
     }
 
     // Re-check access at download time: space membership may have changed since
@@ -401,13 +404,13 @@ export class PdfExportService {
     if (fileTask.pageId) {
       const page = await this.pageRepo.findById(fileTask.pageId);
       if (!page) {
-        throw new NotFoundException('Export not found');
+        throw notFound('error.pdf_export.export_not_found');
       }
       await this.pageAccessService.validateCanView(page, user);
     }
 
     if (!(await this.storageService.exists(fileTask.filePath))) {
-      throw new NotFoundException('Export file has expired');
+      throw notFound('error.pdf_export.export_file_has_expired');
     }
 
     return {

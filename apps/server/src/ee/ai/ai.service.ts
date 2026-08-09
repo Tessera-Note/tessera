@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { generateText, streamText } from 'ai';
 import { AiProviderFactory } from './ai-provider.factory';
 import { DEFAULT_AI_LANGUAGE, languageFromLocale } from './ai-language.util';
+import { badRequest } from '../../common/errors/app-error';
 
 export enum AiAction {
   IMPROVE_WRITING = 'improve_writing',
@@ -52,7 +53,7 @@ export class AiService {
     locale?: string | null;
   }) {
     if (!(await this.providerFactory.isConfigured(data.workspaceId))) {
-      throw new BadRequestException('AI is not configured');
+      throw badRequest('error.common.ai_is_not_configured');
     }
 
     const systemPrompt = this.buildPrompt(
@@ -88,7 +89,7 @@ export class AiService {
     locale?: string | null;
   }) {
     if (!(await this.providerFactory.isConfigured(data.workspaceId))) {
-      throw new BadRequestException('AI is not configured');
+      throw badRequest('error.common.ai_is_not_configured');
     }
 
     const systemPrompt = this.buildPrompt(

@@ -3,12 +3,13 @@ import {
   createParamDecorator,
   ExecutionContext,
 } from '@nestjs/common';
+import { badRequest } from '../../common/errors/app-error';
 
 export const AuthUser = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
     if (!request?.user?.user) {
-      throw new BadRequestException('Invalid User');
+      throw badRequest('error.common.invalid_user');
     }
 
     return request.user.user;

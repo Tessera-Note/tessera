@@ -2,6 +2,7 @@ import { Injectable, NestMiddleware, NotFoundException } from '@nestjs/common';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@tessera/db/repos/workspace/workspace.repo';
+import { notFound } from '../../common/errors/app-error';
 
 @Injectable()
 export class DomainMiddleware implements NestMiddleware {
@@ -17,7 +18,7 @@ export class DomainMiddleware implements NestMiddleware {
     if (this.environmentService.isSelfHosted()) {
       const workspace = await this.workspaceRepo.findFirst();
       if (!workspace) {
-        //throw new NotFoundException('Workspace not found');
+        //throw notFound('error.common.workspace_not_found');
         (req as any).workspaceId = null;
         return next();
       }

@@ -64,7 +64,8 @@ export class UniqueViolationFilter extends BaseExceptionFilter {
     }
 
     const message =
-      CONSTRAINT_SUBJECT[error.constraint ?? ''] ?? 'This record already exists';
+      CONSTRAINT_SUBJECT[error.constraint ?? ''] ??
+      'This record already exists';
 
     // Имя ограничения остается в журнале: наружу уходит только то, что понятно
     // человеку, а разбирать случившееся по общему тексту невозможно.

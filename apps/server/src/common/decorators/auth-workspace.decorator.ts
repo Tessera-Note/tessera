@@ -3,6 +3,7 @@ import {
   createParamDecorator,
   ExecutionContext,
 } from '@nestjs/common';
+import { badRequest } from '../../common/errors/app-error';
 
 export const AuthWorkspace = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
@@ -10,7 +11,7 @@ export const AuthWorkspace = createParamDecorator(
     const workspace = request.raw?.workspace ?? request?.user?.workspace;
 
     if (!workspace) {
-      throw new BadRequestException('Invalid workspace');
+      throw badRequest('error.common.invalid_workspace');
     }
 
     return workspace;

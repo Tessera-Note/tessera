@@ -59,7 +59,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
-import { badRequest } from '../../common/errors/app-error';
+import { badRequest, forbidden, notFound } from '../../common/errors/app-error';
 
 /**
  * Every revision we've tested against. Our initialize/tools/list/tools/call
@@ -1423,7 +1423,7 @@ export class McpService {
     opts?: { includeContent?: boolean },
   ): Promise<Page> {
     if (!pageId) {
-      throw new BadRequestException('pageId is required');
+      throw badRequest('error.common.pageid_is_required');
     }
 
     const page = await this.pageRepo.findById(pageId, {
@@ -1431,7 +1431,7 @@ export class McpService {
     });
 
     if (!page || page.deletedAt || page.workspaceId !== workspace.id) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     return page;
@@ -1538,7 +1538,7 @@ export class McpService {
 
       case 'create_page': {
         if (!args.spaceId) {
-          throw new BadRequestException('spaceId is required');
+          throw badRequest('error.common.spaceid_is_required');
         }
 
         if (args.parentPageId) {
@@ -1547,7 +1547,7 @@ export class McpService {
             workspace,
           );
           if (parentPage.spaceId !== args.spaceId) {
-            throw new NotFoundException('Parent page not found');
+            throw notFound('error.common.parent_page_not_found');
           }
           await this.pageAccessService.validateCanEdit(parentPage, user);
         } else {
@@ -1640,7 +1640,7 @@ export class McpService {
 
       case 'search_workspace': {
         if (!args.query) {
-          throw new BadRequestException('query is required');
+          throw badRequest('error.mcp.query_is_required');
         }
 
         if (args.spaceId) {
@@ -1775,9 +1775,7 @@ export class McpService {
           if (
             ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)
           ) {
-            throw new ForbiddenException(
-              'You can only delete your own comments',
-            );
+            throw forbidden('error.mcp.you_can_only_delete_your_own');
           }
         }
 
@@ -1815,7 +1813,7 @@ export class McpService {
         await this.pageAccessService.validateCanEdit(page, user);
 
         if (!Array.isArray(args.names) || args.names.length === 0) {
-          throw new BadRequestException('names must be a non-empty array');
+          throw badRequest('error.mcp.names_must_be_a_non_empty');
         }
 
         return {
@@ -1921,7 +1919,7 @@ export class McpService {
       case 'get_page_version': {
         const history = await this.pageHistoryService.findById(args.historyId);
         if (!history) {
-          throw new NotFoundException('Page version not found');
+          throw notFound('error.mcp.page_version_not_found');
         }
 
         const page = await this.getPageInWorkspace(history.pageId, workspace);
@@ -1938,7 +1936,7 @@ export class McpService {
 
       case 'list_trash': {
         if (!args.spaceId) {
-          throw new BadRequestException('spaceId is required');
+          throw badRequest('error.common.spaceid_is_required');
         }
 
         const ability = await this.spaceAbility.createForUser(
@@ -1960,7 +1958,7 @@ export class McpService {
         // findById without the deletedAt guard: the page is in the trash
         const page = await this.pageRepo.findById(args.pageId);
         if (!page || page.workspaceId !== workspace.id) {
-          throw new NotFoundException('Page not found');
+          throw notFound('error.common.page_not_found');
         }
 
         const ability = await this.spaceAbility.createForUser(
@@ -2027,7 +2025,7 @@ export class McpService {
         const page = await this.getPageInWorkspace(args.pageId, workspace);
 
         if (page.spaceId === args.spaceId) {
-          throw new BadRequestException('Page is already in this space');
+          throw badRequest('error.mcp.page_is_already_in_this_space');
         }
 
         const abilities = await Promise.all([
@@ -2226,7 +2224,7 @@ export class McpService {
       // --- attachments and export ---
       case 'search_attachments': {
         if (!args.query) {
-          throw new BadRequestException('query is required');
+          throw badRequest('error.mcp.query_is_required');
         }
 
         if (args.spaceId) {
@@ -2280,7 +2278,7 @@ export class McpService {
           !attachment.pageId ||
           attachment.workspaceId !== workspace.id
         ) {
-          throw new NotFoundException('File not found');
+          throw notFound('error.mcp.file_not_found');
         }
 
         const page = await this.getPageInWorkspace(
@@ -2299,9 +2297,7 @@ export class McpService {
         const buffer = this.decodeBase64Upload(args.contentBase64);
         const fileName = String(args.fileName || '').trim();
         if (!fileName || !fileName.includes('.')) {
-          throw new BadRequestException(
-            'fileName must include an extension, e.g. "diagrama.png"',
-          );
+          throw badRequest('error.mcp.filename_must_include_an_extension_e');
         }
 
         // prepareFile is called with skipBuffer, so it only reads `filename`,
@@ -2321,7 +2317,7 @@ export class McpService {
         });
 
         if (!attachment) {
-          throw new BadRequestException('Error processing file upload');
+          throw badRequest('error.mcp.error_processing_file_upload');
         }
 
         this.auditService.log({
@@ -2375,9 +2371,7 @@ export class McpService {
         });
 
         if (result.type !== 'file') {
-          throw new BadRequestException(
-            'This export produced an archive, which cannot be returned over MCP',
-          );
+          throw badRequest('error.mcp.this_export_produced_an_archive_which');
         }
 
         return result.content;
@@ -2394,7 +2388,7 @@ export class McpService {
    */
   private decodeBase64Upload(input: unknown): Buffer {
     if (typeof input !== 'string' || input.trim() === '') {
-      throw new BadRequestException('contentBase64 is required');
+      throw badRequest('error.mcp.contentbase64_is_required');
     }
 
     // Tolerate a data: URI even though the schema asks for raw base64 —
@@ -2411,13 +2405,13 @@ export class McpService {
     try {
       buffer = Buffer.from(payload, 'base64');
     } catch {
-      throw new BadRequestException('contentBase64 is not valid base64');
+      throw badRequest('error.mcp.contentbase64_is_not_valid_base64');
     }
 
     // Buffer.from silently drops invalid characters, so an empty result is
     // the only signal that the input was not really base64.
     if (buffer.length === 0) {
-      throw new BadRequestException('contentBase64 decoded to an empty file');
+      throw badRequest('error.mcp.contentbase64_decoded_to_an_empty_file');
     }
 
     return buffer;
@@ -2438,19 +2432,19 @@ export class McpService {
 
   private async markdownToCommentContent(markdown: string): Promise<string> {
     if (typeof markdown !== 'string') {
-      throw new BadRequestException('content must be a markdown string');
+      throw badRequest('error.mcp.content_must_be_a_markdown_string');
     }
     return JSON.stringify(await this.markdownToProsemirror(markdown));
   }
 
   private async getCommentInWorkspace(commentId: string, workspace: Workspace) {
     if (!commentId) {
-      throw new BadRequestException('commentId is required');
+      throw badRequest('error.mcp.commentid_is_required');
     }
 
     const comment = await this.commentRepo.findById(commentId);
     if (!comment || comment.workspaceId !== workspace.id) {
-      throw new NotFoundException('Comment not found');
+      throw notFound('error.mcp.comment_not_found');
     }
 
     const page = await this.getPageInWorkspace(comment.pageId, workspace);
@@ -2464,13 +2458,13 @@ export class McpService {
     if (args.labelId) {
       const label = await this.labelRepo.findById(args.labelId);
       if (!label || label.workspaceId !== workspace.id) {
-        throw new NotFoundException('Label not found');
+        throw notFound('error.mcp.label_not_found');
       }
       return label.id;
     }
 
     if (!args.name) {
-      throw new BadRequestException('labelId or name is required');
+      throw badRequest('error.mcp.labelid_or_name_is_required');
     }
 
     const label = await this.labelRepo.findByNameAndWorkspace(
@@ -2499,7 +2493,7 @@ export class McpService {
 
     if (args.type === 'space') {
       if (!args.spaceId) {
-        throw new BadRequestException('spaceId is required');
+        throw badRequest('error.common.spaceid_is_required');
       }
       // createForUser throws when the user is not a member
       await this.spaceAbility.createForUser(user, args.spaceId);
@@ -2508,7 +2502,7 @@ export class McpService {
 
     if (args.type === 'template') {
       if (!args.templateId) {
-        throw new BadRequestException('templateId is required');
+        throw badRequest('error.mcp.templateid_is_required');
       }
       const template = await this.templateService.getTemplate(
         args.templateId,
@@ -2518,7 +2512,7 @@ export class McpService {
       return { spaceId: template.spaceId };
     }
 
-    throw new BadRequestException('Invalid favorite type');
+    throw badRequest('error.mcp.invalid_favorite_type');
   }
 
   private async callBaseTool(
@@ -2534,7 +2528,7 @@ export class McpService {
 
       case 'search_semantic': {
         if (!args.query) {
-          throw new BadRequestException('query is required');
+          throw badRequest('error.mcp.query_is_required');
         }
 
         if (args.spaceId) {
@@ -2584,9 +2578,7 @@ export class McpService {
 
       case 'reindex_embeddings': {
         if (!(await this.embeddingService.isConfigured(workspace.id))) {
-          throw new BadRequestException(
-            'Semantic search needs an embedding API key. Configure it in Settings → AI.',
-          );
+          throw badRequest('error.mcp.semantic_search_needs_an_embedding_api');
         }
 
         const batchSize = Math.min(args.batchSize || 25, 100);
@@ -2644,7 +2636,7 @@ export class McpService {
 
       case 'list_bases': {
         if (!args.spaceId) {
-          throw new BadRequestException('spaceId is required');
+          throw badRequest('error.common.spaceid_is_required');
         }
 
         const ability = await this.spaceAbility.createForUser(
@@ -2814,7 +2806,7 @@ export class McpService {
         const base = await this.assertCanEditBase(args.pageId, user, workspace);
 
         if (!Array.isArray(args.rowIds) || args.rowIds.length === 0) {
-          throw new BadRequestException('rowIds must be a non-empty array');
+          throw badRequest('error.mcp.rowids_must_be_a_non_empty');
         }
 
         await this.baseService.deleteRows(args.rowIds, base.id, workspace.id);
@@ -2890,7 +2882,7 @@ export class McpService {
    */
   private async searchEverything(args: any, user: User, workspace: Workspace) {
     if (!args.query) {
-      throw new BadRequestException('query is required');
+      throw badRequest('error.mcp.query_is_required');
     }
 
     const limit = Math.min(args.limitPerType || 10, 50);
@@ -3143,7 +3135,7 @@ export class McpService {
     const page = await this.getPageInWorkspace(pageId, workspace);
 
     if (!page.isBase) {
-      throw new NotFoundException('Base not found');
+      throw notFound('error.common.base_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -3158,7 +3150,7 @@ export class McpService {
     const page = await this.getPageInWorkspace(pageId, workspace);
 
     if (!page.isBase) {
-      throw new NotFoundException('Base not found');
+      throw notFound('error.common.base_not_found');
     }
 
     await this.pageAccessService.validateCanEdit(page, user);
@@ -3224,9 +3216,7 @@ export class McpService {
       );
 
       if (args.spaceId && parentPage.spaceId !== args.spaceId) {
-        throw new BadRequestException(
-          'parentPageId does not belong to the given spaceId',
-        );
+        throw badRequest('error.mcp.parentpageid_does_not_belong_to_the');
       }
 
       await this.pageAccessService.validateCanEdit(parentPage, user);
@@ -3234,7 +3224,7 @@ export class McpService {
     }
 
     if (!args.spaceId) {
-      throw new BadRequestException('spaceId or parentPageId is required');
+      throw badRequest('error.common.spaceid_or_parentpageid_is_required');
     }
 
     await this.assertCanCreateInSpace(user, args.spaceId);

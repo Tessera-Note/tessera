@@ -66,11 +66,15 @@ export async function up(db: Kysely<any>): Promise<void> {
   `.execute(db);
 
   await sql`CREATE OR REPLACE TRIGGER templates_tsvector_update BEFORE INSERT OR UPDATE
-                ON templates FOR EACH ROW EXECUTE FUNCTION templates_tsvector_trigger();`.execute(db);
+                ON templates FOR EACH ROW EXECUTE FUNCTION templates_tsvector_trigger();`.execute(
+    db,
+  );
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-  await sql`DROP TRIGGER IF EXISTS templates_tsvector_update ON templates`.execute(db);
+  await sql`DROP TRIGGER IF EXISTS templates_tsvector_update ON templates`.execute(
+    db,
+  );
   await sql`DROP FUNCTION IF EXISTS templates_tsvector_trigger`.execute(db);
   await db.schema.dropTable('templates').execute();
 }

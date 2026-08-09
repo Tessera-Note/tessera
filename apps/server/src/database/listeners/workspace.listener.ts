@@ -13,9 +13,7 @@ export class WorkspaceEvent {
 export class WorkspaceListener {
   private readonly logger = new Logger(WorkspaceListener.name);
 
-  constructor(
-    @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
-  ) {}
+  constructor(@InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue) {}
 
   @OnEvent(EventName.WORKSPACE_DELETED)
   async handlePageDeleted(event: WorkspaceEvent) {
@@ -23,5 +21,4 @@ export class WorkspaceListener {
 
     await this.aiQueue.add(QueueJob.WORKSPACE_DELETED, { workspaceId });
   }
-
 }
