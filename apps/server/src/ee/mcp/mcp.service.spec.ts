@@ -62,7 +62,12 @@ function buildService(overrides: Partial<Record<string, any>> = {}) {
       findUnindexedPageIds: jest.fn().mockResolvedValue([]),
       countIndexedPages: jest.fn().mockResolvedValue(0),
     },
-    exportService: { exportPages: jest.fn() },
+    exportService: {
+      exportPages: jest.fn(),
+      // Выдача содержимого наружу подставляет живые имена в упоминания людей,
+      // как это делает выгрузка. Здесь важно только то, что вызов состоялся.
+      refreshUserMentionLabels: jest.fn(async (content: any) => content),
+    },
     wsService: { emitCommentEvent: jest.fn() },
     auditService: { log: jest.fn() },
     ...overrides,

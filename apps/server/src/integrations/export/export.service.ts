@@ -77,6 +77,11 @@ export class ExportService {
       prosemirrorJson = getProsemirrorContent(page.content);
     }
 
+    prosemirrorJson = await this.refreshUserMentionLabels(
+      prosemirrorJson,
+      page.workspaceId,
+    );
+
     if (page.title) {
       prosemirrorJson.content.unshift(titleNode);
     }
@@ -435,6 +440,75 @@ export class ExportService {
     }
 
     return new Map(visible.map((a) => [a.id, a]));
+  }
+
+  /**
+   * Подставить в упоминания людей их нынешние имена.
+   *
+   * Имя записывается в узел упоминания в момент вставки и дальше не меняется.
+   * В приложении это незаметно, потому что представление упоминания берет имя
+   * из живой записи и показывает замороженное только как запасное
+   * (`mention-view.tsx`). Выгрузка живой записи не спрашивает и отдает
+   * замороженное значение как есть.
+   *
+   * Из-за этого имя удаленного участника уезжало в выгрузку целиком, хотя в
+   * самой вики оно уже было заменено на «Deleted user». Обезличивание при
+   * удалении меняет запись человека, а тела страниц не трогает намеренно:
+   * содержимое хранится и в JSON, и в двоичном состоянии совместного
+   * редактирования, и правка одного только JSON вернулась бы назад при
+   * следующем открытии страницы. Поэтому подстановка делается здесь, на
+   * выходе, где содержимое покидает экземпляр.
+   *
+   * Заодно это выравнивает и обычное переименование: в выгрузке человек
+   * назван так же, как в вики.
+   */
+  async refreshUserMentionLabels(
+    prosemirrorJson: any,
+    workspaceId: string,
+  ): Promise<any> {
+    const userIds = new Set<string>();
+
+    const collect = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (
+        node.type === 'mention' &&
+        node.attrs?.entityType === 'user' &&
+        node.attrs?.entityId
+      ) {
+        userIds.add(node.attrs.entityId);
+      }
+      if (Array.isArray(node.content)) node.content.forEach(collect);
+    };
+    collect(prosemirrorJson);
+
+    if (userIds.size === 0) return prosemirrorJson;
+
+    const users = await this.db
+      .selectFrom('users')
+      .select(['id', 'name'])
+      .where('id', 'in', [...userIds])
+      .where('workspaceId', '=', workspaceId)
+      .execute();
+
+    const names = new Map(users.map((user) => [user.id, user.name]));
+
+    const rewrite = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (
+        node.type === 'mention' &&
+        node.attrs?.entityType === 'user' &&
+        node.attrs?.entityId
+      ) {
+        const name = names.get(node.attrs.entityId);
+        // Человека из другого пространства здесь нет, и выдумывать ему имя
+        // нельзя: замороженное значение остается единственным, что известно.
+        if (name) node.attrs.label = name;
+      }
+      if (Array.isArray(node.content)) node.content.forEach(rewrite);
+    };
+    rewrite(prosemirrorJson);
+
+    return prosemirrorJson;
   }
 
   async turnPageMentionsToLinks(

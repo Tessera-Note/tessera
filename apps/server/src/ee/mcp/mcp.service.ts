@@ -1404,12 +1404,29 @@ export class McpService {
    * ProseMirror JSON is expensive for an agent to read and easy to
    * misinterpret, so markdown is the default wire format.
    */
-  private renderPageContent(content: any, format: string) {
-    if (!content || format === 'json') {
+  private async renderPageContent(
+    content: any,
+    format: string,
+    workspaceId: string,
+  ) {
+    if (!content) {
       return content;
     }
 
-    return format === 'html' ? jsonToHtml(content) : jsonToMarkdown(content);
+    // Имя человека заморожено в узле упоминания на момент вставки. Здесь
+    // содержимое покидает экземпляр так же, как при выгрузке, поэтому имена
+    // подставляются живые: иначе имя удаленного участника, уже замененное в
+    // самой вики, продолжало бы уходить наружу через MCP.
+    const fresh = await this.exportService.refreshUserMentionLabels(
+      content,
+      workspaceId,
+    );
+
+    if (format === 'json') {
+      return fresh;
+    }
+
+    return format === 'html' ? jsonToHtml(fresh) : jsonToMarkdown(fresh);
   }
 
   /**
@@ -1530,7 +1547,11 @@ export class McpService {
           spaceId: page.spaceId,
           parentPageId: page.parentPageId,
           format,
-          content: this.renderPageContent(page.content, format),
+          content: await this.renderPageContent(
+            page.content,
+            format,
+            page.workspaceId,
+          ),
           createdAt: page.createdAt,
           updatedAt: page.updatedAt,
         };
@@ -1930,7 +1951,11 @@ export class McpService {
         return {
           ...history,
           format,
-          content: this.renderPageContent(history.content, format),
+          content: await this.renderPageContent(
+            history.content,
+            format,
+            workspace.id,
+          ),
         };
       }
 
