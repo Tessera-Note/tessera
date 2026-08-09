@@ -1,5 +1,3 @@
-import { docxText, pdfText } from './document-text';
-
 jest.mock('@docmost/pdf-inspector', () => ({
   processPdf: jest.fn(),
 }));
@@ -7,8 +5,12 @@ jest.mock('mammoth', () => ({
   convertToHtml: jest.fn(),
 }));
 
-const { processPdf } = require('@docmost/pdf-inspector');
-const mammoth = require('mammoth');
+import { processPdf } from '@docmost/pdf-inspector';
+import * as mammoth from 'mammoth';
+import { docxText, pdfText } from './document-text';
+
+const processPdfMock = processPdf as jest.Mock;
+const convertToHtmlMock = mammoth.convertToHtml as unknown as jest.Mock;
 
 /**
  * От поиска по вложениям ждут в первую очередь PDF и DOCX. Разбирают их те же
@@ -20,7 +22,7 @@ describe('Текст из документов', () => {
   afterEach(() => jest.resetAllMocks());
 
   it('из PDF остаются слова, а не разметка', () => {
-    processPdf.mockReturnValue({
+    processPdfMock.mockReturnValue({
       markdown: '# Регламент\n\nОтпуск **24** дня.\n\n[ссылка](http://a)',
     });
 
@@ -35,14 +37,14 @@ describe('Текст из документов', () => {
 
   /** У PDF из сканов текстового слоя нет: искать в нем нечего. */
   it('PDF без текста дает пусто', () => {
-    processPdf.mockReturnValue({ markdown: '' });
+    processPdfMock.mockReturnValue({ markdown: '' });
 
     expect(pdfText(Buffer.from('x'))).toBe('');
   });
 
   /** Один битый файл не должен останавливать обход всего пространства. */
   it('битый PDF дает пусто, а не исключение', () => {
-    processPdf.mockImplementation(() => {
+    processPdfMock.mockImplementation(() => {
       throw new Error('encrypted');
     });
 
@@ -51,7 +53,7 @@ describe('Текст из документов', () => {
   });
 
   it('из DOCX снимается разметка', async () => {
-    mammoth.convertToHtml.mockResolvedValue({
+    convertToHtmlMock.mockResolvedValue({
       value: '<h1>Договор</h1><p>Срок&nbsp;&mdash; 12 месяцев</p>',
     });
 
@@ -63,7 +65,7 @@ describe('Текст из документов', () => {
   });
 
   it('скрипты и стили в текст не попадают', async () => {
-    mammoth.convertToHtml.mockResolvedValue({
+    convertToHtmlMock.mockResolvedValue({
       value: '<style>p{color:red}</style><p>Текст</p><script>alert(1)</script>',
     });
 
@@ -73,7 +75,7 @@ describe('Текст из документов', () => {
   });
 
   it('битый DOCX дает пусто, а не исключение', async () => {
-    mammoth.convertToHtml.mockRejectedValue(new Error('not a zip'));
+    convertToHtmlMock.mockRejectedValue(new Error('not a zip'));
 
     await expect(docxText(Buffer.from('x'))).resolves.toBe('');
   });
