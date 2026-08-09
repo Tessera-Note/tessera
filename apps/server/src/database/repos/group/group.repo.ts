@@ -118,7 +118,8 @@ export class GroupRepo {
     workspaceId: string,
     opts?: { userId?: string; trx?: KyselyTransaction },
   ): Promise<Group> {
-    const { userId, trx } = opts;
+    const userId = opts?.userId;
+    const trx = opts?.trx;
     const insertableGroup: InsertableGroup = {
       name: DefaultGroup.EVERYONE,
       isDefault: true,
@@ -194,7 +195,7 @@ export class GroupRepo {
     workspaceId: string,
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
 
     await db

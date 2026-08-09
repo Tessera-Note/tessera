@@ -130,7 +130,7 @@ export class WatcherService {
     spaceId: string,
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
-    const { trx } = opts;
+    const trx = opts?.trx;
     await this.watcherRepo.deleteByUsersWithoutSpaceAccess(userIds, spaceId, {
       trx,
     });

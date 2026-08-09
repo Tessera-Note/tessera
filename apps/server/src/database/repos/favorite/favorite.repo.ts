@@ -155,7 +155,7 @@ export class FavoriteRepo {
   ): Promise<void> {
     if (userIds.length === 0) return;
 
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
 
     const usersWithAccess = db
@@ -184,7 +184,7 @@ export class FavoriteRepo {
     workspaceId: string,
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
 
     await db

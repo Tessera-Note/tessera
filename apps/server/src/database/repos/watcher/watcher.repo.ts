@@ -267,7 +267,7 @@ export class WatcherRepo {
   ): Promise<void> {
     if (userIds.length === 0) return;
 
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
 
     const usersWithAccess = db
@@ -297,7 +297,7 @@ export class WatcherRepo {
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
     if (pageIds.length === 0) return;
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
     await db
       .updateTable('watchers')
@@ -312,7 +312,7 @@ export class WatcherRepo {
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
     if (pageIds.length === 0) return;
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
 
     const usersWithAccess = db
@@ -340,7 +340,7 @@ export class WatcherRepo {
     workspaceId: string,
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
-    const { trx } = opts;
+    const trx = opts?.trx;
 
     const db = dbOrTx(this.db, trx);
     await db
