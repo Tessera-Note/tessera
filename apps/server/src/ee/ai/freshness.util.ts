@@ -22,6 +22,27 @@ const EXPLICIT = [
   'search the web', 'google it', 'look it up', 'search online',
 ];
 
+/**
+ * Прямая просьба посмотреть снаружи, собранная из двух частей.
+ *
+ * Замерено на живом случае: «изучи разные страницы в инете и реши первичный
+ * запрос» поиска не запускало. Список готовых фраз этого не ловит: способов
+ * сказать одно и то же слишком много, и каждый раз дописывать фразу целиком
+ * значит ловить только те формулировки, которые уже случились.
+ *
+ * Поэтому просьба распознается по паре: где смотреть и что сделать. Пара
+ * нужна обязательно, иначе «найди страницу» про вики уводило бы в интернет.
+ */
+const OUTSIDE = [
+  'интернет', 'инете', 'инет ', 'в сети', 'веб', 'гугл', 'google', 'web',
+  'онлайн', 'online', 'источник', 'source',
+];
+
+const LOOKUP = [
+  'поищ', 'поиск', 'ищи', 'найд', 'изуч', 'посмотр', 'проверь', 'глянь',
+  'сверь', 'search', 'look', 'check', 'browse', 'find', 'research',
+];
+
 const FRESHNESS = [
   // русский
   'сейчас', 'сегодня', 'вчера', 'завтра', 'текущий', 'текущая', 'текущее',
@@ -37,12 +58,36 @@ const FRESHNESS = [
 /** Год в разумном диапазоне: 2000-2099. */
 const YEAR = /\b20\d{2}\b/;
 
-export function needsWebSearch(query: string): boolean {
+/**
+ * Продолжение разговора, в котором поиск уже был.
+ *
+ * Признаки свежести есть в первом сообщении, а в уточнениях их нет: «добавь
+ * фото», «а где остальные». Замерено на живом случае: из четырех ходов поиск
+ * прошел только в первом, и уточнения агент отвечал по обрывку первой выдачи.
+ *
+ * Разговор, которому один раз понадобились внешние данные, нуждается в них и
+ * дальше. Цена ошибки мала: свой сервис поиска рядом в compose, чужого счета
+ * лишний запрос не увеличивает.
+ */
+export function needsWebSearch(
+  query: string,
+  opts?: { previousTurnSearched?: boolean },
+): boolean {
   if (!query) return false;
+
+  if (opts?.previousTurnSearched) return true;
 
   const text = query.toLowerCase();
 
   if (EXPLICIT.some((marker) => text.includes(marker))) return true;
+
+  if (
+    OUTSIDE.some((marker) => text.includes(marker)) &&
+    LOOKUP.some((marker) => text.includes(marker))
+  ) {
+    return true;
+  }
+
   if (FRESHNESS.some((marker) => text.includes(marker))) return true;
 
   return YEAR.test(text);
