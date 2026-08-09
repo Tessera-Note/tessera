@@ -1590,7 +1590,6 @@
   "error.scim.token_not_found": "Токен SCIM не найден",
   "error.sso.google_not_configured": "Вход через Google не настроен: не заданы GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET",
   "error.sso.google_unavailable": "Google не отвечает",
-  "error.sso.workspace_not_found": "Рабочее пространство не найдено",
   "error.sso.login_session_expired": "Сеанс входа не найден или истек",
   "error.sso.not_confirmed": "Вход через провайдера не подтвержден",
   "error.sso.no_subject": "Провайдер не вернул идентификатор",
@@ -1621,5 +1620,6 @@
   "Deleted user": "Удаленный пользователь",
   "This account no longer exists.": "Этой учетной записи больше нет.",
   "This account is deactivated.": "Учетная запись отключена.",
-  "error.auth.email_not_verified": "Подтвердите адрес электронной почты. Ссылка для подтверждения отправлена вам письмом."
+  "error.auth.email_not_verified": "Подтвердите адрес электронной почты. Ссылка для подтверждения отправлена вам письмом.",
+  "error.workspace.not_found": "Рабочее пространство не найдено"
 }

@@ -31,7 +31,8 @@ export default function SetupWorkspace() {
   if (
     isError &&
     error?.["response"]?.status === 404 &&
-    error?.["response"]?.data.message.includes("Workspace not found")
+    // Опознается код, а не английский текст: текст переводится.
+    error?.["response"]?.data?.code === "error.workspace.not_found"
   ) {
     return (
       <>

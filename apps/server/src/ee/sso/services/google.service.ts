@@ -120,7 +120,7 @@ export class GoogleService {
   ): Promise<{ url: string; flow: GoogleFlowState }> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
-      throw badRequest('error.sso.workspace_not_found');
+      throw badRequest('error.workspace.not_found');
     }
 
     await this.findProvider(workspaceId);
@@ -157,7 +157,7 @@ export class GoogleService {
 
     const workspace = await this.workspaceRepo.findById(flow.workspaceId);
     if (!workspace) {
-      throw unauthorized('error.sso.workspace_not_found');
+      throw unauthorized('error.workspace.not_found');
     }
 
     const provider = await this.findProvider(workspace.id);

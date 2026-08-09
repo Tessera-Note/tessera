@@ -50,6 +50,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class WorkspaceService {
@@ -84,7 +85,7 @@ export class WorkspaceService {
   async getWorkspaceInfo(workspaceId: string) {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
-      throw new NotFoundException('Workspace not found');
+      throw notFound('error.workspace.not_found');
     }
 
     return workspace;
@@ -111,7 +112,7 @@ export class WorkspaceService {
       .executeTakeFirst();
 
     if (!workspace) {
-      throw new NotFoundException('Workspace not found');
+      throw notFound('error.workspace.not_found');
     }
 
     const { plan, ...rest } = workspace;
@@ -345,7 +346,7 @@ export class WorkspaceService {
         .executeTakeFirst();
 
       if (!ws) {
-        throw new NotFoundException('Workspace not found');
+        throw notFound('error.workspace.not_found');
       }
 
       if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {

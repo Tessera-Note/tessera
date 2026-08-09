@@ -1572,7 +1572,6 @@
   "error.scim.token_not_found": "SCIM token not found",
   "error.sso.google_not_configured": "Google sign-in is not configured: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set",
   "error.sso.google_unavailable": "Google is not responding",
-  "error.sso.workspace_not_found": "Workspace not found",
   "error.sso.login_session_expired": "The sign-in session was not found or has expired",
   "error.sso.not_confirmed": "Sign-in through the provider was not confirmed",
   "error.sso.no_subject": "The provider did not return an identifier",
@@ -1603,5 +1602,6 @@
   "Deleted user": "Deleted user",
   "This account no longer exists.": "This account no longer exists.",
   "This account is deactivated.": "This account is deactivated.",
-  "error.auth.email_not_verified": "Please verify your email address. Check your inbox for the verification link."
+  "error.auth.email_not_verified": "Please verify your email address. Check your inbox for the verification link.",
+  "error.workspace.not_found": "Workspace not found"
 }

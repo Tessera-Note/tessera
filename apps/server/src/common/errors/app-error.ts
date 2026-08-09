@@ -43,6 +43,7 @@ export const ErrorMessage = {
   'error.import.pdf_unreadable': 'The PDF file could not be parsed',
   'error.import.pdf_no_text_layer':
     'This PDF has no text layer: it is a scan or an image-only document',
+  'error.workspace.not_found': 'Workspace not found',
   'error.auth.email_not_verified':
     'Please verify your email address. Check your inbox for the verification link.',
   'error.mcp.cells_required': 'The cells argument is required',
@@ -66,7 +67,6 @@ export const ErrorMessage = {
   'error.sso.google_not_configured':
     'Google sign-in is not configured: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set',
   'error.sso.google_unavailable': 'Google is not responding',
-  'error.sso.workspace_not_found': 'Workspace not found',
   'error.sso.login_session_expired':
     'The sign-in session was not found or has expired',
   'error.sso.not_confirmed': 'Sign-in through the provider was not confirmed',

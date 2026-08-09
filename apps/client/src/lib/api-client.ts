@@ -43,11 +43,7 @@ api.interceptors.response.use(
           break;
         case 404:
           // Handle not found error
-          if (
-            error.response.data.message
-              .toLowerCase()
-              .includes("workspace not found")
-          ) {
+          if (error.response.data?.code === "error.workspace.not_found") {
             if (
               !isCloud() &&
               window.location.pathname != APP_ROUTE.AUTH.SETUP

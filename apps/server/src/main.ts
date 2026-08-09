@@ -15,6 +15,7 @@ import { InternalLogFilter } from './common/logger/internal-log-filter';
 import { UniqueViolationFilter } from './common/filters/unique-violation.filter';
 import { EnvironmentService } from './integrations/environment/environment.service';
 import { resolveFrameHeader } from './common/helpers';
+import { notFound } from './common/errors/app-error';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -130,7 +131,7 @@ async function bootstrap() {
         !excludedPaths.some((path) => req.originalUrl.startsWith(path))
       ) {
         if (!req.raw?.['workspaceId'] && req.originalUrl !== '/api') {
-          throw new NotFoundException('Workspace not found');
+          throw notFound('error.workspace.not_found');
         }
         done();
       } else {

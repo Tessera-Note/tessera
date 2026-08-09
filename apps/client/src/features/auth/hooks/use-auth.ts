@@ -28,6 +28,7 @@ import { RESET } from "jotai/utils";
 import { useTranslation } from "react-i18next";
 import { isCloud } from "@/lib/config.ts";
 import { exchangeTokenRedirectUrl, getHostnameUrl } from "@/ee/utils.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function useAuth() {
   const { t } = useTranslation();
@@ -65,7 +66,7 @@ export default function useAuth() {
       }
 
       notifications.show({
-        message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
