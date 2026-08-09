@@ -6,12 +6,45 @@ import { useHover } from "@mantine/hooks";
 import { formatBytes } from "@/lib";
 import { useTranslation } from "react-i18next";
 import { useCallback } from "react";
+import { notifications } from "@mantine/notifications";
+import { mediaErrorMessage } from "@tessera/editor-ext";
+import { useMediaError } from "@/features/editor/hooks/use-media-error";
 
 export default function AttachmentView(props: NodeViewProps) {
   const { t } = useTranslation();
   const { editor, node, getPos, selected } = props;
   const { url, name, size, mime, attachmentId, placeholder } = node.attrs;
   const { hovered, ref } = useHover();
+  const mediaError = useMediaError();
+
+  /**
+   * Раньше ссылка вела прямо на файл, и при удаленном вложении в новой
+   * вкладке открывался JSON с ошибкой сервера. Теперь статус проверяется
+   * до перехода, и человек видит причину словами.
+   */
+  const handleDownload = useCallback(
+    async (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!url) return;
+
+      event.preventDefault();
+
+      const fileUrl = getFileUrl(url);
+      const status = await mediaError.report(fileUrl);
+
+      if (status && status < 400) {
+        mediaError.clear();
+        window.open(fileUrl, "_blank", "noopener");
+        return;
+      }
+
+      notifications.show({
+        message: mediaErrorMessage(status),
+        color: "red",
+        position: "top-right",
+      });
+    },
+    [url, mediaError],
+  );
 
   const isPdf = mime === "application/pdf" || name?.toLowerCase().endsWith(".pdf");
 
@@ -73,7 +106,7 @@ export default function AttachmentView(props: NodeViewProps) {
                   </ActionIcon>
                 </Tooltip>
               )}
-              <a href={getFileUrl(url)} target="_blank">
+              <a href={getFileUrl(url)} target="_blank" onClick={handleDownload}>
                 <ActionIcon variant="default" aria-label="download file">
                   <IconDownload size={18} />
                 </ActionIcon>

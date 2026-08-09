@@ -5,9 +5,11 @@ import { getFileUrl } from "@/lib/config.ts";
 import { isInternalFileUrl } from "@tessera/editor-ext";
 import classes from "./audio-view.module.css";
 import { useTranslation } from "react-i18next";
+import { useMediaError } from "@/features/editor/hooks/use-media-error";
 
 export default function AudioView(props: NodeViewProps) {
   const { t } = useTranslation();
+  const mediaError = useMediaError();
   const { editor, node } = props;
   const { src, placeholder } = node.attrs;
 
@@ -30,14 +32,24 @@ export default function AudioView(props: NodeViewProps) {
   return (
     <NodeViewWrapper data-drag-handle>
       <div className={`${classes.audioWrapper} ${!safeSrc && placeholder ? classes.skeleton : ''}`}>
-        {safeSrc && (
+        {safeSrc && !mediaError.message && (
           <audio
             className={classes.audio}
             preload="metadata"
             controls
             src={safeSrc}
             aria-label={placeholder?.name || t("Audio")}
+            // Без этого при удаленном файле человек видел нерабочий плеер и
+            // ни слова о причине.
+            onError={() => void mediaError.report(safeSrc)}
           />
+        )}
+        {safeSrc && mediaError.message && (
+          <Group justify="center" px="md" h={54}>
+            <Text component="span" size="sm" c="dimmed">
+              {mediaError.message}
+            </Text>
+          </Group>
         )}
         {!safeSrc && previewSrc && (
           <Group pos="relative" w="100%">
