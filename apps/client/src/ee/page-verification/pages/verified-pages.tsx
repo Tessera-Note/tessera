@@ -12,6 +12,7 @@ import { useVerificationListQuery } from "@/ee/page-verification/queries/page-ve
 import { IVerificationListParams } from "@/ee/page-verification/types/page-verification.types";
 import VerificationListTable from "@/ee/page-verification/components/verification-list-table";
 import { useGetSpacesQuery } from "@/features/space/queries/space-query";
+import { useWorkspaceMembersQuery } from "@/features/workspace/queries/workspace-query";
 
 export default function VerifiedPages() {
   const { t } = useTranslation();
@@ -21,8 +22,21 @@ export default function VerifiedPages() {
   const [debouncedSearch] = useDebouncedValue(searchValue, 300);
   const [spaceFilter, setSpaceFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  // Отбор по проверяющему был реализован в выдаче, но послать его было
+  // нечем: поле объявлено в DTO, а элемента управления у него не было.
+  const [verifierFilter, setVerifierFilter] = useState<string | null>(null);
 
   const { data: spacesData } = useGetSpacesQuery({ limit: 100 });
+  const { data: membersData } = useWorkspaceMembersQuery({ limit: 100 });
+
+  const verifierOptions = useMemo(
+    () =>
+      membersData?.items?.map((member) => ({
+        value: member.id,
+        label: member.name || member.email,
+      })) ?? [],
+    [membersData],
+  );
 
   const spaceOptions = useMemo(
     () =>
@@ -44,15 +58,21 @@ export default function VerifiedPages() {
       limit: 50,
       spaceIds: spaceFilter.length > 0 ? spaceFilter : undefined,
       type: typeFilter as IVerificationListParams["type"],
+      verifierId: verifierFilter || undefined,
       query: debouncedSearch || undefined,
     }),
-    [cursor, spaceFilter, typeFilter, debouncedSearch],
+    [cursor, spaceFilter, typeFilter, verifierFilter, debouncedSearch],
   );
 
   const { data, isLoading } = useVerificationListQuery(params);
 
   const handleSpaceChange = (value: string[]) => {
     setSpaceFilter(value);
+    resetCursor();
+  };
+
+  const handleVerifierChange = (value: string | null) => {
+    setVerifierFilter(value);
     resetCursor();
   };
 
@@ -104,6 +124,17 @@ export default function VerifiedPages() {
           onChange={handleTypeChange}
           clearable
           w={160}
+          size="sm"
+        />
+
+        <Select
+          placeholder={t("Filter by verifier")}
+          data={verifierOptions}
+          value={verifierFilter}
+          onChange={handleVerifierChange}
+          clearable
+          searchable
+          w={220}
           size="sm"
         />
       </Group>

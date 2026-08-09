@@ -1821,5 +1821,6 @@
   "error.integrations.import_file_too_large": "Файл больше предела импорта {{limit}}",
   "error.integrations.import_extension_unsupported": "Такое расширение не импортируется. Допустимы: {{supported}}.",
   "not searchable": "поиск не найдёт",
-  "Text could not be extracted from this file, so search will not find it by content.": "Из этого файла не удалось извлечь текст, поэтому поиск по содержимому его не найдёт."
+  "Text could not be extracted from this file, so search will not find it by content.": "Из этого файла не удалось извлечь текст, поэтому поиск по содержимому его не найдёт.",
+  "Filter by verifier": "Отбор по проверяющему"
 }

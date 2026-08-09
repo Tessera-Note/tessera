@@ -1821,5 +1821,6 @@
   "error.integrations.import_file_too_large": "Файл більший за межу імпорту {{limit}}",
   "error.integrations.import_extension_unsupported": "Таке розширення не імпортується. Припустимі: {{supported}}.",
   "not searchable": "пошук не знайде",
-  "Text could not be extracted from this file, so search will not find it by content.": "З цього файлу не вдалося витягти текст, тому пошук за вмістом його не знайде."
+  "Text could not be extracted from this file, so search will not find it by content.": "З цього файлу не вдалося витягти текст, тому пошук за вмістом його не знайде.",
+  "Filter by verifier": "Відбір за перевіряльником"
 }

@@ -1803,5 +1803,6 @@
   "error.integrations.import_file_too_large": "File too large. Exceeds the {{limit}} import limit",
   "error.integrations.import_extension_unsupported": "Invalid import file extension. Supported: {{supported}}.",
   "not searchable": "not searchable",
-  "Text could not be extracted from this file, so search will not find it by content.": "Text could not be extracted from this file, so search will not find it by content."
+  "Text could not be extracted from this file, so search will not find it by content.": "Text could not be extracted from this file, so search will not find it by content.",
+  "Filter by verifier": "Filter by verifier"
 }
