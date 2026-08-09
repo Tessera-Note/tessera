@@ -116,6 +116,7 @@ export class VerificationNotificationService {
         pageVerificationId: verification.id,
         data: { expiresAt: expiresAtIso },
       });
+      if (!notification) continue;
 
       const subject = `"${pageTitle}" precisa ser verificada de novo`;
 
@@ -192,6 +193,7 @@ export class VerificationNotificationService {
         spaceId: verification.spaceId,
         pageVerificationId: verification.id,
       });
+      if (!notification) continue;
 
       const subject = `A verificação de "${pageTitle}" expirou`;
 
@@ -260,6 +262,7 @@ export class VerificationNotificationService {
         pageId,
         spaceId,
       });
+      if (!notification) continue;
 
       const subject = `"${pageTitle}" aguarda sua aprovação`;
 
@@ -305,6 +308,8 @@ export class VerificationNotificationService {
       pageId,
       spaceId,
     });
+    // Единственный получатель: без него уведомлять некого.
+    if (!notification) return;
 
     const subject = `"${pageTitle}" foi devolvida para revisão`;
 
