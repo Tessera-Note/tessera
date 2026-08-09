@@ -12,6 +12,7 @@ const USER = {
 } as any;
 
 jest.mock('../../../common/helpers', () => ({
+  ...jest.requireActual('../../../common/helpers'),
   comparePasswordHash: jest.fn(
     async (plain: string) => plain === 'верный-пароль',
   ),
@@ -37,6 +38,7 @@ function build(options: { record?: any; user?: any } = {}) {
   };
   const environmentService: any = {
     getAppSecret: () => 'секрет',
+    isCloud: () => false,
     isHttps: () => false,
   };
   const tokenService: any = {
@@ -208,6 +210,76 @@ describe('MfaService, кто действует при настройке', () =
 
     await expect(
       b.service.resolveActor({ authToken: 'мусор', mfaToken: 'мусор' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
+
+/**
+ * Парольный вход отвергает отключенного человека и требует подтвержденной
+ * почты до выдачи сессии, а путь второго фактора не делал ни того, ни другого.
+ * Отключенный проходил весь путь и получал отказ только на выдаче токена, с
+ * другим сообщением, а требование подтверждения почты этот путь обходил вовсе.
+ */
+describe('MfaService, те же проверки, что и у парольного входа', () => {
+  const DISABLED = { ...USER, deactivatedAt: new Date() };
+
+  it('отключенный не получает промежуточного токена', async () => {
+    const { service, res } = build({
+      record: { isEnabled: true },
+      user: DISABLED,
+    });
+
+    await expect(
+      service.checkMfaRequirements(
+        { email: USER.email, password: 'верный-пароль' },
+        WORKSPACE(false),
+        res,
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  /** Сообщение то же, что и при неверном пароле: иначе оно перечисляет учетные записи. */
+  it('отказ отключенному неотличим от неверного пароля', async () => {
+    const { service, res } = build({
+      record: { isEnabled: true },
+      user: DISABLED,
+    });
+
+    await expect(
+      service.checkMfaRequirements(
+        { email: USER.email, password: 'верный-пароль' },
+        WORKSPACE(false),
+        res,
+      ),
+    ).rejects.toThrow('Email or password does not match');
+  });
+
+  it('действующий человек промежуточный токен получает', async () => {
+    const { service, res } = build({ record: { isEnabled: true } });
+
+    await expect(
+      service.checkMfaRequirements(
+        { email: USER.email, password: 'верный-пароль' },
+        WORKSPACE(false),
+        res,
+      ),
+    ).resolves.toMatchObject({ userHasMfa: true, requiresMfaSetup: false });
+  });
+
+  /** Между выдачей токена и вводом кода человека могли отключить. */
+  it('отключенный между шагами не завершает вход', async () => {
+    const { service, userRepo, tokenService } = build({
+      record: { isEnabled: true },
+    });
+    tokenService.verifyJwt.mockResolvedValue({
+      sub: 'user-1',
+      workspaceId: 'ws-1',
+    });
+    userRepo.findById.mockResolvedValue(DISABLED);
+    jest.spyOn(service as any, 'verifyCode').mockResolvedValue(true);
+
+    await expect(
+      service.completeLogin('токен', '123456'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });

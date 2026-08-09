@@ -56,7 +56,11 @@ function build(options: { existing?: any; stored?: any } = {}) {
   const service = new MfaService(
     db,
     { findById: jest.fn() } as any,
-    { getAppSecret: () => 'секрет', isHttps: () => false } as any,
+    {
+      getAppSecret: () => 'секрет',
+      isHttps: () => false,
+      isCloud: () => false,
+    } as any,
     { verifyJwt: jest.fn() } as any,
     { createSessionAndToken: jest.fn() } as any,
     { sendToQueue: jest.fn() } as any,

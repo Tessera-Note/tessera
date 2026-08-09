@@ -11,8 +11,9 @@ import { KyselyDB } from '@tessera/db/types/kysely.types';
 import * as QRCode from 'qrcode';
 import { User, Workspace } from '@tessera/db/types/entity.types';
 import { UserRepo } from '@tessera/db/repos/user/user.repo';
-import { comparePasswordHash } from '../../../common/helpers';
+import { comparePasswordHash, isUserDisabled } from '../../../common/helpers';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
+import { throwIfEmailNotVerified } from '../../../core/auth/auth.util';
 import { MailService } from '../../../integrations/mail/mail.service';
 import MfaResetEmail from '@tessera/transactional/emails/mfa-reset-email';
 import {
@@ -118,6 +119,23 @@ export class MfaService {
       throw new UnauthorizedException('Email or password does not match');
     }
 
+    // Те же две проверки, что и у парольного входа, и в том же порядке.
+    // Без них отключенный человек проходил весь путь второго фактора и
+    // получал отказ только на выдаче токена, с другим сообщением, а
+    // неподтвержденная почта не проверялась вовсе, то есть путь второго
+    // фактора обходил требование подтверждения.
+    if (isUserDisabled(user)) {
+      throw new UnauthorizedException('Email or password does not match');
+    }
+
+    throwIfEmailNotVerified({
+      isCloud: this.environmentService.isCloud(),
+      emailVerifiedAt: user.emailVerifiedAt,
+      email: user.email,
+      workspaceId: workspace.id,
+      appSecret: this.environmentService.getAppSecret(),
+    });
+
     const mfaToken = await this.tokenService.generateMfaToken(
       user,
       workspace.id,
@@ -160,6 +178,21 @@ export class MfaService {
     if (!user) {
       throw new UnauthorizedException();
     }
+
+    // Между выдачей промежуточного токена и вводом кода человека могли
+    // отключить: состояние проверяется на обоих концах пути, а не только в
+    // начале.
+    if (isUserDisabled(user)) {
+      throw new UnauthorizedException();
+    }
+
+    throwIfEmailNotVerified({
+      isCloud: this.environmentService.isCloud(),
+      emailVerifiedAt: user.emailVerifiedAt,
+      email: user.email,
+      workspaceId: payload.workspaceId,
+      appSecret: this.environmentService.getAppSecret(),
+    });
 
     return this.finalizeLogin(user, 'mfa');
   }

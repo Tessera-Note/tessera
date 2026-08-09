@@ -21,6 +21,7 @@ jest.mock('@tessera/transactional/emails/mfa-reset-email', () => ({
 }));
 
 jest.mock('../../../common/helpers', () => ({
+  ...jest.requireActual('../../../common/helpers'),
   comparePasswordHash: jest.fn(async () => true),
 }));
 
@@ -72,7 +73,11 @@ function build(
   const service = new MfaService(
     db,
     userRepo,
-    { getAppSecret: () => 'секрет', isHttps: () => false } as any,
+    {
+      getAppSecret: () => 'секрет',
+      isHttps: () => false,
+      isCloud: () => false,
+    } as any,
     { verifyJwt: jest.fn() } as any,
     { createSessionAndToken: jest.fn() } as any,
     mailService,
@@ -117,7 +122,11 @@ describe('MfaService, сброс администратором', () => {
   it('пишется отдельное событие аудита', async () => {
     const { service, audit } = build();
 
-    await service.resetForUser('target-1', actorWith(UserRole.ADMIN), WORKSPACE);
+    await service.resetForUser(
+      'target-1',
+      actorWith(UserRole.ADMIN),
+      WORKSPACE,
+    );
 
     expect(audit).toHaveLength(1);
     expect(audit[0].event).toBe(AuditEvent.USER_MFA_RESET);
@@ -127,7 +136,11 @@ describe('MfaService, сброс администратором', () => {
   it('пользователю уходит письмо на его почту', async () => {
     const { service, mails } = build();
 
-    await service.resetForUser('target-1', actorWith(UserRole.ADMIN), WORKSPACE);
+    await service.resetForUser(
+      'target-1',
+      actorWith(UserRole.ADMIN),
+      WORKSPACE,
+    );
 
     expect(mails).toHaveLength(1);
     expect(mails[0].to).toBe('target@example.com');
@@ -166,7 +179,11 @@ describe('MfaService, сброс администратором', () => {
   it('запись удаляется целиком, а не отключается', async () => {
     const { service, deleted } = build();
 
-    await service.resetForUser('target-1', actorWith(UserRole.ADMIN), WORKSPACE);
+    await service.resetForUser(
+      'target-1',
+      actorWith(UserRole.ADMIN),
+      WORKSPACE,
+    );
 
     expect(deleted).toEqual(['rec-1']);
   });

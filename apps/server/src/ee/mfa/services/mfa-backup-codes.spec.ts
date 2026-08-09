@@ -4,6 +4,7 @@ import { MfaService } from './mfa.service';
 const USER = { id: 'user-1', workspaceId: 'ws-1' } as any;
 
 jest.mock('../../../common/helpers', () => ({
+  ...jest.requireActual('../../../common/helpers'),
   comparePasswordHash: jest.fn(
     async (plain: string) => plain === 'верный-пароль',
   ),
@@ -40,7 +41,11 @@ function build(options: { record?: any } = {}) {
   const service = new MfaService(
     db,
     userRepo,
-    { getAppSecret: () => 'секрет', isHttps: () => false } as any,
+    {
+      getAppSecret: () => 'секрет',
+      isHttps: () => false,
+      isCloud: () => false,
+    } as any,
     { verifyJwt: jest.fn() } as any,
     { createSessionAndToken: jest.fn() } as any,
     { sendToQueue: jest.fn() } as any,
@@ -77,7 +82,9 @@ describe('MfaService, перевыпуск резервных кодов', () =>
 
     const result = await service.regenerateBackupCodes(USER, 'верный-пароль');
 
-    expect(updates[0].backupCodes.every((h: string) => /^[0-9a-f]{64}$/.test(h))).toBe(true);
+    expect(
+      updates[0].backupCodes.every((h: string) => /^[0-9a-f]{64}$/.test(h)),
+    ).toBe(true);
     expect(updates[0].backupCodes).not.toContain(result.backupCodes[0]);
   });
 
@@ -85,9 +92,9 @@ describe('MfaService, перевыпуск резервных кодов', () =>
   it('без пароля перевыпуск отвергается', async () => {
     const { service, updates } = build();
 
-    await expect(
-      service.regenerateBackupCodes(USER),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.regenerateBackupCodes(USER)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
     expect(updates).toHaveLength(0);
   });
 
@@ -123,12 +130,15 @@ describe('MfaService, предупреждение о малом остатке'
     [3, true],
     [1, true],
     [0, true],
-  ])('при %i кодах признак малого остатка равен %s', async (count, expected) => {
-    const status = await statusWith(Array(count).fill('хеш'));
+  ])(
+    'при %i кодах признак малого остатка равен %s',
+    async (count, expected) => {
+      const status = await statusWith(Array(count).fill('хеш'));
 
-    expect(status.backupCodesCount).toBe(count);
-    expect(status.backupCodesLow).toBe(expected);
-  });
+      expect(status.backupCodesCount).toBe(count);
+      expect(status.backupCodesLow).toBe(expected);
+    },
+  );
 
   // Без подключенного фактора предупреждать не о чем.
   it('без фактора признак ложен', async () => {

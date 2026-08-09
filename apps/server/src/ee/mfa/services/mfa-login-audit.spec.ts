@@ -33,7 +33,11 @@ function build() {
   const service = new MfaService(
     {} as any,
     userRepo,
-    { getAppSecret: () => 'секрет', isHttps: () => false } as any,
+    {
+      getAppSecret: () => 'секрет',
+      isHttps: () => false,
+      isCloud: () => false,
+    } as any,
     tokenService,
     sessionService,
     { sendToQueue: jest.fn() } as any,
