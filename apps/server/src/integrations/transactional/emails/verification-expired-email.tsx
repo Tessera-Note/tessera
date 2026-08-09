@@ -20,7 +20,7 @@ export const VerificationExpiredEmail = ({ pageTitle, spaceName, pageUrl }: Prop
           confirm it is still correct.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Verify again</EmailButton>
+      <EmailButton href={pageUrl}>Verify page</EmailButton>
     </MailBody>
   );
 };

@@ -26,7 +26,7 @@ export const VerificationExpiringEmail = ({
           expires on <strong>{expiresAt}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Review page</EmailButton>
+      <EmailButton href={pageUrl}>Verify page</EmailButton>
     </MailBody>
   );
 };

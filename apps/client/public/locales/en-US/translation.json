@@ -1382,5 +1382,17 @@
   "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.": "The model must return 1536 values, the width of the index. Models that support the dimensions parameter are narrowed to it automatically.",
   "Must start with http:// or https://": "Must start with http:// or https://",
   "Must be a full URL, e.g. https://openrouter.ai/api/v1": "Must be a full URL, e.g. https://openrouter.ai/api/v1",
-  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically."
+  "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.": "Leave as the chat provider unless embeddings live elsewhere. The model list is loaded from the provider automatically.",
+  "You": "You",
+  "Search engine indexing": "Search engine indexing",
+  "Upgrade to share pages": "Upgrade to share pages",
+  "Page sharing is available on paid plans. Upgrade to share your pages publicly.": "Page sharing is available on paid plans. Upgrade to share your pages publicly.",
+  "Upgrade Plan": "Upgrade Plan",
+  "Failed to restrict page": "Failed to restrict page",
+  "Failed to remove page restriction": "Failed to remove page restriction",
+  "Failed to add permission": "Failed to add permission",
+  "Failed to remove permission": "Failed to remove permission",
+  "Failed to update permission": "Failed to update permission",
+  "Can edit page and manage access": "Can edit page and manage access",
+  "Can only view page": "Can only view page"
 }
