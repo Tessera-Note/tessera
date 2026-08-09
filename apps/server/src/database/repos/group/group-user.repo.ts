@@ -43,6 +43,9 @@ export class GroupUserRepo {
     return db
       .insertInto('groupUsers')
       .values(insertableGroupUser)
+      .onConflict((oc) =>
+        oc.constraint('group_users_group_id_user_id_unique').doNothing(),
+      )
       .returningAll()
       .executeTakeFirst();
   }
@@ -115,13 +118,23 @@ export class GroupUserRepo {
           );
         }
 
-        await this.insertGroupUser(
+        // Проверка выше отвечает за понятное сообщение, а не за целостность:
+        // между ней и вставкой ничего не держится, и два одновременных
+        // запроса проходят ее оба. Без обработки конфликта второй получал бы
+        // 23505 и ответ 500 вместо того же «уже состоит».
+        const inserted = await this.insertGroupUser(
           {
             userId,
             groupId,
           },
           trx,
         );
+
+        if (!inserted) {
+          throw new BadRequestException(
+            'User is already a member of this group',
+          );
+        }
       },
       trx,
     );

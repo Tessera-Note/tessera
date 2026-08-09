@@ -38,16 +38,51 @@ export class SpaceMemberRepo {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
+  /**
+   * Добавить участников пространства.
+   *
+   * Вызывающий отбирает тех, кого еще нет, отдельным запросом, но между
+   * отбором и вставкой ничего не держит: два одновременных запроса проходят
+   * отбор оба, второй получает 23505 и превращается в ответ 500 вместо
+   * задуманного «уже добавлен». Достаточно двойного нажатия кнопки.
+   *
+   * На таблице два уникальных ограничения, по пользователю и по группе, и
+   * одним `onConflict` они не закрываются: цель у него одна. Поэтому строки
+   * разделяются по виду участника, и каждая часть вставляется со своим
+   * ограничением. Повторная вставка становится пустой операцией, а не отказом.
+   */
   async insertSpaceMember(
     insertableSpaceMember: InsertableSpaceMember,
     trx?: KyselyTransaction,
   ): Promise<void> {
     const db = dbOrTx(this.db, trx);
-    await db
-      .insertInto('spaceMembers')
-      .values(insertableSpaceMember)
-      .returningAll()
-      .execute();
+    const rows = Array.isArray(insertableSpaceMember)
+      ? insertableSpaceMember
+      : [insertableSpaceMember];
+    if (rows.length === 0) return;
+
+    const byUser = rows.filter((row) => row.userId);
+    const byGroup = rows.filter((row) => row.groupId);
+
+    if (byUser.length > 0) {
+      await db
+        .insertInto('spaceMembers')
+        .values(byUser)
+        .onConflict((oc) =>
+          oc.constraint('space_members_space_id_user_id_unique').doNothing(),
+        )
+        .execute();
+    }
+
+    if (byGroup.length > 0) {
+      await db
+        .insertInto('spaceMembers')
+        .values(byGroup)
+        .onConflict((oc) =>
+          oc.constraint('space_members_space_id_group_id_unique').doNothing(),
+        )
+        .execute();
+    }
   }
 
   async updateSpaceMember(

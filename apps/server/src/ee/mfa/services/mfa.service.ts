@@ -467,25 +467,34 @@ export class MfaService {
     const encrypted = encryptSecret(secret, this.appSecret);
     const now = new Date();
 
-    if (existing) {
-      await this.db
-        .updateTable('userMfa')
-        .set({ secret: encrypted, method: 'totp', updatedAt: now } as any)
-        .where('id', '=', existing.id)
-        .execute();
-    } else {
-      await this.db
-        .insertInto('userMfa')
-        .values({
-          userId: user.id,
-          workspaceId: workspace.id,
-          method: 'totp',
-          secret: encrypted,
-          isEnabled: false,
-          createdAt: now,
-          updatedAt: now,
-        } as any)
-        .execute();
+    // Одна вставка вместо ветвления «прочитать, потом обновить или вставить»:
+    // между чтением и записью ничего не держалось, и два одновременных вызова
+    // получали 23505 на единственной строке пользователя. Условие на
+    // is_enabled повторяет проверку выше уже внутри записи, поэтому подключенный
+    // фактор не затирается даже при гонке, а вызывающий узнает об этом по
+    // пустому результату, а не по чужому секрету в QR-коде.
+    const stored = await this.db
+      .insertInto('userMfa')
+      .values({
+        userId: user.id,
+        workspaceId: workspace.id,
+        method: 'totp',
+        secret: encrypted,
+        isEnabled: false,
+        createdAt: now,
+        updatedAt: now,
+      } as any)
+      .onConflict((oc) =>
+        oc
+          .constraint('user_mfa_user_id_unique')
+          .doUpdateSet({ secret: encrypted, method: 'totp', updatedAt: now } as any)
+          .where('userMfa.isEnabled', '=', false),
+      )
+      .returning('id')
+      .executeTakeFirst();
+
+    if (!stored) {
+      throw new BadRequestException('Второй фактор уже подключен');
     }
 
     const issuer = workspace.name || 'Tessera';
