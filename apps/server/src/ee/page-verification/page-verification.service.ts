@@ -30,13 +30,6 @@ import {
 } from '../../integrations/queue/constants/queue.constants';
 
 /**
- * За сколько до срока предупреждать проверяющих.
- *
- * Обработчик сам отсеивает тех, кому уже отправлял, по записям в
- * `notifications`, поэтому повторные такты внутри окна ничего не рассылают.
- * Отдельной отметки в схеме для этого не заводится.
- */
-/**
  * Сколько раз выдача добирает строки, если отбор по правам снял часть.
  *
  * Ограничение нужно, чтобы один запрос не обходил всю таблицу, когда человеку
@@ -45,6 +38,13 @@ import {
  */
 const LIST_SCAN_PASSES = 5;
 
+/**
+ * За сколько до срока предупреждать проверяющих.
+ *
+ * Обработчик сам отсеивает тех, кому уже отправлял, по записям в
+ * `notifications`, поэтому повторные такты внутри окна ничего не рассылают.
+ * Отдельной отметки в схеме для этого не заводится.
+ */
 const EXPIRY_LEAD_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Права на действия с верификацией страницы. */
@@ -918,15 +918,12 @@ export class PageVerificationService {
   }
 
   /**
-   * Список верификаций рабочего пространства.
+   * Список проверок, доступных человеку.
    *
    * Выдача ограничена страницами, доступными пользователю: сначала членство
    * в пространствах прямо в запросе, затем ограничения уровня страницы через
-   * PagePermissionRepo. Одного членства мало, страница внутри пространства
+   * `PagePermissionRepo`. Одного членства мало, страница внутри пространства
    * может быть закрыта.
-   */
-  /**
-   * Список проверок, доступных человеку.
    *
    * Две вещи, из-за которых выдача обрывалась молча.
    *
@@ -988,6 +985,26 @@ export class PageVerificationService {
       }
       if (params.type) {
         query = query.where('pageVerifications.type', '=', params.type);
+      }
+      if (params.query?.trim()) {
+        // Поле поиска на экране есть с самого начала и отправляет `query`, но
+        // выдача его не читала: человек печатал, а список не менялся.
+        query = query.where('pages.title', 'ilike', `%${params.query.trim()}%`);
+      }
+      if (params.verifierId) {
+        query = query.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('pageVerifiers')
+              .select('pageVerifiers.id')
+              .whereRef(
+                'pageVerifiers.pageVerificationId',
+                '=',
+                'pageVerifications.id',
+              )
+              .where('pageVerifiers.userId', '=', params.verifierId),
+          ),
+        );
       }
       if (cursor) {
         query = query.where('pageVerifications.id', '>', cursor);

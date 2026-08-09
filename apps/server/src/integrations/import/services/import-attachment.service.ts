@@ -960,32 +960,30 @@ export class ImportAttachmentService {
         // типы, которые извлекатель не разбирает, а импортированные `.md`,
         // `.txt` и `.json` в очередь не попадали вовсе и навсегда оставались
         // в состоянии «не обработано».
-        {
-          try {
-            await this.attachmentQueue.add(
-              QueueJob.ATTACHMENT_INDEX_CONTENT,
-              { attachmentId },
-              {
-                attempts: 1,
-                backoff: {
-                  type: 'exponential',
-                  delay: 3 * 60 * 1000,
-                },
-                deduplication: {
-                  id: attachmentId,
-                },
-                removeOnComplete: true,
-                removeOnFail: false,
+        try {
+          await this.attachmentQueue.add(
+            QueueJob.ATTACHMENT_INDEX_CONTENT,
+            { attachmentId },
+            {
+              attempts: 1,
+              backoff: {
+                type: 'exponential',
+                delay: 3 * 60 * 1000,
               },
-            );
-            this.logger.debug(
-              `Queued ${fileNameWithExt} for indexing (attachment ID: ${attachmentId})`,
-            );
-          } catch (err) {
-            this.logger.error(
-              `Failed to queue indexing for imported attachment ${attachmentId}: ${err}`,
-            );
-          }
+              deduplication: {
+                id: attachmentId,
+              },
+              removeOnComplete: true,
+              removeOnFail: false,
+            },
+          );
+          this.logger.debug(
+            `Queued ${fileNameWithExt} for indexing (attachment ID: ${attachmentId})`,
+          );
+        } catch (err) {
+          this.logger.error(
+            `Failed to queue indexing for imported attachment ${attachmentId}: ${err}`,
+          );
         }
 
         uploadStats.completed++;

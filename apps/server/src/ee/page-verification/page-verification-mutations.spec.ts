@@ -27,6 +27,8 @@ function build(
 
   let listPass = 0;
 
+  const conditions: any[] = [];
+
   const makeSelect = (table: string): any => {
     const chain: any = {
       select: () => chain,
@@ -34,7 +36,10 @@ function build(
       innerJoin: () => chain,
       orderBy: () => chain,
       limit: () => chain,
-      where: () => chain,
+      where: (...args: any[]) => {
+        conditions.push(args);
+        return chain;
+      },
       execute: async () => {
         if (table === 'users') return options.users ?? [];
         if (table === 'pageVerifiers') return options.verifierRows ?? [];
@@ -125,6 +130,7 @@ function build(
     updates,
     pagePermissionRepo,
     notificationQueue,
+    conditions,
   };
 }
 
@@ -481,6 +487,31 @@ describe('PageVerificationService, список', () => {
    * тогда становится граница просмотра: иначе пустая страница обрывала бы
    * список так же, как обрывал прежний расчет.
    */
+  /**
+   * Поле поиска на экране есть с самого начала и отправляет `query`, но выдача
+   * его не читала: человек печатал, а список не менялся. То же с отбором по
+   * проверяющему.
+   */
+  it('поиск по заголовку доходит до запроса', async () => {
+    const { service, conditions } = build({ listRows: ROWS });
+
+    await service.getVerificationList(
+      { query: '  инструкция  ' } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(conditions).toContainEqual(['pages.title', 'ilike', '%инструкция%']);
+  });
+
+  it('пустой поиск условия не добавляет', async () => {
+    const { service, conditions } = build({ listRows: ROWS });
+
+    await service.getVerificationList({ query: '   ' } as any, 'ws-1', USER);
+
+    expect(conditions.filter((c) => c[0] === 'pages.title')).toHaveLength(0);
+  });
+
   it('пустая страница отдает границу просмотра курсором', async () => {
     const pass = (n: number) => [
       { id: `v${n}1`, pageId: `p${n}1` },

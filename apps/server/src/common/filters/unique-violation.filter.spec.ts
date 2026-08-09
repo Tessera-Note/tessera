@@ -12,6 +12,7 @@ import { UniqueViolationFilter } from './unique-violation.filter';
  */
 function build() {
   const filter = new UniqueViolationFilter({} as any);
+  jest.spyOn((filter as any).logger, 'warn').mockImplementation(() => {});
   const handled: unknown[] = [];
 
   // Все, что не 23505, обязано уходить дальше нетронутым.
@@ -24,7 +25,8 @@ function build() {
   return { filter, handled };
 }
 
-const HOST = {} as any;
+const hostOf = (type: string) => ({ getType: () => type }) as any;
+const HOST = hostOf('http');
 
 describe('UniqueViolationFilter', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -78,6 +80,23 @@ describe('UniqueViolationFilter', () => {
     filter.catch(original, HOST);
 
     expect(handled[0]).toBe(original);
+  });
+
+  /**
+   * Фильтр объявлен без ограничения по типу исключения, поэтому он видит и
+   * сокет, и очередь. Там ответа с кодом состояния нет, и подменять ошибку
+   * нечем.
+   */
+  it('вне HTTP ошибка не подменяется', () => {
+    const { filter, handled } = build();
+    const violation = {
+      code: '23505',
+      constraint: 'groups_name_workspace_id_unique',
+    };
+
+    filter.catch(violation, hostOf('ws'));
+
+    expect(handled[0]).toBe(violation);
   });
 
   it('ошибка без кода уходит дальше нетронутой', () => {

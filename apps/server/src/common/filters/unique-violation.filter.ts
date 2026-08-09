@@ -1,4 +1,9 @@
-import { ArgumentsHost, Catch, ConflictException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 
 /**
@@ -46,20 +51,27 @@ type PostgresError = { code?: string; constraint?: string };
 
 @Catch()
 export class UniqueViolationFilter extends BaseExceptionFilter {
+  private readonly logger = new Logger(UniqueViolationFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const error = exception as PostgresError;
 
-    if (error?.code === UNIQUE_VIOLATION) {
-      const message =
-        CONSTRAINT_SUBJECT[error.constraint ?? ''] ??
-        'This record already exists';
-
-      // Причина остается в журнале целиком: наружу уходит только то, что
-      // человеку понятно, а имя ограничения наружу не отдается.
-      super.catch(new ConflictException(message), host);
+    // Подмена уместна только для HTTP: у сокета и очереди свой способ ответа,
+    // и превращать их ошибку в ответ с кодом состояния нечем.
+    if (host.getType() !== 'http' || error?.code !== UNIQUE_VIOLATION) {
+      super.catch(exception, host);
       return;
     }
 
-    super.catch(exception, host);
+    const message =
+      CONSTRAINT_SUBJECT[error.constraint ?? ''] ?? 'This record already exists';
+
+    // Имя ограничения остается в журнале: наружу уходит только то, что понятно
+    // человеку, а разбирать случившееся по общему тексту невозможно.
+    this.logger.warn(
+      `Нарушено уникальное ограничение ${error.constraint ?? 'без имени'}`,
+    );
+
+    super.catch(new ConflictException(message), host);
   }
 }
