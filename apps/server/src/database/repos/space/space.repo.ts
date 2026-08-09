@@ -202,7 +202,10 @@ export class SpaceRepo {
     const subquery = eb
       .selectFrom('spaceMembers')
       .select('spaceMembers.userId')
+      .innerJoin('users', 'users.id', 'spaceMembers.userId')
       .where('spaceMembers.userId', 'is not', null)
+      .where('users.deletedAt', 'is', null)
+      .where('users.deactivatedAt', 'is', null)
       .whereRef('spaceMembers.spaceId', '=', 'spaces.id')
       .union(
         eb
@@ -210,7 +213,10 @@ export class SpaceRepo {
           .where('spaceMembers.groupId', 'is not', null)
           .leftJoin('groups', 'groups.id', 'spaceMembers.groupId')
           .leftJoin('groupUsers', 'groupUsers.groupId', 'groups.id')
+          .innerJoin('users', 'users.id', 'groupUsers.userId')
           .select('groupUsers.userId')
+          .where('users.deletedAt', 'is', null)
+          .where('users.deactivatedAt', 'is', null)
           .whereRef('spaceMembers.spaceId', '=', 'spaces.id'),
       )
       .as('userId');

@@ -37,7 +37,16 @@ export class PageListener {
   async handlePageUpdated(event: PageEvent) {
     const { pageIds, workspaceId } = event;
 
-    await this.searchQueue.add(QueueJob.PAGE_UPDATED, { pageIds });
+    // Проверка драйвера была у четырех постановок из пяти, а здесь ее не
+    // было. Очередь поиска обслуживается только при `SEARCH_DRIVER=typesense`,
+    // а обработчика у нее в этой сборке нет вовсе, поэтому каждое сохранение
+    // страницы навсегда откладывало задачу в Redis. Замерено на стенде: 139
+    // задач `page-updated` ждали несуществующего обработчика, а Redis работает
+    // с `maxmemory-policy noeviction`, где переполнение начинает отказывать в
+    // записи.
+    if (this.isTypesense()) {
+      await this.searchQueue.add(QueueJob.PAGE_UPDATED, { pageIds });
+    }
 
     // Without this an edited page keeps its original embeddings, so semantic
     // search would answer from stale content.

@@ -172,11 +172,20 @@ export class GroupRepo {
     });
   }
 
+  /**
+   * Считаются живые люди. Удаление участника снимает членство каскадом, а
+   * отключение нет: отключенный остается в группе и попадал в счет, хотя
+   * войти не может. Тот же случай был у счетчиков владельцев и
+   * администраторов пространства.
+   */
   withMemberCount(eb: ExpressionBuilder<DB, 'groups'>) {
     return eb
       .selectFrom('groupUsers')
+      .innerJoin('users', 'users.id', 'groupUsers.userId')
       .select((eb) => eb.fn.countAll().as('count'))
       .whereRef('groupUsers.groupId', '=', 'groups.id')
+      .where('users.deletedAt', 'is', null)
+      .where('users.deactivatedAt', 'is', null)
       .as('memberCount');
   }
 
