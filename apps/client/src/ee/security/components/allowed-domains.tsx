@@ -40,7 +40,6 @@ export default function AllowedDomains() {
         message: t("Updated successfully"),
       });
     } catch (err) {
-      console.log(err);
       notifications.show({
         message: err.response.data.message,
         color: "red",

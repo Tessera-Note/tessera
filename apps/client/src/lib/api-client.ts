@@ -48,7 +48,6 @@ api.interceptors.response.use(
               .toLowerCase()
               .includes("workspace not found")
           ) {
-            console.log("workspace not found");
             if (
               !isCloud() &&
               window.location.pathname != APP_ROUTE.AUTH.SETUP

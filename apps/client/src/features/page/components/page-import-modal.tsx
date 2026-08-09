@@ -151,12 +151,11 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         zipFileRef.current();
       }
     } catch (err) {
-      console.log("Failed to upload import file", err);
       notifications.update({
         id: "import",
         color: "red",
         title: t("Failed to upload import file"),
-        message: err?.response.data.message,
+        message: getApiErrorMessage(err, t("Failed to upload import file")),
         icon: <IconX size={18} />,
         loading: false,
         withCloseButton: true,
@@ -282,7 +281,6 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         pages.push(page);
         pageCount += 1;
       } catch (err) {
-        console.log("Failed to import page", err);
         const reason = getApiErrorMessage(err, "");
         if (reason) failures.push(reason);
       }

@@ -103,15 +103,12 @@ export class GroupRepo {
     trx: KyselyTransaction,
   ): Promise<Group> {
     const db = dbOrTx(this.db, trx);
-    return (
-      db
-        .selectFrom('groups')
-        .select(this.baseFields)
-        // .select((eb) => this.withMemberCount(eb))
-        .where('isDefault', '=', true)
-        .where('workspaceId', '=', workspaceId)
-        .executeTakeFirst()
-    );
+    return db
+      .selectFrom('groups')
+      .select(this.baseFields)
+      .where('isDefault', '=', true)
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
   }
 
   async createDefaultGroup(

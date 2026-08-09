@@ -136,8 +136,10 @@ export const TableOfContents: FC<TableOfContentsProps> = (props) => {
           observer.unobserve(heading);
         });
       };
-    } catch (err) {
-      console.log(err);
+    } catch {
+      // Наблюдение за заголовками не установилось: узлы могли исчезнуть из
+      // документа, пока оглавление открыто. Оглавление остается, просто
+      // перестает подсвечивать текущий раздел, и показывать тут нечего.
     }
   }, [headingDOMNodes, props.editor]);
 

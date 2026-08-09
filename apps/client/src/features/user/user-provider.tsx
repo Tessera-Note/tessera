@@ -37,12 +37,7 @@ export function UserProvider({ children }: React.PropsWithChildren) {
     // @ts-ignore
     setSocket(newSocket);
 
-    newSocket.on("connect", () => {
-      console.log("ws connected");
-    });
-
     return () => {
-      console.log("ws disconnected");
       newSocket.disconnect();
     };
   }, [isError, isLoading]);

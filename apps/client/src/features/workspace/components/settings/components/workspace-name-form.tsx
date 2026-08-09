@@ -38,7 +38,6 @@ export default function WorkspaceNameForm() {
       setWorkspace(updatedWorkspace);
       notifications.show({ message: t("Updated successfully") });
     } catch (err) {
-      console.log(err);
       notifications.show({
         message: t("Failed to update data"),
         color: "red",

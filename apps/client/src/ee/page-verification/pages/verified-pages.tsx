@@ -86,7 +86,6 @@ export default function VerifiedPages() {
           w={220}
         />
 
-        {/*
         <MultiSelect
           placeholder={t("Filter by space")}
           data={spaceOptions}
@@ -107,14 +106,18 @@ export default function VerifiedPages() {
           w={160}
           size="sm"
         />
-        */}
       </Group>
 
       <VerificationListTable items={data?.items} isLoading={isLoading} />
 
       <Space h="md" />
 
-      {data?.items && data.items.length > 0 && (
+      {/*
+        Разбиение показывается и на пустой странице: отбор по правам может
+        снять все ее строки, а продолжение при этом есть, и сервер отдает
+        курсор именно для такого случая.
+      */}
+      {(data?.meta?.hasNextPage || data?.meta?.hasPrevPage) && (
         <Paginate
           hasPrevPage={data?.meta?.hasPrevPage}
           hasNextPage={data?.meta?.hasNextPage}

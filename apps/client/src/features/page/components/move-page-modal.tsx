@@ -52,7 +52,6 @@ export default function MovePageModal({
         message: err.response?.data.message || "An error occurred",
         color: "red",
       });
-      console.log(err);
     }
   };
 
