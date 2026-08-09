@@ -125,16 +125,18 @@ function buildResolve(opts: { linked?: any; bound?: any; existing?: any }) {
     findByEmail: jest.fn(async () => opts.existing),
   };
 
+  const groupSync = { sync: jest.fn(async () => {}) };
+
   const service = new SsoIdentityService(
     db,
     userRepo,
     {} as any,
     {} as any,
-    { sync: jest.fn(async () => {}) } as any,
+    groupSync as any,
   );
   jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
 
-  return { service, inserted };
+  return { service, inserted, groupSync };
 }
 
 const RESOLVE_ARGS = {
@@ -175,6 +177,35 @@ describe('SsoIdentityService, неоднозначное совпадение п
         userId: 'user-7',
         authProviderId: 'prov-1',
         providerUserId: 'новый-идентификатор',
+      }),
+    );
+  });
+});
+
+/**
+ * Первый вход через провайдера у человека, который уже заведен в
+ * пространстве, это ровно тот случай, ради которого синхронизация групп и
+ * нужна: до него членство в вики ни разу не сверялось с каталогом. Ветка
+ * привязки по почте возвращала пользователя мимо синхронизации, и такой
+ * человек оставался с прежним составом групп до второго входа.
+ */
+describe('SsoIdentityService, синхронизация групп по веткам входа', () => {
+  it('привязка по почте синхронизирует группы', async () => {
+    const { service, groupSync } = buildResolve({
+      existing: { id: 'user-7' },
+      bound: undefined,
+    });
+
+    await service.resolveUser({
+      ...RESOLVE_ARGS,
+      groupNames: ['Отдел кадров'],
+    });
+
+    expect(groupSync.sync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-7',
+        workspaceId: 'ws-1',
+        groupNames: ['Отдел кадров'],
       }),
     );
   });

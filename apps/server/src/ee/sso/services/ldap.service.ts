@@ -177,6 +177,13 @@ export class LdapService {
       .map((field) => this.mappedAttribute(provider, field))
       .filter((value): value is string => Boolean(value));
 
+    // Каталог возвращает только то, что запрошено явно. Без атрибута групп в
+    // этом списке синхронизация видела бы пустой список у любого человека и
+    // на этом основании снимала бы его со всех групп каталога.
+    const groupAttribute = provider?.groupSync
+      ? [this.groupAttribute(provider)]
+      : [];
+
     return Array.from(
       new Set([
         ...ID_ATTRIBUTES,
@@ -186,8 +193,14 @@ export class LdapService {
         ...DEFAULT_GIVEN_NAME_ATTRIBUTES,
         ...DEFAULT_SURNAME_ATTRIBUTES,
         ...mapped,
+        ...groupAttribute,
       ]),
     );
+  }
+
+  /** Атрибут с группами: настройка провайдера, по умолчанию `memberOf`. */
+  private groupAttribute(provider: any): string {
+    return (provider?.groupClaimName ?? '').trim() || 'memberOf';
   }
 
   /**
@@ -266,11 +279,18 @@ export class LdapService {
       email: email.toLowerCase(),
       name: name || undefined,
       // У каталога группы почти всегда в `memberOf`, и приходят они полными
-      // различительными именами.
-      groupNames: extractGroupNames(
-        entry as any,
-        provider.groupClaimName || 'memberOf',
-      ),
+      // различительными именами. Имя атрибута читается без учета регистра по
+      // той же причине, что и остальные: каталоги отдают его по-разному.
+      //
+      // При выключенной синхронизации атрибут не запрашивался, и пустой
+      // список здесь означал бы «человек нигде не состоит». Поэтому вместо
+      // списка передается `undefined`: сведений о группах нет.
+      groupNames: provider.groupSync
+        ? extractGroupNames(
+            Object.fromEntries(this.indexEntry(entry as any)),
+            this.groupAttribute(provider).toLowerCase(),
+          )
+        : undefined,
     });
 
     const authToken = await this.sessionService.createSessionAndToken(user);

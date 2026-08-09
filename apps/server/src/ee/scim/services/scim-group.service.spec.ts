@@ -1002,7 +1002,11 @@ describe('ScimGroupService, удаление', () => {
     await service.remove('g-1', WORKSPACE);
 
     // Он же чистит наблюдателей и избранное у потерявших доступ.
-    expect(groupService.deleteGroup).toHaveBeenCalledWith('g-1', 'ws-1');
+    expect(groupService.deleteGroup).toHaveBeenCalledWith('g-1', 'ws-1', {
+      // Каталог вправе убрать группу, которую он же и ведет. Изнутри
+      // интерфейса та же операция отвергается.
+      fromDirectory: true,
+    });
     expect(groups).toHaveLength(0);
   });
 
@@ -1104,7 +1108,9 @@ describe('ScimGroupService, журнал', () => {
 
     await service.remove('g-1', WORKSPACE);
 
-    expect(groupService.deleteGroup).toHaveBeenCalledWith('g-1', 'ws-1');
+    expect(groupService.deleteGroup).toHaveBeenCalledWith('g-1', 'ws-1', {
+      fromDirectory: true,
+    });
     expect(auditService.logWithContext).not.toHaveBeenCalled();
   });
 });

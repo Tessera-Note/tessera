@@ -363,7 +363,9 @@ export class ScimGroupService {
     const row = await this.require(id, workspace);
     this.assertManagedByDirectory(row);
 
-    await this.groupService.deleteGroup(id, workspace.id);
+    await this.groupService.deleteGroup(id, workspace.id, {
+      fromDirectory: true,
+    });
 
     // Своего события здесь нет: `GroupService.deleteGroup` пишет
     // `GROUP_DELETED` сам, и вторая запись означала бы в журнале два

@@ -122,7 +122,7 @@ export class SsoIdentityService {
         userId: user.id,
         workspaceId: workspace.id,
         provider,
-        groupNames: opts.groupNames ?? [],
+        groupNames: opts.groupNames,
       });
       return user;
     };
@@ -171,7 +171,7 @@ export class SsoIdentityService {
       }
 
       await this.linkAccount(existing.id, provider.id, subject, workspace.id);
-      return existing;
+      return withGroups(existing);
     }
 
     if (!provider.allowSignup) {

@@ -19,7 +19,7 @@ function build(opts: {
 }) {
   const calls: any[] = [];
 
-  const chainFor = (table: string) => {
+  const selectChain = (table: string) => {
     const rows =
       table === 'groups' ? (opts.groups ?? []) : (opts.membership ?? []);
     const chain: any = new Proxy(
@@ -34,8 +34,8 @@ function build(opts: {
     return chain;
   };
 
-  const tx: any = {
-    selectFrom: (table: string) => chainFor(table),
+  const db: any = {
+    selectFrom: (table: string) => selectChain(table),
     updateTable: (table: string) => {
       const call: any = { op: 'update', table };
       const chain: any = {
@@ -43,39 +43,7 @@ function build(opts: {
           call.values = values;
           return chain;
         },
-        where: (...args: any[]) => {
-          call.where = [...(call.where ?? []), args];
-          return chain;
-        },
-        execute: async () => {
-          calls.push(call);
-          return [];
-        },
-      };
-      return chain;
-    },
-    insertInto: (table: string) => {
-      const call: any = { op: 'insert', table };
-      const chain: any = {
-        values: (rows: any[]) => {
-          call.rows = rows;
-          return chain;
-        },
-        onConflict: () => chain,
-        execute: async () => {
-          calls.push(call);
-          return [];
-        },
-      };
-      return chain;
-    },
-    deleteFrom: (table: string) => {
-      const call: any = { op: 'delete', table };
-      const chain: any = {
-        where: (...args: any[]) => {
-          call.where = [...(call.where ?? []), args];
-          return chain;
-        },
+        where: () => chain,
         execute: async () => {
           calls.push(call);
           return [];
@@ -85,12 +53,24 @@ function build(opts: {
     },
   };
 
-  const db: any = { transaction: () => ({ execute: (cb: any) => cb(tx) }) };
-  const service = new SsoGroupSyncService(db);
+  // Членство меняется только через сервис групп: он снимает кеш ролей,
+  // разводит комнаты Socket.IO, чистит избранное и пишет в журнал.
+  const groupUsers: any = {
+    addUsersToGroupBatch: jest.fn(
+      async (userIds: string[], groupId: string) => {
+        calls.push({ op: 'add', groupId, userIds });
+      },
+    ),
+    removeUserFromGroup: jest.fn(async (userId: string, groupId: string) => {
+      calls.push({ op: 'remove', groupId, userId });
+    }),
+  };
+
+  const service = new SsoGroupSyncService(db, groupUsers);
   jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
   jest.spyOn((service as any).logger, 'debug').mockImplementation(() => {});
 
-  const run = (groupNames: string[]) =>
+  const run = (groupNames?: string[]) =>
     service.sync({
       userId: 'u-1',
       workspaceId: 'ws-1',
@@ -98,7 +78,7 @@ function build(opts: {
       groupNames,
     });
 
-  return { run, calls };
+  return { run, calls, groupUsers };
 }
 
 const GROUPS = [
@@ -108,6 +88,35 @@ const GROUPS = [
 ];
 
 describe('SsoGroupSyncService', () => {
+  /**
+   * Провайдер без нужной области видимости групп не присылает вовсе. Считать
+   * это за «нигде не состоит» значило бы вычистить человеку все группы
+   * каталога при первом же входе.
+   */
+  it('отсутствие сведений о группах состава не меняет', async () => {
+    const { run, calls } = build({
+      groups: GROUPS,
+      membership: [{ groupId: 'g-dev', isExternal: true }],
+    });
+
+    await run(undefined);
+
+    expect(calls).toEqual([]);
+  });
+
+  it('пустой список снимает членство в группах каталога', async () => {
+    const { run, calls } = build({
+      groups: GROUPS,
+      membership: [{ groupId: 'g-dev', isExternal: true }],
+    });
+
+    await run([]);
+
+    expect(calls.find((c) => c.op === 'remove')).toMatchObject({
+      groupId: 'g-dev',
+    });
+  });
+
   it('выключенная синхронизация в базу не ходит', async () => {
     const { run, calls } = build({ groups: GROUPS, groupSync: false });
 
@@ -121,8 +130,8 @@ describe('SsoGroupSyncService', () => {
 
     await run(['Отдел кадров']);
 
-    const insert = calls.find((c) => c.op === 'insert');
-    expect(insert.rows).toEqual([{ userId: 'u-1', groupId: 'g-hr' }]);
+    const add = calls.find((c) => c.op === 'add');
+    expect(add).toMatchObject({ groupId: 'g-hr', userIds: ['u-1'] });
   });
 
   /** Регистр в каталоге и в вики совпадать не обязан. */
@@ -131,7 +140,7 @@ describe('SsoGroupSyncService', () => {
 
     await run(['ОТДЕЛ КАДРОВ']);
 
-    expect(calls.find((c) => c.op === 'insert').rows).toHaveLength(1);
+    expect(calls.filter((c) => c.op === 'add')).toHaveLength(1);
   });
 
   /**
@@ -144,11 +153,8 @@ describe('SsoGroupSyncService', () => {
 
     await run(['Отдел кадров', 'Совершенно новая группа']);
 
-    expect(
-      calls.filter((c) => c.table === 'groups' && c.op === 'insert'),
-    ).toEqual([]);
-    expect(calls.find((c) => c.op === 'insert').rows).toEqual([
-      { userId: 'u-1', groupId: 'g-hr' },
+    expect(calls.filter((c) => c.op === 'add')).toEqual([
+      { op: 'add', groupId: 'g-hr', userIds: ['u-1'] },
     ]);
   });
 
@@ -182,7 +188,9 @@ describe('SsoGroupSyncService', () => {
 
     await run(['Отдел кадров']);
 
-    expect(calls.find((c) => c.op === 'delete')).toBeDefined();
+    expect(calls.find((c) => c.op === 'remove')).toMatchObject({
+      groupId: 'g-dev',
+    });
   });
 
   /**
@@ -197,7 +205,7 @@ describe('SsoGroupSyncService', () => {
 
     await run([]);
 
-    expect(calls.find((c) => c.op === 'delete')).toBeUndefined();
+    expect(calls.find((c) => c.op === 'remove')).toBeUndefined();
   });
 
   /** В группе по умолчанию состоят все, и каталог этого не отменяет. */
@@ -206,7 +214,7 @@ describe('SsoGroupSyncService', () => {
 
     await run(['Everyone']);
 
-    expect(calls.find((c) => c.op === 'insert')).toBeUndefined();
+    expect(calls.find((c) => c.op === 'add')).toBeUndefined();
   });
 
   /**
@@ -215,13 +223,11 @@ describe('SsoGroupSyncService', () => {
    */
   it('отказ синхронизации не роняет вход', async () => {
     const db: any = {
-      transaction: () => ({
-        execute: () => {
-          throw new Error('база недоступна');
-        },
-      }),
+      selectFrom: () => {
+        throw new Error('база недоступна');
+      },
     };
-    const service = new SsoGroupSyncService(db);
+    const service = new SsoGroupSyncService(db, {} as any);
     jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
 
     await expect(
@@ -274,8 +280,13 @@ describe('extractGroupNames', () => {
     ]);
   });
 
-  it('отсутствие утверждения дает пусто', () => {
-    expect(extractGroupNames({ sub: 'x' })).toEqual([]);
-    expect(extractGroupNames(null)).toEqual([]);
+  /**
+   * Отсутствие утверждения не то же самое, что пустой список: пустой снимает
+   * членство, отсутствие означает, что сведений нет и трогать нечего.
+   */
+  it('отсутствие утверждения не то же, что пустой список', () => {
+    expect(extractGroupNames({ sub: 'x' })).toBeUndefined();
+    expect(extractGroupNames(null)).toBeUndefined();
+    expect(extractGroupNames({ groups: [] })).toEqual([]);
   });
 });

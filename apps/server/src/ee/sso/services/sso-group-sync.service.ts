@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@tessera/db/types/kysely.types';
-import { executeTx } from '@tessera/db/utils';
+import { GroupUserService } from '../../../core/group/services/group-user.service';
 
 /**
  * Состав групп по данным поставщика входа.
@@ -31,7 +31,10 @@ import { executeTx } from '@tessera/db/utils';
 export class SsoGroupSyncService {
   private readonly logger = new Logger(SsoGroupSyncService.name);
 
-  constructor(@InjectKysely() private readonly db: KyselyDB) {}
+  constructor(
+    @InjectKysely() private readonly db: KyselyDB,
+    private readonly groupUsers: GroupUserService,
+  ) {}
 
   /**
    * Привести состав групп человека к тому, что прислал поставщик.
@@ -44,12 +47,22 @@ export class SsoGroupSyncService {
     userId: string;
     workspaceId: string;
     provider: { id: string; groupSync?: boolean | null };
-    groupNames: string[];
+    groupNames?: string[];
   }): Promise<void> {
     if (!opts.provider?.groupSync) return;
 
+    // Отсутствие списка и пустой список это разные вещи. Пустой список
+    // означает, что каталог не числит человека нигде, и членство снимается.
+    // Отсутствие означает, что поток входа групп не присылает вовсе, и
+    // трактовать это как «нигде не числится» нельзя: включенный переключатель
+    // у такого провайдера снял бы человека со всех внешних групп.
+    if (!Array.isArray(opts.groupNames)) return;
+
+    const groupNames = opts.groupNames;
+    if (!Array.isArray(groupNames)) return;
+
     try {
-      await this.apply(opts);
+      await this.apply({ ...opts, groupNames });
     } catch (err) {
       this.logger.error(
         `Синхронизация групп для ${opts.userId} не удалась: ${
@@ -70,86 +83,78 @@ export class SsoGroupSyncService {
         .filter((name) => name.length > 0),
     );
 
-    await executeTx(this.db, async (trx) => {
-      const groups = await trx
-        .selectFrom('groups')
-        .select(['id', 'name', 'isDefault', 'isExternal'])
-        .where('workspaceId', '=', opts.workspaceId)
+    const groups = await this.db
+      .selectFrom('groups')
+      .select(['id', 'name', 'isDefault', 'isExternal'])
+      .where('workspaceId', '=', opts.workspaceId)
+      .execute();
+
+    const matched = groups.filter(
+      (group) => !group.isDefault && wanted.has(group.name.toLowerCase()),
+    );
+
+    // Совпадение по имени переводит группу под управление каталога. Отметка
+    // та же, что ставит SCIM: способ появления группы снаружи разный,
+    // а следствие одно, и второй отметки для него заводить незачем.
+    const toMark = matched.filter((group) => !group.isExternal);
+    if (toMark.length > 0) {
+      await this.db
+        .updateTable('groups')
+        .set({ isExternal: true, updatedAt: new Date() })
+        .where(
+          'id',
+          'in',
+          toMark.map((group) => group.id),
+        )
         .execute();
+    }
 
-      const matched = groups.filter(
-        (group) => !group.isDefault && wanted.has(group.name.toLowerCase()),
+    const current = await this.db
+      .selectFrom('groupUsers')
+      .innerJoin('groups', 'groups.id', 'groupUsers.groupId')
+      .select([
+        'groupUsers.groupId as groupId',
+        'groups.isExternal as isExternal',
+      ])
+      .where('groupUsers.userId', '=', opts.userId)
+      .where('groups.workspaceId', '=', opts.workspaceId)
+      .where('groups.isDefault', '=', false)
+      .execute();
+
+    const currentIds = new Set(current.map((row) => row.groupId));
+    const matchedIds = new Set(matched.map((group) => group.id));
+
+    const toAdd = matched.filter((group) => !currentIds.has(group.id));
+    const toRemove = current.filter(
+      (row) => row.isExternal && !matchedIds.has(row.groupId),
+    );
+
+    // Членство меняется только через сервис групп. Прямая запись в таблицу
+    // сохранила бы человеку кеш ролей пространства, комнаты Socket.IO,
+    // избранное и подписки на страницы, доступ к которым он уже потерял, не
+    // записала бы событие в журнал и обошла бы проверку на то, что
+    // пространство не остается без администратора. SCIM ходит тем же путем.
+    for (const group of toAdd) {
+      await this.groupUsers.addUsersToGroupBatch(
+        [opts.userId],
+        group.id,
+        opts.workspaceId,
       );
+    }
 
-      // Совпадение по имени переводит группу под управление каталога. Отметка
-      // та же, что ставит SCIM: способ появления группы снаружи разный,
-      // а следствие одно, и второй отметки для него заводить незачем.
-      const toMark = matched.filter((group) => !group.isExternal);
-      if (toMark.length > 0) {
-        await trx
-          .updateTable('groups')
-          .set({ isExternal: true, updatedAt: new Date() })
-          .where(
-            'id',
-            'in',
-            toMark.map((group) => group.id),
-          )
-          .execute();
-      }
-
-      const current = await trx
-        .selectFrom('groupUsers')
-        .innerJoin('groups', 'groups.id', 'groupUsers.groupId')
-        .select([
-          'groupUsers.groupId as groupId',
-          'groups.isExternal as isExternal',
-        ])
-        .where('groupUsers.userId', '=', opts.userId)
-        .where('groups.workspaceId', '=', opts.workspaceId)
-        .where('groups.isDefault', '=', false)
-        .execute();
-
-      const currentIds = new Set(current.map((row) => row.groupId));
-      const matchedIds = new Set(matched.map((group) => group.id));
-
-      const toAdd = matched.filter((group) => !currentIds.has(group.id));
-      const toRemove = current.filter(
-        (row) => row.isExternal && !matchedIds.has(row.groupId),
+    for (const row of toRemove) {
+      await this.groupUsers.removeUserFromGroup(
+        opts.userId,
+        row.groupId,
+        opts.workspaceId,
       );
+    }
 
-      if (toAdd.length > 0) {
-        await trx
-          .insertInto('groupUsers')
-          .values(
-            toAdd.map((group) => ({
-              userId: opts.userId,
-              groupId: group.id,
-            })),
-          )
-          .onConflict((oc) =>
-            oc.constraint('group_users_group_id_user_id_unique').doNothing(),
-          )
-          .execute();
-      }
-
-      if (toRemove.length > 0) {
-        await trx
-          .deleteFrom('groupUsers')
-          .where('userId', '=', opts.userId)
-          .where(
-            'groupId',
-            'in',
-            toRemove.map((row) => row.groupId),
-          )
-          .execute();
-      }
-
-      if (toAdd.length > 0 || toRemove.length > 0) {
-        this.logger.debug(
-          `Группы ${opts.userId}: добавлено ${toAdd.length}, снято ${toRemove.length}`,
-        );
-      }
-    });
+    if (toAdd.length > 0 || toRemove.length > 0) {
+      this.logger.debug(
+        `Группы ${opts.userId}: добавлено ${toAdd.length}, снято ${toRemove.length}`,
+      );
+    }
   }
 }
 
@@ -166,11 +171,18 @@ export class SsoGroupSyncService {
 export function extractGroupNames(
   profile: Record<string, unknown> | null | undefined,
   claimName?: string | null,
-): string[] {
-  if (!profile) return [];
+): string[] | undefined {
+  if (!profile) return undefined;
 
   const claim = (claimName ?? '').trim() || 'groups';
   const raw = profile[claim];
+
+  // Отсутствие утверждения и пустое утверждение это разные вещи. Пустое
+  // означает, что каталог не числит человека нигде, и членство снимается.
+  // Отсутствие означает, что провайдер групп не прислал вовсе, и снимать по
+  // этому основанию нельзя: у провайдера без нужной области видимости
+  // включенный переключатель вычистил бы человеку все группы каталога.
+  if (raw === null || raw === undefined) return undefined;
 
   const values = Array.isArray(raw)
     ? raw

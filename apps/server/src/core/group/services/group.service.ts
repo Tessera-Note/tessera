@@ -180,16 +180,24 @@ export class GroupService {
     return this.groupRepo.getGroupsPaginated(workspaceId, paginationOptions);
   }
 
-  async deleteGroup(groupId: string, workspaceId: string): Promise<void> {
+  /**
+   * `fromDirectory` отличает удаление, пришедшее от самого каталога, от
+   * удаления руками из интерфейса. Каталог вправе убрать группу, которую он
+   * же и ведет, а изнутри этого делать нельзя: следующий цикл заведет ее
+   * заново, а доступы, которые она давала, к этому моменту уже снимутся
+   * каскадом.
+   */
+  async deleteGroup(
+    groupId: string,
+    workspaceId: string,
+    opts?: { fromDirectory?: boolean },
+  ): Promise<void> {
     const group = await this.findAndValidateGroup(groupId, workspaceId);
     if (group.isDefault) {
       throw badRequest('error.group.you_cannot_delete_a_default_group');
     }
 
-    // Удалить группу каталога изнутри нельзя по той же причине: следующий
-    // цикл заведет ее заново, а доступы, которые она давала, к этому моменту
-    // уже снимутся каскадом.
-    if (group.isExternal) {
+    if (group.isExternal && !opts?.fromDirectory) {
       throw badRequest('error.group.you_cannot_delete_an_external_group');
     }
 
