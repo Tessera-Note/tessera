@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Server, Socket } from 'socket.io';
+import { SpaceMemberRepo } from '@tessera/db/repos/space/space-member.repo';
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
 import {
   TREE_EVENTS,
@@ -24,8 +25,56 @@ export class WsService {
 
   constructor(
     private readonly pagePermissionRepo: PagePermissionRepo,
+    private readonly spaceMemberRepo: SpaceMemberRepo,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
+
+  /**
+   * Привести комнаты пространства в соответствие с правами.
+   *
+   * Список пространств человека вычисляется один раз при подключении сокета и
+   * больше не пересматривается. Потеряв доступ, человек оставался в комнате
+   * `space-<id>` и продолжал получать ее события до переподключения, а через
+   * них уходит настоящее содержимое: обновления дерева с заголовками страниц
+   * и события комментариев.
+   *
+   * Вызывается после изменения членства, когда транзакция уже зафиксирована:
+   * права читаются заново, поэтому до фиксации ответ был бы прежним.
+   *
+   * Канал `/collab` живет отдельно и закрывает этот случай своим обходом
+   * соединений, подменять одно другим нельзя.
+   */
+  async syncSpaceMembership(
+    userIds: string[],
+    spaceId: string,
+  ): Promise<void> {
+    if (!this.server || userIds.length === 0) return;
+
+    const room = getSpaceRoomName(spaceId);
+    const sockets = await this.server
+      .in(userIds.map((id) => getUserRoomName(id)))
+      .fetchSockets();
+
+    // Права запрашиваются по одному разу на человека, а не на сокет: у одного
+    // человека может быть несколько вкладок.
+    const allowed = new Map<string, boolean>();
+
+    for (const socket of sockets) {
+      const userId = socket.data.userId as string;
+      if (!userId) continue;
+
+      if (!allowed.has(userId)) {
+        const spaceIds = await this.spaceMemberRepo.getUserSpaceIds(userId);
+        allowed.set(userId, spaceIds.includes(spaceId));
+      }
+
+      if (allowed.get(userId)) {
+        socket.join(room);
+      } else {
+        socket.leave(room);
+      }
+    }
+  }
 
   setServer(server: Server): void {
     this.server = server;

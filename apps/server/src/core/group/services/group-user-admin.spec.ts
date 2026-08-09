@@ -36,6 +36,7 @@ function build(remainingAdmins: number, currentAdmins = 1) {
   };
   const db: any = { transaction: () => ({ execute: (cb: any) => cb(db) }) };
   const auditService: any = { log: jest.fn() };
+  const wsService: any = { syncSpaceMembership: jest.fn(async () => {}) };
 
   const service = new GroupUserService(
     groupUserRepo,
@@ -46,6 +47,7 @@ function build(remainingAdmins: number, currentAdmins = 1) {
     favoriteRepo,
     db,
     auditService,
+    wsService,
   );
 
   return { service, groupUserRepo, spaceMemberRepo };

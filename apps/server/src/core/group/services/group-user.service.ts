@@ -21,6 +21,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { dbOrTx } from '@tessera/db/utils';
+import { WsService } from '../../../ws/ws.service';
 
 @Injectable()
 export class GroupUserService {
@@ -34,6 +35,7 @@ export class GroupUserService {
     private readonly favoriteRepo: FavoriteRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly wsService: WsService,
   ) {}
 
   async getGroupUsers(
@@ -182,6 +184,13 @@ export class GroupUserService {
         );
       }
     });
+
+    // Права на пространства приходят и через группу, поэтому комнаты
+    // пересчитываются и здесь: иначе выведенный из группы продолжал бы
+    // получать события ее пространств до переподключения.
+    for (const spaceId of spaceIds) {
+      await this.wsService.syncSpaceMembership([userId], spaceId);
+    }
 
     this.auditService.log({
       event: AuditEvent.GROUP_MEMBER_REMOVED,

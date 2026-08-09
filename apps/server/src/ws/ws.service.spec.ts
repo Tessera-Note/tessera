@@ -2,7 +2,7 @@ import { WsService } from './ws.service';
 
 describe('WsService', () => {
   function createService() {
-    return new WsService({} as any, {} as any);
+    return new WsService({} as any, {} as any, {} as any);
   }
 
   it('disconnects only sockets belonging to the specified sessions with one socket lookup', async () => {
@@ -113,7 +113,7 @@ describe('WsService', () => {
       get: jest.fn().mockResolvedValue(undefined),
       set: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new WsService(pagePermissionRepo as any, cacheManager as any);
+    const service = new WsService(pagePermissionRepo as any, {} as any, cacheManager as any);
     service.setServer({
       in: jest.fn(() => ({
         fetchSockets: jest.fn().mockResolvedValue([

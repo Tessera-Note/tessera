@@ -24,6 +24,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { WsService } from '../../../ws/ws.service';
 
 @Injectable()
 export class SpaceMemberService {
@@ -35,6 +36,7 @@ export class SpaceMemberService {
     private favoriteRepo: FavoriteRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly wsService: WsService,
   ) {}
 
   async addUserToSpace(
@@ -285,6 +287,12 @@ export class SpaceMemberService {
         { trx },
       );
     });
+
+    // Комнаты Socket.IO приводятся в соответствие с правами после фиксации:
+    // список пространств вычисляется при подключении сокета и сам не
+    // пересматривается, поэтому снятый участник продолжал получать события
+    // пространства до переподключения.
+    await this.wsService.syncSpaceMembership(affectedUserIds, dto.spaceId);
 
     this.auditService.log({
       event: AuditEvent.SPACE_MEMBER_REMOVED,

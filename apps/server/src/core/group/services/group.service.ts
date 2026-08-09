@@ -25,6 +25,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { WsService } from '../../../ws/ws.service';
 
 @Injectable()
 export class GroupService {
@@ -38,6 +39,7 @@ export class GroupService {
     private readonly favoriteRepo: FavoriteRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly wsService: WsService,
   ) {}
 
   async getGroupInfo(groupId: string, workspaceId: string): Promise<Group> {
@@ -231,6 +233,13 @@ export class GroupService {
         );
       }
     });
+
+    // Удаление группы уносит ее гранты на пространства: комнаты участников
+    // пересчитываются, иначе они продолжали бы получать события до
+    // переподключения.
+    for (const spaceId of spaceIds) {
+      await this.wsService.syncSpaceMembership(userIds, spaceId);
+    }
 
     this.auditService.log({
       event: AuditEvent.GROUP_DELETED,
