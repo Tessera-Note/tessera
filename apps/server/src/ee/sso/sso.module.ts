@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CaslModule } from '../../core/casl/casl.module';
 import { WorkspaceModule } from '../../core/workspace/workspace.module';
+import { GroupModule } from '../../core/group/group.module';
 import { SessionModule } from '../../core/session/session.module';
 import { SsoController } from './sso.controller';
 import { OidcController } from './oidc.controller';
@@ -17,7 +18,7 @@ import { GoogleController } from './google.controller';
 import { SamlController } from './saml.controller';
 
 @Module({
-  imports: [CaslModule, WorkspaceModule, SessionModule],
+  imports: [CaslModule, WorkspaceModule, SessionModule, GroupModule],
   controllers: [
     SsoController,
     OidcController,
