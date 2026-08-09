@@ -29,7 +29,6 @@ const AVAILABLE_FEATURES: readonly FeatureKey[] = [
   Feature.BASES,
   Feature.PDF_EXPORT,
   Feature.API_KEYS,
-  Feature.PAGE_PERMISSIONS,
   Feature.PERSONAL_SPACES,
   Feature.SHARING_CONTROLS,
   Feature.SECURITY_SETTINGS,
@@ -53,7 +52,19 @@ const AVAILABLE_FEATURES: readonly FeatureKey[] = [
  * Возможности, у которых есть схема базы, интерфейс или точка загрузки, но нет
  * реализации. Каждая строка соответствует пункту docs/future-roadmap.md.
  */
-const UNAVAILABLE_FEATURES: readonly FeatureKey[] = [];
+const UNAVAILABLE_FEATURES: readonly FeatureKey[] = [
+  // Клиент зовет семь маршрутов правки прав страницы, сервер отвечает 404 на
+  // каждый: `/pages/restrict`, `/pages/add-permission`,
+  // `/pages/remove-permission`, `/pages/update-permission`,
+  // `/pages/remove-restriction`, `/pages/permission-info` и список участников.
+  // Проверка `canUserEditPage` в чтении работает, но задать ограничение нечем:
+  // таблицы `page_access` и `page_permissions` пусты и заполняться им нечем.
+  //
+  // Пока маршрутов нет, интерфейс предлагал вкладку доступа, где каждое
+  // действие заканчивается ошибкой. Возможность возвращается в доступные
+  // одной строкой, когда маршруты появятся.
+  Feature.PAGE_PERMISSIONS,
+];
 
 @Injectable()
 export class LicenseCheckService {

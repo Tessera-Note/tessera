@@ -22,8 +22,29 @@ describe('LicenseCheckService', () => {
    * попадет новая незакрытая возможность, тест ниже потребует, чтобы она
    * действительно запрещалась.
    */
-  it('нереализованных возможностей не осталось', () => {
-    expect(service.listUnavailableFeatures()).toEqual([]);
+  /**
+   * Прежде здесь стояло «нереализованных возможностей не осталось». Это было
+   * верно на момент закрытия блока и перестало быть верным: у прав страницы
+   * клиент зовет семь маршрутов, а сервер отвечает 404 на каждый.
+   *
+   * Проверяется не пустота списка, а само правило: возможность объявлена
+   * доступной тогда и только тогда, когда за ней стоит рабочий код, и один
+   * ключ не может быть в обоих списках сразу.
+   */
+  it('списки доступных и недоступных не пересекаются', () => {
+    const available = service.resolveFeatures();
+    const unavailable = service.listUnavailableFeatures();
+
+    expect(
+      available.filter((feature) => unavailable.includes(feature)),
+    ).toEqual([]);
+  });
+
+  it('права страницы объявлены недоступными, пока нет маршрутов', () => {
+    expect(service.listUnavailableFeatures()).toContain(
+      Feature.PAGE_PERMISSIONS,
+    );
+    expect(service.resolveFeatures()).not.toContain(Feature.PAGE_PERMISSIONS);
   });
 
   it('возвращает копию списка, а не сам список', () => {
