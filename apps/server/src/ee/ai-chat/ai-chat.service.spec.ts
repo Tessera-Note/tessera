@@ -1,6 +1,10 @@
 jest.mock('ai', () => ({
   streamText: jest.fn(),
   generateText: jest.fn(),
+  // Инструменты собираются на каждом вызове, поэтому подмена модуля обязана
+  // отдавать и их сборщик: без него служба падает до первого запроса.
+  tool: (definition: unknown) => definition,
+  stepCountIs: (count: number) => count,
 }));
 
 import { ForbiddenException } from '@nestjs/common';
@@ -14,21 +18,17 @@ const PAGE_ID = '018f8b3c-0000-7000-8000-000000000001';
 
 const user = { id: 'user-1', locale: 'pt-BR' } as User;
 
-function editCommand(pageId = PAGE_ID, operation = 'append') {
-  return [
-    'Pronto, atualizei a página.',
-    ':::EDIT_PAGE:::',
-    JSON.stringify({ pageId, content: 'novo conteúdo', operation }),
-    ':::END_EDIT:::',
-  ].join('\n');
+/**
+ * Правка приходила разметкой в тексте ответа, которую сервер разбирал после
+ * завершения потока. Теперь ее делает инструмент, и проверяется тот же вход,
+ * которым пользуется модель.
+ */
+function editCommand(page = PAGE_ID, operation = 'append') {
+  return { page, content: 'novo conteúdo', operation };
 }
 
-function titleCommand(pageId = PAGE_ID) {
-  return [
-    ':::UPDATE_TITLE:::',
-    JSON.stringify({ pageId, title: 'Novo título' }),
-    ':::END_TITLE:::',
-  ].join('\n');
+function titleCommand(page = PAGE_ID) {
+  return { page, title: 'Novo título' };
 }
 
 type Mocks = {
@@ -82,8 +82,12 @@ function build(overrides: {
   return { service, mocks };
 }
 
-function run(service: AiChatService, text: string) {
-  return (service as any).parseAndExecuteEditCommands(text, user, WORKSPACE);
+async function run(service: AiChatService, command: any) {
+  return [await (service as any).applyPageEdit(command, user, WORKSPACE)];
+}
+
+async function runTitle(service: AiChatService, command: any) {
+  return [await (service as any).applyTitleChange(command, user, WORKSPACE)];
 }
 
 describe('AiChatService edit command authorization', () => {
@@ -172,7 +176,7 @@ describe('AiChatService edit command authorization', () => {
   it('guards title updates with the same check', async () => {
     const { service, mocks } = build({ page: allowedPage, canEdit: false });
 
-    const outcomes = await run(service, titleCommand());
+    const outcomes = await runTitle(service, titleCommand());
 
     expect(outcomes).toEqual([
       {
@@ -189,7 +193,7 @@ describe('AiChatService edit command authorization', () => {
   it('renames a page when allowed', async () => {
     const { service, mocks } = build({ page: allowedPage });
 
-    const outcomes = await run(service, titleCommand());
+    const outcomes = await runTitle(service, titleCommand());
 
     expect(outcomes[0].applied).toBe(true);
     expect(mocks.pageRepo.updatePage).toHaveBeenCalledWith(
@@ -198,24 +202,28 @@ describe('AiChatService edit command authorization', () => {
     );
   });
 
-  it('ignores malformed command blocks', async () => {
+  /**
+   * Разбора разметки больше нет: вход инструмента проверяется схемой до
+   * вызова. Проверяется то, что осталось на стороне службы, — ссылка на
+   * страницу, которую нельзя привести к идентификатору.
+   */
+  it('survives an unusable page reference instead of throwing', async () => {
     const { service, mocks } = build({ page: allowedPage });
 
-    const outcomes = await run(
-      service,
-      ':::EDIT_PAGE:::\n{not json at all}\n:::END_EDIT:::',
-    );
+    const outcomes = await run(service, editCommand('   '));
 
-    expect(outcomes).toEqual([]);
+    expect(outcomes[0].applied).toBe(false);
     expect(mocks.pageService.updatePageContent).not.toHaveBeenCalled();
   });
 
-  it('reports each command separately when several are emitted', async () => {
+  it('reports content and title separately', async () => {
     const { service } = build({ page: allowedPage });
 
-    const outcomes = await run(service, `${editCommand()}\n${titleCommand()}`);
+    const outcomes = [
+      ...(await run(service, editCommand())),
+      ...(await runTitle(service, titleCommand())),
+    ];
 
-    expect(outcomes).toHaveLength(2);
     expect(outcomes.map((o: any) => o.action)).toEqual(['content', 'title']);
   });
 });
@@ -242,7 +250,7 @@ describe('AiChatService system prompt', () => {
   });
 
   it('warns the model off destructive replaces', () => {
-    expect(prompt()).toMatch(/Never use "replace"/);
+    expect(prompt()).toMatch(/never use "replace"/i);
   });
 });
 

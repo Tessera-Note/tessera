@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@tessera/db/types/kysely.types';
-import { generateText, streamText } from 'ai';
+import { generateText, stepCountIs, streamText } from 'ai';
 import { AiProviderFactory } from '../ai/ai-provider.factory';
 import { sql } from 'kysely';
 import { PageService } from '../../core/page/services/page.service';
@@ -21,13 +21,12 @@ import { EnvironmentService } from '../../integrations/environment/environment.s
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
 import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
-import { needsWebSearch } from '../ai/freshness.util';
-import { buildSearchPlan } from '../ai/search-plan.util';
 import { AgentImageService } from './agent-image.service';
 import { languageForRequest } from '../ai/request-language.util';
-import { buildImageQuery, needsImages } from '../ai/image-request.util';
+import { buildImageQuery } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import { editRefusalNotice } from '../ai/ai-language.util';
+import { AGENT_MAX_STEPS, buildAgentTools } from './agent-tools';
 
 /** How many wiki pages get pulled into the prompt when retrieving context. */
 const RETRIEVAL_LIMIT = 5;
@@ -364,147 +363,13 @@ export class AiChatService {
       }
     }
 
-    // Without tools the model cannot go looking for anything, so pages the
-    // question is about are retrieved up front. Explicitly supplied context
-    // (a mention, the open page) is left as the authoritative source and only
-    // topped up with whatever else the wiki has.
+    // Явно поданный контекст остается источником: упоминание страницы и
+    // открытая страница уже в подсказке. Искать остальное модель решает сама,
+    // инструментом.
     const alreadyInContext = [
       ...(params.mentionedPageIds ?? []),
       params.contextPageId,
     ].filter(Boolean) as string[];
-
-    const retrievalCallId = `retrieval-${chatId}-${history.length}`;
-    yield {
-      type: 'tool_call',
-      id: retrievalCallId,
-      name: 'search_pages',
-      args: { query: params.content },
-    };
-
-    const retrieved = await this.retrieveWikiContext({
-      query: params.content,
-      workspaceId,
-      userId,
-      excludePageIds: alreadyInContext,
-    });
-
-    yield {
-      type: 'tool_result',
-      id: retrievalCallId,
-      result: {
-        method: retrieved.method,
-        pages: retrieved.pages.map((p) => ({ id: p.id, title: p.title })),
-      },
-    };
-
-    if (retrieved.pages.length > 0) {
-      contextText +=
-        '\n\n## Related pages found in the wiki\n' +
-        retrieved.pages
-          .map((p) => `### ${p.title} (ID: ${p.id})\n${p.excerpt}`)
-          .join('\n\n');
-    }
-
-    // Шаг поиска сохраняется отдельно и подмешивается в `toolCalls` ниже:
-    // сам массив объявляется после завершения потока, и запись в него
-    // отсюда была бы обращением к переменной до объявления.
-    let webToolCall: Record<string, unknown> | null = null;
-
-    // Второй шаг поиска, рядом с поиском по вики и тем же механизмом: сервер
-    // ищет сам, кладет найденное в подсказку и показывает наружу парой
-    // tool_call/tool_result. Разметкой в ответе это сделать нельзя, ее
-    // разбирают после завершения потока, и в рассуждение модели она бы уже
-    // не попала.
-    //
-    // Решение о запуске принимается по характеру запроса, а не по пустой
-    // выдаче из вики: запрос про текущие события нередко дает совпадение по
-    // словам и все равно требует свежих данных.
-    // Разговор, которому один раз понадобились внешние данные, нуждается в
-    // них и дальше: признаки свежести есть в первом сообщении, а в уточнениях
-    // вроде «добавь фото» их нет.
-    const previousTurnSearched = history.some(
-      (msg) =>
-        Array.isArray(msg.toolCalls) &&
-        (msg.toolCalls as any[]).some((call) => call?.name === 'search_web'),
-    );
-
-    // Просьба про изображения сама по себе требует смотреть наружу: в вики
-    // постеров нет, а обычный поиск отдает страницы, а не картинки.
-    const wantsImages = needsImages(params.content);
-
-    if (
-      (needsWebSearch(params.content, { previousTurnSearched }) ||
-        wantsImages) &&
-      (await this.webSearchService.isConfigured(workspaceId))
-    ) {
-      const webCallId = `websearch-${chatId}-${history.length}`;
-
-      // Несколько заходов с разными формулировками вместо одного: одна выдача
-      // одного формулирования давала обрывок, из которого агент собирал
-      // страницу и публиковал ее как результат.
-      const plan = buildSearchPlan(params.content, new Date().getFullYear());
-
-      yield {
-        type: 'tool_call',
-        id: webCallId,
-        name: 'search_web',
-        args: { queries: plan },
-      };
-
-      const webResults = await this.webSearchService.searchMany(
-        plan,
-        workspaceId,
-      );
-
-      // Запрос картинок строится отдельно: слова про формат («фото»,
-      // «постеры») описывают не предмет поиска, а то, что с ним сделать, и в
-      // запросе изображений только мешают.
-      const images = wantsImages
-        ? await this.webSearchService.searchImages(
-            buildImageQuery(params.content),
-            workspaceId,
-          )
-        : [];
-
-      const webResult = {
-        count: webResults.length,
-        results: webResults.map((r) => ({ title: r.title, url: r.url })),
-        images: images.length,
-      };
-
-      yield { type: 'tool_result', id: webCallId, result: webResult };
-
-      webToolCall = {
-        id: webCallId,
-        name: 'search_web',
-        args: { queries: plan },
-        result: webResult,
-      };
-
-      if (webResults.length > 0) {
-        contextText +=
-          '\n\n## Results from the web\n' +
-          `These came from ${plan.length} live web searches run just now ` +
-          `(${plan.map((q) => `"${q}"`).join(', ')}). Prefer them over ` +
-          'your own recollection for anything time-sensitive, and cite the ' +
-          'links you used.\n' +
-          webResults
-            .map((r) => `### ${r.title}\n${r.url}\n${r.snippet}`)
-            .join('\n\n');
-      }
-
-      if (images.length > 0) {
-        contextText +=
-          '\n\n## Images found for this request\n' +
-          'The user asked for pictures. Embed the relevant ones with ' +
-          'markdown image syntax `![caption](url)` directly in the page, one ' +
-          'per item where it fits. Do not replace a picture with a link to ' +
-          'the page it came from.\n' +
-          images
-            .map((i) => `- ${i.title || 'без названия'}: ${i.imageUrl}`)
-            .join('\n');
-      }
-    }
 
     // Build messages for AI SDK
     //
@@ -527,69 +392,183 @@ export class AiChatService {
       languageForRequest(params.content, user.locale),
     );
 
-    // Stream the AI response (without SDK tools due to Zod v4 incompatibility)
-    // Instead, editing is handled via command parsing from the AI response text
+    // Инструменты вместо разметки в тексте.
+    //
+    // Прежде поле `tools` в вызов не передавалось, а «команды» агент писал в
+    // ответ разметкой, которую сервер разбирал после завершения потока. Из-за
+    // этого результат действия не возвращался в рассуждение модели, второго
+    // прохода не было, а поиск инструментом не был вовсе: сервер искал сам до
+    // вызова модели. Совместимость схем Zod v4 проверена живым прогоном и
+    // восстановлена.
+    //
+    // Правка предлагается только тому, кому она разрешена: у чата без права
+    // правки инструментов правки нет, и модель не предложит того, что все
+    // равно будет отвергнуто.
+    const toolCalls: Array<Record<string, unknown>> = [];
+    const outcomes: EditOutcome[] = [];
+
+    const remember = (
+      id: string,
+      name: string,
+      args: unknown,
+      result: unknown,
+    ) => {
+      toolCalls.push({ id, name, args, result });
+    };
+
+    const tools = buildAgentTools({
+      searchPages: async ({ query }) => {
+        const found = await this.retrieveWikiContext({
+          query,
+          workspaceId,
+          userId,
+          excludePageIds: alreadyInContext,
+        });
+
+        return {
+          method: found.method,
+          pages: found.pages.map((page) => ({
+            id: page.id,
+            title: page.title,
+            excerpt: page.excerpt,
+          })),
+        };
+      },
+
+      searchWeb: (await this.webSearchService.isConfigured(workspaceId))
+        ? async ({ queries, images }) => {
+            const results = await this.webSearchService.searchMany(
+              queries,
+              workspaceId,
+            );
+
+            // Запрос картинок строится отдельно: слова про формат описывают не
+            // предмет поиска, а то, что с ним сделать.
+            const pictures = images
+              ? await this.webSearchService.searchImages(
+                  buildImageQuery(params.content),
+                  workspaceId,
+                )
+              : [];
+
+            return {
+              count: results.length,
+              results: results.map((r) => ({
+                title: r.title,
+                url: r.url,
+                snippet: r.snippet,
+              })),
+              images: pictures.map((i) => ({
+                title: i.title,
+                url: i.imageUrl,
+              })),
+            };
+          }
+        : undefined,
+
+      createPage: async (input) => {
+        const outcome = await this.createPageForUser(input, user, workspaceId);
+        outcomes.push(outcome);
+        return outcome.applied
+          ? { status: 'applied', pageId: outcome.pageId }
+          : { status: 'refused', reason: outcome.reason };
+      },
+
+      editPage: async ({ page, content, operation }) => {
+        const outcome = await this.applyPageEdit(
+          { page, content, operation },
+          user,
+          workspaceId,
+        );
+        outcomes.push(outcome);
+        return outcome.applied
+          ? { status: 'applied', pageId: outcome.pageId }
+          : { status: 'refused', reason: outcome.reason };
+      },
+
+      updateTitle: async ({ page, title }) => {
+        const outcome = await this.applyTitleChange(
+          { page, title },
+          user,
+          workspaceId,
+        );
+        outcomes.push(outcome);
+        return outcome.applied
+          ? { status: 'applied', pageId: outcome.pageId }
+          : { status: 'refused', reason: outcome.reason };
+      },
+    });
+
     const result = streamText({
       model: await this.providerFactory.getChatModel(workspaceId),
       system: systemPrompt,
       messages,
+      tools,
+      // Без этого модель останавливается на первом же вызове инструмента и
+      // ответа не пишет: результат к ней уже не возвращается.
+      stopWhen: stepCountIs(AGENT_MAX_STEPS),
     });
 
     let fullResponse = '';
+    const argsByCall = new Map<string, unknown>();
 
     for await (const chunk of (result as any).fullStream) {
       if (chunk.type === 'text-delta') {
-        const text = chunk.textDelta ?? chunk.text ?? '';
+        const text = chunk.text ?? chunk.delta ?? chunk.textDelta ?? '';
         fullResponse += text;
         yield { type: 'content', text };
+        continue;
+      }
+
+      if (chunk.type === 'tool-call') {
+        const args = chunk.input ?? chunk.args ?? {};
+        argsByCall.set(chunk.toolCallId, args);
+        yield {
+          type: 'tool_call',
+          id: chunk.toolCallId,
+          name: chunk.toolName,
+          args,
+        };
+        continue;
+      }
+
+      if (chunk.type === 'tool-result') {
+        const output = chunk.output ?? chunk.result;
+        yield { type: 'tool_result', id: chunk.toolCallId, result: output };
+        remember(
+          chunk.toolCallId,
+          chunk.toolName,
+          argsByCall.get(chunk.toolCallId) ?? {},
+          output,
+        );
+        continue;
+      }
+
+      if (chunk.type === 'tool-error') {
+        // Отказ инструмента возвращается модели и ей же объясняется человеку,
+        // но в запись хода он обязан попасть: иначе разбор происшествия
+        // упирается в ответ, где действие просто не упомянуто.
+        const failure = {
+          status: 'failed',
+          reason:
+            chunk.error instanceof Error
+              ? chunk.error.message
+              : String(chunk.error),
+        };
+        yield { type: 'tool_result', id: chunk.toolCallId, result: failure };
+        remember(
+          chunk.toolCallId,
+          chunk.toolName,
+          argsByCall.get(chunk.toolCallId) ?? {},
+          failure,
+        );
       }
     }
 
-    // Parse and execute edit commands from the AI response
-    const edits = await this.parseAndExecuteEditCommands(
-      fullResponse,
-      user,
-      workspaceId,
-    );
-
-    const toolCalls: Array<Record<string, unknown>> = [
-      ...(webToolCall ? [webToolCall] : []),
-      {
-        id: retrievalCallId,
-        name: 'search_pages',
-        args: { query: params.content },
-        result: {
-          method: retrieved.method,
-          pages: retrieved.pages.map((p) => ({ id: p.id, title: p.title })),
-        },
-      },
-    ];
-
-    for (const [index, edit] of edits.entries()) {
-      const callId = `edit-${chatId}-${history.length}-${index}`;
-      const name =
-        edit.action === 'title'
-          ? 'update_page_title'
-          : edit.action === 'create'
-            ? 'create_page'
-            : 'update_page';
-      const args = edit.title
-        ? { pageId: edit.pageId, title: edit.title }
-        : { pageId: edit.pageId };
-      const result = edit.applied
-        ? { status: 'applied' }
-        : { status: 'refused', reason: edit.reason };
-
-      yield { type: 'tool_call', id: callId, name, args };
-      yield { type: 'tool_result', id: callId, result };
-
-      toolCalls.push({ id: callId, name, args, result });
-    }
-
-    // The model has already claimed the edit was made by this point, so a
-    // refusal has to be stated in the transcript — otherwise the user is left
-    // believing a change landed when it did not.
-    const refused = edits.filter((edit) => !edit.applied);
+    // Отказ теперь возвращается модели внутри разговора, и объясняет его она
+    // сама. Приписка остается страховкой: молчаливый отказ недопустим, а
+    // положиться на то, что модель непременно о нем скажет, нельзя.
+    const refused = outcomes.filter((edit) => !edit.applied);
     if (refused.length > 0) {
       const notice = editRefusalNotice(
         user.locale,
@@ -637,145 +616,102 @@ export class AiChatService {
   }
 
   /**
-   * Parse edit commands from AI response text and execute them.
-   * Commands follow the format:
-   * :::EDIT_PAGE:::
-   * {"pageId":"...","content":"...","operation":"append|prepend|replace"}
-   * :::END_EDIT:::
+   * Записать содержимое в страницу.
    *
-   * Or for title updates:
-   * :::UPDATE_TITLE:::
-   * {"pageId":"...","title":"..."}
-   * :::END_TITLE:::
+   * Раньше это делал разбор разметки из текста ответа, теперь зовет
+   * инструмент. Проверка прав осталась прежней и на каждую страницу
+   * отдельная: у чата единого признака «можно править» нет, и заводить его
+   * значило бы второе правило для одного действия.
    */
-  private async parseAndExecuteEditCommands(
-    responseText: string,
+  private async applyPageEdit(
+    command: { page: string; content: string; operation?: string },
     user: User,
     workspaceId: string,
-  ): Promise<EditOutcome[]> {
-    const outcomes: EditOutcome[] = [];
+  ): Promise<EditOutcome> {
+    const page = await this.authorizeEdit(command.page, user, workspaceId);
 
-    // Разбор CREATE_PAGE идет первым: созданная страница может быть целью
-    // последующей правки в том же ответе.
-    const createRegex = /:::CREATE_PAGE:::\s*\n([\s\S]*?)\n:::END_CREATE:::/g;
-    let createMatch: RegExpExecArray | null;
-
-    while ((createMatch = createRegex.exec(responseText)) !== null) {
-      let command: any;
-      try {
-        command = JSON.parse(createMatch[1].trim());
-      } catch {
-        continue;
-      }
-
-      const created = await this.createPageForUser(command, user, workspaceId);
-      outcomes.push(created);
+    if (!page.allowed) {
+      return {
+        pageId: String(command.page),
+        action: 'content',
+        applied: false,
+        reason: page.reason,
+        refusal: page.refusal,
+      };
     }
 
-    // Parse EDIT_PAGE commands
-    const editRegex = /:::EDIT_PAGE:::\s*\n([\s\S]*?)\n:::END_EDIT:::/g;
-    let match: RegExpExecArray | null;
+    try {
+      // Картинки переносятся во вложения до записи: внешний адрес в теле
+      // страницы отправлял бы браузер читателя на чужой сервер.
+      const content = await this.agentImageService.localizeImages(
+        command.content,
+        {
+          pageId: page.page.id,
+          spaceId: page.page.spaceId,
+          workspaceId,
+          userId: user.id,
+        },
+      );
 
-    while ((match = editRegex.exec(responseText)) !== null) {
-      let command: any;
-      try {
-        command = JSON.parse(match[1].trim());
-      } catch {
-        continue; // Skip malformed commands
-      }
+      await this.pageService.updatePageContent(
+        page.page.id,
+        content,
+        (command.operation || 'append') as ContentOperation,
+        'markdown',
+        user,
+      );
 
-      const reference = command?.page ?? command?.pageId;
-      if (!reference || !command?.content) continue;
+      return { pageId: page.page.id, action: 'content', applied: true };
+    } catch (err: any) {
+      return {
+        pageId: page.page.id,
+        action: 'content',
+        applied: false,
+        reason: err?.message ?? 'The edit could not be applied',
+      };
+    }
+  }
 
-      const page = await this.authorizeEdit(reference, user, workspaceId);
-      if (!page.allowed) {
-        outcomes.push({
-          pageId: String(reference),
-          action: 'content',
-          applied: false,
-          reason: page.reason,
-          refusal: page.refusal,
-        });
-        continue;
-      }
+  /** Переименовать страницу. Права те же, что и у правки содержимого. */
+  private async applyTitleChange(
+    command: { page: string; title: string },
+    user: User,
+    workspaceId: string,
+  ): Promise<EditOutcome> {
+    const page = await this.authorizeEdit(command.page, user, workspaceId);
 
-      try {
-        // Картинки переносятся во вложения до записи: внешний адрес в теле
-        // страницы отправлял бы браузер читателя на чужой сервер.
-        const content = await this.agentImageService.localizeImages(
-          command.content,
-          {
-            pageId: page.page.id,
-            spaceId: page.page.spaceId,
-            workspaceId,
-            userId: user.id,
-          },
-        );
-
-        await this.pageService.updatePageContent(
-          page.page.id,
-          content,
-          (command.operation || 'append') as ContentOperation,
-          'markdown',
-          user,
-        );
-        outcomes.push({
-          pageId: command.pageId,
-          action: 'content',
-          applied: true,
-        });
-      } catch (err: any) {
-        outcomes.push({
-          pageId: command.pageId,
-          action: 'content',
-          applied: false,
-          reason: err?.message ?? 'The edit could not be applied',
-        });
-      }
+    if (!page.allowed) {
+      return {
+        pageId: String(command.page),
+        action: 'title',
+        applied: false,
+        reason: page.reason,
+        refusal: page.refusal,
+      };
     }
 
-    // Parse UPDATE_TITLE commands
-    const titleRegex = /:::UPDATE_TITLE:::\s*\n([\s\S]*?)\n:::END_TITLE:::/g;
-
-    while ((match = titleRegex.exec(responseText)) !== null) {
-      let command: any;
-      try {
-        command = JSON.parse(match[1].trim());
-      } catch {
-        continue;
-      }
-
-      const reference = command?.page ?? command?.pageId;
-      if (!reference || !command?.title) continue;
-
-      const page = await this.authorizeEdit(reference, user, workspaceId);
-      if (!page.allowed) {
-        outcomes.push({
-          pageId: String(reference),
-          action: 'title',
-          applied: false,
-          reason: page.reason,
-          refusal: page.refusal,
-        });
-        continue;
-      }
-
+    try {
       await this.pageRepo.updatePage(
         { title: command.title, updatedAt: new Date() },
         page.page.id,
       );
-      outcomes.push({ pageId: page.page.id, action: 'title', applied: true });
-    }
 
-    return outcomes;
+      return {
+        pageId: page.page.id,
+        action: 'title',
+        applied: true,
+        title: command.title,
+      };
+    } catch (err: any) {
+      return {
+        pageId: page.page.id,
+        action: 'title',
+        applied: false,
+        reason: err?.message ?? 'The title could not be changed',
+      };
+    }
   }
 
-  /**
-   * Pulls pages related to the question from the spaces the user belongs to.
-   * Prefers semantic search when embeddings are configured and falls back to
-   * PostgreSQL full-text search, so the assistant is not blind on installs
-   * without an embedding key.
-   */
   private async retrieveWikiContext(opts: {
     query: string;
     workspaceId: string;
@@ -1121,22 +1057,18 @@ export class AiChatService {
       'created or edited and what you found. Those ids are yours to reuse: ' +
       'when the user says «that page» or asks to extend what you just made, ' +
       'act on the id from that note instead of asking for a link.\n' +
-      'You can create and edit document pages directly. When the user asks you to edit, update, add text to, format, or modify a page, ' +
-      'include an edit command block in your response using this exact format:\n\n' +
-      ':::EDIT_PAGE:::\n' +
-      '{"page":"PAGE_REFERENCE_HERE","content":"MARKDOWN_CONTENT_HERE","operation":"append"}\n' +
-      ':::END_EDIT:::\n\n' +
-      'PAGE_REFERENCE can be the page address the user pasted (for example ' +
-      'http://host/s/general/p/notes-pOHJzJpYni or /share/abc/p/notes-pOHJzJpYni), the slug ' +
-      '(notes-pOHJzJpYni), or the page id. Use whatever the user gave you — never ask the user ' +
-      'for an internal page id, the product does not show one anywhere.\n' +
-      'To create a new page, use:\n\n' +
-      ':::CREATE_PAGE:::\n' +
-      '{"title":"PAGE_TITLE_HERE","content":"MARKDOWN_CONTENT_HERE"}\n' +
-      ':::END_CREATE:::\n\n' +
-      'Add "parentPageId":"PAGE_REFERENCE_HERE" to create it under an existing page; omit it to ' +
-      'create the page at the root of the space. Never refuse a request to create a page on the ' +
-      'grounds that you cannot create pages.\n' +
+      // Разметки в тексте больше нет: действия делаются инструментами, и
+      // подсказка описывает именно их. Прежний блок объяснял модели формат
+      // `:::EDIT_PAGE:::`, который сервер разбирал уже после ответа.
+      'You have tools. Use search_pages before answering anything about the ' +
+      'workspace content, and search_web for facts that change over time or ' +
+      'that the wiki does not cover. Do not answer from memory about either.\n' +
+      'Use create_page, edit_page and update_title to change the wiki. The ' +
+      'page argument accepts whatever the user gave you: a pasted address ' +
+      '(http://host/s/general/p/notes-pOHJzJpYni), a slug (notes-pOHJzJpYni) ' +
+      'or an id. Never ask the user for an internal page id, the product ' +
+      'does not show one anywhere. Never refuse a request to create a page ' +
+      'on the grounds that you cannot create pages.\n' +
       // Замечено на живом случае: на просьбу собрать топ-13 агент опубликовал
       // страницу с местами с девятого по тринадцатое и двумя врезками о том,
       // что данных нет. Это отчет о неудаче, оформленный как документ.
@@ -1152,15 +1084,13 @@ export class AiChatService {
       'to decide, not asking you to prove the choice is unknowable. Pick a ' +
       'reasonable interpretation, say in one line which one you picked, and ' +
       'deliver the whole thing.\n' +
-      'The "operation" can be "append" (add to bottom), "prepend" (add to top), or "replace" (overwrite entire document).\n' +
-      'To update a page title, use:\n\n' +
-      ':::UPDATE_TITLE:::\n' +
-      '{"page":"PAGE_REFERENCE_HERE","title":"NEW_TITLE_HERE"}\n' +
-      ':::END_TITLE:::\n\n' +
-      'Only edit a page the user asked you to change. Never use "replace" unless the user explicitly asks to ' +
-      'rewrite or overwrite the whole page — it discards the current content. Prefer "append" or "prepend". ' +
-      'An edit can be refused by the permission system; when that happens you are told so, and you must ' +
-      'report it to the user rather than claiming the change was made.\n' +
+      'The edit_page operation can be "append" (add to bottom), "prepend" ' +
+      '(add to top), or "replace" (overwrite the whole document). Only edit a ' +
+      'page the user asked you to change, and never use "replace" unless they ' +
+      'explicitly asked to rewrite the page — it discards what is there.\n' +
+      'A tool can answer that the change was refused by the permission ' +
+      'system. When that happens, tell the user plainly instead of claiming ' +
+      'the change was made.\n' +
       `You are capable of writing rich Markdown syntax that ${appName} renders into interactive UI elements:\n` +
       '- **Mermaid Diagrams**: Use ```mermaid code blocks for flowcharts, sequence diagrams, mindmaps, ERDs, and gantt charts.\n' +
       '- **Tables**: Use standard Markdown table syntax (| Header 1 | Header 2 |).\n' +

@@ -1,36 +1,8 @@
-import { buildImageQuery, needsImages } from './image-request.util';
+import { buildImageQuery } from './image-request.util';
 
 /**
  * Замерено на живом случае: на просьбу «с описанием и фото» агент поставил
  * ссылку на источник и ни одной картинки.
- */
-describe('needsImages', () => {
-  it.each([
-    'создай страницу с описанием и фото',
-    'добавь постеры фильмов',
-    'нужны картинки к каждому пункту',
-    'add posters for each film',
-    'with images please',
-  ])('распознается просьба про изображения: %s', (query) => {
-    expect(needsImages(query)).toBe(true);
-  });
-
-  it.each([
-    'создай страницу с топом фильмов',
-    'что записано про отпуска',
-    'перепиши заголовок',
-  ])('обычная просьба изображений не требует: %s', (query) => {
-    expect(needsImages(query)).toBe(false);
-  });
-
-  it('пустое сообщение изображений не требует', () => {
-    expect(needsImages('')).toBe(false);
-  });
-});
-
-/**
- * Слова про формат описывают не предмет поиска, а то, что с ним сделать, и в
- * запросе изображений только мешают.
  */
 describe('buildImageQuery', () => {
   it('слова про формат из запроса убираются', () => {
