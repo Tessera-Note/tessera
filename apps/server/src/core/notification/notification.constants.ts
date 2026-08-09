@@ -74,7 +74,9 @@ export const UPDATES_NOTIFICATION_TYPES: NotificationType[] = [
   NotificationType.PAGE_UPDATED,
 ];
 
-export function getTypesForTab(tab: NotificationTab): NotificationType[] | undefined {
+export function getTypesForTab(
+  tab: NotificationTab,
+): NotificationType[] | undefined {
   if (tab === 'direct') return DIRECT_NOTIFICATION_TYPES;
   if (tab === 'updates') return UPDATES_NOTIFICATION_TYPES;
   return undefined;

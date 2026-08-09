@@ -103,9 +103,7 @@ function build(
   const pagePermissionRepo: any = {
     filterAccessiblePageIds: jest.fn(async ({ pageIds }: any) =>
       options.accessiblePageIds
-        ? pageIds.filter((id: string) =>
-            options.accessiblePageIds.includes(id),
-          )
+        ? pageIds.filter((id: string) => options.accessiblePageIds.includes(id))
         : pageIds,
     ),
   };
@@ -162,15 +160,11 @@ describe('PageVerificationService, настройка верификации', (
 
     await service.setupVerification(SETUP, 'ws-1', USER);
 
-    const verification = inserts.find(
-      (i) => i.table === 'pageVerifications',
-    );
+    const verification = inserts.find((i) => i.table === 'pageVerifications');
     const verifiers = inserts.find((i) => i.table === 'pageVerifiers');
     expect(verification).toBeDefined();
     expect(verifiers.values).toHaveLength(2);
-    expect(verifiers.values[0].pageVerificationId).toBe(
-      verification.values.id,
-    );
+    expect(verifiers.values[0].pageVerificationId).toBe(verification.values.id);
   });
 
   it('первый проверяющий помечается основным', async () => {
@@ -324,7 +318,10 @@ describe('PageVerificationService, подтверждение и устарев�
   });
 
   it('подтверждение без настроенной верификации дает 404', async () => {
-    const { service } = build({ verifier: { id: 'v' }, verification: undefined });
+    const { service } = build({
+      verifier: { id: 'v' },
+      verification: undefined,
+    });
 
     await expect(
       service.verifyPage('page-1', 'ws-1', USER),
@@ -385,9 +382,7 @@ describe('PageVerificationService, список', () => {
 
     await service.getVerificationList({} as any, 'ws-1', USER);
 
-    expect(
-      (service as any).spaceMemberRepo ?? true,
-    ).toBeTruthy();
+    expect((service as any).spaceMemberRepo ?? true).toBeTruthy();
   });
 
   /**
@@ -933,9 +928,7 @@ describe('PageVerificationService, постановка уведомлений',
 
   it('истечение срока уведомляет по каждой переведенной проверке', async () => {
     const { service, notificationQueue } = build({ updatedRows: 2 });
-    jest
-      .spyOn(service as any, 'tryAcquireExpiryLock')
-      .mockResolvedValue(true);
+    jest.spyOn(service as any, 'tryAcquireExpiryLock').mockResolvedValue(true);
 
     await service.expireOverdueVerifications();
 

@@ -89,7 +89,10 @@ export class WatcherService {
   }
 
   async getWatchedSpaceIds(userId: string, workspaceId: string) {
-    const result = await this.watcherRepo.getWatchedSpaceIds(userId, workspaceId);
+    const result = await this.watcherRepo.getWatchedSpaceIds(
+      userId,
+      workspaceId,
+    );
 
     const spaceIds = result.items.map((r) => r.spaceId);
 

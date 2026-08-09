@@ -104,7 +104,12 @@ function NotificationToggle({
   return (
     <ResponsiveSettingsRow>
       <ResponsiveSettingsContent>
-        <Text component="label" htmlFor={switchId} size="md" style={{ cursor: "pointer" }}>
+        <Text
+          component="label"
+          htmlFor={switchId}
+          size="md"
+          style={{ cursor: "pointer" }}
+        >
           {t(label)}
         </Text>
         <Text id={descriptionId} size="sm" c="dimmed">
@@ -129,7 +134,9 @@ export default function NotificationPref() {
 
   return (
     <Stack gap="xs">
-      <Title order={2} size="h5">{t("Email notifications")}</Title>
+      <Title order={2} size="h5">
+        {t("Email notifications")}
+      </Title>
 
       {notificationItems.map((item) => (
         <NotificationToggle

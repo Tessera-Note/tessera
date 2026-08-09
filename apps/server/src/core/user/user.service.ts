@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { NotificationSettingKey } from '../notification/notification.constants';
-import { comparePasswordHash, diffAuditTrackedFields } from 'src/common/helpers/utils';
+import {
+  comparePasswordHash,
+  diffAuditTrackedFields,
+} from 'src/common/helpers/utils';
 import { Workspace } from '@tessera/db/types/entity.types';
 import { validateSsoEnforcement } from '../auth/auth.util';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
@@ -90,7 +93,11 @@ export class UserService {
       }
     }
 
-    const userBefore = { name: user.name, email: user.email, locale: user.locale };
+    const userBefore = {
+      name: user.name,
+      email: user.email,
+      locale: user.locale,
+    };
 
     if (updateUserDto.name) {
       user.name = updateUserDto.name;
@@ -111,7 +118,9 @@ export class UserService {
       );
 
       if (!isPasswordMatch) {
-        throw new BadRequestException('You must provide the correct password to change your email');
+        throw new BadRequestException(
+          'You must provide the correct password to change your email',
+        );
       }
 
       if (await this.userRepo.findByEmail(updateUserDto.email, workspace.id)) {
