@@ -15,7 +15,10 @@ function build() {
   const statements: { rows: any[]; constraint?: string }[] = [];
 
   const repo: SpaceMemberRepo = Object.create(SpaceMemberRepo.prototype);
-  (repo as any).db = {
+  const db: any = {
+    // Обе вставки идут одной транзакцией: смешанный набор не должен
+    // применяться наполовину.
+    transaction: () => ({ execute: (cb: any) => cb(db) }),
     insertInto: () => {
       const statement: { rows: any[]; constraint?: string } = { rows: [] };
       const chain: any = {
@@ -40,6 +43,7 @@ function build() {
       return chain;
     },
   };
+  (repo as any).db = db;
 
   return { repo, statements };
 }
@@ -99,5 +103,29 @@ describe('SpaceMemberRepo.insertSpaceMember', () => {
     await repo.insertSpaceMember([] as any);
 
     expect(statements).toEqual([]);
+  });
+});
+
+/**
+ * Разбиение обязано быть полным: строка без обоих идентификаторов должна
+ * дойти до базы и упереться в проверочное ограничение таблицы, как упиралась
+ * раньше, а не исчезнуть молча.
+ */
+describe('SpaceMemberRepo.insertSpaceMember, полнота разбиения', () => {
+  it('строка без обоих идентификаторов не теряется', async () => {
+    const { repo, statements } = build();
+
+    await repo.insertSpaceMember([{ spaceId: 'sp-1' }] as any);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0].rows).toEqual([{ spaceId: 'sp-1' }]);
+  });
+
+  it('обе вставки идут одной транзакцией', async () => {
+    const { repo, statements } = build();
+
+    await repo.insertSpaceMember([USER_ROW, GROUP_ROW] as any);
+
+    expect(statements).toHaveLength(2);
   });
 });

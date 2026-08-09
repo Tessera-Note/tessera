@@ -19,10 +19,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
-import {
-  AuditEvent,
-  AuditResource,
-} from '../../../common/events/audit-events';
+import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import WorkspaceAbilityFactory from '../../../core/casl/abilities/workspace-ability.factory';
 import {
   WorkspaceCaslAction,
@@ -333,10 +330,7 @@ export class MfaService {
       );
     }
 
-    await this.db
-      .deleteFrom('userMfa')
-      .where('id', '=', record.id)
-      .execute();
+    await this.db.deleteFrom('userMfa').where('id', '=', record.id).execute();
 
     // Событие отдельное, а не общее «изменен пользователь»: сброс чужого
     // второго фактора должен быть различим в журнале без разбора полей.
@@ -487,8 +481,20 @@ export class MfaService {
       .onConflict((oc) =>
         oc
           .constraint('user_mfa_user_id_unique')
-          .doUpdateSet({ secret: encrypted, method: 'totp', updatedAt: now } as any)
-          .where('userMfa.isEnabled', '=', false),
+          .doUpdateSet({
+            secret: encrypted,
+            method: 'totp',
+            updatedAt: now,
+          } as any)
+          // Колонка допускает NULL, и весь остальной файл считает NULL
+          // «не подключен». Сравнение с false на NULL дает NULL, то есть не
+          // истину, и такая строка навсегда потеряла бы возможность настройки.
+          .where((eb) =>
+            eb.or([
+              eb('userMfa.isEnabled', '=', false),
+              eb('userMfa.isEnabled', 'is', null),
+            ]),
+          ),
       )
       .returning('id')
       .executeTakeFirst();

@@ -3,7 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@tessera/db/types/kysely.types';
-import { dbOrTx } from '@tessera/db/utils';
+import { dbOrTx, executeTx } from '@tessera/db/utils';
 import { sql } from 'kysely';
 import {
   InsertableSpaceMember,
@@ -14,12 +14,6 @@ import { PaginationOptions } from '../../pagination/pagination-options';
 import { MemberInfo, UserSpaceRole } from './types';
 import { SpaceRole } from '../../../common/helpers/types/permission';
 
-/**
- * Пространство ключей рекомендательных блокировок: второй аргумент это хеш
- * идентификатора пространства, первый отделяет этот инвариант от любых
- * других блокировок в приложении.
- */
-const ADMIN_INVARIANT_LOCK = 4181;
 import { executeWithCursorPagination } from '@tessera/db/pagination/cursor-pagination';
 import { GroupRepo } from '@tessera/db/repos/group/group.repo';
 import { SpaceRepo } from '@tessera/db/repos/space/space.repo';
@@ -28,6 +22,13 @@ import {
   CacheKey,
   PERMISSION_CACHE_TTL_MS,
 } from '../../../common/helpers/cache-keys';
+
+/**
+ * Пространство ключей рекомендательных блокировок: второй аргумент это хеш
+ * идентификатора пространства, первый отделяет этот инвариант от любых
+ * других блокировок в приложении.
+ */
+const ADMIN_INVARIANT_LOCK = 4181;
 
 @Injectable()
 export class SpaceMemberRepo {
@@ -52,37 +53,53 @@ export class SpaceMemberRepo {
    * ограничением. Повторная вставка становится пустой операцией, а не отказом.
    */
   async insertSpaceMember(
-    insertableSpaceMember: InsertableSpaceMember,
+    insertableSpaceMember: InsertableSpaceMember | InsertableSpaceMember[],
     trx?: KyselyTransaction,
   ): Promise<void> {
-    const db = dbOrTx(this.db, trx);
     const rows = Array.isArray(insertableSpaceMember)
       ? insertableSpaceMember
       : [insertableSpaceMember];
     if (rows.length === 0) return;
 
+    // Разбиение полное: строка без `user_id` идет во вторую пачку и упирается
+    // в проверочное ограничение таблицы ровно так же, как упиралась раньше.
+    // Если делить по двум независимым признакам, строка без обоих полей
+    // молча выпала бы из обеих.
     const byUser = rows.filter((row) => row.userId);
-    const byGroup = rows.filter((row) => row.groupId);
+    const byGroup = rows.filter((row) => !row.userId);
 
-    if (byUser.length > 0) {
-      await db
-        .insertInto('spaceMembers')
-        .values(byUser)
-        .onConflict((oc) =>
-          oc.constraint('space_members_space_id_user_id_unique').doNothing(),
-        )
-        .execute();
-    }
+    // Два запроса вместо одного отняли бы атомарность у смешанного набора:
+    // при отказе второго первый остался бы зафиксированным, часть людей
+    // получила бы доступ, группы нет, а запись в журнале была бы про всех.
+    await executeTx(
+      this.db,
+      async (tx) => {
+        if (byUser.length > 0) {
+          await tx
+            .insertInto('spaceMembers')
+            .values(byUser)
+            .onConflict((oc) =>
+              oc
+                .constraint('space_members_space_id_user_id_unique')
+                .doNothing(),
+            )
+            .execute();
+        }
 
-    if (byGroup.length > 0) {
-      await db
-        .insertInto('spaceMembers')
-        .values(byGroup)
-        .onConflict((oc) =>
-          oc.constraint('space_members_space_id_group_id_unique').doNothing(),
-        )
-        .execute();
-    }
+        if (byGroup.length > 0) {
+          await tx
+            .insertInto('spaceMembers')
+            .values(byGroup)
+            .onConflict((oc) =>
+              oc
+                .constraint('space_members_space_id_group_id_unique')
+                .doNothing(),
+            )
+            .execute();
+        }
+      },
+      trx,
+    );
   }
 
   async updateSpaceMember(
@@ -127,7 +144,7 @@ export class SpaceMemberRepo {
     spaceId: string,
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
     await db
       .deleteFrom('spaceMembers')
@@ -136,26 +153,6 @@ export class SpaceMemberRepo {
       .execute();
   }
 
-  /**
-   * Сколько **людей** имеют роль администратора в пространстве.
-   *
-   * Прежний счетчик `roleCountBySpaceId` брал число строк `space_members`, а
-   * не число людей: группа засчитывалась за одного администратора независимо
-   * от состава, поэтому пустая группа удерживала инвариант «хотя бы один
-   * администратор», не давая доступа никому.
-   *
-   * Строки раскрываются в пользователей тем же правилом, что и
-   * `getUserSpaceRoles`, который доступ выдает: прямая строка плюс участники
-   * группы. `spaceMembers.deletedAt` там не фильтруется, здесь тоже — иначе
-   * счетчик разошелся бы с правилом доступа. Удаленные и отключенные
-   * пользователи не считаются: войти они не могут, администрировать тем
-   * более.
-   *
-   * Исключения нужны проверкам перед изменением: считать надо то, что
-   * останется после операции, а не то, что есть сейчас. `excludeMemberId`
-   * снимает одну строку членства, `excludeGroupId` все гранты группы,
-   * `excludeUserId` одного человека из состава групп.
-   */
   /**
    * Взять блокировку пространства на время транзакции.
    *
@@ -179,6 +176,26 @@ export class SpaceMemberRepo {
     );
   }
 
+  /**
+   * Сколько **людей** имеют роль администратора в пространстве.
+   *
+   * Прежний счетчик `roleCountBySpaceId` брал число строк `space_members`, а
+   * не число людей: группа засчитывалась за одного администратора независимо
+   * от состава, поэтому пустая группа удерживала инвариант «хотя бы один
+   * администратор», не давая доступа никому.
+   *
+   * Строки раскрываются в пользователей тем же правилом, что и
+   * `getUserSpaceRoles`, который доступ выдает: прямая строка плюс участники
+   * группы. `spaceMembers.deletedAt` там не фильтруется, здесь тоже — иначе
+   * счетчик разошелся бы с правилом доступа. Удаленные и отключенные
+   * пользователи не считаются: войти они не могут, администрировать тем
+   * более.
+   *
+   * Исключения нужны проверкам перед изменением: считать надо то, что
+   * останется после операции, а не то, что есть сейчас. `excludeMemberId`
+   * снимает одну строку членства, `excludeGroupId` все гранты группы,
+   * `excludeUserId` одного человека из состава групп.
+   */
   async adminUserCountBySpaceId(
     spaceId: string,
     opts?: {
@@ -472,11 +489,7 @@ export class SpaceMemberRepo {
       .unionAll(
         this.db
           .selectFrom('spaceMembers')
-          .innerJoin(
-            'groupUsers',
-            'groupUsers.groupId',
-            'spaceMembers.groupId',
-          )
+          .innerJoin('groupUsers', 'groupUsers.groupId', 'spaceMembers.groupId')
           .select(['spaceMembers.spaceId', 'spaceMembers.role'])
           .where('groupUsers.userId', '=', userId)
           .where('spaceMembers.spaceId', 'in', spaceIds),

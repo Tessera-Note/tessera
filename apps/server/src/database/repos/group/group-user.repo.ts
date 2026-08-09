@@ -35,10 +35,11 @@ export class GroupUserRepo {
       .executeTakeFirst();
   }
 
+  /** Пусто означает, что членство уже есть: обработка конфликта, не отказ. */
   async insertGroupUser(
     insertableGroupUser: InsertableGroupUser,
     trx?: KyselyTransaction,
-  ): Promise<GroupUser> {
+  ): Promise<GroupUser | undefined> {
     const db = dbOrTx(this.db, trx);
     return db
       .insertInto('groupUsers')
@@ -179,7 +180,7 @@ export class GroupUserRepo {
     groupId: string,
     opts?: { trx?: KyselyTransaction },
   ): Promise<void> {
-    const { trx } = opts;
+    const trx = opts?.trx;
     const db = dbOrTx(this.db, trx);
 
     await db

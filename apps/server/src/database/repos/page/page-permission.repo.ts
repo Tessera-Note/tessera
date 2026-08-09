@@ -82,8 +82,11 @@ export class PagePermissionRepo {
     if (permissions.length === 0) return;
     const db = dbOrTx(this.db, trx);
 
+    // Разбиение полное, как и у состава пространства: строка без `user_id`
+    // идет во вторую пачку и упирается в проверочное ограничение таблицы, а
+    // не выпадает молча из обеих.
     const byUser = permissions.filter((row) => row.userId);
-    const byGroup = permissions.filter((row) => row.groupId);
+    const byGroup = permissions.filter((row) => !row.userId);
 
     if (byUser.length > 0) {
       await db
@@ -473,10 +476,10 @@ export class PagePermissionRepo {
     // дальше, зато без бесполезного обращения к Redis. Возврат кеша требует
     // ключа с поколением на пространство, это отдельная работа.
 
-        const result = await sql<{
-          canAccess: boolean | null;
-          canEdit: boolean | null;
-        }>`
+    const result = await sql<{
+      canAccess: boolean | null;
+      canEdit: boolean | null;
+    }>`
           WITH RECURSIVE ancestors AS (
             SELECT id AS ancestor_id, parent_page_id, 0 AS depth
             FROM pages

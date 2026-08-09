@@ -101,7 +101,6 @@ export class SpaceMemberService {
     authUser: User,
     workspaceId: string,
   ): Promise<void> {
-
     const space = await this.spaceRepo.findById(dto.spaceId, workspaceId);
     if (!space) {
       throw new NotFoundException('Space not found');
@@ -113,7 +112,9 @@ export class SpaceMemberService {
       .select(['id', 'name'])
       .where('users.id', 'in', dto.userIds)
       .where('users.workspaceId', '=', workspaceId)
-      // using this because we can not use easily use onConflict with two unique indexes.
+      // Выборка нужна для журнала: он пишет поименно, кого добавили. От
+      // одновременного повтора она не защищает, это делает обработка
+      // конфликта в репозитории.
       .where(({ not, exists, selectFrom }) =>
         not(
           exists(
@@ -415,7 +416,9 @@ export class SpaceMemberService {
    */
   async validateLastAdmin(
     spaceId: string,
-    excluded: { memberId?: string; groupId?: string; userId?: string } | undefined,
+    excluded:
+      | { memberId?: string; groupId?: string; userId?: string }
+      | undefined,
     trx: KyselyTransaction,
   ): Promise<void> {
     await this.spaceMemberRepo.lockSpaceForAdminCheck(spaceId, trx);
@@ -455,8 +458,6 @@ export class SpaceMemberService {
       );
     }
   }
-
-
 
   async getUserSpaces(
     userId: string,
