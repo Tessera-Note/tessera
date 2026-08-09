@@ -260,7 +260,11 @@ describe('PagePermissionService, выдача и снятие прав', () => {
     );
   });
 
-  /** Иначе у одного человека накопилось бы несколько строк с разными ролями. */
+  /**
+   * Правило: у одного человека на странице одна роль. Раньше это делалось
+   * удалением перед вставкой, теперь заменой в самой вставке, поэтому
+   * проверяется отсутствие удаления и роль в переданных строках, а не способ.
+   */
   it('повторная выдача заменяет прежнюю роль, а не удваивает запись', async () => {
     const { service, pagePermissionRepo } = build();
 
@@ -272,7 +276,25 @@ describe('PagePermissionService, выдача и снятие прав', () => {
 
     expect(
       pagePermissionRepo.deletePagePermissionsByUserIds,
-    ).toHaveBeenCalledWith('pa-1', ['u-2'], 'trx');
+    ).not.toHaveBeenCalled();
+    expect(pagePermissionRepo.insertPagePermissions).toHaveBeenCalledWith(
+      [{ pageAccessId: 'pa-1', userId: 'u-2', role: 'writer' }],
+      'trx',
+    );
+  });
+
+  /**
+   * Проверка «уже ограничена» стоит до транзакции и от одновременного повтора
+   * не защищает. Выигрывает один запрос, второй не должен заводить вторые
+   * права на несуществующей записи доступа.
+   */
+  it('проигравший гонку за ограничение прав не заводит', async () => {
+    const { service, pagePermissionRepo } = build({ pageAccess: undefined });
+    pagePermissionRepo.insertPageAccess.mockResolvedValue(undefined);
+
+    await service.restrict({ pageId: 'p-1' }, USER, WORKSPACE_ID);
+
+    expect(pagePermissionRepo.insertPagePermissions).not.toHaveBeenCalled();
   });
 
   it('без адресатов снятие отклоняется', async () => {

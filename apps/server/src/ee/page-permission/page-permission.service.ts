@@ -73,6 +73,11 @@ export class PagePermissionService {
         trx,
       );
 
+      // Пусто значит, что ограничение успел создать другой запрос: проверка
+      // выше от одновременного повтора не защищает, между ней и вставкой
+      // ничего не держится. Права заводит тот запрос, который выиграл.
+      if (!access) return;
+
       await this.pagePermissionRepo.insertPagePermissions(
         [{ pageAccessId: access.id, userId: user.id, role: 'writer' }],
         trx,
@@ -108,18 +113,10 @@ export class PagePermissionService {
     }
 
     await executeTx(this.db, async (trx) => {
-      // Повторная выдача заменяет прежнюю роль, а не удваивает запись.
-      await this.pagePermissionRepo.deletePagePermissionsByUserIds(
-        access.id,
-        userIds,
-        trx,
-      );
-      await this.pagePermissionRepo.deletePagePermissionsByGroupIds(
-        access.id,
-        groupIds,
-        trx,
-      );
-
+      // Повторная выдача заменяет прежнюю роль, а не удваивает запись. Раньше
+      // это делалось удалением перед вставкой, но между ними ничего не
+      // держалось: два одновременных запроса удаляли оба, вставляли оба, и
+      // второй получал 23505. Замену делает сама вставка.
       await this.pagePermissionRepo.insertPagePermissions(
         [
           ...userIds.map((userId) => ({

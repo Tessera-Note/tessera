@@ -39,14 +39,22 @@ export class PagePermissionRepo {
       .executeTakeFirst();
   }
 
+  /**
+   * Завести ограничение на странице.
+   *
+   * `page_id` уникален, и два одновременных запроса дают 23505 и ответ 500
+   * вместо задуманного «уже ограничена». Пустой результат означает, что
+   * ограничение успел создать другой запрос.
+   */
   async insertPageAccess(
     data: InsertablePageAccess,
     trx?: KyselyTransaction,
-  ): Promise<PageAccess> {
+  ): Promise<PageAccess | undefined> {
     const db = dbOrTx(this.db, trx);
     return db
       .insertInto('pageAccess')
       .values(data)
+      .onConflict((oc) => oc.column('pageId').doNothing())
       .returningAll()
       .executeTakeFirst();
   }
@@ -59,13 +67,49 @@ export class PagePermissionRepo {
     await db.deleteFrom('pageAccess').where('pageId', '=', pageId).execute();
   }
 
+  /**
+   * Выдать права на ограниченной странице.
+   *
+   * Как и у состава пространства, ограничений два, по человеку и по группе, и
+   * одним `onConflict` они не закрываются: цель у него одна. Строки
+   * разделяются по виду адресата, что и гарантирует проверочное ограничение
+   * таблицы: у записи задан ровно один из двух столбцов.
+   */
   async insertPagePermissions(
     permissions: InsertablePagePermission[],
     trx?: KyselyTransaction,
   ): Promise<void> {
     if (permissions.length === 0) return;
     const db = dbOrTx(this.db, trx);
-    await db.insertInto('pagePermissions').values(permissions).execute();
+
+    const byUser = permissions.filter((row) => row.userId);
+    const byGroup = permissions.filter((row) => row.groupId);
+
+    if (byUser.length > 0) {
+      await db
+        .insertInto('pagePermissions')
+        .values(byUser)
+        .onConflict((oc) =>
+          oc.constraint('page_access_user_unique').doUpdateSet((eb) => ({
+            role: eb.ref('excluded.role'),
+            updatedAt: new Date(),
+          })),
+        )
+        .execute();
+    }
+
+    if (byGroup.length > 0) {
+      await db
+        .insertInto('pagePermissions')
+        .values(byGroup)
+        .onConflict((oc) =>
+          oc.constraint('page_access_group_unique').doUpdateSet((eb) => ({
+            role: eb.ref('excluded.role'),
+            updatedAt: new Date(),
+          })),
+        )
+        .execute();
+    }
   }
 
   async findPagePermissionByUserId(
