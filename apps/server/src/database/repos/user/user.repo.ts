@@ -142,6 +142,18 @@ export class UserRepo {
       .executeTakeFirst();
   }
 
+  /**
+   * Сколько **живых** людей имеют эту роль в рабочем пространстве.
+   *
+   * Счетчик держит инвариант «хотя бы один владелец», а считал все строки
+   * подряд, включая удаленных и отключенных. Такой владелец роль в таблице
+   * сохраняет, но войти не может, то есть администрировать пространство
+   * некому. Замерено на стенде: строк с ролью администратора три, живых из
+   * них ноль.
+   *
+   * Тот же случай был у счетчика администраторов пространства и чинится тем
+   * же способом: считаются те, кто действительно может пользоваться правом.
+   */
   async roleCountByWorkspaceId(
     role: string,
     workspaceId: string,
@@ -151,9 +163,11 @@ export class UserRepo {
       .select((eb) => eb.fn.count('role').as('count'))
       .where('role', '=', role)
       .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('deactivatedAt', 'is', null)
       .executeTakeFirst();
 
-    return count as number;
+    return Number(count);
   }
 
   async getUsersPaginated(workspaceId: string, pagination: PaginationOptions) {
