@@ -1540,5 +1540,9 @@
   "e.g acme.com": "e.g acme.com",
   "{{count}} results found": "{{count}} results found",
   "{{name}} category": "{{name}} category",
-  "{{name}}, {{n}} of {{total}}": "{{name}}, {{n}} of {{total}}"
+  "{{name}}, {{n}} of {{total}}": "{{name}}, {{n}} of {{total}}",
+  "{{count}} Columns_one": "{{count}} Column",
+  "{{count}} Columns_other": "{{count}} Columns",
+  "Pages in trash will be permanently deleted after {{count}} days._one": "Pages in trash will be permanently deleted after {{count}} day.",
+  "Pages in trash will be permanently deleted after {{count}} days._other": "Pages in trash will be permanently deleted after {{count}} days."
 }
