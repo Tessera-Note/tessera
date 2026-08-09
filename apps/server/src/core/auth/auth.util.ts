@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Workspace } from '@tessera/db/types/entity.types';
 import { createHmac } from 'node:crypto';
-import { ErrorMessage } from '../../common/errors/app-error';
+import { ErrorMessage, badRequest } from '../../common/errors/app-error';
 
 export function computeEmailSignature(
   email: string,
@@ -39,7 +39,7 @@ export function throwIfEmailNotVerified(opts: {
 
 export function validateSsoEnforcement(workspace: Workspace) {
   if (workspace.enforceSso) {
-    throw new BadRequestException('This workspace has enforced SSO login.');
+    throw badRequest('error.auth.this_workspace_has_enforced_sso_login');
   }
 }
 

@@ -13,6 +13,7 @@ import {
   SpaceCaslSubject,
 } from '../interfaces/space-ability.type';
 import { findHighestUserSpaceRole } from '@tessera/db/repos/space/utils';
+import { notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export default class SpaceAbilityFactory {
@@ -33,7 +34,7 @@ export default class SpaceAbilityFactory {
       case SpaceRole.READER:
         return buildSpaceReaderAbility();
       default:
-        throw new NotFoundException('Space permissions not found');
+        throw notFound('error.casl.space_permissions_not_found');
     }
   }
 }

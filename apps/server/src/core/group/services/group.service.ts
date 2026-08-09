@@ -26,6 +26,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { WsService } from '../../../ws/ws.service';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class GroupService {
@@ -48,7 +49,7 @@ export class GroupService {
     });
 
     if (!group) {
-      throw new NotFoundException('Group not found');
+      throw notFound('error.group.group_not_found');
     }
 
     return group;
@@ -65,7 +66,7 @@ export class GroupService {
       workspaceId,
     );
     if (groupExists) {
-      throw new BadRequestException('Group name already exists');
+      throw badRequest('error.group.group_name_already_exists');
     }
     const insertableGroup: InsertableGroup = {
       name: createGroupDto.name,
@@ -111,11 +112,11 @@ export class GroupService {
     );
 
     if (!group) {
-      throw new NotFoundException('Group not found');
+      throw notFound('error.group.group_not_found');
     }
 
     if (group.isDefault) {
-      throw new BadRequestException('You cannot update a default group');
+      throw badRequest('error.group.you_cannot_update_a_default_group');
     }
 
     const groupBefore = { name: group.name, description: group.description };
@@ -127,7 +128,7 @@ export class GroupService {
       );
 
       if (existingGroup && group.name !== existingGroup.name) {
-        throw new BadRequestException('Group name already exists');
+        throw badRequest('error.group.group_name_already_exists');
       }
 
       group.name = updateGroupDto.name;
@@ -175,7 +176,7 @@ export class GroupService {
   async deleteGroup(groupId: string, workspaceId: string): Promise<void> {
     const group = await this.findAndValidateGroup(groupId, workspaceId);
     if (group.isDefault) {
-      throw new BadRequestException('You cannot delete a default group');
+      throw badRequest('error.group.you_cannot_delete_a_default_group');
     }
 
     const [userIds, spaceIds] = await Promise.all([
@@ -210,9 +211,7 @@ export class GroupService {
         ]);
 
         if (before > 0 && after === 0) {
-          throw new BadRequestException(
-            'There must be at least one space admin with full access',
-          );
+          throw badRequest('error.common.space_admin_required');
         }
       }
 
@@ -263,7 +262,7 @@ export class GroupService {
       trx,
     });
     if (!group) {
-      throw new NotFoundException('Group not found');
+      throw notFound('error.group.group_not_found');
     }
 
     return group;

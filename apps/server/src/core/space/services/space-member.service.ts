@@ -25,6 +25,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { WsService } from '../../../ws/ws.service';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class SpaceMemberService {
@@ -47,7 +48,7 @@ export class SpaceMemberService {
     trx?: KyselyTransaction,
   ): Promise<void> {
     //if (existingSpaceUser) {
-    //           throw new BadRequestException('User already added to this space');
+    //           throw badRequest('error.space.user_already_added_to_this_space');
     //         }
     await this.spaceMemberRepo.insertSpaceMember(
       {
@@ -87,7 +88,7 @@ export class SpaceMemberService {
   ): Promise<CursorPaginationResult<any>> {
     const space = await this.spaceRepo.findById(spaceId, workspaceId);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     return await this.spaceMemberRepo.getSpaceMembersPaginated(
@@ -103,7 +104,7 @@ export class SpaceMemberService {
   ): Promise<void> {
     const space = await this.spaceRepo.findById(dto.spaceId, workspaceId);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     // make sure we have valid workspace users
@@ -223,7 +224,7 @@ export class SpaceMemberService {
   ): Promise<void> {
     const space = await this.spaceRepo.findById(dto.spaceId, workspaceId);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     let spaceMember: SpaceMember = null;
@@ -243,13 +244,11 @@ export class SpaceMemberService {
         },
       );
     } else {
-      throw new BadRequestException(
-        'Please provide a valid userId or groupId to remove',
-      );
+      throw badRequest('error.space.please_provide_a_valid_userid_or');
     }
 
     if (!spaceMember) {
-      throw new NotFoundException('Space membership not found');
+      throw notFound('error.space.space_membership_not_found');
     }
 
     let affectedUserIds: string[] = [];
@@ -325,7 +324,7 @@ export class SpaceMemberService {
   ): Promise<void> {
     const space = await this.spaceRepo.findById(dto.spaceId, workspaceId);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     let spaceMember: SpaceMember = null;
@@ -345,13 +344,11 @@ export class SpaceMemberService {
         },
       );
     } else {
-      throw new BadRequestException(
-        'Please provide a valid userId or groupId to remove',
-      );
+      throw badRequest('error.space.please_provide_a_valid_userid_or');
     }
 
     if (!spaceMember) {
-      throw new NotFoundException('Space membership not found');
+      throw notFound('error.space.space_membership_not_found');
     }
 
     if (spaceMember.role === dto.role) {
@@ -432,9 +429,7 @@ export class SpaceMemberService {
         trx,
       );
       if (current === 0) {
-        throw new BadRequestException(
-          'There must be at least one space admin with full access',
-        );
+        throw badRequest('error.common.space_admin_required');
       }
       return;
     }
@@ -453,9 +448,7 @@ export class SpaceMemberService {
     ]);
 
     if (before > 0 && after === 0) {
-      throw new BadRequestException(
-        'There must be at least one space admin with full access',
-      );
+      throw badRequest('error.common.space_admin_required');
     }
   }
 

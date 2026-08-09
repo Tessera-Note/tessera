@@ -50,7 +50,11 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
-import { badRequest, notFound } from '../../../common/errors/app-error';
+import {
+  badRequest,
+  forbidden,
+  notFound,
+} from '../../../common/errors/app-error';
 
 @Injectable()
 export class WorkspaceService {
@@ -302,9 +306,7 @@ export class WorkspaceService {
         .execute();
 
       if (sso && sso?.length === 0) {
-        throw new BadRequestException(
-          'There must be at least one active SSO provider to enforce SSO.',
-        );
+        throw badRequest('error.workspace.sso_provider_required');
       }
     }
 
@@ -320,10 +322,10 @@ export class WorkspaceService {
     if (updateWorkspaceDto.hostname) {
       const hostname = updateWorkspaceDto.hostname;
       if (DISALLOWED_HOSTNAMES.includes(hostname)) {
-        throw new BadRequestException('Hostname already exists.');
+        throw badRequest('error.workspace.hostname_already_exists');
       }
       if (await this.workspaceRepo.hostnameExists(hostname)) {
-        throw new BadRequestException('Hostname already exists.');
+        throw badRequest('error.workspace.hostname_already_exists');
       }
     }
 
@@ -351,19 +353,19 @@ export class WorkspaceService {
 
       if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {
         if (!this.licenseCheckService.hasFeature('mcp')) {
-          throw new ForbiddenException('This feature requires a valid license');
+          throw forbidden('error.common.this_feature_requires_a_valid_license');
         }
       }
 
       if (typeof updateWorkspaceDto.isScimEnabled !== 'undefined') {
         if (!this.licenseCheckService.hasFeature(Feature.SCIM)) {
-          throw new ForbiddenException('This feature requires a valid license');
+          throw forbidden('error.common.this_feature_requires_a_valid_license');
         }
       }
 
       if (typeof updateWorkspaceDto.allowPersonalSpaces !== 'undefined') {
         if (!this.licenseCheckService.hasFeature(Feature.PERSONAL_SPACES)) {
-          throw new ForbiddenException('This feature requires a valid license');
+          throw forbidden('error.common.this_feature_requires_a_valid_license');
         }
       }
 
@@ -374,7 +376,7 @@ export class WorkspaceService {
         typeof updateWorkspaceDto.allowMemberTemplates !== 'undefined'
       ) {
         if (!this.licenseCheckService.hasFeature(Feature.SECURITY_SETTINGS)) {
-          throw new ForbiddenException('This feature requires a valid license');
+          throw forbidden('error.common.this_feature_requires_a_valid_license');
         }
       }
 
@@ -390,8 +392,8 @@ export class WorkspaceService {
     if (updateWorkspaceDto.aiSearch) {
       const tableExists = await isPageEmbeddingsTableExists(this.db);
       if (!tableExists) {
-        throw new BadRequestException(
-          'Failed to activate. Make sure pgvector postgres extension is installed.',
+        throw badRequest(
+          'error.workspace.failed_to_activate_make_sure_pgvector',
         );
       }
     }
@@ -628,7 +630,7 @@ export class WorkspaceService {
     const newRole = userRoleDto.role.toLowerCase();
 
     if (!user) {
-      throw new BadRequestException('Workspace member not found');
+      throw badRequest('error.workspace.workspace_member_not_found');
     }
 
     // prevent ADMIN from managing OWNER role
@@ -649,9 +651,7 @@ export class WorkspaceService {
     );
 
     if (user.role === UserRole.OWNER && workspaceOwnerCount === 1) {
-      throw new BadRequestException(
-        'There must be at least one workspace owner',
-      );
+      throw badRequest('error.workspace.sso_provider_required_2');
     }
 
     await this.userRepo.updateUser(
@@ -714,7 +714,7 @@ export class WorkspaceService {
   async checkHostname(hostname: string) {
     const exists = await this.workspaceRepo.hostnameExists(hostname);
     if (!exists) {
-      throw new NotFoundException('Hostname not found');
+      throw notFound('error.workspace.hostname_not_found');
     }
     return { hostname: this.domainService.getUrl(hostname) };
   }
@@ -727,21 +727,19 @@ export class WorkspaceService {
     const user = await this.userRepo.findById(userId, workspaceId);
 
     if (!user || user.deletedAt) {
-      throw new BadRequestException('Workspace member not found');
+      throw badRequest('error.workspace.workspace_member_not_found');
     }
 
     if (user.deactivatedAt) {
-      throw new BadRequestException('User is already deactivated');
+      throw badRequest('error.workspace.user_is_already_deactivated');
     }
 
     if (authUser.id === userId) {
-      throw new BadRequestException('You cannot deactivate yourself');
+      throw badRequest('error.workspace.you_cannot_deactivate_yourself');
     }
 
     if (isAdminActingOnOwner(authUser.role, user.role)) {
-      throw new BadRequestException(
-        'You cannot deactivate a user with owner role',
-      );
+      throw badRequest('error.workspace.you_cannot_deactivate_a_user_with');
     }
 
     if (user.role === UserRole.OWNER) {
@@ -751,9 +749,7 @@ export class WorkspaceService {
       );
 
       if (workspaceOwnerCount === 1) {
-        throw new BadRequestException(
-          'There must be at least one workspace owner',
-        );
+        throw badRequest('error.workspace.sso_provider_required_2');
       }
     }
 
@@ -793,17 +789,15 @@ export class WorkspaceService {
     const user = await this.userRepo.findById(userId, workspaceId);
 
     if (!user || user.deletedAt) {
-      throw new BadRequestException('Workspace member not found');
+      throw badRequest('error.workspace.workspace_member_not_found');
     }
 
     if (!user.deactivatedAt) {
-      throw new BadRequestException('User is not deactivated');
+      throw badRequest('error.workspace.user_is_not_deactivated');
     }
 
     if (isAdminActingOnOwner(authUser.role, user.role)) {
-      throw new BadRequestException(
-        'You cannot activate a user with owner role',
-      );
+      throw badRequest('error.workspace.you_cannot_activate_a_user_with');
     }
 
     await this.userRepo.updateUser(
@@ -834,7 +828,7 @@ export class WorkspaceService {
     const user = await this.userRepo.findById(userId, workspaceId);
 
     if (!user || user.deletedAt) {
-      throw new BadRequestException('Workspace member not found');
+      throw badRequest('error.workspace.workspace_member_not_found');
     }
 
     const workspaceOwnerCount = await this.userRepo.roleCountByWorkspaceId(
@@ -843,17 +837,15 @@ export class WorkspaceService {
     );
 
     if (user.role === UserRole.OWNER && workspaceOwnerCount === 1) {
-      throw new BadRequestException(
-        'There must be at least one workspace owner',
-      );
+      throw badRequest('error.workspace.sso_provider_required_2');
     }
 
     if (authUser.id === userId) {
-      throw new BadRequestException('You cannot delete yourself');
+      throw badRequest('error.workspace.you_cannot_delete_yourself');
     }
 
     if (isAdminActingOnOwner(authUser.role, user.role)) {
-      throw new BadRequestException('You cannot delete a user with owner role');
+      throw badRequest('error.workspace.you_cannot_delete_a_user_with');
     }
 
     const revokedSessionIds = await executeTx(this.db, async (trx) => {

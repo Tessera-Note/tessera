@@ -19,6 +19,7 @@ import {
 } from '../dto/jwt-payload';
 import { User } from '@tessera/db/types/entity.types';
 import { isUserDisabled } from '../../../common/helpers';
+import { unauthorized } from '../../../common/errors/app-error';
 
 @Injectable()
 export class TokenService {
@@ -151,9 +152,7 @@ export class TokenService {
     });
 
     if (payload.type !== tokenType) {
-      throw new UnauthorizedException(
-        'Invalid JWT token. Token type does not match.',
-      );
+      throw unauthorized('error.auth.invalid_jwt_token_token_type_does');
     }
 
     return payload;

@@ -24,6 +24,7 @@ import { SpaceMemberRepo } from '@tessera/db/repos/space/space-member.repo';
 import { PageAccessService } from '../page/page-access/page-access.service';
 import { TemplateRepo } from '@tessera/db/repos/template/template.repo';
 import { FavoriteType } from '@tessera/db/repos/favorite/favorite.repo';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('favorites')
@@ -109,36 +110,36 @@ export class FavoriteController {
     workspaceId: string,
   ): Promise<{ spaceId: string; page?: Page }> {
     if (dto.type === 'page') {
-      if (!dto.pageId) throw new BadRequestException('pageId is required');
+      if (!dto.pageId) throw badRequest('error.favorite.pageid_is_required');
       const page = await this.pageRepo.findById(dto.pageId);
-      if (!page) throw new NotFoundException('Page not found');
+      if (!page) throw notFound('error.common.page_not_found');
       await this.pageAccessService.validateCanView(page, user);
       return { spaceId: page.spaceId, page };
     }
 
     if (dto.type === 'space') {
-      if (!dto.spaceId) throw new BadRequestException('spaceId is required');
+      if (!dto.spaceId) throw badRequest('error.common.spaceid_is_required');
       const space = await this.spaceRepo.findById(dto.spaceId, workspaceId);
-      if (!space) throw new NotFoundException('Space not found');
+      if (!space) throw notFound('error.common.space_not_found');
       await this.validateSpaceAccess(user.id, space.id);
       return { spaceId: space.id };
     }
 
     if (dto.type === 'template') {
       if (!dto.templateId)
-        throw new BadRequestException('templateId is required');
+        throw badRequest('error.favorite.templateid_is_required');
       const template = await this.templateRepo.findById(
         dto.templateId,
         workspaceId,
       );
-      if (!template) throw new NotFoundException('Template not found');
+      if (!template) throw notFound('error.favorite.template_not_found');
       if (template.spaceId) {
         await this.validateSpaceAccess(user.id, template.spaceId);
       }
       return { spaceId: template.spaceId };
     }
 
-    throw new BadRequestException('Invalid favorite type');
+    throw badRequest('error.favorite.invalid_favorite_type');
   }
 
   private async validateSpaceAccess(

@@ -60,6 +60,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 @Controller()
 export class AttachmentController {
@@ -105,19 +106,19 @@ export class AttachmentController {
     }
 
     if (!file) {
-      throw new BadRequestException('Failed to upload file');
+      throw badRequest('error.attachment.failed_to_upload_file');
     }
 
     const pageId = file.fields?.pageId?.value;
 
     if (!pageId) {
-      throw new BadRequestException('PageId is required');
+      throw badRequest('error.attachment.pageid_is_required');
     }
 
     const page = await this.pageRepo.findById(pageId);
 
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanEdit(page, user);
@@ -126,7 +127,7 @@ export class AttachmentController {
 
     const attachmentId = file.fields?.attachmentId?.value;
     if (attachmentId && !isValidUUID(attachmentId)) {
-      throw new BadRequestException('Invalid attachment id');
+      throw badRequest('error.attachment.invalid_attachment_id');
     }
 
     try {
@@ -159,7 +160,7 @@ export class AttachmentController {
         throw new BadRequestException(errMessage);
       }
       this.logger.error(err);
-      throw new BadRequestException('Error processing file upload.');
+      throw badRequest('error.attachment.error_processing_file_upload');
     }
   }
 
@@ -174,7 +175,7 @@ export class AttachmentController {
     @Param('fileName') fileName?: string,
   ) {
     if (!isValidUUID(fileId)) {
-      throw new NotFoundException('Invalid file id');
+      throw notFound('error.attachment.invalid_file_id');
     }
 
     const attachment = await this.attachmentRepo.findById(fileId);
@@ -206,7 +207,7 @@ export class AttachmentController {
       return await this.sendFileResponse(req, res, attachment, 'private');
     } catch (err) {
       this.logger.error(err);
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
   }
 
@@ -226,8 +227,8 @@ export class AttachmentController {
         JwtType.ATTACHMENT,
       );
     } catch (err) {
-      throw new BadRequestException(
-        'Expired or invalid attachment access token',
+      throw badRequest(
+        'error.attachment.expired_or_invalid_attachment_access_token',
       );
     }
 
@@ -236,7 +237,7 @@ export class AttachmentController {
       fileId !== jwtPayload.attachmentId ||
       jwtPayload.workspaceId !== workspace.id
     ) {
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
 
     const attachment = await this.attachmentRepo.findById(fileId);
@@ -247,14 +248,14 @@ export class AttachmentController {
       !attachment.spaceId ||
       jwtPayload.pageId !== attachment.pageId
     ) {
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
 
     try {
       return await this.sendFileResponse(req, res, attachment, 'public');
     } catch (err) {
       this.logger.error(err);
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
   }
 
@@ -284,21 +285,21 @@ export class AttachmentController {
     }
 
     if (!file) {
-      throw new BadRequestException('Invalid file upload');
+      throw badRequest('error.attachment.invalid_file_upload');
     }
 
     const attachmentType = file.fields?.type?.value;
     const spaceId = file.fields?.spaceId?.value;
 
     if (!attachmentType) {
-      throw new BadRequestException('attachment type is required');
+      throw badRequest('error.attachment.attachment_type_is_required');
     }
 
     if (
       !validAttachmentTypes.includes(attachmentType) ||
       attachmentType === AttachmentType.File
     ) {
-      throw new BadRequestException('Invalid image attachment type');
+      throw badRequest('error.attachment.invalid_image_attachment_type');
     }
 
     if (attachmentType === AttachmentType.WorkspaceIcon) {
@@ -315,7 +316,7 @@ export class AttachmentController {
 
     if (attachmentType === AttachmentType.SpaceIcon) {
       if (!spaceId) {
-        throw new BadRequestException('spaceId is required');
+        throw badRequest('error.common.spaceid_is_required');
       }
 
       const spaceAbility = await this.spaceAbility.createForUser(user, spaceId);
@@ -338,7 +339,7 @@ export class AttachmentController {
       return res.send(fileResponse);
     } catch (err: any) {
       this.logger.error(err);
-      throw new BadRequestException('Error processing file upload.');
+      throw badRequest('error.attachment.error_processing_file_upload');
     }
   }
 
@@ -353,11 +354,11 @@ export class AttachmentController {
       !validAttachmentTypes.includes(attachmentType) ||
       attachmentType === AttachmentType.File
     ) {
-      throw new BadRequestException('Invalid image attachment type');
+      throw badRequest('error.attachment.invalid_image_attachment_type');
     }
 
     if (!fileName) {
-      throw new BadRequestException('Invalid file name');
+      throw badRequest('error.attachment.invalid_file_name');
     }
 
     const ext = path.extname(fileName);
@@ -368,7 +369,7 @@ export class AttachmentController {
       !isValidUUID(filenameWithoutExt) ||
       `${filenameWithoutExt}${ext}` !== fileName
     ) {
-      throw new BadRequestException('Invalid file name');
+      throw badRequest('error.attachment.invalid_file_name');
     }
 
     const filePath = `${getAttachmentFolderPath(attachmentType, workspace.id)}/${fileName}`;
@@ -382,7 +383,7 @@ export class AttachmentController {
       return res.send(fileStream);
     } catch (err) {
       // this.logger.error(err);
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
   }
 
@@ -401,12 +402,12 @@ export class AttachmentController {
       attachment.workspaceId !== workspace.id ||
       attachment.type !== AttachmentType.File
     ) {
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
 
     const page = await this.pageRepo.findById(attachment.pageId);
     if (!page) {
-      throw new NotFoundException('File not found');
+      throw notFound('error.attachment.file_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -433,8 +434,8 @@ export class AttachmentController {
     // remove space icon
     if (type === AttachmentType.SpaceIcon) {
       if (!spaceId) {
-        throw new BadRequestException(
-          'spaceId is required to change space icons',
+        throw badRequest(
+          'error.attachment.spaceid_is_required_to_change_space',
         );
       }
 

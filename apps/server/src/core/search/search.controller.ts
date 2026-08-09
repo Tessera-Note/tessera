@@ -26,6 +26,7 @@ import {
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { Public } from 'src/common/decorators/public.decorator';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { badRequest } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('search')
@@ -83,7 +84,7 @@ export class SearchController {
   ) {
     delete searchDto.spaceId;
     if (!searchDto.shareId) {
-      throw new BadRequestException('shareId is required');
+      throw badRequest('error.search.shareid_is_required');
     }
 
     return this.searchService.searchPage(searchDto, {

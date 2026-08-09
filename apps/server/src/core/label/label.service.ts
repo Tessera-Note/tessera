@@ -7,6 +7,7 @@ import { executeTx } from '@tessera/db/utils';
 import { PaginationOptions } from '@tessera/db/pagination/pagination-options';
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
 import { normalizeLabelName } from './utils';
+import { notFound } from '../../common/errors/app-error';
 
 @Injectable()
 export class LabelService {
@@ -45,7 +46,7 @@ export class LabelService {
     await executeTx(this.db, async (trx) => {
       const label = await this.labelRepo.findById(labelId, trx);
       if (!label || label.workspaceId !== workspaceId) {
-        throw new NotFoundException('Label not found');
+        throw notFound('error.label.label_not_found');
       }
 
       await this.labelRepo.removeLabelFromPage(

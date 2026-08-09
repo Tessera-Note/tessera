@@ -22,6 +22,7 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { dbOrTx } from '@tessera/db/utils';
 import { WsService } from '../../../ws/ws.service';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class GroupUserService {
@@ -118,13 +119,11 @@ export class GroupUserService {
     const user = await this.userRepo.findById(userId, workspaceId);
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw notFound('error.common.user_not_found');
     }
 
     if (group.isDefault) {
-      throw new BadRequestException(
-        'You cannot remove users from a default group',
-      );
+      throw badRequest('error.group.you_cannot_remove_users_from_a');
     }
 
     const groupUser = await this.groupUserRepo.getGroupUserById(
@@ -133,7 +132,7 @@ export class GroupUserService {
     );
 
     if (!groupUser) {
-      throw new BadRequestException('Group member not found');
+      throw badRequest('error.group.group_member_not_found');
     }
 
     const spaceIds = await this.spaceMemberRepo.getSpaceIdsByGroupId(groupId);
@@ -161,9 +160,7 @@ export class GroupUserService {
         ]);
 
         if (before > 0 && after === 0) {
-          throw new BadRequestException(
-            'There must be at least one space admin with full access',
-          );
+          throw badRequest('error.common.space_admin_required');
         }
       }
 

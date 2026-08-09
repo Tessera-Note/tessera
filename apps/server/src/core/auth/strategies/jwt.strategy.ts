@@ -13,6 +13,7 @@ import {
   isUserDisabled,
 } from '../../../common/helpers';
 import { ApiKeyService } from '../../api-key/api-key.service';
+import { unauthorized } from '../../../common/errors/app-error';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -40,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     if (req.raw.workspaceId && req.raw.workspaceId !== payload.workspaceId) {
-      throw new UnauthorizedException('Workspace does not match');
+      throw unauthorized('error.auth.workspace_does_not_match');
     }
 
     if (payload.type === JwtType.API_KEY) {

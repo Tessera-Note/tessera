@@ -15,6 +15,7 @@ import { User, Workspace } from '@tessera/db/types/entity.types';
 import { WatcherPageDto } from './dto/watcher.dto';
 import { PageRepo } from '@tessera/db/repos/page/page.repo';
 import { PageAccessService } from '../page/page-access/page-access.service';
+import { notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -34,7 +35,7 @@ export class WatcherController {
   ) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -54,7 +55,7 @@ export class WatcherController {
   async unwatchPage(@Body() dto: WatcherPageDto, @AuthUser() user: User) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -74,7 +75,7 @@ export class WatcherController {
   async getWatchStatus(@Body() dto: WatcherPageDto, @AuthUser() user: User) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);

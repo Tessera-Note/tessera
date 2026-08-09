@@ -13,6 +13,7 @@ import { UserRole } from '../../common/helpers/types/permission';
 import { JwtApiKeyPayload } from '../auth/dto/jwt-payload';
 import { TokenService } from '../auth/services/token.service';
 import { CreateApiKeyDto, UpdateApiKeyDto } from './dto/api-key.dto';
+import { badRequest, forbidden } from '../../common/errors/app-error';
 
 @Injectable()
 export class ApiKeyService {
@@ -65,7 +66,7 @@ export class ApiKeyService {
 
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
     if (expiresAt && expiresAt <= new Date())
-      throw new BadRequestException('expiresAt must be in the future');
+      throw badRequest('error.api_key.expiresat_must_be_in_the_future');
     const key = await this.apiKeyRepo.create({
       name: dto.name,
       creatorId: user.id,
@@ -169,8 +170,6 @@ export class ApiKeyService {
     if (settings?.api?.restrictToAdmins !== true) return;
     if (this.canManageWorkspaceKeys(user)) return;
 
-    throw new ForbiddenException(
-      'API access is restricted to workspace administrators',
-    );
+    throw forbidden('error.api_key.api_access_is_restricted_to_workspace');
   }
 }

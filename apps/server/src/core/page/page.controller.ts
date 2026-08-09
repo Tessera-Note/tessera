@@ -53,6 +53,7 @@ import {
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
 import { WsService } from '../../ws/ws.service';
+import { badRequest, forbidden, notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -82,7 +83,7 @@ export class PageController {
     });
 
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     const { canEdit, hasRestriction } =
@@ -114,7 +115,7 @@ export class PageController {
   ) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -131,7 +132,7 @@ export class PageController {
   ) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanEdit(page, user);
@@ -144,7 +145,7 @@ export class PageController {
   async removePageLabel(@Body() dto: RemoveLabelDto, @AuthUser() user: User) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanEdit(page, user);
@@ -164,7 +165,7 @@ export class PageController {
   ): Promise<{ incoming: number; outgoing: number }> {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
     await this.pageAccessService.validateCanView(page, user);
 
@@ -180,7 +181,7 @@ export class PageController {
   ) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
     await this.pageAccessService.validateCanView(page, user);
 
@@ -209,7 +210,7 @@ export class PageController {
         parentPage.deletedAt ||
         parentPage.spaceId !== createPageDto.spaceId
       ) {
-        throw new NotFoundException('Parent page not found');
+        throw notFound('error.page.parent_page_not_found');
       }
       await this.pageAccessService.validateCanEdit(parentPage, user);
     } else {
@@ -269,7 +270,7 @@ export class PageController {
     const page = await this.pageRepo.findById(updatePageDto.pageId);
 
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     const { hasRestriction } = await this.pageAccessService.validateCanEdit(
@@ -311,7 +312,7 @@ export class PageController {
     const page = await this.pageRepo.findById(deletePageDto.pageId);
 
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     const ability = await this.spaceAbility.createForUser(user, page.spaceId);
@@ -319,9 +320,7 @@ export class PageController {
     if (deletePageDto.permanentlyDelete) {
       // Permanent deletion requires space admin permissions
       if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
-        throw new ForbiddenException(
-          'Only space admins can permanently delete pages',
-        );
+        throw forbidden('error.page.only_space_admins_can_permanently_delete');
       }
       const treeRefresh = await this.wsService.prepareTreeRefresh(
         page.spaceId,
@@ -386,7 +385,7 @@ export class PageController {
     const page = await this.pageRepo.findById(pageIdDto.pageId);
 
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     // only users with "can edit" space level permission can restore pages
@@ -505,7 +504,7 @@ export class PageController {
   ) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -521,13 +520,13 @@ export class PageController {
   ) {
     const history = await this.pageHistoryService.findById(dto.historyId);
     if (!history) {
-      throw new NotFoundException('Page history not found');
+      throw notFound('error.page.page_history_not_found');
     }
 
     // Get the page to check permissions
     const page = await this.pageRepo.findById(history.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -543,9 +542,7 @@ export class PageController {
     @AuthUser() user: User,
   ) {
     if (!dto.spaceId && !dto.pageId) {
-      throw new BadRequestException(
-        'Either spaceId or pageId must be provided',
-      );
+      throw badRequest('error.page.either_spaceid_or_pageid_must_be');
     }
     let spaceId = dto.spaceId;
 
@@ -585,10 +582,10 @@ export class PageController {
   ) {
     const movedPage = await this.pageRepo.findById(dto.pageId);
     if (!movedPage) {
-      throw new NotFoundException('Page to move not found');
+      throw notFound('error.page.page_to_move_not_found');
     }
     if (movedPage.spaceId === dto.spaceId) {
-      throw new BadRequestException('Page is already in this space');
+      throw badRequest('error.page.page_is_already_in_this_space');
     }
 
     const abilities = await Promise.all([
@@ -641,7 +638,7 @@ export class PageController {
   async duplicatePage(@Body() dto: DuplicatePageDto, @AuthUser() user: User) {
     const copiedPage = await this.pageRepo.findById(dto.pageId);
     if (!copiedPage) {
-      throw new NotFoundException('Page to copy not found');
+      throw notFound('error.page.page_to_copy_not_found');
     }
 
     // Check page-level view permission on the source page (need to read to copy)
@@ -726,7 +723,7 @@ export class PageController {
   async movePage(@Body() dto: MovePageDto, @AuthUser() user: User) {
     const movedPage = await this.pageRepo.findById(dto.pageId);
     if (!movedPage) {
-      throw new NotFoundException('Moved page not found');
+      throw notFound('error.page.moved_page_not_found');
     }
 
     const ability = await this.spaceAbility.createForUser(
@@ -745,7 +742,7 @@ export class PageController {
     if (dto.parentPageId && dto.parentPageId !== movedPage.parentPageId) {
       const targetParent = await this.pageRepo.findById(dto.parentPageId);
       if (!targetParent || targetParent.deletedAt) {
-        throw new NotFoundException('Target parent page not found');
+        throw notFound('error.page.target_parent_page_not_found');
       }
       await this.pageAccessService.validateCanEdit(targetParent, user);
     }
@@ -760,7 +757,7 @@ export class PageController {
   async getPageBreadcrumbs(@Body() dto: PageIdDto, @AuthUser() user: User) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);

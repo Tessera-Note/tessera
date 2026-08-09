@@ -17,6 +17,7 @@ import { SpaceRepo } from '@tessera/db/repos/space/space.repo';
 import { LicenseCheckService } from '../../integrations/environment/license-check.service';
 import { Feature } from '../../common/features';
 import { WorkspaceRepo } from '@tessera/db/repos/workspace/workspace.repo';
+import { badRequest, forbidden } from '../../common/errors/app-error';
 
 function generateSlug(name: string): string {
   return (
@@ -57,7 +58,7 @@ export class PersonalSpaceController {
   ) {
     // Check if personal spaces feature is available
     if (!this.licenseCheckService.hasFeature(Feature.PERSONAL_SPACES)) {
-      throw new ForbiddenException('This feature requires a valid license');
+      throw forbidden('error.common.this_feature_requires_a_valid_license');
     }
 
     const ws = await this.workspaceRepo.findById(workspace.id);
@@ -65,9 +66,7 @@ export class PersonalSpaceController {
     // Check if personal spaces setting is enabled in workspace
     const settings = (ws.settings ?? {}) as Record<string, any>;
     if (!settings?.spaces?.allowPersonal) {
-      throw new BadRequestException(
-        'Personal spaces are not enabled for this workspace',
-      );
+      throw badRequest('error.space.personal_spaces_are_not_enabled_for');
     }
 
     // Check if user already has a personal space
@@ -76,7 +75,7 @@ export class PersonalSpaceController {
       workspace.id,
     );
     if (existing) {
-      throw new BadRequestException('You already have a personal space');
+      throw badRequest('error.space.you_already_have_a_personal_space');
     }
 
     const spaceName = body.name || `${user.name}'s space`;

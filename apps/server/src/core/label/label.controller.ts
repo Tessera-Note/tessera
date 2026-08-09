@@ -27,6 +27,7 @@ import {
   SpaceCaslAction,
   SpaceCaslSubject,
 } from '../casl/interfaces/space-ability.type';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('labels')
@@ -68,7 +69,7 @@ export class LabelController {
     let labelId = dto.labelId;
     if (!labelId) {
       if (!dto.name) {
-        throw new BadRequestException('labelId or name is required');
+        throw badRequest('error.label.labelid_or_name_is_required');
       }
       const label = await this.labelRepo.findByNameAndWorkspace(
         dto.name,
@@ -82,7 +83,7 @@ export class LabelController {
     } else {
       const label = await this.labelRepo.findById(labelId);
       if (!label) {
-        throw new NotFoundException('Label not found');
+        throw notFound('error.label.label_not_found');
       }
     }
 

@@ -34,6 +34,7 @@ import {
 } from '../casl/interfaces/workspace-ability.type';
 import WorkspaceAbilityFactory from '../casl/abilities/workspace-ability.factory';
 import { CreateSpaceDto } from './dto/create-space.dto';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('spaces')
@@ -103,7 +104,7 @@ export class SpaceController {
     );
 
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     const ability = await this.spaceAbility.createForUser(user, space.id);
@@ -213,7 +214,7 @@ export class SpaceController {
       (!dto.userIds || dto.userIds.length === 0) &&
       (!dto.groupIds || dto.groupIds.length === 0)
     ) {
-      throw new BadRequestException('userIds or groupIds is required');
+      throw badRequest('error.space.userids_or_groupids_is_required');
     }
 
     const ability = await this.spaceAbility.createForUser(user, dto.spaceId);
@@ -264,12 +265,10 @@ export class SpaceController {
 
   validateIds(dto: RemoveSpaceMemberDto | UpdateSpaceMemberRoleDto) {
     if (!dto.userId && !dto.groupId) {
-      throw new BadRequestException('userId or groupId is required');
+      throw badRequest('error.space.userid_or_groupid_is_required');
     }
     if (dto.userId && dto.groupId) {
-      throw new BadRequestException(
-        'please provide either a userId or groupId and both',
-      );
+      throw badRequest('error.space.please_provide_either_a_userid_or');
     }
   }
 }

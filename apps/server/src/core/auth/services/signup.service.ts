@@ -17,6 +17,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { badRequest } from '../../../common/errors/app-error';
 
 @Injectable()
 export class SignupService {
@@ -40,9 +41,7 @@ export class SignupService {
     );
 
     if (userCheck) {
-      throw new BadRequestException(
-        'An account with this email already exists in this workspace',
-      );
+      throw badRequest('error.auth.an_account_with_this_email_already');
     }
 
     const user = await executeTx(

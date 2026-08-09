@@ -35,6 +35,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { badRequest, forbidden, notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('shares')
@@ -76,7 +77,7 @@ export class ShareController {
       shareData.share.spaceId,
     );
     if (!sharingAllowed) {
-      throw new NotFoundException('Shared page not found');
+      throw notFound('error.share.shared_page_not_found');
     }
 
     return {
@@ -94,7 +95,7 @@ export class ShareController {
     });
 
     if (!share) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     const sharingAllowed = await this.shareService.isSharingAllowed(
@@ -102,7 +103,7 @@ export class ShareController {
       share.spaceId,
     );
     if (!sharingAllowed) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     return share;
@@ -131,7 +132,7 @@ export class ShareController {
   ) {
     const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
-      throw new NotFoundException('Shared page not found');
+      throw notFound('error.share.shared_page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -149,7 +150,7 @@ export class ShareController {
     const page = await this.pageRepo.findById(createShareDto.pageId);
 
     if (!page || workspace.id !== page.workspaceId) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     // User must be able to edit the page to create a share
@@ -162,7 +163,7 @@ export class ShareController {
       page.id,
     );
     if (isRestricted) {
-      throw new BadRequestException('Cannot share a restricted page');
+      throw badRequest('error.share.cannot_share_a_restricted_page');
     }
 
     const sharingAllowed = await this.shareService.isSharingAllowed(
@@ -170,7 +171,7 @@ export class ShareController {
       page.spaceId,
     );
     if (!sharingAllowed) {
-      throw new ForbiddenException('Public sharing is disabled');
+      throw forbidden('error.share.public_sharing_is_disabled');
     }
 
     const share = await this.shareService.createShare({
@@ -200,12 +201,12 @@ export class ShareController {
     const share = await this.shareRepo.findById(updateShareDto.shareId);
 
     if (!share) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     const page = await this.pageRepo.findById(share.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     // User must be able to edit the page to update its share
@@ -220,12 +221,12 @@ export class ShareController {
     const share = await this.shareRepo.findById(shareIdDto.shareId);
 
     if (!share) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     const page = await this.pageRepo.findById(share.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     // User must be able to edit the page to delete its share
@@ -264,7 +265,7 @@ export class ShareController {
       treeData.share.spaceId,
     );
     if (!sharingAllowed) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     return {

@@ -26,6 +26,7 @@ import { validate as isValidUUID } from 'uuid';
 import { sql } from 'kysely';
 import { TransclusionService } from '../page/transclusion/transclusion.service';
 import { TransclusionLookup } from '../page/transclusion/transclusion.types';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 @Injectable()
 export class ShareService {
@@ -43,14 +44,14 @@ export class ShareService {
   async getShareTree(shareId: string, workspaceId: string) {
     const share = await this.shareRepo.findById(shareId);
     if (!share || share.workspaceId !== workspaceId) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     const isRestricted = await this.pagePermissionRepo.hasRestrictedAncestor(
       share.pageId,
     );
     if (isRestricted) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     if (share.includeSubPages) {
@@ -91,7 +92,7 @@ export class ShareService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new BadRequestException('Failed to share page');
+      throw badRequest('error.share.failed_to_share_page');
     }
   }
 
@@ -106,7 +107,7 @@ export class ShareService {
       );
     } catch (err) {
       this.logger.error(err);
-      throw new BadRequestException('Failed to update share');
+      throw badRequest('error.share.failed_to_update_share');
     }
   }
 
@@ -114,7 +115,7 @@ export class ShareService {
     const share = await this.getShareForPage(dto.pageId, workspaceId);
 
     if (!share) {
-      throw new NotFoundException('Shared page not found');
+      throw notFound('error.share.shared_page_not_found');
     }
 
     const page = await this.pageRepo.findById(dto.pageId, {
@@ -123,7 +124,7 @@ export class ShareService {
     });
 
     if (!page || page.deletedAt) {
-      throw new NotFoundException('Shared page not found');
+      throw notFound('error.share.shared_page_not_found');
     }
 
     // Block access to restricted pages
@@ -131,7 +132,7 @@ export class ShareService {
       page.id,
     );
     if (isRestricted) {
-      throw new NotFoundException('Shared page not found');
+      throw notFound('error.share.shared_page_not_found');
     }
 
     page.content = await this.updatePublicAttachments(page);
@@ -303,14 +304,14 @@ export class ShareService {
   ): Promise<{ items: TransclusionLookup[] }> {
     const share = await this.shareRepo.findById(shareId);
     if (!share || share.workspaceId !== workspaceId) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
     const sharingAllowed = await this.isSharingAllowed(
       workspaceId,
       share.spaceId,
     );
     if (!sharingAllowed) {
-      throw new NotFoundException('Share not found');
+      throw notFound('error.share.share_not_found');
     }
 
     const candidatePageIds = Array.from(

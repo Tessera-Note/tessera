@@ -106,6 +106,159 @@ export const ErrorMessage = {
     'Provider type {{type}} requires: {{fields}}',
   'error.sso.user_not_found': 'User not found',
   'error.sso.user_has_no_links': 'This user has no sign-in provider links',
+
+  // Отказы core. Переведены на коды пакетом: сообщение было готовым
+  // английским текстом, и человек с русской или украинской локалью читал его
+  // по-английски.
+  'error.api_key.expiresat_must_be_in_the_future':
+    'expiresAt must be in the future',
+  'error.api_key.api_access_is_restricted_to_workspace':
+    'API access is restricted to workspace administrators',
+  'error.attachment.failed_to_upload_file': 'Failed to upload file',
+  'error.attachment.pageid_is_required': 'PageId is required',
+  'error.common.page_not_found': 'Page not found',
+  'error.attachment.invalid_attachment_id': 'Invalid attachment id',
+  'error.attachment.error_processing_file_upload':
+    'Error processing file upload.',
+  'error.attachment.invalid_file_id': 'Invalid file id',
+  'error.attachment.file_not_found': 'File not found',
+  'error.attachment.expired_or_invalid_attachment_access_token':
+    'Expired or invalid attachment access token',
+  'error.attachment.invalid_file_upload': 'Invalid file upload',
+  'error.attachment.attachment_type_is_required': 'attachment type is required',
+  'error.attachment.invalid_image_attachment_type':
+    'Invalid image attachment type',
+  'error.common.spaceid_is_required': 'spaceId is required',
+  'error.attachment.invalid_file_name': 'Invalid file name',
+  'error.attachment.spaceid_is_required_to_change_space':
+    'spaceId is required to change space icons',
+  'error.attachment.existing_attachment_to_overwrite_not_found':
+    'Existing attachment to overwrite not found',
+  'error.attachment.file_attachment_does_not_match':
+    'File attachment does not match',
+  'error.attachment.image_upload_aborted': 'Image upload aborted.',
+  'error.attachment.failed_to_upload_image': 'Failed to upload image',
+  'error.attachment.error_uploading_file_to_drive':
+    'Error uploading file to drive',
+  'error.common.space_not_found': 'Space not found',
+  'error.auth.this_workspace_has_enforced_sso_login':
+    'This workspace has enforced SSO login.',
+  'error.auth.workspace_setup_already_completed':
+    'Workspace setup already completed.',
+  'error.common.user_not_found': 'User not found',
+  'error.auth.current_password_is_incorrect': 'Current password is incorrect',
+  'error.auth.invalid_or_expired_token': 'Invalid or expired token',
+  'error.auth.an_account_with_this_email_already':
+    'An account with this email already exists in this workspace',
+  'error.auth.invalid_jwt_token_token_type_does':
+    'Invalid JWT token. Token type does not match.',
+  'error.auth.workspace_does_not_match': 'Workspace does not match',
+  'error.casl.space_permissions_not_found': 'Space permissions not found',
+  'error.casl.workspace_permissions_not_found':
+    'Workspace permissions not found',
+  'error.comment.comment_not_found': 'Comment not found',
+  'error.comment.you_can_only_delete_your_own':
+    'You can only delete your own comments',
+  'error.comment.parent_comment_not_found': 'Parent comment not found',
+  'error.comment.you_cannot_reply_to_a_reply': 'You cannot reply to a reply',
+  'error.comment.you_can_only_edit_your_own':
+    'You can only edit your own comments',
+  'error.favorite.pageid_is_required': 'pageId is required',
+  'error.favorite.templateid_is_required': 'templateId is required',
+  'error.favorite.template_not_found': 'Template not found',
+  'error.favorite.invalid_favorite_type': 'Invalid favorite type',
+  'error.group.you_cannot_remove_users_from_a':
+    'You cannot remove users from a default group',
+  'error.group.group_member_not_found': 'Group member not found',
+  'error.common.space_admin_required':
+    'There must be at least one space admin with full access',
+  'error.group.group_not_found': 'Group not found',
+  'error.group.group_name_already_exists': 'Group name already exists',
+  'error.group.you_cannot_update_a_default_group':
+    'You cannot update a default group',
+  'error.group.you_cannot_delete_a_default_group':
+    'You cannot delete a default group',
+  'error.label.labelid_or_name_is_required': 'labelId or name is required',
+  'error.label.label_not_found': 'Label not found',
+  'error.page.parent_page_not_found': 'Parent page not found',
+  'error.page.only_space_admins_can_permanently_delete':
+    'Only space admins can permanently delete pages',
+  'error.page.page_history_not_found': 'Page history not found',
+  'error.page.either_spaceid_or_pageid_must_be':
+    'Either spaceId or pageId must be provided',
+  'error.page.page_to_move_not_found': 'Page to move not found',
+  'error.page.page_is_already_in_this_space': 'Page is already in this space',
+  'error.page.page_to_copy_not_found': 'Page to copy not found',
+  'error.page.moved_page_not_found': 'Moved page not found',
+  'error.page.target_parent_page_not_found': 'Target parent page not found',
+  'error.page.invalid_move_position': 'Invalid move position',
+  'error.page.invalid_content_format': 'Invalid content format',
+  'error.page.reference_page_not_found': 'Reference page not found',
+  'error.page.source_page_not_found': 'Source page not found',
+  'error.page.sync_block_not_found': 'Sync block not found',
+  'error.search.shareid_is_required': 'shareId is required',
+  'error.session.cannot_revoke_current_session_use_logout':
+    'Cannot revoke current session. Use logout instead.',
+  'error.session.current_session_not_found_please_log':
+    'Current session not found. Please log in again.',
+  'error.share.shared_page_not_found': 'Shared page not found',
+  'error.share.share_not_found': 'Share not found',
+  'error.share.cannot_share_a_restricted_page':
+    'Cannot share a restricted page',
+  'error.share.public_sharing_is_disabled': 'Public sharing is disabled',
+  'error.share.failed_to_share_page': 'Failed to share page',
+  'error.share.failed_to_update_share': 'Failed to update share',
+  'error.common.this_feature_requires_a_valid_license':
+    'This feature requires a valid license',
+  'error.space.personal_spaces_are_not_enabled_for':
+    'Personal spaces are not enabled for this workspace',
+  'error.space.you_already_have_a_personal_space':
+    'You already have a personal space',
+  'error.space.user_already_added_to_this_space':
+    'User already added to this space',
+  'error.space.please_provide_a_valid_userid_or':
+    'Please provide a valid userId or groupId to remove',
+  'error.space.space_membership_not_found': 'Space membership not found',
+  'error.space.space_slug_exists_please_use_a':
+    'Space slug exists. Please use a unique space slug',
+  'error.space.userids_or_groupids_is_required':
+    'userIds or groupIds is required',
+  'error.space.userid_or_groupid_is_required': 'userId or groupId is required',
+  'error.space.please_provide_either_a_userid_or':
+    'please provide either a userId or groupId and both',
+  'error.user.you_must_provide_a_password_to':
+    'You must provide a password to change your email',
+  'error.user.you_must_provide_the_correct_password':
+    'You must provide the correct password to change your email',
+  'error.user.a_user_with_this_email_already':
+    'A user with this email already exists',
+  'error.workspace.invitation_not_found': 'Invitation not found',
+  'error.workspace.an_error_occurred_while_processing_the':
+    'An error occurred while processing the invitations.',
+  'error.workspace.invalid_invitation_token': 'Invalid invitation token',
+  'error.workspace.invitation_already_accepted': 'Invitation already accepted',
+  'error.workspace.failed_to_accept_invitation_an_error':
+    'Failed to accept invitation. An error occurred.',
+  'error.workspace.sso_provider_required':
+    'There must be at least one active SSO provider to enforce SSO.',
+  'error.workspace.hostname_already_exists': 'Hostname already exists.',
+  'error.workspace.failed_to_activate_make_sure_pgvector':
+    'Failed to activate. Make sure pgvector postgres extension is installed.',
+  'error.workspace.workspace_member_not_found': 'Workspace member not found',
+  'error.workspace.sso_provider_required_2':
+    'There must be at least one workspace owner',
+  'error.workspace.hostname_not_found': 'Hostname not found',
+  'error.workspace.user_is_already_deactivated': 'User is already deactivated',
+  'error.workspace.you_cannot_deactivate_yourself':
+    'You cannot deactivate yourself',
+  'error.workspace.you_cannot_deactivate_a_user_with':
+    'You cannot deactivate a user with owner role',
+  'error.workspace.user_is_not_deactivated': 'User is not deactivated',
+  'error.workspace.you_cannot_activate_a_user_with':
+    'You cannot activate a user with owner role',
+  'error.workspace.you_cannot_delete_yourself': 'You cannot delete yourself',
+  'error.workspace.you_cannot_delete_a_user_with':
+    'You cannot delete a user with owner role',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorMessage;

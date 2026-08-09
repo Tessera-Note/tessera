@@ -49,6 +49,7 @@ import {
   DEFAULT_MAIL_LOCALE,
   mailText,
 } from '../../../integrations/transactional/mail-text';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class WorkspaceInvitationService {
@@ -100,7 +101,7 @@ export class WorkspaceInvitationService {
       .executeTakeFirst();
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found');
+      throw notFound('error.workspace.invitation_not_found');
     }
 
     return { ...invitation, enforceSso: workspace.enforceSso };
@@ -115,7 +116,7 @@ export class WorkspaceInvitationService {
       .executeTakeFirst();
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found');
+      throw notFound('error.workspace.invitation_not_found');
     }
 
     return invitation;
@@ -186,8 +187,8 @@ export class WorkspaceInvitationService {
       });
     } catch (err) {
       this.logger.error(`createInvitation - ${err}`);
-      throw new BadRequestException(
-        'An error occurred while processing the invitations.',
+      throw badRequest(
+        'error.workspace.an_error_occurred_while_processing_the',
       );
     }
 
@@ -239,11 +240,11 @@ export class WorkspaceInvitationService {
       .executeTakeFirst();
 
     if (!invitation) {
-      throw new BadRequestException('Invitation not found');
+      throw badRequest('error.workspace.invitation_not_found');
     }
 
     if (dto.token !== invitation.token) {
-      throw new BadRequestException('Invalid invitation token');
+      throw badRequest('error.workspace.invalid_invitation_token');
     }
 
     validateSsoEnforcement(workspace);
@@ -307,11 +308,9 @@ export class WorkspaceInvitationService {
     } catch (err: any) {
       this.logger.error(`acceptInvitation - ${err}`);
       if (err.message.includes('unique constraint')) {
-        throw new BadRequestException('Invitation already accepted');
+        throw badRequest('error.workspace.invitation_already_accepted');
       }
-      throw new BadRequestException(
-        'Failed to accept invitation. An error occurred.',
-      );
+      throw badRequest('error.workspace.failed_to_accept_invitation_an_error');
     }
 
     if (!newUser) {
@@ -393,7 +392,7 @@ export class WorkspaceInvitationService {
       .executeTakeFirst();
 
     if (!invitation) {
-      throw new BadRequestException('Invitation not found');
+      throw badRequest('error.workspace.invitation_not_found');
     }
 
     const invitedByUser = await this.userRepo.findById(

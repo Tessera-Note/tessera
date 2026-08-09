@@ -22,6 +22,7 @@ import {
   ICommentResolvedNotificationJob,
 } from '../../integrations/queue/constants/queue.interface';
 import { WsService } from '../../ws/ws.service';
+import { badRequest, forbidden, notFound } from '../../common/errors/app-error';
 
 @Injectable()
 export class CommentService {
@@ -44,7 +45,7 @@ export class CommentService {
       includeResolvedBy: true,
     });
     if (!comment) {
-      throw new NotFoundException('Comment not found');
+      throw notFound('error.comment.comment_not_found');
     }
     return comment;
   }
@@ -62,11 +63,11 @@ export class CommentService {
       );
 
       if (!parentComment || parentComment.pageId !== page.id) {
-        throw new BadRequestException('Parent comment not found');
+        throw badRequest('error.comment.parent_comment_not_found');
       }
 
       if (parentComment.parentCommentId !== null) {
-        throw new BadRequestException('You cannot reply to a reply');
+        throw badRequest('error.comment.you_cannot_reply_to_a_reply');
       }
     }
 
@@ -157,7 +158,7 @@ export class CommentService {
     const page = await this.pageRepo.findById(pageId);
 
     if (!page) {
-      throw new BadRequestException('Page not found');
+      throw badRequest('error.common.page_not_found');
     }
 
     return this.commentRepo.findPageComments(pageId, pagination);
@@ -231,7 +232,7 @@ export class CommentService {
     const commentContent = JSON.parse(updateCommentDto.content);
 
     if (comment.creatorId !== authUser.id) {
-      throw new ForbiddenException('You can only edit your own comments');
+      throw forbidden('error.comment.you_can_only_edit_your_own');
     }
 
     const oldMentionIds = extractUserMentionIdsFromJson(comment.content);

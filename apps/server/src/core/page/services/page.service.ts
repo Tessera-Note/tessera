@@ -55,6 +55,7 @@ import { markdownToHtml } from '@tessera/editor-ext';
 import { WatcherService } from '../../watcher/watcher.service';
 import { sql } from 'kysely';
 import { TransclusionService } from '../transclusion/transclusion.service';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class PageService {
@@ -108,7 +109,7 @@ export class PageService {
         parentPage.deletedAt ||
         parentPage.spaceId !== createPageDto.spaceId
       ) {
-        throw new NotFoundException('Parent page not found');
+        throw notFound('error.page.parent_page_not_found');
       }
 
       parentPageId = parentPage.id;
@@ -814,7 +815,7 @@ export class PageService {
     try {
       generateJitteredKeyBetween(dto.position, null);
     } catch (err) {
-      throw new BadRequestException('Invalid move position');
+      throw badRequest('error.page.invalid_move_position');
     }
 
     let parentPageId = null;
@@ -829,7 +830,7 @@ export class PageService {
           parentPage.deletedAt ||
           parentPage.spaceId !== movedPage.spaceId
         ) {
-          throw new NotFoundException('Parent page not found');
+          throw notFound('error.page.parent_page_not_found');
         }
         parentPageId = parentPage.id;
       }
@@ -1077,7 +1078,7 @@ export class PageService {
     try {
       jsonToNode(prosemirrorJson);
     } catch (err) {
-      throw new BadRequestException('Invalid content format');
+      throw badRequest('error.page.invalid_content_format');
     }
 
     return prosemirrorJson;

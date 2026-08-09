@@ -28,6 +28,11 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import {
+  badRequest,
+  forbidden,
+  notFound,
+} from '../../../common/errors/app-error';
 
 @Injectable()
 export class SpaceService {
@@ -102,9 +107,7 @@ export class SpaceService {
       trx,
     );
     if (slugExists) {
-      throw new BadRequestException(
-        'Space slug exists. Please use a unique space slug',
-      );
+      throw badRequest('error.space.space_slug_exists_please_use_a');
     }
 
     return await this.spaceRepo.insertSpace(
@@ -131,9 +134,7 @@ export class SpaceService {
       );
 
       if (slugExists) {
-        throw new BadRequestException(
-          'Space slug exists. Please use a unique space slug',
-        );
+        throw badRequest('error.space.space_slug_exists_please_use_a');
       }
     }
 
@@ -145,14 +146,14 @@ export class SpaceService {
         typeof updateSpaceDto.disablePublicSharing !== 'undefined' &&
         !this.licenseCheckService.hasFeature(Feature.SECURITY_SETTINGS)
       ) {
-        throw new ForbiddenException('This feature requires a valid license');
+        throw forbidden('error.common.this_feature_requires_a_valid_license');
       }
 
       if (
         typeof updateSpaceDto.allowViewerComments !== 'undefined' &&
         !this.licenseCheckService.hasFeature(Feature.VIEWER_COMMENTS)
       ) {
-        throw new ForbiddenException('This feature requires a valid license');
+        throw forbidden('error.common.this_feature_requires_a_valid_license');
       }
     }
 
@@ -245,7 +246,7 @@ export class SpaceService {
       includeMemberCount: true,
     });
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     return space;
@@ -261,7 +262,7 @@ export class SpaceService {
   async deleteSpace(spaceId: string, workspaceId: string): Promise<void> {
     const space = await this.spaceRepo.findById(spaceId, workspaceId);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     await this.spaceRepo.deleteSpace(spaceId, workspaceId);

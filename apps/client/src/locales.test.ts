@@ -167,6 +167,20 @@ describe("словари i18next", () => {
     expect(codes.filter((code) => !(code in source))).toEqual([]);
   });
 
+  /**
+   * Код, оканчивающийся на суффикс формы числа, i18next разберет как плюраль:
+   * `error.common.there_must_be_at_least_one` он ищет как форму `one` основы
+   * `error.common.there_must_be_at_least`. Ловушка тихая, поэтому проверяется
+   * правилом, а не памятью.
+   */
+  it("код отказа не оканчивается суффиксом формы числа", () => {
+    const trapped = Object.keys(source)
+      .filter((key) => key.startsWith("error."))
+      .filter((key) => PLURAL_SUFFIX.test(key));
+
+    expect(trapped).toEqual([]);
+  });
+
   it.each(MAINTAINED)("%s покрывает источник целиком", (locale) => {
     const dict = readLocale(locale);
     const missing = Object.keys(source).filter((key) => !(key in dict));

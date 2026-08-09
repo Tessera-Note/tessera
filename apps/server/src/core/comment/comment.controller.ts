@@ -33,6 +33,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { WsService } from '../../ws/ws.service';
+import { forbidden, notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('comments')
@@ -56,7 +57,7 @@ export class CommentController {
   ) {
     const page = await this.pageRepo.findById(createCommentDto.pageId);
     if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanComment(page, user, workspace.id);
@@ -93,7 +94,7 @@ export class CommentController {
   ) {
     const page = await this.pageRepo.findById(input.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -106,12 +107,12 @@ export class CommentController {
   async findOne(@Body() input: CommentIdDto, @AuthUser() user: User) {
     const comment = await this.commentRepo.findById(input.commentId);
     if (!comment) {
-      throw new NotFoundException('Comment not found');
+      throw notFound('error.comment.comment_not_found');
     }
 
     const page = await this.pageRepo.findById(comment.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanView(page, user);
@@ -131,12 +132,12 @@ export class CommentController {
       includeResolvedBy: true,
     });
     if (!comment) {
-      throw new NotFoundException('Comment not found');
+      throw notFound('error.comment.comment_not_found');
     }
 
     const page = await this.pageRepo.findById(comment.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanComment(page, user, workspace.id);
@@ -156,12 +157,12 @@ export class CommentController {
       includeResolvedBy: true,
     });
     if (!comment || comment.pageId !== dto.pageId) {
-      throw new NotFoundException('Comment not found');
+      throw notFound('error.comment.comment_not_found');
     }
 
     const page = await this.pageRepo.findById(comment.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanComment(page, user, workspace.id);
@@ -178,12 +179,12 @@ export class CommentController {
   ) {
     const comment = await this.commentRepo.findById(input.commentId);
     if (!comment) {
-      throw new NotFoundException('Comment not found');
+      throw notFound('error.comment.comment_not_found');
     }
 
     const page = await this.pageRepo.findById(comment.pageId);
     if (!page) {
-      throw new NotFoundException('Page not found');
+      throw notFound('error.common.page_not_found');
     }
 
     await this.pageAccessService.validateCanComment(page, user, workspace.id);
@@ -201,7 +202,7 @@ export class CommentController {
 
       // Space admin can delete any comment
       if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
-        throw new ForbiddenException('You can only delete your own comments');
+        throw forbidden('error.comment.you_can_only_delete_your_own');
       }
       await this.commentRepo.deleteComment(comment.id);
     }

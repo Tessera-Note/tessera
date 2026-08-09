@@ -23,6 +23,7 @@ import { rewriteAttachmentsForUnsync } from './utils/transclusion-unsync.util';
 import { TransclusionLookup } from './transclusion.types';
 import { Page, User } from '@tessera/db/types/entity.types';
 import { PageAccessService } from '../page-access/page-access.service';
+import { notFound } from '../../../common/errors/app-error';
 
 type ReferencingPageInfo = {
   id: string;
@@ -433,12 +434,12 @@ export class TransclusionService {
   ): Promise<{ content: unknown }> {
     const referencePage = await this.pageRepo.findById(referencePageId);
     if (!referencePage || referencePage.deletedAt) {
-      throw new NotFoundException('Reference page not found');
+      throw notFound('error.page.reference_page_not_found');
     }
 
     const sourcePage = await this.pageRepo.findById(sourcePageId);
     if (!sourcePage || sourcePage.deletedAt) {
-      throw new NotFoundException('Source page not found');
+      throw notFound('error.page.source_page_not_found');
     }
 
     if (
@@ -457,7 +458,7 @@ export class TransclusionService {
         transclusionId,
       );
     if (!transclusion) {
-      throw new NotFoundException('Sync block not found');
+      throw notFound('error.page.sync_block_not_found');
     }
 
     const { content, copies } = rewriteAttachmentsForUnsync(

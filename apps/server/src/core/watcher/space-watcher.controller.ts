@@ -20,6 +20,7 @@ import {
   SpaceCaslAction,
   SpaceCaslSubject,
 } from '../casl/interfaces/space-ability.type';
+import { notFound } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('spaces')
@@ -37,7 +38,7 @@ export class SpaceWatcherController {
   ) {
     const space = await this.spaceRepo.findById(spaceId, workspace.id);
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     const ability = await this.spaceAbility.createForUser(user, space.id);

@@ -27,6 +27,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class AttachmentService {
@@ -64,8 +65,8 @@ export class AttachmentService {
         opts.attachmentId,
       );
       if (!existingAttachment) {
-        throw new NotFoundException(
-          'Existing attachment to overwrite not found',
+        throw notFound(
+          'error.attachment.existing_attachment_to_overwrite_not_found',
         );
       }
 
@@ -74,7 +75,7 @@ export class AttachmentService {
         existingAttachment.fileExt !== preparedFile.fileExtension ||
         existingAttachment.workspaceId !== workspaceId
       ) {
-        throw new BadRequestException('File attachment does not match');
+        throw badRequest('error.attachment.file_attachment_does_not_match');
       }
       attachmentId = opts.attachmentId;
       isUpdate = true;
@@ -214,13 +215,13 @@ export class AttachmentService {
             trx,
           );
         } else {
-          throw new BadRequestException(`Image upload aborted.`);
+          throw badRequest('error.attachment.image_upload_aborted');
         }
       });
     } catch (err) {
       // delete uploaded file on db update failure
       await this.deleteRedundantFile(filePath);
-      throw new BadRequestException('Failed to upload image');
+      throw badRequest('error.attachment.failed_to_upload_image');
     }
 
     if (oldFileName && !oldFileName.toLowerCase().startsWith('http')) {
@@ -247,7 +248,7 @@ export class AttachmentService {
       await this.storageService.upload(filePath, fileContent);
     } catch (err) {
       this.logger.error('Error uploading file to drive:', err);
-      throw new BadRequestException('Error uploading file to drive');
+      throw badRequest('error.attachment.error_uploading_file_to_drive');
     }
   }
 
@@ -444,7 +445,7 @@ export class AttachmentService {
     const space = await this.spaceRepo.findById(spaceId, workspaceId);
 
     if (!space) {
-      throw new NotFoundException('Space not found');
+      throw notFound('error.common.space_not_found');
     }
 
     if (space.logo && !space.logo.toLowerCase().startsWith('http')) {

@@ -15,6 +15,7 @@ import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator'
 import { User, Workspace } from '@tessera/db/types/entity.types';
 import { RevokeSessionDto } from './dto/revoke-session.dto';
 import { FastifyRequest } from 'fastify';
+import { badRequest } from '../../common/errors/app-error';
 
 @UseGuards(JwtAuthGuard)
 @Controller('sessions')
@@ -47,8 +48,8 @@ export class SessionController {
   ) {
     const currentSessionId = (req.raw as any).sessionId;
     if (dto.sessionId === currentSessionId) {
-      throw new BadRequestException(
-        'Cannot revoke current session. Use logout instead.',
+      throw badRequest(
+        'error.session.cannot_revoke_current_session_use_logout',
       );
     }
     await this.sessionService.revokeSession(
@@ -67,9 +68,7 @@ export class SessionController {
   ) {
     const currentSessionId = (req.raw as any).sessionId;
     if (!currentSessionId) {
-      throw new BadRequestException(
-        'Current session not found. Please log in again.',
-      );
+      throw badRequest('error.session.current_session_not_found_please_log');
     }
     await this.sessionService.revokeAllOtherSessions(
       currentSessionId,

@@ -43,6 +43,7 @@ import {
   DEFAULT_MAIL_LOCALE,
   mailText,
 } from '../../../integrations/transactional/mail-text';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class AuthService {
@@ -127,7 +128,7 @@ export class AuthService {
     });
 
     if (!user || isUserDisabled(user)) {
-      throw new NotFoundException('User not found');
+      throw notFound('error.common.user_not_found');
     }
 
     const comparePasswords = await comparePasswordHash(
@@ -136,7 +137,7 @@ export class AuthService {
     );
 
     if (!comparePasswords) {
-      throw new BadRequestException('Current password is incorrect');
+      throw badRequest('error.auth.current_password_is_incorrect');
     }
 
     const newPasswordHash = await hashPassword(dto.newPassword);
@@ -238,14 +239,14 @@ export class AuthService {
       userToken.type !== UserTokenType.FORGOT_PASSWORD ||
       userToken.expiresAt < new Date()
     ) {
-      throw new BadRequestException('Invalid or expired token');
+      throw badRequest('error.auth.invalid_or_expired_token');
     }
 
     const user = await this.userRepo.findById(userToken.userId, workspace.id, {
       includeUserMfa: true,
     });
     if (!user || isUserDisabled(user)) {
-      throw new NotFoundException('User not found');
+      throw notFound('error.common.user_not_found');
     }
 
     const newPasswordHash = await hashPassword(passwordResetDto.newPassword);
@@ -321,7 +322,7 @@ export class AuthService {
       userToken.type !== userTokenDto.type ||
       userToken.expiresAt < new Date()
     ) {
-      throw new BadRequestException('Invalid or expired token');
+      throw badRequest('error.auth.invalid_or_expired_token');
     }
   }
 

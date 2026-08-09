@@ -11,6 +11,7 @@ import {
   WorkspaceCaslAction,
   WorkspaceCaslSubject,
 } from '../interfaces/workspace-ability.type';
+import { notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export default class WorkspaceAbilityFactory {
@@ -25,7 +26,7 @@ export default class WorkspaceAbilityFactory {
       case UserRole.MEMBER:
         return buildWorkspaceMemberAbility();
       default:
-        throw new NotFoundException('Workspace permissions not found');
+        throw notFound('error.casl.workspace_permissions_not_found');
     }
   }
 }

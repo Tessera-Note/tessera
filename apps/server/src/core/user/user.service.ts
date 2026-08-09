@@ -18,6 +18,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { badRequest, notFound } from '../../common/errors/app-error';
 
 @Injectable()
 export class UserService {
@@ -43,7 +44,7 @@ export class UserService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw notFound('error.common.user_not_found');
     }
 
     // preference update
@@ -106,9 +107,7 @@ export class UserService {
       validateSsoEnforcement(workspace);
 
       if (!updateUserDto.confirmPassword) {
-        throw new BadRequestException(
-          'You must provide a password to change your email',
-        );
+        throw badRequest('error.user.you_must_provide_a_password_to');
       }
 
       const isPasswordMatch = await comparePasswordHash(
@@ -117,13 +116,11 @@ export class UserService {
       );
 
       if (!isPasswordMatch) {
-        throw new BadRequestException(
-          'You must provide the correct password to change your email',
-        );
+        throw badRequest('error.user.you_must_provide_the_correct_password');
       }
 
       if (await this.userRepo.findByEmail(updateUserDto.email, workspace.id)) {
-        throw new BadRequestException('A user with this email already exists');
+        throw badRequest('error.user.a_user_with_this_email_already');
       }
 
       user.email = updateUserDto.email;

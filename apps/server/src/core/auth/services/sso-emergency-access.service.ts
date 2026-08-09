@@ -15,6 +15,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
+import { badRequest } from '../../../common/errors/app-error';
 
 /**
  * Роли, которым аварийный доступ возвращает вход по паролю.
@@ -99,7 +100,7 @@ export class SsoEmergencyAccessService implements OnApplicationBootstrap {
    */
   async assertAllowed(workspace: Workspace, email: string): Promise<void> {
     const refuse = () => {
-      throw new BadRequestException('This workspace has enforced SSO login.');
+      throw badRequest('error.auth.this_workspace_has_enforced_sso_login');
     };
 
     if (!this.isEnabled()) refuse();
