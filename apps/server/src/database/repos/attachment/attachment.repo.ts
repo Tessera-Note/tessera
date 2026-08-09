@@ -20,6 +20,9 @@ export class AttachmentRepo {
     'fileSize',
     'fileExt',
     'mimeType',
+    // Состояние разбора уходит наружу: файл, по которому поиск не
+    // сработает никогда, не должен молчать в списке вложений страницы.
+    'indexStatus',
     'type',
     'creatorId',
     'pageId',

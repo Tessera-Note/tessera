@@ -1,4 +1,6 @@
 export interface IAttachment {
+  /** Состояние разбора: extracted, unsupported или not_processed. */
+  indexStatus?: string;
   id: string;
   fileName: string;
   filePath: string;

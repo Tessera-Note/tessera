@@ -13,6 +13,7 @@ import { useCallback } from "react";
 import { notifications } from "@mantine/notifications";
 import { mediaErrorMessage } from "@tessera/editor-ext";
 import { useMediaError } from "@/features/editor/hooks/use-media-error";
+import { useAttachmentIndexStatus } from "@/features/attachments/queries/attachment-index-query";
 
 export default function AttachmentView(props: NodeViewProps) {
   const { t } = useTranslation();
@@ -20,6 +21,12 @@ export default function AttachmentView(props: NodeViewProps) {
   const { url, name, size, mime, attachmentId, placeholder } = node.attrs;
   const { hovered, ref } = useHover();
   const mediaError = useMediaError();
+
+  // Файл, по которому поиск не сработает никогда, не должен молчать: раньше
+  // это состояние видел только администратор, в счёте по разбору.
+  const { data: indexStatus } = useAttachmentIndexStatus(
+    url ? attachmentId : undefined,
+  );
 
   /**
    * Раньше ссылка вела прямо на файл, и при удаленном вложении в новой
@@ -110,6 +117,25 @@ export default function AttachmentView(props: NodeViewProps) {
             >
               {formatBytes(size)}
             </Text>
+
+            {indexStatus === "unsupported" && (
+              <Tooltip
+                label={t(
+                  "Text could not be extracted from this file, so search will not find it by content.",
+                )}
+                multiline
+                w={260}
+              >
+                <Text
+                  component="span"
+                  size="sm"
+                  c="dimmed"
+                  style={{ flexShrink: 0 }}
+                >
+                  {t("not searchable")}
+                </Text>
+              </Tooltip>
+            )}
           </Group>
 
           {url && (selected || hovered) && (
