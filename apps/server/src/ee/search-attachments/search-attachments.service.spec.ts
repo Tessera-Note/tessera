@@ -20,12 +20,14 @@ describe('SearchAttachmentsService', () => {
       getUserSpaceIdsQuery: jest.fn().mockReturnValue('SPACE_SUBQUERY'),
     };
 
+    const attachmentQueue = { add: jest.fn(async () => {}) };
     const service = new SearchAttachmentsService(
       db as any,
       spaceMemberRepo as any,
+      attachmentQueue as any,
     );
 
-    return { service, where, spaceMemberRepo };
+    return { service, where, spaceMemberRepo, attachmentQueue };
   }
 
   it('restricts the search to spaces the user belongs to', async () => {
@@ -61,5 +63,26 @@ describe('SearchAttachmentsService', () => {
       { items: [] },
     );
     expect(where).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Маршрут обещает индексацию именем, а заполнял поисковый вектор именем
+   * файла: неподдерживаемый файл после этого находился по имени и выглядел
+   * проиндексированным, вопреки замыслу, записанному в самой миграции. Самого
+   * извлечения при этом не происходило, а задача обратного заполнения была
+   * объявлена и разобрана обработчиком, но ставить ее было некому.
+   */
+  describe('triggerIndexing', () => {
+    it('ставит задачу обратного заполнения на свое рабочее пространство', async () => {
+      const { service, attachmentQueue } = build();
+
+      await expect(service.triggerIndexing('ws-1')).resolves.toEqual({
+        success: true,
+      });
+
+      expect(attachmentQueue.add).toHaveBeenCalledWith('attachment-indexing', {
+        workspaceId: 'ws-1',
+      });
+    });
   });
 });

@@ -3,12 +3,20 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@tessera/db/types/kysely.types';
 import { sql } from 'kysely';
 import { SpaceMemberRepo } from '@tessera/db/repos/space/space-member.repo';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import {
+  QueueJob,
+  QueueName,
+} from '../../integrations/queue/constants/queue.constants';
 
 @Injectable()
 export class SearchAttachmentsService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly spaceMemberRepo: SpaceMemberRepo,
+    @InjectQueue(QueueName.ATTACHMENT_QUEUE)
+    private readonly attachmentQueue: Queue,
   ) {}
 
   async search(
@@ -87,17 +95,25 @@ export class SearchAttachmentsService {
     };
   }
 
+  /**
+   * Обратное заполнение: разобрать вложения, загруженные до появления
+   * извлечения текста.
+   *
+   * Раньше маршрут делал не то, что обещает именем: заполнял поисковый вектор
+   * именем файла. Это прямо противоречит замыслу, записанному в миграции
+   * `20260806T090000`: в вектор идет только `text_content`, иначе
+   * неподдерживаемый файл находится поиском по имени и выглядит
+   * проиндексированным. И самого извлечения при этом не происходило.
+   *
+   * Задача `ATTACHMENT_INDEXING` была объявлена и разобрана обработчиком, но
+   * ставить ее было некому, поэтому обратное заполнение оставалось
+   * недостижимым: вложения, загруженные раньше, навсегда оставались в
+   * состоянии «не обработано».
+   */
   async triggerIndexing(workspaceId: string) {
-    // index attachments using filename as fallback FTS vector if it hasn't been indexed
-    await this.db
-      .updateTable('attachments')
-      .set({
-        tsv: sql`to_tsvector('english', file_name)`,
-        updatedAt: new Date(),
-      })
-      .where('workspaceId', '=', workspaceId)
-      .where('tsv', 'is', null)
-      .execute();
+    await this.attachmentQueue.add(QueueJob.ATTACHMENT_INDEXING, {
+      workspaceId,
+    });
 
     return { success: true };
   }
