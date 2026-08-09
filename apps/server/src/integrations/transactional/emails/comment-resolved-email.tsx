@@ -19,11 +19,11 @@ export const CommentResolvedEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> resolveu um comentário em{' '}
+          <strong>{actorName}</strong> resolved a comment on{' '}
           <strong>{pageTitle}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Ver página</EmailButton>
+      <EmailButton href={pageUrl}>Open page</EmailButton>
     </MailBody>
   );
 };

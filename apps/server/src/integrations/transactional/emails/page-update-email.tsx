@@ -23,14 +23,14 @@ export const PageUpdateEmail = ({
       <Section style={content}>
         <Greeting name={userName} />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> atualizou{' '}
+          <strong>{actorName}</strong> updated{' '}
           <Link href={pageUrl} style={link}>
             <strong>{pageTitle}</strong>
           </Link>{' '}
-          no espaço <strong>{spaceName}</strong>.
+          in <strong>{spaceName}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Ver página</EmailButton>
+      <EmailButton href={pageUrl}>Open page</EmailButton>
     </MailBody>
   );
 };

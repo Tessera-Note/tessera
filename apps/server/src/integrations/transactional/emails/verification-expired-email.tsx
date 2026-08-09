@@ -15,12 +15,12 @@ export const VerificationExpiredEmail = ({ pageTitle, spaceName, pageUrl }: Prop
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          A verificação de <strong>{pageTitle}</strong>, no espaço{' '}
-          <strong>{spaceName}</strong>, expirou. Verifique a página de novo para
-          confirmar que continua correta.
+          Verification of <strong>{pageTitle}</strong> in{' '}
+          <strong>{spaceName}</strong> has expired. Verify the page again to
+          confirm it is still correct.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Verificar novamente</EmailButton>
+      <EmailButton href={pageUrl}>Verify again</EmailButton>
     </MailBody>
   );
 };

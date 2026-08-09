@@ -91,7 +91,7 @@ export class CommentNotificationService {
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        `${actor.name} mencionou você em um comentário`,
+        `${actor.name} mentioned you in a comment`,
         CommentMentionEmail({ actorName: actor.name, pageTitle, pageUrl }),
         NotificationType.COMMENT_USER_MENTION,
       );
@@ -177,7 +177,7 @@ export class CommentNotificationService {
     });
     if (!notification) return;
 
-    const subject = `${actor.name} resolveu um comentário em ${pageTitle}`;
+    const subject = `${actor.name} resolved a comment on ${pageTitle}`;
 
     await this.notificationService.queueEmail(
       commentCreatorId,

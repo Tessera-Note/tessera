@@ -21,11 +21,11 @@ export const ApprovalRequestedEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> enviou <strong>{pageTitle}</strong>, no
-          espaço <strong>{spaceName}</strong>, para sua aprovação.
+          <strong>{actorName}</strong> submitted <strong>{pageTitle}</strong> in{' '}
+          <strong>{spaceName}</strong> for your approval.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Revisar página</EmailButton>
+      <EmailButton href={pageUrl}>Review page</EmailButton>
     </MailBody>
   );
 };

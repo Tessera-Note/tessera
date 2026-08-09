@@ -23,8 +23,8 @@ export const ApprovalRejectedEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> devolveu <strong>{pageTitle}</strong>, no
-          espaço <strong>{spaceName}</strong>, para revisão.
+          <strong>{actorName}</strong> sent <strong>{pageTitle}</strong> in{' '}
+          <strong>{spaceName}</strong> back for revision.
         </Text>
         {comment && (
           <Text style={{ ...paragraph, fontStyle: 'italic' }}>
@@ -32,7 +32,7 @@ export const ApprovalRejectedEmail = ({
           </Text>
         )}
       </Section>
-      <EmailButton href={pageUrl}>Ver página</EmailButton>
+      <EmailButton href={pageUrl}>Open page</EmailButton>
     </MailBody>
   );
 };

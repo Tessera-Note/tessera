@@ -19,11 +19,11 @@ export const CommentCreateEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> comentou em{' '}
+          <strong>{actorName}</strong> commented on{' '}
           <strong>{pageTitle}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Ver comentário</EmailButton>
+      <EmailButton href={pageUrl}>View comment</EmailButton>
     </MailBody>
   );
 };

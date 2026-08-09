@@ -22,15 +22,15 @@ export const MfaResetEmail = ({ username, workspaceName }: Props) => {
       <Section style={content}>
         <Greeting name={username} />
         <Text style={paragraph}>
-          Двоетапну перевірку для вашого облікового запису
-          {workspaceName ? ` у просторі ${workspaceName}` : ''} скинув
-          адміністратор. Другий фактор більше не потрібен для входу.
+          An administrator reset two-factor authentication for your account
+          {workspaceName ? ` in ${workspaceName}` : ''}. A second factor is no
+          longer required to sign in.
         </Text>
         <Text style={paragraph}>
-          Налаштуйте двоетапну перевірку заново в налаштуваннях профілю.
+          Set two-factor authentication up again in your profile settings.
         </Text>
         <Text style={paragraphMuted}>
-          Якщо ви цього не просили, негайно зверніться до адміністратора.
+          If you did not ask for this, contact an administrator right away.
         </Text>
       </Section>
     </MailBody>

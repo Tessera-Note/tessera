@@ -14,14 +14,14 @@ export const ForgotPasswordEmail = ({ username, resetLink }: Props) => {
       <Section style={content}>
         <Greeting name={username} />
         <Text style={paragraph}>
-          Recebemos um pedido para redefinir sua senha.
+          We received a request to reset your password.
         </Text>
       </Section>
-      <EmailButton href={resetLink}>Definir nova senha</EmailButton>
+      <EmailButton href={resetLink}>Set a new password</EmailButton>
       <Section style={content}>
         <Text style={paragraphMuted}>
-          O link vale por 30 minutos. Se não foi você que pediu, ignore este
-          e-mail.
+          The link is valid for 30 minutes. If you did not request it, ignore
+          this email.
         </Text>
       </Section>
     </MailBody>

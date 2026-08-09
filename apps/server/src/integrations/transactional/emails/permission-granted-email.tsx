@@ -21,11 +21,11 @@ export const PermissionGrantedEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> deu acesso de {accessLabel} a{' '}
+          <strong>{actorName}</strong> gave you {accessLabel} access to{' '}
           <strong>{pageTitle}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Ver página</EmailButton>
+      <EmailButton href={pageUrl}>Open page</EmailButton>
     </MailBody>
   );
 };

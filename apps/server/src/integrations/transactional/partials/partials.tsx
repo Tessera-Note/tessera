@@ -120,7 +120,7 @@ export function MailFooter() {
             fontSize: '12px',
           }}
         >
-          Tessera · base de conhecimento da Tessera
+          Tessera · your team knowledge base
         </Text>
       </Row>
     </Section>
@@ -129,5 +129,5 @@ export function MailFooter() {
 
 export function Greeting({ name }: { name?: string }) {
   const first = name?.trim().split(' ')[0];
-  return <Text style={paragraph}>{first ? `Olá, ${first}` : 'Olá'}</Text>;
+  return <Text style={paragraph}>{first ? `Hi, ${first}` : 'Hi'}</Text>;
 }

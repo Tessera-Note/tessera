@@ -21,12 +21,12 @@ export const VerificationExpiringEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          A página <strong>{pageTitle}</strong>, no espaço{' '}
-          <strong>{spaceName}</strong>, precisa ser verificada de novo. A
-          verificação expira em <strong>{expiresAt}</strong>.
+          The page <strong>{pageTitle}</strong> in{' '}
+          <strong>{spaceName}</strong> needs to be verified again. Verification
+          expires on <strong>{expiresAt}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Revisar página</EmailButton>
+      <EmailButton href={pageUrl}>Review page</EmailButton>
     </MailBody>
   );
 };

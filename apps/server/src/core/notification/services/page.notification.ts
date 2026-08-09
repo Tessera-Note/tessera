@@ -117,7 +117,7 @@ export class PageNotificationService {
       if (!notification) continue;
 
       const pageUrl = `${basePageUrl}`;
-      const subject = `${actor.name} mencionou você em ${pageTitle}`;
+      const subject = `${actor.name} mentioned you on ${pageTitle}`;
 
       await this.notificationService.queueEmail(
         userId,
@@ -160,7 +160,7 @@ export class PageNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `${actor.name} deu acesso de ${accessLabel} a ${pageTitle}`;
+      const subject = `${actor.name} gave you ${accessLabel} access to ${pageTitle}`;
 
       await this.notificationService.queueEmail(
         userId,
@@ -241,7 +241,7 @@ export class PageNotificationService {
         await this.notificationService.queueEmail(
           userId,
           notification.id,
-          `${actor.name} atualizou ${pageTitle}`,
+          `${actor.name} updated ${pageTitle}`,
           PageUpdateEmail({
             userName: eligibleUsers.get(userId) ?? '',
             actorName: actor.name,

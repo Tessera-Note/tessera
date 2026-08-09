@@ -118,7 +118,7 @@ export class VerificationNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `"${pageTitle}" precisa ser verificada de novo`;
+      const subject = `"${pageTitle}" needs to be verified again`;
 
       await this.notificationService.queueEmail(
         userId,
@@ -129,7 +129,7 @@ export class VerificationNotificationService {
           spaceName,
           pageUrl: basePageUrl,
           expiresAt: new Date(verification.expiresAt).toLocaleDateString(
-            'pt-BR',
+            'en-US',
           ),
         }),
       );
@@ -195,7 +195,7 @@ export class VerificationNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `A verificação de "${pageTitle}" expirou`;
+      const subject = `Verification of "${pageTitle}" has expired`;
 
       await this.notificationService.queueEmail(
         userId,
@@ -264,7 +264,7 @@ export class VerificationNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `"${pageTitle}" aguarda sua aprovação`;
+      const subject = `"${pageTitle}" is waiting for your approval`;
 
       await this.notificationService.queueEmail(
         userId,
@@ -311,7 +311,7 @@ export class VerificationNotificationService {
     // Единственный получатель: без него уведомлять некого.
     if (!notification) return;
 
-    const subject = `"${pageTitle}" foi devolvida para revisão`;
+    const subject = `"${pageTitle}" was sent back for revision`;
 
     await this.notificationService.queueEmail(
       requestedById,

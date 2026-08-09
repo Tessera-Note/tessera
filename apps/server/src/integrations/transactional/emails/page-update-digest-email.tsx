@@ -25,11 +25,11 @@ export const PageUpdateDigestEmail = ({
       <Section style={content}>
         <Greeting name={userName} />
         <Text style={paragraph}>
-          Houve{' '}
+          There {totalUpdates === 1 ? 'has' : 'have'} been{' '}
           <strong>
-            {totalUpdates} atualiza{totalUpdates === 1 ? 'ção' : 'ções'}
+            {totalUpdates} update{totalUpdates === 1 ? '' : 's'}
           </strong>{' '}
-          desde o último resumo.
+          since the last digest.
         </Text>
 
         {pageUpdates.map((page, i) => (
@@ -41,7 +41,7 @@ export const PageUpdateDigestEmail = ({
             </Text>
             {page.updatedBy.length > 0 && (
               <Text style={updatedByText}>
-                Editado por {page.updatedBy.join(', ')}
+                Edited by {page.updatedBy.join(', ')}
               </Text>
             )}
           </Section>

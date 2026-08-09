@@ -17,8 +17,8 @@ export const InvitationAcceptedEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          {invitedUserName} ({invitedUserEmail}) aceitou seu convite e agora faz
-          parte do workspace.
+          {invitedUserName} ({invitedUserEmail}) accepted your invitation and is
+          now part of the workspace.
         </Text>
       </Section>
     </MailBody>

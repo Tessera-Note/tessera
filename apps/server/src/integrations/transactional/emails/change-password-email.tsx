@@ -12,9 +12,9 @@ export const ChangePasswordEmail = ({ username }: Props) => {
     <MailBody>
       <Section style={content}>
         <Greeting name={username} />
-        <Text style={paragraph}>Sua senha foi alterada.</Text>
+        <Text style={paragraph}>Your password has been changed.</Text>
         <Text style={paragraphMuted}>
-          Se não foi você, procure um administrador da wiki agora.
+          If this was not you, contact a wiki administrator right away.
         </Text>
       </Section>
     </MailBody>

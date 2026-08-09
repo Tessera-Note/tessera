@@ -13,14 +13,13 @@ export const InvitationEmail = ({ inviteLink }: Props) => {
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          Você recebeu um convite para a Tessera, a base de conhecimento da
-          Tessera.
+          You have been invited to Tessera, your team knowledge base.
         </Text>
       </Section>
-      <EmailButton href={inviteLink}>Aceitar convite</EmailButton>
+      <EmailButton href={inviteLink}>Accept invitation</EmailButton>
       <Section style={content}>
         <Text style={paragraphMuted}>
-          Você recebeu este e-mail porque alguém da equipe convidou você.
+          You received this email because someone on the team invited you.
         </Text>
       </Section>
     </MailBody>

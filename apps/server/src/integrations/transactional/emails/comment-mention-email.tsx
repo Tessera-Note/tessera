@@ -19,11 +19,11 @@ export const CommentMentionEmail = ({
       <Section style={content}>
         <Greeting />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> mencionou você em um comentário em{' '}
+          <strong>{actorName}</strong> mentioned you in a comment on{' '}
           <strong>{pageTitle}</strong>.
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Ver comentário</EmailButton>
+      <EmailButton href={pageUrl}>View comment</EmailButton>
     </MailBody>
   );
 };
