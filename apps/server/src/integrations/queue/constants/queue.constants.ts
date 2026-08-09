@@ -4,7 +4,6 @@ export enum QueueName {
   GENERAL_QUEUE = '{general-queue}',
   BILLING_QUEUE = '{billing-queue}',
   FILE_TASK_QUEUE = '{file-task-queue}',
-  SEARCH_QUEUE = '{search-queue}',
   AI_QUEUE = '{ai-queue}',
   HISTORY_QUEUE = '{history-queue}',
   NOTIFICATION_QUEUE = '{notification-queue}',
@@ -42,7 +41,6 @@ export enum QueueJob {
   SEARCH_REMOVE_PAGE = 'search-remove-page',
   SEARCH_REMOVE_ASSET = 'search-remove-attachment',
   SEARCH_REMOVE_FACE = 'search-remove-comment',
-  TYPESENSE_FLUSH = 'typesense-flush',
 
   PAGE_CREATED = 'page-created',
   PAGE_CONTENT_UPDATED = 'page-content-updated',

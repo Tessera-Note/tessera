@@ -306,22 +306,6 @@ export class EnvironmentService {
       .toLowerCase();
   }
 
-  getTypesenseUrl(): string {
-    return this.configService
-      .get<string>('TYPESENSE_URL', 'http://localhost:8108')
-      .toLowerCase();
-  }
-
-  getTypesenseApiKey(): string {
-    return this.configService.get<string>('TYPESENSE_API_KEY');
-  }
-
-  getTypesenseLocale(): string {
-    return this.configService
-      .get<string>('TYPESENSE_LOCALE', 'en')
-      .toLowerCase();
-  }
-
   getAiDriver(): string {
     const driver = this.configService.get<string>('AI_DRIVER');
     if (driver) return driver;

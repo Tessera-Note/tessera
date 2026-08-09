@@ -2,54 +2,48 @@ import { PageListener } from './page.listener';
 import { QueueJob } from '../../integrations/queue/constants';
 
 /**
- * Очередь поиска обслуживается только при `SEARCH_DRIVER=typesense`, и
- * обработчика у нее в этой сборке нет вовсе. Проверка драйвера стояла у
- * четырех постановок из пяти: сохранение страницы откладывало задачу навсегда.
+ * Очередь поиска убрана вместе с объявлениями Typesense: модуля
+ * `ee/typesense` в проекте нет, сабмодули запрещены, а обработчика у очереди
+ * не было ни одного. Установка с таким драйвером получала неработающий поиск
+ * и бесконечно растущую очередь: на стенде накопилось 139 задач.
  *
- * Замерено на стенде до правки: 139 задач `page-updated` ждали
- * несуществующего обработчика, а Redis работает с `maxmemory-policy
- * noeviction`, где переполнение начинает отказывать в записи.
+ * Проверяется, что события страницы идут только в очередь ИИ.
  */
-function build(searchDriver: string) {
-  const searchQueue: any = { add: jest.fn(async () => {}) };
+function build() {
   const aiQueue: any = { add: jest.fn(async () => {}) };
-  const environmentService: any = { getSearchDriver: () => searchDriver };
+  const listener = new PageListener(aiQueue);
 
-  const listener = new PageListener(environmentService, searchQueue, aiQueue);
-
-  return { listener, searchQueue, aiQueue };
+  return { listener, aiQueue };
 }
 
-describe('PageListener, очередь поиска', () => {
-  const event = { pageIds: ['p-1'], workspaceId: 'ws-1' } as any;
+const event = { pageIds: ['p-1'], workspaceId: 'ws-1' } as any;
 
-  it('без typesense обновление страницы в очередь поиска не идет', async () => {
-    const { listener, searchQueue } = build('database');
-
-    await listener.handlePageUpdated(event);
-
-    expect(searchQueue.add).not.toHaveBeenCalled();
-  });
-
-  it('с typesense обновление в очередь поиска идет', async () => {
-    const { listener, searchQueue } = build('typesense');
+describe('PageListener, очереди', () => {
+  it('обновление страницы идет только в очередь ИИ', async () => {
+    const { listener, aiQueue } = build();
 
     await listener.handlePageUpdated(event);
 
-    expect(searchQueue.add).toHaveBeenCalledWith(QueueJob.PAGE_UPDATED, {
-      pageIds: ['p-1'],
-    });
-  });
-
-  // Очередь ИИ обслуживается всегда и от драйвера поиска не зависит.
-  it('очередь ИИ ставится независимо от драйвера поиска', async () => {
-    const { listener, aiQueue } = build('database');
-
-    await listener.handlePageUpdated(event);
-
+    expect(aiQueue.add).toHaveBeenCalledTimes(1);
     expect(aiQueue.add).toHaveBeenCalledWith(QueueJob.PAGE_UPDATED, {
       pageIds: ['p-1'],
       workspaceId: 'ws-1',
     });
+  });
+
+  it('создание страницы идет только в очередь ИИ', async () => {
+    const { listener, aiQueue } = build();
+
+    await listener.handlePageCreated(event);
+
+    expect(aiQueue.add).toHaveBeenCalledTimes(1);
+  });
+
+  it('удаление страницы идет только в очередь ИИ', async () => {
+    const { listener, aiQueue } = build();
+
+    await listener.handlePageDeleted(event);
+
+    expect(aiQueue.add).toHaveBeenCalledTimes(1);
   });
 });

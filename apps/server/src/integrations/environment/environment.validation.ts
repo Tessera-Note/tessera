@@ -71,36 +71,19 @@ export class EnvironmentVariables {
   @ValidateIf((obj) => obj.CLOUD === 'true'.toLowerCase())
   SUBDOMAIN_HOST: string;
 
+  /**
+   * Только `database`. Значение `typesense` объявлялось, но за ним не было
+   * ни одной строки кода: ни клиента поисковой службы, ни индексации, ни
+   * обработчика очереди. Установка с ним получала неработающий поиск и
+   * бесконечно растущую очередь задач.
+   */
   @IsOptional()
-  @IsIn(['database', 'typesense'])
+  @IsIn(['database'])
   @IsString()
   SEARCH_DRIVER: string;
 
-  @IsOptional()
-  @IsUrl(
-    {
-      protocols: ['http', 'https'],
-      require_tld: false,
-      allow_underscores: true,
-    },
-    {
-      message:
-        'TYPESENSE_URL must be a valid typesense url e.g http://localhost:8108',
-    },
-  )
-  @ValidateIf((obj) => obj.SEARCH_DRIVER === 'typesense')
-  TYPESENSE_URL: string;
 
-  @ValidateIf((obj) => obj.SEARCH_DRIVER === 'typesense')
-  @IsNotEmpty()
-  @IsString()
-  TYPESENSE_API_KEY: string;
 
-  @IsOptional()
-  @ValidateIf((obj) => obj.SEARCH_DRIVER === 'typesense')
-  @IsISO6391()
-  @IsString()
-  TYPESENSE_LOCALE: string;
 
   @IsOptional()
   @ValidateIf((obj) => obj.AI_DRIVER)
