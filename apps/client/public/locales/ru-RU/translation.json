@@ -1617,5 +1617,8 @@
   "error.sso.provider_type_unknown": "Неизвестный тип провайдера входа",
   "error.sso.provider_fields_required": "Для типа {{type}} обязательны поля: {{fields}}",
   "error.sso.user_not_found": "Пользователь не найден",
-  "error.sso.user_has_no_links": "У этого пользователя нет связей с провайдерами входа"
+  "error.sso.user_has_no_links": "У этого пользователя нет связей с провайдерами входа",
+  "Deleted user": "Удаленный пользователь",
+  "This account no longer exists.": "Этой учетной записи больше нет.",
+  "This account is deactivated.": "Учетная запись отключена."
 }

@@ -1599,5 +1599,8 @@
   "error.sso.provider_type_unknown": "Unknown sign-in provider type",
   "error.sso.provider_fields_required": "Provider type {{type}} requires: {{fields}}",
   "error.sso.user_not_found": "User not found",
-  "error.sso.user_has_no_links": "This user has no sign-in provider links"
+  "error.sso.user_has_no_links": "This user has no sign-in provider links",
+  "Deleted user": "Deleted user",
+  "This account no longer exists.": "This account no longer exists.",
+  "This account is deactivated.": "This account is deactivated."
 }

@@ -10,6 +10,7 @@ import {
 } from "@/features/page/page.utils.ts";
 import { extractPageSlugId } from "@/lib";
 import { getApiErrorStatus } from "@/lib/api-error";
+import { useMentionUserQuery } from "@/features/user/queries/mention-query";
 import { useTranslation } from "react-i18next";
 import classes from "./mention.module.css";
 
@@ -56,6 +57,24 @@ export default function MentionView(props: NodeViewProps) {
     }
   };
 
+  // Подпись упоминания человека заморожена на момент вставки, поэтому имя
+  // удаленного оставалось в теле каждой страницы, где его упомянули, а
+  // отключенный и действующий выглядели одинаково. Разрешаем на лету.
+  const isUserMention = entityType === "user";
+  const {
+    data: mentionedUser,
+    isLoading: isUserLoading,
+    isError: isUserError,
+  } = useMentionUserQuery(isUserMention ? entityId : undefined);
+
+  // Пока не ответили или ответ не пришел вовсе, показывается прежняя подпись:
+  // сеть не должна превращать упоминание в «удален».
+  const userIsGone =
+    isUserMention && !isUserLoading && !isUserError && !mentionedUser;
+  const userLabel = userIsGone
+    ? t("Deleted user")
+    : (mentionedUser?.name ?? label);
+
   const sharePageTitle = sharedPage?.page?.title || label;
 
   const shareSlugUrl = buildSharedPageUrl({
@@ -67,9 +86,20 @@ export default function MentionView(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper style={{ display: "inline" }} data-drag-handle>
-      {entityType === "user" && (
-        <Text className={classes.userMention} component="span">
-          @{label}
+      {isUserMention && (
+        <Text
+          className={classes.userMention}
+          component="span"
+          c={userIsGone || mentionedUser?.deactivated ? "dimmed" : undefined}
+          title={
+            userIsGone
+              ? t("This account no longer exists.")
+              : mentionedUser?.deactivated
+                ? t("This account is deactivated.")
+                : undefined
+          }
+        >
+          @{userLabel}
         </Text>
       )}
 

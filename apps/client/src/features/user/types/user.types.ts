@@ -59,3 +59,11 @@ export enum PageEditMode {
   Read = "read",
   Edit = "edit",
 }
+
+/** Что нужно подписи упоминания. Удаленных в ответе нет вовсе. */
+export interface IMentionTarget {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  deactivated: boolean;
+}

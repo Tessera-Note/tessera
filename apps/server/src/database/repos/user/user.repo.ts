@@ -38,6 +38,41 @@ export class UserRepo {
     'hasGeneratedPassword',
   ];
 
+  /**
+   * Разрешить упоминания людей.
+   *
+   * Подпись в узле упоминания заморожена на момент вставки, поэтому имя
+   * удаленного человека оставалось в теле каждой страницы, где его упомянули:
+   * обезличивание при удалении до содержимого не доходило. Разрешение на лету
+   * закрывает это, не переписывая страницы.
+   *
+   * Удаленные не возвращаются вовсе: вызывающий по отсутствию строки покажет
+   * обезличенную подпись. Отключенные возвращаются, они существуют.
+   */
+  async findMentionTargets(
+    userIds: string[],
+    workspaceId: string,
+  ): Promise<
+    Array<{ id: string; name: string; avatarUrl: string; deactivated: boolean }>
+  > {
+    if (userIds.length === 0) return [];
+
+    const rows = await this.db
+      .selectFrom('users')
+      .select(['id', 'name', 'avatarUrl', 'deactivatedAt'])
+      .where('id', 'in', userIds)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .execute();
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      avatarUrl: row.avatarUrl,
+      deactivated: Boolean(row.deactivatedAt),
+    }));
+  }
+
   async findById(
     userId: string,
     workspaceId: string,

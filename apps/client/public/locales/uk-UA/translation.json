@@ -1617,5 +1617,8 @@
   "error.sso.provider_type_unknown": "Невідомий тип постачальника входу",
   "error.sso.provider_fields_required": "Для типу {{type}} обовʼязкові поля: {{fields}}",
   "error.sso.user_not_found": "Користувача не знайдено",
-  "error.sso.user_has_no_links": "У цього користувача немає звʼязків із постачальниками входу"
+  "error.sso.user_has_no_links": "У цього користувача немає звʼязків із постачальниками входу",
+  "Deleted user": "Видалений користувач",
+  "This account no longer exists.": "Цього облікового запису більше немає.",
+  "This account is deactivated.": "Обліковий запис вимкнено."
 }
