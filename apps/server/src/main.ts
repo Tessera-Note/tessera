@@ -1,4 +1,4 @@
-import { NestFactory, Reflector } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import {
   FastifyAdapter,
@@ -12,6 +12,7 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyCookie from '@fastify/cookie';
 import fastifyIp from 'fastify-ip';
 import { InternalLogFilter } from './common/logger/internal-log-filter';
+import { UniqueViolationFilter } from './common/filters/unique-violation.filter';
 import { EnvironmentService } from './integrations/environment/environment.service';
 import { resolveFrameHeader } from './common/helpers';
 
@@ -146,6 +147,11 @@ async function bootstrap() {
   );
 
   app.enableCors();
+  // Нарушение уникального ограничения это отказ, а не поломка: без фильтра
+  // одновременное создание объекта с занятым именем отдает 500.
+  app.useGlobalFilters(
+    new UniqueViolationFilter(app.get(HttpAdapterHost).httpAdapter),
+  );
   app.useGlobalInterceptors(new TransformHttpResponseInterceptor(reflector));
   app.enableShutdownHooks();
 
