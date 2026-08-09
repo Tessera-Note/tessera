@@ -13,6 +13,9 @@ function build(
     verification?: any;
     verifier?: any;
     listRows?: any[];
+    // Последовательные проходы выдачи: выдача добирает страницу, пока отбор
+    // по правам снимает строки, поэтому мок должен отвечать по-разному.
+    listPasses?: any[][];
     accessiblePageIds?: string[];
     users?: any[];
     verifierRows?: any[];
@@ -21,6 +24,8 @@ function build(
   const inserts: { table: string; values: any }[] = [];
   const deletes: string[] = [];
   const updates: { table: string; values: any }[] = [];
+
+  let listPass = 0;
 
   const makeSelect = (table: string): any => {
     const chain: any = {
@@ -33,6 +38,9 @@ function build(
       execute: async () => {
         if (table === 'users') return options.users ?? [];
         if (table === 'pageVerifiers') return options.verifierRows ?? [];
+        if (options.listPasses) {
+          return options.listPasses[listPass++] ?? [];
+        }
         return options.listRows ?? [];
       },
       executeTakeFirst: async () =>
@@ -93,12 +101,13 @@ function build(
     getUserSpaceIdsQuery: jest.fn().mockReturnValue('подзапрос'),
   };
   const pagePermissionRepo: any = {
-    filterAccessiblePageIds: jest
-      .fn()
-      .mockResolvedValue(
-        options.accessiblePageIds ??
-          (options.listRows ?? []).map((r: any) => r.pageId),
-      ),
+    filterAccessiblePageIds: jest.fn(async ({ pageIds }: any) =>
+      options.accessiblePageIds
+        ? pageIds.filter((id: string) =>
+            options.accessiblePageIds.includes(id),
+          )
+        : pageIds,
+    ),
   };
 
   const notificationQueue: any = { add: jest.fn(async () => {}) };
@@ -379,6 +388,124 @@ describe('PageVerificationService, список', () => {
     expect(
       (service as any).spaceMemberRepo ?? true,
     ).toBeTruthy();
+  });
+
+  /**
+   * Клиент читает `meta` формы `IPagination`, а выдача отдавала `pageInfo`,
+   * поэтому кнопка следующей страницы не включалась никогда.
+   */
+  it('отдает разбиение в том виде, который читает клиент', async () => {
+    const { service } = build({ listRows: ROWS });
+
+    const result: any = await service.getVerificationList(
+      {} as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(result.meta).toMatchObject({
+      limit: 50,
+      hasNextPage: false,
+      hasPrevPage: false,
+      nextCursor: null,
+    });
+    expect(result).not.toHaveProperty('pageInfo');
+  });
+
+  it('признак предыдущей страницы идет от переданного курсора', async () => {
+    const { service } = build({ listRows: ROWS });
+
+    const result: any = await service.getVerificationList(
+      { cursor: 'v0' } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(result.meta.hasPrevPage).toBe(true);
+  });
+
+  /**
+   * Прежде `limit + 1` применялся к строкам до отбора по правам, а признак
+   * «есть еще» считался по строкам после него: стоило фильтру снять одну
+   * строку, как курсор обнулялся и остаток списка становился недостижимым.
+   */
+  it('отсеченная фильтром строка не обрывает выдачу', async () => {
+    const { service } = build({
+      listPasses: [
+        [
+          { id: 'v1', pageId: 'p1' },
+          { id: 'v2', pageId: 'p2' },
+          { id: 'v3', pageId: 'p3' },
+        ],
+        [{ id: 'v4', pageId: 'p4' }],
+      ],
+      accessiblePageIds: ['p2', 'p4'],
+    });
+
+    const result: any = await service.getVerificationList(
+      { limit: 2 } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(result.items.map((i: any) => i.pageId)).toEqual(['p2', 'p4']);
+    expect(result.meta.hasNextPage).toBe(false);
+  });
+
+  /** Страница добирается до полной, а не отдается короткой из-за отбора. */
+  it('страница добирается следующим проходом', async () => {
+    const { service } = build({
+      listPasses: [
+        [
+          { id: 'v1', pageId: 'p1' },
+          { id: 'v2', pageId: 'p2' },
+          { id: 'v3', pageId: 'p3' },
+        ],
+        [
+          { id: 'v4', pageId: 'p4' },
+          { id: 'v5', pageId: 'p5' },
+          { id: 'v6', pageId: 'p6' },
+        ],
+      ],
+      accessiblePageIds: ['p4', 'p5'],
+    });
+
+    const result: any = await service.getVerificationList(
+      { limit: 2 } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(result.items.map((i: any) => i.pageId)).toEqual(['p4', 'p5']);
+    expect(result.meta.hasNextPage).toBe(true);
+    expect(result.meta.nextCursor).toBe('v5');
+  });
+
+  /**
+   * Число проходов ограничено, поэтому страница может выйти пустой. Курсором
+   * тогда становится граница просмотра: иначе пустая страница обрывала бы
+   * список так же, как обрывал прежний расчет.
+   */
+  it('пустая страница отдает границу просмотра курсором', async () => {
+    const pass = (n: number) => [
+      { id: `v${n}1`, pageId: `p${n}1` },
+      { id: `v${n}2`, pageId: `p${n}2` },
+      { id: `v${n}3`, pageId: `p${n}3` },
+    ];
+    const { service } = build({
+      listPasses: [pass(1), pass(2), pass(3), pass(4), pass(5), pass(6)],
+      accessiblePageIds: [],
+    });
+
+    const result: any = await service.getVerificationList(
+      { limit: 2 } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(result.items).toEqual([]);
+    expect(result.meta.hasNextPage).toBe(true);
+    expect(result.meta.nextCursor).toBe('v52');
   });
 });
 

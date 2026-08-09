@@ -36,6 +36,15 @@ import {
  * `notifications`, поэтому повторные такты внутри окна ничего не рассылают.
  * Отдельной отметки в схеме для этого не заводится.
  */
+/**
+ * Сколько раз выдача добирает строки, если отбор по правам снял часть.
+ *
+ * Ограничение нужно, чтобы один запрос не обходил всю таблицу, когда человеку
+ * недоступно почти ничего. При исчерпании страница выйдет короткой, но признак
+ * «есть еще» и курсор останутся верными.
+ */
+const LIST_SCAN_PASSES = 5;
+
 const EXPIRY_LEAD_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Права на действия с верификацией страницы. */
@@ -916,6 +925,26 @@ export class PageVerificationService {
    * PagePermissionRepo. Одного членства мало, страница внутри пространства
    * может быть закрыта.
    */
+  /**
+   * Список проверок, доступных человеку.
+   *
+   * Две вещи, из-за которых выдача обрывалась молча.
+   *
+   * Первая: `limit + 1` применялся к строкам до отбора по правам, а признак
+   * «есть еще» считался по строкам после отбора. Стоило фильтру снять хотя бы
+   * одну строку, как курсор обнулялся, и остаток списка становился
+   * недостижимым. Теперь признак берется от просмотренного, а не от видимого.
+   *
+   * Вторая: ответ отдавался полем `pageInfo`, а клиент читает `meta` формы
+   * `IPagination`, поэтому кнопка следующей страницы не включалась никогда.
+   * Форма приведена к той, которую клиент читает.
+   *
+   * Страница добирается до полной несколькими проходами: иначе отбор по правам
+   * возвращал бы короткие и пустые страницы, а клиент прячет разбиение на
+   * страницы, когда список пуст. Число проходов ограничено, при исчерпании
+   * лимита страница выйдет короткой, но признак «есть еще» и курсор останутся
+   * верными, и продолжение достижимо.
+   */
   async getVerificationList(
     params: VerificationListDto,
     workspaceId: string,
@@ -923,65 +952,83 @@ export class PageVerificationService {
   ) {
     const limit = params.limit ?? 50;
 
-    let query = this.db
-      .selectFrom('pageVerifications')
-      .innerJoin('pages', 'pages.id', 'pageVerifications.pageId')
-      .innerJoin('spaces', 'spaces.id', 'pageVerifications.spaceId')
-      .select([
-        'pageVerifications.id as id',
-        'pageVerifications.pageId as pageId',
-        'pageVerifications.spaceId as spaceId',
-        'pageVerifications.status as status',
-        'pageVerifications.type as type',
-        'pageVerifications.mode as mode',
-        'pageVerifications.periodAmount as periodAmount',
-        'pageVerifications.periodUnit as periodUnit',
-        'pageVerifications.expiresAt as expiresAt',
-        'pageVerifications.verifiedAt as verifiedAt',
-        'pageVerifications.createdAt as createdAt',
-        'pages.title as pageTitle',
-        'pages.slugId as pageSlugId',
-        'pages.icon as pageIcon',
-        'spaces.name as spaceName',
-        'spaces.slug as spaceSlug',
-      ])
-      .where('pageVerifications.workspaceId', '=', workspaceId)
-      .where('pages.deletedAt', 'is', null)
-      .where(
-        'pageVerifications.spaceId',
-        'in',
-        this.spaceMemberRepo.getUserSpaceIdsQuery(user.id),
+    const scan = async (cursor: string | undefined) => {
+      let query = this.db
+        .selectFrom('pageVerifications')
+        .innerJoin('pages', 'pages.id', 'pageVerifications.pageId')
+        .innerJoin('spaces', 'spaces.id', 'pageVerifications.spaceId')
+        .select([
+          'pageVerifications.id as id',
+          'pageVerifications.pageId as pageId',
+          'pageVerifications.spaceId as spaceId',
+          'pageVerifications.status as status',
+          'pageVerifications.type as type',
+          'pageVerifications.mode as mode',
+          'pageVerifications.periodAmount as periodAmount',
+          'pageVerifications.periodUnit as periodUnit',
+          'pageVerifications.expiresAt as expiresAt',
+          'pageVerifications.verifiedAt as verifiedAt',
+          'pageVerifications.createdAt as createdAt',
+          'pages.title as pageTitle',
+          'pages.slugId as pageSlugId',
+          'pages.icon as pageIcon',
+          'spaces.name as spaceName',
+          'spaces.slug as spaceSlug',
+        ])
+        .where('pageVerifications.workspaceId', '=', workspaceId)
+        .where('pages.deletedAt', 'is', null)
+        .where(
+          'pageVerifications.spaceId',
+          'in',
+          this.spaceMemberRepo.getUserSpaceIdsQuery(user.id),
+        );
+
+      if (params.spaceIds?.length) {
+        query = query.where('pageVerifications.spaceId', 'in', params.spaceIds);
+      }
+      if (params.type) {
+        query = query.where('pageVerifications.type', '=', params.type);
+      }
+      if (cursor) {
+        query = query.where('pageVerifications.id', '>', cursor);
+      }
+
+      return query
+        .orderBy('pageVerifications.id asc')
+        .limit(limit + 1)
+        .execute();
+    };
+
+    const collected: Awaited<ReturnType<typeof scan>> = [];
+    let cursor = params.cursor;
+    let moreBeyondScan = false;
+
+    for (let pass = 0; pass < LIST_SCAN_PASSES; pass += 1) {
+      const rows = await scan(cursor);
+      if (rows.length === 0) {
+        moreBeyondScan = false;
+        break;
+      }
+
+      const window = rows.slice(0, limit);
+      moreBeyondScan = rows.length > limit;
+
+      const accessible = new Set(
+        await this.pagePermissionRepo.filterAccessiblePageIds({
+          pageIds: window.map((row) => row.pageId),
+          userId: user.id,
+        }),
       );
 
-    if (params.spaceIds?.length) {
-      query = query.where('pageVerifications.spaceId', 'in', params.spaceIds);
-    }
-    if (params.type) {
-      query = query.where('pageVerifications.type', '=', params.type);
-    }
-    if (params.cursor) {
-      query = query.where('pageVerifications.id', '>', params.cursor);
+      collected.push(...window.filter((row) => accessible.has(row.pageId)));
+      cursor = window[window.length - 1].id;
+
+      if (collected.length >= limit || !moreBeyondScan) break;
     }
 
-    const rows = await query
-      .orderBy('pageVerifications.id asc')
-      .limit(limit + 1)
-      .execute();
-
-    if (rows.length === 0) {
-      return { items: [], pageInfo: { nextCursor: null, prevCursor: null } };
-    }
-
-    const accessible = new Set(
-      await this.pagePermissionRepo.filterAccessiblePageIds({
-        pageIds: rows.map((row) => row.pageId),
-        userId: user.id,
-      }),
-    );
-
-    const visible = rows.filter((row) => accessible.has(row.pageId));
-    const hasMore = visible.length > limit;
-    const page = visible.slice(0, limit);
+    const page = collected.slice(0, limit);
+    // Отдано меньше, чем собрано, значит остаток уйдет следующей страницей.
+    const hasNextPage = moreBeyondScan || collected.length > limit;
 
     // Проверяющие подтягиваются одним запросом на всю страницу выдачи,
     // а не запросом на строку.
@@ -997,8 +1044,20 @@ export class PageVerificationService {
 
     return {
       items,
-      pageInfo: {
-        nextCursor: hasMore ? items[items.length - 1].id : null,
+      meta: {
+        limit,
+        hasNextPage,
+        hasPrevPage: Boolean(params.cursor),
+        // Курсор указывает на последнюю отданную строку, а не на границу
+        // просмотра: пропущенные отбором строки будут просмотрены заново, это
+        // дешевле, чем потерять их. Если отдать нечего, курсором становится
+        // сама граница просмотра, иначе страница без единой доступной строки
+        // обрывала бы список так же, как обрывал прежний расчет.
+        nextCursor: hasNextPage
+          ? page.length > 0
+            ? page[page.length - 1].id
+            : (cursor ?? null)
+          : null,
         prevCursor: null,
       },
     };
