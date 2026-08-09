@@ -143,3 +143,38 @@ describe('Инструменты агента', () => {
     expect(AGENT_MAX_STEPS).toBeLessThanOrEqual(12);
   });
 });
+
+/**
+ * Объявленный и молча игнорируемый аргумент модель заполняет наугад: так
+ * создание страницы отказало трижды из-за подставленного родителя. Проверка
+ * держит обратное правило — у каждого объявленного аргумента есть читающий.
+ */
+describe('Инструменты агента, объявленное читается', () => {
+  const declared = (schema: any) =>
+    Object.keys((asSchema(schema).jsonSchema as any).properties ?? {}).sort();
+
+  it('поиск по вики принимает только запрос', () => {
+    expect(declared(searchPagesSchema)).toEqual(['query']);
+  });
+
+  /** Картинки ищутся по запросу модели, а не по исходному сообщению. */
+  it('поиск в интернете принимает запросы и признак картинок', () => {
+    expect(declared(searchWebSchema)).toEqual(['images', 'queries']);
+  });
+
+  it('правка принимает страницу, содержимое и способ применения', () => {
+    expect(declared(editPageSchema)).toEqual(['content', 'operation', 'page']);
+  });
+
+  it('переименование принимает страницу и заголовок', () => {
+    expect(declared(updateTitleSchema)).toEqual(['page', 'title']);
+  });
+
+  it('создание принимает заголовок, содержимое и родителя', () => {
+    expect(declared(createPageSchema)).toEqual([
+      'content',
+      'parentPageId',
+      'title',
+    ]);
+  });
+});
