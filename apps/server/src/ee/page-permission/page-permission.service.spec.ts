@@ -98,14 +98,24 @@ function build(overrides?: {
     invalidateSpaceRestrictionCache: jest.fn(async () => {}),
   };
 
+  const notificationQueue: any = { add: jest.fn(async () => {}) };
+
   const service = new PagePermissionService(
     db,
     pagePermissionRepo,
     pageRepo,
     wsService,
+    notificationQueue,
   );
+  jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
 
-  return { service, pagePermissionRepo, pageRepo, wsService };
+  return {
+    service,
+    pagePermissionRepo,
+    pageRepo,
+    wsService,
+    notificationQueue,
+  };
 }
 
 describe('PagePermissionService, доступ к самому управлению', () => {
@@ -429,5 +439,59 @@ describe('PagePermissionService, чтение', () => {
       restrictionId: 'pa-1',
       userAccess: { canManage: true },
     });
+  });
+});
+
+/**
+ * Обработчик уведомления о выдаче прав существовал вместе с письмом, но
+ * задачу для него никто не создавал: получивший доступ об этом не узнавал.
+ */
+describe('PagePermissionService, уведомление о выдаче', () => {
+  it('названные поименно получают уведомление', async () => {
+    const { service, notificationQueue } = build();
+
+    await service.addPermission(
+      { pageId: 'p-1', role: 'reader', userIds: ['u-2'] },
+      USER,
+      WORKSPACE_ID,
+    );
+
+    expect(notificationQueue.add).toHaveBeenCalledWith(
+      'page-permission-granted',
+      expect.objectContaining({
+        userIds: ['u-2'],
+        pageId: 'p-1',
+        spaceId: 'sp-1',
+        role: 'reader',
+        actorId: 'u-1',
+      }),
+    );
+  });
+
+  it('выдача только группе уведомления не порождает', async () => {
+    const { service, notificationQueue } = build();
+
+    await service.addPermission(
+      { pageId: 'p-1', role: 'writer', groupIds: ['g-1'] },
+      USER,
+      WORKSPACE_ID,
+    );
+
+    expect(notificationQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('отказ очереди не отменяет выдачи прав', async () => {
+    const { service, notificationQueue, pagePermissionRepo } = build();
+    notificationQueue.add.mockRejectedValue(new Error('очередь недоступна'));
+
+    await expect(
+      service.addPermission(
+        { pageId: 'p-1', role: 'reader', userIds: ['u-2'] },
+        USER,
+        WORKSPACE_ID,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(pagePermissionRepo.insertPagePermissions).toHaveBeenCalled();
   });
 });

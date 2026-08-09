@@ -17,7 +17,10 @@ import { PageRepo } from '@tessera/db/repos/page/page.repo';
 import { CursorPaginationResult } from '@tessera/db/pagination/cursor-pagination';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { extractUserMentionIdsFromJson } from '../../common/helpers/prosemirror/utils';
-import { ICommentNotificationJob } from '../../integrations/queue/constants/queue.interface';
+import {
+  ICommentNotificationJob,
+  ICommentResolvedNotificationJob,
+} from '../../integrations/queue/constants/queue.interface';
 import { WsService } from '../../ws/ws.service';
 
 @Injectable()
@@ -180,6 +183,26 @@ export class CommentService {
       },
       comment.id,
     );
+
+    // Уведомление только о постановке отметки: снятие это возврат к прежнему
+    // состоянию, о котором автору сообщать нечего. Обработчик написан давно,
+    // но задачу для него никто не создавал, и автор обсуждения не узнавал,
+    // что его вопрос закрыли.
+    if (resolved && comment.creatorId) {
+      const jobData: ICommentResolvedNotificationJob = {
+        commentId: comment.id,
+        commentCreatorId: comment.creatorId,
+        pageId: comment.pageId,
+        spaceId: comment.spaceId,
+        workspaceId: comment.workspaceId,
+        actorId: authUser.id,
+      };
+
+      await this.notificationQueue.add(
+        QueueJob.COMMENT_RESOLVED_NOTIFICATION,
+        jobData,
+      );
+    }
 
     return this.commentRepo.findById(comment.id, {
       includeCreator: true,

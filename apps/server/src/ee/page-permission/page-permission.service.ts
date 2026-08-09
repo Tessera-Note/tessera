@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
@@ -12,6 +13,13 @@ import { PageRepo } from '@tessera/db/repos/page/page.repo';
 import { PaginationOptions } from '@tessera/db/pagination/pagination-options';
 import { User } from '@tessera/db/types/entity.types';
 import { WsService } from '../../ws/ws.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import {
+  QueueJob,
+  QueueName,
+} from '../../integrations/queue/constants/queue.constants';
+import { IPermissionGrantedNotificationJob } from '../../integrations/queue/constants/queue.interface';
 import {
   AddPagePermissionDto,
   PageIdDto,
@@ -33,11 +41,15 @@ import {
  */
 @Injectable()
 export class PagePermissionService {
+  private readonly logger = new Logger(PagePermissionService.name);
+
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly pageRepo: PageRepo,
     private readonly wsService: WsService,
+    @InjectQueue(QueueName.NOTIFICATION_QUEUE)
+    private readonly notificationQueue: Queue,
   ) {}
 
   /**
@@ -126,6 +138,30 @@ export class PagePermissionService {
     });
 
     await this.wsService.invalidateSpaceRestrictionCache(page.spaceId);
+
+    // Уведомляются только названные поименно. Выдача группе адресата не
+    // называет, а рассылка всему составу превратила бы одно действие
+    // администратора в письмо каждому участнику.
+    if (userIds.length > 0) {
+      const jobData: IPermissionGrantedNotificationJob = {
+        userIds,
+        pageId: page.id,
+        spaceId: page.spaceId,
+        workspaceId,
+        actorId: user.id,
+        role: dto.role,
+      };
+
+      await this.notificationQueue
+        .add(QueueJob.PAGE_PERMISSION_GRANTED, jobData)
+        .catch((err) => {
+          this.logger.error(
+            `Уведомление о выдаче прав не поставлено в очередь: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        });
+    }
   }
 
   async removePermission(
