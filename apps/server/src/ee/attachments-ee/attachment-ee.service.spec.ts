@@ -73,14 +73,25 @@ describe('AttachmentEeService, определение поддерживаемо
     expect(service.isSupported(mime, ext)).toBe(true);
   });
 
+  /**
+   * От поиска по вложениям ждут в первую очередь PDF и DOCX. Разбирают их те
+   * же библиотеки, что уже стоят ради импорта документов, поэтому граница
+   * сдвинута, а не объявлена.
+   */
   it.each([
     ['application/pdf', '.pdf'],
     [
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.docx',
     ],
+  ])('документ %s разбирается', (mime, ext) => {
+    expect(service.isSupported(mime, ext)).toBe(true);
+  });
+
+  it.each([
     ['image/png', '.png'],
     ['video/mp4', '.mp4'],
+    ['application/zip', '.zip'],
   ])('тип %s не поддерживается', (mime, ext) => {
     expect(service.isSupported(mime, ext)).toBe(false);
   });
@@ -124,8 +135,8 @@ describe('AttachmentEeService, разбор одного вложения', () =
     const { service, updates, storageService } = build({
       attachment: {
         ...ATTACHMENT,
-        mimeType: 'application/pdf',
-        fileExt: '.pdf',
+        mimeType: 'image/png',
+        fileExt: '.png',
       },
     });
 

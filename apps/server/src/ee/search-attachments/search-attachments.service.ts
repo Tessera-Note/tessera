@@ -123,6 +123,38 @@ export class SearchAttachmentsService {
       workspaceId,
     });
 
-    return { success: true };
+    // Вместе с задачей отдается состояние: файл, который в поиск не попадет
+    // никогда, не должен молчать. Без этого счета administrator видит пустую
+    // выдачу и не может отличить «не нашлось» от «не разбирается».
+    return { success: true, coverage: await this.indexCoverage(workspaceId) };
+  }
+
+  /**
+   * Сколько вложений разобрано, сколько не разбирается и сколько еще ждет.
+   *
+   * `not_processed` это очередь, `extracted` попадет в поиск, `unsupported`
+   * не попадет никогда: картинки, архивы и PDF из сканов, где текстового слоя
+   * нет.
+   */
+  async indexCoverage(workspaceId: string) {
+    const rows = await this.db
+      .selectFrom('attachments')
+      .select(['indexStatus'])
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .groupBy('indexStatus')
+      .execute();
+
+    const coverage = { extracted: 0, unsupported: 0, pending: 0 };
+
+    for (const row of rows) {
+      const count = Number(row.count ?? 0);
+      if (row.indexStatus === 'extracted') coverage.extracted += count;
+      else if (row.indexStatus === 'unsupported') coverage.unsupported += count;
+      else coverage.pending += count;
+    }
+
+    return coverage;
   }
 }

@@ -5,6 +5,7 @@ describe('SearchAttachmentsService', () => {
     const where = jest.fn();
     const query: any = {
       innerJoin: jest.fn(() => query),
+      groupBy: jest.fn(() => query),
       select: jest.fn(() => query),
       where: jest.fn((...args: unknown[]) => {
         where(...args);
@@ -76,8 +77,11 @@ describe('SearchAttachmentsService', () => {
     it('ставит задачу обратного заполнения на свое рабочее пространство', async () => {
       const { service, attachmentQueue } = build();
 
-      await expect(service.triggerIndexing('ws-1')).resolves.toEqual({
+      await expect(service.triggerIndexing('ws-1')).resolves.toMatchObject({
         success: true,
+        // Файл, который в поиск не попадет никогда, не должен молчать:
+        // вместе с задачей отдается состояние разбора.
+        coverage: { extracted: 0, unsupported: 0, pending: 0 },
       });
 
       expect(attachmentQueue.add).toHaveBeenCalledWith('attachment-indexing', {

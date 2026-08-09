@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@tessera/db/types/kysely.types';
 import { StorageService } from '../../integrations/storage/storage.service';
+import { docxText, pdfText } from './document-text';
 
 /**
  * Состояния индексации вложения, те же значения, что и в колонке
@@ -51,12 +52,26 @@ const TEXT_MIME_TYPES = new Set([
   'application/x-yaml',
 ]);
 
+/** Расширения документов, разбираемых отдельными разборщиками. */
+const PDF_EXTENSIONS = new Set(['.pdf']);
+const DOCX_EXTENSIONS = new Set(['.docx']);
+
+const PDF_MIME_TYPES = new Set(['application/pdf']);
+const DOCX_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
 /**
  * Извлечение текста из вложений для полнотекстового поиска.
  *
- * Согласованный объем: text, markdown и json. PDF, DOCX и прочие форматы
- * требуют внешних разборщиков и отмечаются как неподдерживаемые, чтобы
- * повторный проход их не перебирал.
+ * Текст, markdown и json читаются как есть. PDF и DOCX разбираются теми же
+ * библиотеками, что уже стоят ради импорта документов: `@docmost/pdf-inspector`
+ * и `mammoth`. Новой зависимости это не заводит, а от поиска по вложениям
+ * ждут в первую очередь именно эти два формата.
+ *
+ * PDF без текстового слоя и файл, из которого разборщик ничего не достал, не
+ * ошибка: запись получает отметку, по которой видно, что искать в нем нечего.
+ * Остальные форматы отмечаются как неподдерживаемые.
  */
 @Injectable()
 export class AttachmentEeService {
@@ -75,12 +90,32 @@ export class AttachmentEeService {
    * когда MIME пришел как application/octet-stream.
    */
   isSupported(mimeType: string | null, fileExt: string | null): boolean {
-    const mime = (mimeType ?? '').toLowerCase().split(';')[0].trim();
-    if (mime.startsWith('text/')) return true;
-    if (TEXT_MIME_TYPES.has(mime)) return true;
+    return this.kindOf(mimeType, fileExt) !== null;
+  }
 
-    const ext = (fileExt ?? '').toLowerCase();
-    return TEXT_EXTENSIONS.has(ext.startsWith('.') ? ext : `.${ext}`);
+  /**
+   * Чем разбирать вложение.
+   *
+   * MIME-тип главнее расширения: имя файла задает загружающий, а тип
+   * определяется при приеме. Расширение это запасной признак для случаев,
+   * когда MIME пришел как application/octet-stream.
+   */
+  private kindOf(
+    mimeType: string | null,
+    fileExt: string | null,
+  ): 'text' | 'pdf' | 'docx' | null {
+    const mime = (mimeType ?? '').toLowerCase().split(';')[0].trim();
+    const raw = (fileExt ?? '').toLowerCase();
+    const ext = raw.startsWith('.') ? raw : `.${raw}`;
+
+    if (PDF_MIME_TYPES.has(mime) || PDF_EXTENSIONS.has(ext)) return 'pdf';
+    if (DOCX_MIME_TYPES.has(mime) || DOCX_EXTENSIONS.has(ext)) return 'docx';
+
+    if (mime.startsWith('text/')) return 'text';
+    if (TEXT_MIME_TYPES.has(mime)) return 'text';
+    if (TEXT_EXTENSIONS.has(ext)) return 'text';
+
+    return null;
   }
 
   /**
@@ -103,14 +138,23 @@ export class AttachmentEeService {
       return;
     }
 
-    if (!this.isSupported(attachment.mimeType, attachment.fileExt)) {
+    const kind = this.kindOf(attachment.mimeType, attachment.fileExt);
+
+    if (kind === null) {
       await this.markStatus(attachmentId, IndexStatus.Unsupported);
       return;
     }
 
     let text: string;
     try {
-      text = await this.readText(attachment.filePath, attachment.fileSize);
+      text =
+        kind === 'text'
+          ? await this.readText(attachment.filePath, attachment.fileSize)
+          : await this.readDocument(
+              kind,
+              attachment.filePath,
+              attachment.fileSize,
+            );
     } catch (err) {
       // Состояние не меняется: повтор задачи должен иметь шанс.
       this.logger.warn(
@@ -118,6 +162,14 @@ export class AttachmentEeService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      return;
+    }
+
+    // Пустой разбор это не отказ и не повод перебирать файл заново: у PDF из
+    // сканов текстового слоя нет, и лучше отметить это один раз, чем каждый
+    // проход заново открывать тот же файл.
+    if (!text.trim()) {
+      await this.markStatus(attachmentId, IndexStatus.Unsupported);
       return;
     }
 
@@ -170,6 +222,34 @@ export class AttachmentEeService {
   }
 
   /** Прочитать файл текстом, не выходя за границу по памяти. */
+  /**
+   * Разобрать документ теми же библиотеками, что и импорт.
+   *
+   * Файл читается целиком до границы по памяти: обрезать PDF или DOCX
+   * посередине нельзя, оба формата не разбираются по куску.
+   */
+  private async readDocument(
+    kind: 'pdf' | 'docx',
+    filePath: string,
+    fileSize: number | bigint | string | null,
+  ): Promise<string> {
+    const parsed = fileSize == null ? NaN : Number(fileSize);
+    const size = Number.isFinite(parsed) ? parsed : null;
+
+    if (size !== null && size > MAX_INDEX_BYTES) {
+      this.logger.debug(
+        `Документ ${filePath} больше границы разбора, пропущен`,
+      );
+      return '';
+    }
+
+    const buffer = await this.storageService.read(filePath);
+    if (buffer.length > MAX_INDEX_BYTES) return '';
+
+    const raw = kind === 'pdf' ? pdfText(buffer) : await docxText(buffer);
+    return raw.slice(0, MAX_TEXT_CHARS);
+  }
+
   private async readText(
     filePath: string,
     // bigint приходит из драйвера строкой, поэтому тип шире числового.
