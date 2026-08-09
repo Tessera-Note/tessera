@@ -56,7 +56,11 @@ export class FileTaskController {
     const query = this.db
       .selectFrom('fileTasks')
       .selectAll()
-      .where('spaceId', 'in', this.spaceMemberRepo.getUserSpaceIdsQuery(user.id));
+      .where(
+        'spaceId',
+        'in',
+        this.spaceMemberRepo.getUserSpaceIdsQuery(user.id),
+      );
 
     return executeWithCursorPagination(query, {
       perPage: pagination.limit,

@@ -58,7 +58,10 @@ export function resolveRelativeAttachmentPath(
   if (attachmentCandidates.has(mainRel)) {
     return mainRel;
   }
-  if (confluenceStripped !== mainRel && attachmentCandidates.has(confluenceStripped)) {
+  if (
+    confluenceStripped !== mainRel &&
+    attachmentCandidates.has(confluenceStripped)
+  ) {
     return confluenceStripped;
   }
   if (attachmentCandidates.has(fallback)) {

@@ -80,10 +80,7 @@ export async function formatImportHtml(opts: {
  *
  * Does NOT run rewriteInternalLinksToMentionHtml — that requires zip context.
  */
-export function normalizeImportHtml(
-  $: CheerioAPI,
-  $root: Cheerio<any>,
-): void {
+export function normalizeImportHtml($: CheerioAPI, $root: Cheerio<any>): void {
   notionFormatter($, $root);
   confluenceFormatter($, $root);
   xwikiFormatter($, $root);
@@ -178,9 +175,7 @@ function convertConfluenceExpands($: CheerioAPI, $root: Cheerio<any>) {
 
     const $details = $('<details>');
     $details.append($('<summary>').text(title));
-    $details.append(
-      $('<div>').attr('data-type', 'detailsContent').html(inner),
-    );
+    $details.append($('<div>').attr('data-type', 'detailsContent').html(inner));
 
     $container.replaceWith($details);
   });
@@ -533,7 +528,8 @@ export async function rewriteInternalLinksToMentionHtml(
     // другой страницы (`Страница_102.html#razdel`) не находится в карте
     // и остается сырым путем из архива, то есть битой ссылкой.
     const hashIndex = decodedRaw.indexOf('#');
-    const rawPath = hashIndex === -1 ? decodedRaw : decodedRaw.slice(0, hashIndex);
+    const rawPath =
+      hashIndex === -1 ? decodedRaw : decodedRaw.slice(0, hashIndex);
     const fragment = hashIndex === -1 ? '' : decodedRaw.slice(hashIndex);
 
     // Ссылка на якорь внутри той же страницы пути не имеет и трогать ее
@@ -544,14 +540,23 @@ export async function rewriteInternalLinksToMentionHtml(
       path.join(path.dirname(currentFilePath), rawPath),
     );
     const meta = filePathToPageMetaMap.get(resolved);
-    if (!meta) return;
+
+    if (!meta) {
+      // Цель не попала в набор импорта: относительный путь ведет к файлу,
+      // которого на сервере нет. Оставить его значило бы выдать заведомо
+      // битую ссылку за рабочую, и человек узнал бы правду только нажав.
+      //
+      // Ссылка разворачивается в обычный текст: адрес был осмыслен только
+      // внутри архива, а слова остаются на месте, и содержимое не теряется.
+      $a.replaceWith($('<span>').text($a.text()));
+      return;
+    }
 
     const linkText = $a.text().trim();
     // Ссылка с якорем не превращается в упоминание, даже когда текст совпал
     // с заголовком: упоминание ведет на страницу целиком и якорь теряется.
     const titleMatch =
-      !fragment &&
-      (linkText === meta.title || linkText === meta.title?.trim());
+      !fragment && (linkText === meta.title || linkText === meta.title?.trim());
 
     if (titleMatch) {
       const mentionId = v7();
