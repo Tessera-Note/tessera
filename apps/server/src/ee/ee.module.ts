@@ -5,6 +5,7 @@ import { TemplateModule } from './template/template.module';
 import { AiModule } from './ai/ai.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
 import { PageVerificationModule } from './page-verification/page-verification.module';
+import { PagePermissionModule } from './page-permission/page-permission.module';
 import { McpModule } from './mcp/mcp.module';
 import { EmbeddingModule } from './embedding/embedding.module';
 import { PdfExportModule } from './pdf-export/pdf-export.module';
@@ -24,6 +25,7 @@ import { ScimModule } from './scim/scim.module';
     AiModule,
     AiChatModule,
     PageVerificationModule,
+    PagePermissionModule,
     McpModule,
     EmbeddingModule,
     PdfExportModule,

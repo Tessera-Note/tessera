@@ -35,6 +35,7 @@ const AVAILABLE_FEATURES: readonly FeatureKey[] = [
   Feature.VIEWER_COMMENTS,
   Feature.COMMENT_RESOLUTION,
   Feature.PAGE_VERIFICATION,
+  Feature.PAGE_PERMISSIONS,
   Feature.ATTACHMENT_INDEXING,
   Feature.AUDIT_LOGS,
   Feature.DOCX_EXPORT,
@@ -51,20 +52,13 @@ const AVAILABLE_FEATURES: readonly FeatureKey[] = [
 /**
  * Возможности, у которых есть схема базы, интерфейс или точка загрузки, но нет
  * реализации. Каждая строка соответствует пункту docs/future-roadmap.md.
+ *
+ * Список пуст. Он существует как место для такой записи, а не как признак
+ * того, что незавершенных возможностей не бывает: объявить возможность
+ * доступной раньше, чем она работает, значит показать человеку интерфейс, где
+ * каждое действие заканчивается ошибкой.
  */
-const UNAVAILABLE_FEATURES: readonly FeatureKey[] = [
-  // Клиент зовет семь маршрутов правки прав страницы, сервер отвечает 404 на
-  // каждый: `/pages/restrict`, `/pages/add-permission`,
-  // `/pages/remove-permission`, `/pages/update-permission`,
-  // `/pages/remove-restriction`, `/pages/permission-info` и список участников.
-  // Проверка `canUserEditPage` в чтении работает, но задать ограничение нечем:
-  // таблицы `page_access` и `page_permissions` пусты и заполняться им нечем.
-  //
-  // Пока маршрутов нет, интерфейс предлагал вкладку доступа, где каждое
-  // действие заканчивается ошибкой. Возможность возвращается в доступные
-  // одной строкой, когда маршруты появятся.
-  Feature.PAGE_PERMISSIONS,
-];
+const UNAVAILABLE_FEATURES: readonly FeatureKey[] = [];
 
 @Injectable()
 export class LicenseCheckService {
