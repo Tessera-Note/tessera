@@ -3,18 +3,13 @@
  * Please do not edit it manually.
  */
 
-import type { ColumnType } from 'kysely';
+import type { ColumnType } from "kysely";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U>
-    ? ColumnType<S, I | undefined, U>
-    : ColumnType<T, T | undefined, T>;
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
-export type Int8 = ColumnType<
-  string,
-  bigint | number | string,
-  bigint | number | string
->;
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
 
 export type Json = JsonValue;
 
@@ -119,6 +114,7 @@ export interface AuthProviders {
   createdAt: Generated<Timestamp>;
   creatorId: string | null;
   deletedAt: Timestamp | null;
+  groupClaimName: string | null;
   groupSync: Generated<boolean>;
   id: Generated<string>;
   isEnabled: Generated<boolean>;
@@ -343,11 +339,13 @@ export interface PageAccess {
 
 export interface PageEmbeddings {
   attachmentId: string | null;
+  baseUrl: string | null;
   chunkIndex: Generated<number>;
   chunkLength: Generated<number>;
   chunkStart: Generated<number>;
   createdAt: Generated<Timestamp>;
   deletedAt: Timestamp | null;
+  driver: string | null;
   embedding: string;
   id: Generated<string>;
   metadata: Generated<Json>;
@@ -631,9 +629,13 @@ export interface WorkspaceAiSettings {
   driver: string | null;
   embeddingApiKeyEncrypted: string | null;
   embeddingBaseUrl: string | null;
+  embeddingDriver: string | null;
   embeddingModel: string | null;
   id: Generated<string>;
   updatedAt: Generated<Timestamp>;
+  webSearchApiKeyEncrypted: string | null;
+  webSearchBaseUrl: string | null;
+  webSearchDriver: string | null;
   workspaceId: string;
 }
 

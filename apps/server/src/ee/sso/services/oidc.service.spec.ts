@@ -120,6 +120,8 @@ function build(
     userRepo,
     { addUserToDefaultGroup: jest.fn() } as any,
     workspaceService,
+    // Синхронизация групп в этих проверках не участвует.
+    { sync: jest.fn(async () => {}) } as any,
   );
   jest.spyOn((ssoIdentity as any).logger, 'log').mockImplementation(() => {});
 

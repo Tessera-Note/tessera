@@ -13,6 +13,7 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { unauthorized } from '../../../common/errors/app-error';
+import { extractGroupNames } from './sso-group-sync.service';
 
 /**
  * Состояние потока входа. Точка возврата и момент выдачи.
@@ -346,6 +347,10 @@ export class SamlService {
       subject,
       email: email.toLowerCase(),
       name,
+      groupNames: extractGroupNames(
+        (profile?.attributes ?? profile) as any,
+        provider.groupClaimName,
+      ),
     });
 
     const authToken = await this.sessionService.createSessionAndToken(user);

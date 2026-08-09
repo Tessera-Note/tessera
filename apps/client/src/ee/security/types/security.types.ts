@@ -20,6 +20,7 @@ export interface IAuthProvider {
   allowSignup: boolean;
   isEnabled: boolean;
   groupSync: boolean;
+  groupClaimName?: string;
   creatorId: string;
   workspaceId: string;
   createdAt: Date;

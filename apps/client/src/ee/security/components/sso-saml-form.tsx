@@ -10,6 +10,7 @@ import {
   Switch,
   Textarea,
   TextInput,
+  Text,
 } from "@mantine/core";
 import {
   buildCallbackUrl,
@@ -27,6 +28,8 @@ const ssoSchema = z.object({
   samlCertificate: z.string().min(1, "SAML Idp Certificate is required"),
   isEnabled: z.boolean(),
   allowSignup: z.boolean(),
+  groupSync: z.boolean(),
+  groupClaimName: z.string(),
 });
 
 type SSOFormValues = z.infer<typeof ssoSchema>;
@@ -46,6 +49,8 @@ export function SsoSamlForm({ provider, onClose }: SsoFormProps) {
       samlCertificate: provider.samlCertificate || "",
       isEnabled: provider.isEnabled,
       allowSignup: provider.allowSignup,
+      groupSync: provider.groupSync ?? false,
+      groupClaimName: provider.groupClaimName || "",
     },
     validate: zod4Resolver(ssoSchema),
   });
@@ -75,6 +80,14 @@ export function SsoSamlForm({ provider, onClose }: SsoFormProps) {
     }
     if (form.isDirty("allowSignup")) {
       ssoData.allowSignup = values.allowSignup;
+    }
+
+    if (form.isDirty("groupSync")) {
+      ssoData.groupSync = values.groupSync;
+    }
+
+    if (form.isDirty("groupClaimName")) {
+      ssoData.groupClaimName = values.groupClaimName;
     }
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
@@ -123,6 +136,33 @@ export function SsoSamlForm({ provider, onClose }: SsoFormProps) {
             maxRows={5}
             {...form.getInputProps("samlCertificate")}
           />
+
+          <Group justify="space-between">
+            <div>
+              <div>{t("Sync groups")}</div>
+              <Text size="xs" c="dimmed">
+                {t(
+                  "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.",
+                )}
+              </Text>
+            </div>
+            <Switch
+              className={classes.switch}
+              checked={form.values.groupSync}
+              {...form.getInputProps("groupSync")}
+            />
+          </Group>
+
+          {form.values.groupSync && (
+            <TextInput
+              label={t("Group claim")}
+              description={t(
+                "Name of the claim that carries group names. Leave empty for the usual one.",
+              )}
+              placeholder="groups"
+              {...form.getInputProps("groupClaimName")}
+            />
+          )}
 
           <Group justify="space-between">
             <div>{t("Allow signup")}</div>

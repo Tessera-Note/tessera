@@ -2,7 +2,15 @@ import React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
-import { Box, Button, Group, Stack, Switch, TextInput } from "@mantine/core";
+import {
+  Box,
+  Button,
+  Group,
+  Stack,
+  Switch,
+  TextInput,
+  Text,
+} from "@mantine/core";
 import { buildCallbackUrl } from "@/ee/security/sso.utils.ts";
 import classes from "@/ee/security/components/sso.module.css";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
@@ -17,6 +25,8 @@ const ssoSchema = z.object({
   oidcClientSecret: z.string().min(1, "Client secret is required"),
   isEnabled: z.boolean(),
   allowSignup: z.boolean(),
+  groupSync: z.boolean(),
+  groupClaimName: z.string(),
 });
 
 type SSOFormValues = z.infer<typeof ssoSchema>;
@@ -37,6 +47,8 @@ export function SsoOIDCForm({ provider, onClose }: SsoFormProps) {
       oidcClientSecret: provider.oidcClientSecret || "",
       isEnabled: provider.isEnabled,
       allowSignup: provider.allowSignup,
+      groupSync: provider.groupSync ?? false,
+      groupClaimName: provider.groupClaimName || "",
     },
     validate: zod4Resolver(ssoSchema),
   });
@@ -67,6 +79,14 @@ export function SsoOIDCForm({ provider, onClose }: SsoFormProps) {
     }
     if (form.isDirty("allowSignup")) {
       ssoData.allowSignup = values.allowSignup;
+    }
+
+    if (form.isDirty("groupSync")) {
+      ssoData.groupSync = values.groupSync;
+    }
+
+    if (form.isDirty("groupClaimName")) {
+      ssoData.groupClaimName = values.groupClaimName;
     }
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
@@ -110,6 +130,33 @@ export function SsoOIDCForm({ provider, onClose }: SsoFormProps) {
             placeholder="e.g OCSPX-zVCkotEPGRnJA1XKUrbgjlf7PQQ-"
             {...form.getInputProps("oidcClientSecret")}
           />
+
+          <Group justify="space-between">
+            <div>
+              <div>{t("Sync groups")}</div>
+              <Text size="xs" c="dimmed">
+                {t(
+                  "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.",
+                )}
+              </Text>
+            </div>
+            <Switch
+              className={classes.switch}
+              checked={form.values.groupSync}
+              {...form.getInputProps("groupSync")}
+            />
+          </Group>
+
+          {form.values.groupSync && (
+            <TextInput
+              label={t("Group claim")}
+              description={t(
+                "Name of the claim that carries group names. Leave empty for the usual one.",
+              )}
+              placeholder="groups"
+              {...form.getInputProps("groupClaimName")}
+            />
+          )}
 
           <Group justify="space-between">
             <div>{t("Allow signup")}</div>

@@ -74,6 +74,9 @@ export class CreateSsoProviderDto {
   @IsBoolean() @IsOptional() allowSignup?: boolean;
   @IsBoolean() @IsOptional() isEnabled?: boolean;
   @IsBoolean() @IsOptional() groupSync?: boolean;
+
+  /** Имя утверждения с группами. Пусто означает `groups`, у LDAP `memberOf`. */
+  @IsString() @IsOptional() @MaxLength(200) groupClaimName?: string;
 }
 
 export class UpdateSsoProviderDto extends CreateSsoProviderDto {

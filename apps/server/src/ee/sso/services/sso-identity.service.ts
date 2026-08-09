@@ -9,6 +9,7 @@ import { executeTx } from '@tessera/db/utils';
 import { UserRole } from '../../../common/helpers/types/permission';
 import { WorkspaceService } from '../../../core/workspace/services/workspace.service';
 import { badRequest, unauthorized } from '../../../common/errors/app-error';
+import { SsoGroupSyncService } from './sso-group-sync.service';
 
 /**
  * Общая часть входа через внешнего провайдера, не зависящая от протокола.
@@ -28,6 +29,7 @@ export class SsoIdentityService {
     private readonly userRepo: UserRepo,
     private readonly groupUserRepo: GroupUserRepo,
     private readonly workspaceService: WorkspaceService,
+    private readonly groupSync: SsoGroupSyncService,
   ) {}
 
   /**
@@ -107,8 +109,23 @@ export class SsoIdentityService {
     subject: string;
     email: string;
     name?: string;
+    /**
+     * Группы, которые прислал поставщик. Синхронизация идет после того, как
+     * человек определен: до этого неизвестно, чьи это группы.
+     */
+    groupNames?: string[];
   }): Promise<User> {
     const { provider, workspace, subject, email, name } = opts;
+
+    const withGroups = async (user: User): Promise<User> => {
+      await this.groupSync.sync({
+        userId: user.id,
+        workspaceId: workspace.id,
+        provider,
+        groupNames: opts.groupNames ?? [],
+      });
+      return user;
+    };
 
     const linked = await this.db
       .selectFrom('authAccounts')
@@ -124,7 +141,7 @@ export class SsoIdentityService {
       if (!user) {
         throw unauthorized('error.sso.account_unavailable');
       }
-      return user;
+      return withGroups(user);
     }
 
     const existing = await this.userRepo.findByEmail(email, workspace.id);
@@ -161,7 +178,9 @@ export class SsoIdentityService {
       throw unauthorized('error.sso.signup_disabled');
     }
 
-    return this.createUser({ provider, workspace, subject, email, name });
+    return withGroups(
+      await this.createUser({ provider, workspace, subject, email, name }),
+    );
   }
 
   /**

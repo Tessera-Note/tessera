@@ -30,6 +30,8 @@ const ssoSchema = z.object({
   ldapTlsCaCert: z.string().optional(),
   isEnabled: z.boolean(),
   allowSignup: z.boolean(),
+  groupSync: z.boolean(),
+  groupClaimName: z.string(),
 });
 
 type SSOFormValues = z.infer<typeof ssoSchema>;
@@ -56,6 +58,8 @@ export function SsoLDAPForm({ provider, onClose }: SsoFormProps) {
       ldapTlsCaCert: provider.ldapTlsCaCert || "",
       isEnabled: provider.isEnabled,
       allowSignup: provider.allowSignup,
+      groupSync: provider.groupSync ?? false,
+      groupClaimName: provider.groupClaimName || "",
     },
     validate: zod4Resolver(ssoSchema),
   });
@@ -93,6 +97,14 @@ export function SsoLDAPForm({ provider, onClose }: SsoFormProps) {
     }
     if (form.isDirty("allowSignup")) {
       ssoData.allowSignup = values.allowSignup;
+    }
+
+    if (form.isDirty("groupSync")) {
+      ssoData.groupSync = values.groupSync;
+    }
+
+    if (form.isDirty("groupClaimName")) {
+      ssoData.groupClaimName = values.groupClaimName;
     }
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
@@ -185,6 +197,33 @@ export function SsoLDAPForm({ provider, onClose }: SsoFormProps) {
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
+
+          <Group justify="space-between">
+            <div>
+              <div>{t("Sync groups")}</div>
+              <Text size="xs" c="dimmed">
+                {t(
+                  "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.",
+                )}
+              </Text>
+            </div>
+            <Switch
+              className={classes.switch}
+              checked={form.values.groupSync}
+              {...form.getInputProps("groupSync")}
+            />
+          </Group>
+
+          {form.values.groupSync && (
+            <TextInput
+              label={t("Group claim")}
+              description={t(
+                "Name of the claim that carries group names. Leave empty for the usual one.",
+              )}
+              placeholder="memberOf"
+              {...form.getInputProps("groupClaimName")}
+            />
+          )}
 
           <Group justify="space-between">
             <div>{t("Allow signup")}</div>

@@ -11,6 +11,7 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { badRequest, unauthorized } from '../../../common/errors/app-error';
+import { extractGroupNames } from './sso-group-sync.service';
 
 /**
  * Состояние запроса на вход, живет между перенаправлением и обратным вызовом.
@@ -250,6 +251,7 @@ export class OidcService {
       subject,
       email: email.toLowerCase(),
       name,
+      groupNames: extractGroupNames(claims as any, provider.groupClaimName),
     });
 
     const authToken = await this.sessionService.createSessionAndToken(user);

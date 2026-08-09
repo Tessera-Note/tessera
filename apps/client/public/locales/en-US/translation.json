@@ -1804,5 +1804,9 @@
   "error.integrations.import_extension_unsupported": "Invalid import file extension. Supported: {{supported}}.",
   "not searchable": "not searchable",
   "Text could not be extracted from this file, so search will not find it by content.": "Text could not be extracted from this file, so search will not find it by content.",
-  "Filter by verifier": "Filter by verifier"
+  "Filter by verifier": "Filter by verifier",
+  "Sync groups": "Sync groups",
+  "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.": "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.",
+  "Group claim": "Group claim",
+  "Name of the claim that carries group names. Leave empty for the usual one.": "Name of the claim that carries group names. Leave empty for the usual one."
 }

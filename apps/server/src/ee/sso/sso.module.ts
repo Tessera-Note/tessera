@@ -7,6 +7,7 @@ import { OidcController } from './oidc.controller';
 import { SsoService } from './services/sso.service';
 import { OidcService } from './services/oidc.service';
 import { SsoIdentityService } from './services/sso-identity.service';
+import { SsoGroupSyncService } from './services/sso-group-sync.service';
 import { SamlService } from './services/saml.service';
 import { SamlRequestCache } from './services/saml-request-cache.service';
 import { LdapService } from './services/ldap.service';
@@ -25,6 +26,7 @@ import { SamlController } from './saml.controller';
     GoogleController,
   ],
   providers: [
+    SsoGroupSyncService,
     SsoService,
     OidcService,
     SamlService,

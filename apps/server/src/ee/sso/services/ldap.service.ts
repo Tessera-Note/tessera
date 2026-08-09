@@ -16,6 +16,7 @@ import {
   serviceUnavailable,
   unauthorized,
 } from '../../../common/errors/app-error';
+import { extractGroupNames } from './sso-group-sync.service';
 
 /** Код результата LDAP для неверных учетных данных, RFC 4511. */
 const INVALID_CREDENTIALS = 49;
@@ -264,6 +265,12 @@ export class LdapService {
       subject,
       email: email.toLowerCase(),
       name: name || undefined,
+      // У каталога группы почти всегда в `memberOf`, и приходят они полными
+      // различительными именами.
+      groupNames: extractGroupNames(
+        entry as any,
+        provider.groupClaimName || 'memberOf',
+      ),
     });
 
     const authToken = await this.sessionService.createSessionAndToken(user);

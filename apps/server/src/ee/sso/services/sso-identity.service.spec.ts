@@ -23,7 +23,14 @@ function build(provider: any) {
   };
 
   const db: any = { selectFrom: () => chain };
-  const service = new SsoIdentityService(db, {} as any, {} as any, {} as any);
+  // Синхронизация групп в этих проверках не участвует.
+  const service = new SsoIdentityService(
+    db,
+    {} as any,
+    {} as any,
+    {} as any,
+    { sync: jest.fn(async () => {}) } as any,
+  );
 
   return { service, conditions };
 }
@@ -118,7 +125,13 @@ function buildResolve(opts: { linked?: any; bound?: any; existing?: any }) {
     findByEmail: jest.fn(async () => opts.existing),
   };
 
-  const service = new SsoIdentityService(db, userRepo, {} as any, {} as any);
+  const service = new SsoIdentityService(
+    db,
+    userRepo,
+    {} as any,
+    {} as any,
+    { sync: jest.fn(async () => {}) } as any,
+  );
   jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
 
   return { service, inserted };

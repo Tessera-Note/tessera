@@ -247,6 +247,7 @@ export class SsoService {
       isEnabled: dto.isEnabled ?? false,
       allowSignup: dto.allowSignup ?? false,
       groupSync: dto.groupSync ?? false,
+      groupClaimName: dto.groupClaimName || null,
       creatorId: user.id,
       workspaceId: workspace.id,
       createdAt: now,

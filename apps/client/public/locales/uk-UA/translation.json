@@ -1822,5 +1822,9 @@
   "error.integrations.import_extension_unsupported": "Таке розширення не імпортується. Припустимі: {{supported}}.",
   "not searchable": "пошук не знайде",
   "Text could not be extracted from this file, so search will not find it by content.": "З цього файлу не вдалося витягти текст, тому пошук за вмістом його не знайде.",
-  "Filter by verifier": "Відбір за перевіряльником"
+  "Filter by verifier": "Відбір за перевіряльником",
+  "Sync groups": "Синхронізувати групи",
+  "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.": "Склад груп робочого простору, чиє ім'я збігається з групою в постачальника. Зіставлення за іменем, нові групи не створюються.",
+  "Group claim": "Твердження з групами",
+  "Name of the claim that carries group names. Leave empty for the usual one.": "Ім'я твердження, у якому приходять назви груп. Порожньо означає звичайне."
 }
