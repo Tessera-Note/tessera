@@ -309,6 +309,29 @@ export class SpaceMemberRepo {
    * if the user has no space permission it should return an empty array,
    * maybe we should throw an exception?
    */
+  /**
+   * Сбросить кеш ролей людей в пространстве.
+   *
+   * Кеш ролей живет пять секунд, и пока он вовсе не работал, снятие права
+   * действовало мгновенно. С работающим кешем срок жизни превратился бы в
+   * окно, в котором снятое право продолжает действовать, поэтому кеш
+   * сбрасывается явно на каждом изменении членства, а срок жизни остается
+   * лишь запасной сеткой.
+   *
+   * Ключ зависит от человека и пространства, поэтому круг затронутых ключей
+   * известен точно: перечислять нечего.
+   */
+  async invalidateSpaceRoles(
+    userIds: string[],
+    spaceId: string,
+  ): Promise<void> {
+    await Promise.all(
+      [...new Set(userIds)].map((userId) =>
+        this.cacheManager.del(CacheKey.SPACE_ROLES(userId, spaceId)),
+      ),
+    );
+  }
+
   async getUserSpaceRoles(
     userId: string,
     spaceId: string,

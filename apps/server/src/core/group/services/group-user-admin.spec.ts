@@ -17,6 +17,7 @@ function build(remainingAdmins: number, currentAdmins = 1) {
       opts ? remainingAdmins : currentAdmins,
     ),
     lockSpaceForAdminCheck: jest.fn(async () => {}),
+    invalidateSpaceRoles: jest.fn(async () => {}),
   };
   const userRepo: any = {
     findById: jest.fn(async () => ({ id: 'u-1', name: 'Кто-то' })),

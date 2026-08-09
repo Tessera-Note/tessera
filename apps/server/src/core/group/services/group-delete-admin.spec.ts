@@ -23,6 +23,7 @@ function build(remainingAdmins: number, currentAdmins = 1) {
       opts ? remainingAdmins : currentAdmins,
     ),
     lockSpaceForAdminCheck: jest.fn(async () => {}),
+    invalidateSpaceRoles: jest.fn(async () => {}),
   };
   const watcherRepo: any = { deleteByUsersWithoutSpaceAccess: jest.fn(async () => {}) };
   const favoriteRepo: any = { deleteByUsersWithoutSpaceAccess: jest.fn(async () => {}) };

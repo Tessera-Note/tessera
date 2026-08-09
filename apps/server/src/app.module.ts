@@ -23,6 +23,7 @@ import { RedisModule } from '@nestjs-labs/nestjs-ioredis';
 import { RedisConfigService } from './integrations/redis/redis-config.service';
 import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
+import { Keyv } from 'keyv';
 import { LoggerModule } from './common/logger/logger.module';
 import { ClsModule } from 'nestjs-cls';
 import { NoopAuditModule } from './integrations/audit/audit.module';
@@ -77,7 +78,12 @@ try {
 
         return {
           ttl: 5 * 1000,
-          stores: [new KeyvRedis(redisUrl)],
+          // Стор оборачивается в `Keyv`, а не передается сырым. Замерено:
+          // с сырым адаптером `set` не падает, но и ничего не записывает, а
+          // `get` всегда возвращает `undefined`. Кеш выглядел работающим,
+          // при этом попадание было нулевым, а каждое чтение тратило
+          // бесполезный round-trip к Redis.
+          stores: [new Keyv({ store: new KeyvRedis(redisUrl) })],
         };
       },
       inject: [EnvironmentService],

@@ -292,6 +292,12 @@ export class SpaceMemberService {
     // список пространств вычисляется при подключении сокета и сам не
     // пересматривается, поэтому снятый участник продолжал получать события
     // пространства до переподключения.
+    // Кеш ролей сбрасывается там же, где пересчитываются комнаты: оба
+    // производны от членства и обязаны меняться вместе с ним.
+    await this.spaceMemberRepo.invalidateSpaceRoles(
+      affectedUserIds,
+      dto.spaceId,
+    );
     await this.wsService.syncSpaceMembership(affectedUserIds, dto.spaceId);
 
     this.auditService.log({

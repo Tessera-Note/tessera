@@ -1,6 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@tessera/db/types/kysely.types';
 import { dbOrTx } from '@tessera/db/utils';
@@ -19,11 +17,6 @@ import {
   executeWithCursorPagination,
 } from '@tessera/db/pagination/cursor-pagination';
 import { PagePermissionMember } from './types/page-permission.types';
-import { withCache } from '../../../common/helpers/with-cache';
-import {
-  CacheKey,
-  PERMISSION_CACHE_TTL_MS,
-} from '../../../common/helpers/cache-keys';
 
 export { PagePermissionMember } from './types/page-permission.types';
 
@@ -32,7 +25,6 @@ export class PagePermissionRepo {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly groupRepo: GroupRepo,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async findPageAccessByPageId(
@@ -424,11 +416,19 @@ export class PagePermissionRepo {
     canAccess: boolean;
     canEdit: boolean;
   }> {
-    return withCache(
-      this.cacheManager,
-      CacheKey.PAGE_CAN_EDIT(userId, pageId),
-      PERMISSION_CACHE_TTL_MS,
-      async () => {
+    // Без кеша намеренно.
+    //
+    // Ключ этого кеша зависит от человека и страницы, а изменение прав на
+    // странице затрагивает всех, кто ее видит, и все ее потомки: круг
+    // затронутых ключей не перечислить, а значит нечем и сбросить. Прежний
+    // срок жизни в пять секунд был не защитой, а окном, в котором снятое
+    // право продолжало действовать.
+    //
+    // Пока кеш вообще не работал, окна не было: каждая проверка шла в базу.
+    // Включать его вместе с окном нельзя, поэтому проверка идет в базу и
+    // дальше, зато без бесполезного обращения к Redis. Возврат кеша требует
+    // ключа с поколением на пространство, это отдельная работа.
+
         const result = await sql<{
           canAccess: boolean | null;
           canEdit: boolean | null;
@@ -457,17 +457,15 @@ export class PagePermissionRepo {
             )
         `.execute(this.db);
 
-        const row = result.rows[0];
-        if (!row || row.canAccess === null) {
-          return { hasAnyRestriction: false, canAccess: true, canEdit: true };
-        }
-        return {
-          hasAnyRestriction: true,
-          canAccess: row.canAccess,
-          canEdit: row.canAccess && (row.canEdit ?? false),
-        };
-      },
-    );
+    const row = result.rows[0];
+    if (!row || row.canAccess === null) {
+      return { hasAnyRestriction: false, canAccess: true, canEdit: true };
+    }
+    return {
+      hasAnyRestriction: true,
+      canAccess: row.canAccess,
+      canEdit: row.canAccess && (row.canEdit ?? false),
+    };
   }
 
   /**

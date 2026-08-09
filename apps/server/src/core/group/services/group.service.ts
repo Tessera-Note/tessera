@@ -238,6 +238,7 @@ export class GroupService {
     // пересчитываются, иначе они продолжали бы получать события до
     // переподключения.
     for (const spaceId of spaceIds) {
+      await this.spaceMemberRepo.invalidateSpaceRoles(userIds, spaceId);
       await this.wsService.syncSpaceMembership(userIds, spaceId);
     }
 
