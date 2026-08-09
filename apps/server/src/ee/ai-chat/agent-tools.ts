@@ -61,13 +61,14 @@ export const searchWebSchema = z.object({
 export const createPageSchema = z.object({
   title: z.string().min(1).describe('Title of the new page'),
   content: z.string().describe('Page body in markdown'),
-  spaceId: z
-    .string()
-    .optional()
-    .describe('Space to create the page in. Omit to use the current space'),
+  // Пространство не аргумент: выбрать его модель не может, идентификаторов
+  // пространств она не видит, а объявленный и молча игнорируемый аргумент
+  // приводит к тому, что модель заполняет его наугад.
   parentPageId: pageReference
     .optional()
-    .describe('Parent page. Omit to create at the top level'),
+    .describe(
+      'Nest the new page under this one. Pass it only when the user named the parent page. Omit it otherwise — omitting creates the page at the top level, which is the usual case',
+    ),
 });
 
 export const editPageSchema = z.object({

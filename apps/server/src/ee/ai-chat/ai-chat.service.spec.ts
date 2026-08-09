@@ -505,3 +505,49 @@ describe('AiChatService.sendMessage mentioned-page authorization', () => {
     expect(call.system).not.toContain('BETA_RESTRICTED_CONTENT');
   });
 });
+
+/**
+ * Замечено на живом разговоре: страница создалась с четвертой попытки, а
+ * человек прочел приписку «правки не применены». Модель получает отказ
+ * инструмента и пробует снова, поэтому приписка обязана считать то, что
+ * осталось несделанным к концу хода, а не каждую неудачную попытку.
+ */
+describe('AiChatService, приписка об отказе', () => {
+  const undone = (outcomes: any[]) => {
+    const succeeded = new Set(
+      outcomes.filter((o) => o.applied).map((o) => o.action),
+    );
+    return outcomes.filter((o) => !o.applied && !succeeded.has(o.action));
+  };
+
+  it('удавшаяся со второй попытки правка приписки не порождает', () => {
+    expect(
+      undone([
+        { action: 'create', applied: false, reason: 'Page not found' },
+        { action: 'create', applied: true, pageId: 'p-1' },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('совсем не сделанное остается в приписке', () => {
+    expect(
+      undone([
+        { action: 'create', applied: true, pageId: 'p-1' },
+        { action: 'title', applied: false, reason: 'forbidden' },
+      ]).map((o: any) => o.action),
+    ).toEqual(['title']);
+  });
+
+  it('несколько неудач одного действия не удваивают приписку', () => {
+    expect(
+      undone([
+        { action: 'content', applied: false },
+        { action: 'content', applied: false },
+      ]),
+    ).toHaveLength(2);
+  });
+
+  it('без отказов приписки нет', () => {
+    expect(undone([{ action: 'content', applied: true }])).toEqual([]);
+  });
+});

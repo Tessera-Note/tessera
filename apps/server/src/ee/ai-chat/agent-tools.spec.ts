@@ -38,6 +38,29 @@ describe('Инструменты агента', () => {
     expect(Object.keys(json.properties ?? {}).length).toBeGreaterThan(0);
   });
 
+  /**
+   * Объявленный и молча игнорируемый аргумент модель заполняет наугад:
+   * замечено на живом разговоре, где создание страницы отказало трижды из-за
+   * подставленного родителя. Пространство служба выбирает сама.
+   */
+  it('у создания страницы нет аргументов, которых служба не читает', () => {
+    const json = asSchema(createPageSchema as any).jsonSchema as any;
+
+    expect(Object.keys(json.properties).sort()).toEqual([
+      'content',
+      'parentPageId',
+      'title',
+    ]);
+    expect(json.required).toEqual(expect.arrayContaining(['title', 'content']));
+    expect(json.required).not.toContain('parentPageId');
+  });
+
+  it('вложение под родителя описано как редкий случай', () => {
+    const json = asSchema(createPageSchema as any).jsonSchema as any;
+
+    expect(json.properties.parentPageId.description).toMatch(/omit/i);
+  });
+
   it('обязательные поля объявлены обязательными', () => {
     const search = asSchema(searchPagesSchema as any).jsonSchema as any;
     const edit = asSchema(editPageSchema as any).jsonSchema as any;

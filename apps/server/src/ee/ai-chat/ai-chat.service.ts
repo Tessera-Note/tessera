@@ -565,10 +565,21 @@ export class AiChatService {
       }
     }
 
-    // Отказ теперь возвращается модели внутри разговора, и объясняет его она
-    // сама. Приписка остается страховкой: молчаливый отказ недопустим, а
-    // положиться на то, что модель непременно о нем скажет, нельзя.
-    const refused = outcomes.filter((edit) => !edit.applied);
+    // Отказ теперь возвращается модели внутри разговора, и она может
+    // повторить вызов иначе. Приписка остается страховкой на случай, когда
+    // сделать не удалось совсем: молчаливый отказ недопустим.
+    //
+    // Считается только то, что осталось несделанным к концу хода. Модель
+    // получает отказ и пробует снова, и приписка о первой неудачной попытке
+    // прямо противоречила бы ответу: замечено на живом разговоре, где
+    // страница была создана с четвертой попытки, а человек прочел
+    // предупреждение, что правки не применены.
+    const succeededActions = new Set(
+      outcomes.filter((edit) => edit.applied).map((edit) => edit.action),
+    );
+    const refused = outcomes.filter(
+      (edit) => !edit.applied && !succeededActions.has(edit.action),
+    );
     if (refused.length > 0) {
       const notice = editRefusalNotice(
         user.locale,
@@ -863,11 +874,15 @@ export class AiChatService {
         workspaceId,
       );
       if (!parent.allowed) {
+        // Отказ обязан говорить, что делать дальше. Иначе модель повторяет
+        // тот же вызов с той же негодной ссылкой: замечено на живом разговоре,
+        // где создание отказало трижды подряд, прежде чем родитель был
+        // опущен и страница создалась.
         return {
           pageId: String(command.parentPageId),
           action: 'create',
           applied: false,
-          reason: parent.reason,
+          reason: `${parent.reason}. Retry without parentPageId to create the page at the top level`,
           refusal: parent.refusal,
         };
       }
