@@ -22,6 +22,21 @@ import {
 } from './dto/page-verification.dto';
 import { SpaceMemberRepo } from '@tessera/db/repos/space/space-member.repo';
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import {
+  QueueJob,
+  QueueName,
+} from '../../integrations/queue/constants/queue.constants';
+
+/**
+ * За сколько до срока предупреждать проверяющих.
+ *
+ * Обработчик сам отсеивает тех, кому уже отправлял, по записям в
+ * `notifications`, поэтому повторные такты внутри окна ничего не рассылают.
+ * Отдельной отметки в схеме для этого не заводится.
+ */
+const EXPIRY_LEAD_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Права на действия с верификацией страницы. */
 type VerificationPermissions = {
@@ -118,6 +133,8 @@ export class PageVerificationService {
     private readonly pageAccessService: PageAccessService,
     private readonly spaceMemberRepo: SpaceMemberRepo,
     private readonly pagePermissionRepo: PagePermissionRepo,
+    @InjectQueue(QueueName.NOTIFICATION_QUEUE)
+    private readonly notificationQueue: Queue,
   ) {}
 
   /**
@@ -547,7 +564,7 @@ export class PageVerificationService {
 
     const verification = await this.db
       .selectFrom('pageVerifications')
-      .select(['id', 'mode', 'periodAmount', 'periodUnit'])
+      .select(['id', 'spaceId', 'mode', 'periodAmount', 'periodUnit'])
       .where('pageId', '=', pageId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
@@ -572,6 +589,18 @@ export class PageVerificationService {
       } as any)
       .where('id', '=', verification.id)
       .execute();
+
+    // Подтвердивший в число получателей не входит: он и есть тот, кто
+    // совершил действие, и уведомлять его о собственном нажатии незачем.
+    await this.notifyVerification(QueueJob.PAGE_VERIFIED_NOTIFICATION, {
+      pageId,
+      spaceId: verification.spaceId,
+      workspaceId,
+      actorId: user.id,
+      verifierIds: (await this.verifierIdsOf(verification.id)).filter(
+        (id) => id !== user.id,
+      ),
+    });
 
     return { success: true };
   }
@@ -615,6 +644,17 @@ export class PageVerificationService {
       .where('id', '=', verification.id)
       .execute();
 
+    await this.notifyVerification(
+      QueueJob.PAGE_APPROVAL_REQUESTED_NOTIFICATION,
+      {
+        pageId,
+        spaceId: verification.spaceId,
+        workspaceId,
+        actorId: user.id,
+        verifierIds: await this.verifierIdsOf(verification.id),
+      },
+    );
+
     return { success: true };
   }
 
@@ -655,6 +695,22 @@ export class PageVerificationService {
       .where('id', '=', verification.id)
       .execute();
 
+    // Отказ адресован тому, кто отправлял на утверждение. Если запись об этом
+    // потеряна, уведомлять некого, и задача не ставится.
+    if (verification.requestedById) {
+      await this.notifyVerification(
+        QueueJob.PAGE_APPROVAL_REJECTED_NOTIFICATION,
+        {
+          pageId: dto.pageId,
+          spaceId: verification.spaceId,
+          workspaceId,
+          actorId: user.id,
+          requestedById: verification.requestedById,
+          comment: dto.comment,
+        },
+      );
+    }
+
     return { success: true };
   }
 
@@ -679,30 +735,63 @@ export class PageVerificationService {
   @Interval('page-verification-expiry', 60 * 60 * 1000)
   async expireOverdueVerifications(): Promise<number> {
     try {
-      return await executeTx(this.db, async (trx) => {
-        const locked = await this.tryAcquireExpiryLock(trx);
+      const { expiredIds, expiringIds } = await executeTx(
+        this.db,
+        async (trx) => {
+          const locked = await this.tryAcquireExpiryLock(trx);
 
-        if (!locked) {
-          this.logger.debug(
-            'Проход по срокам верификации пропущен: занят другой репликой',
-          );
-          return 0;
-        }
+          if (!locked) {
+            this.logger.debug(
+              'Проход по срокам верификации пропущен: занят другой репликой',
+            );
+            return { expiredIds: [], expiringIds: [] };
+          }
 
-        const result = await trx
-          .updateTable('pageVerifications')
-          .set({ status: 'expired', updatedAt: new Date() } as any)
-          .where('status', '=', 'verified')
-          .where('expiresAt', 'is not', null)
-          .where('expiresAt', '<=', new Date())
-          .executeTakeFirst();
+          const expired = await trx
+            .updateTable('pageVerifications')
+            .set({ status: 'expired', updatedAt: new Date() } as any)
+            .where('status', '=', 'verified')
+            .where('expiresAt', 'is not', null)
+            .where('expiresAt', '<=', new Date())
+            .returning('id')
+            .execute();
 
-        const expired = Number(result?.numUpdatedRows ?? 0);
-        if (expired > 0) {
-          this.logger.log(`Проверок переведено в expired: ${expired}`);
-        }
-        return expired;
-      });
+          // Предупреждение заранее ищется в том же проходе и под той же
+          // блокировкой: иначе две реплики отобрали бы один и тот же набор.
+          const expiring = await trx
+            .selectFrom('pageVerifications')
+            .select('id')
+            .where('status', '=', 'verified')
+            .where('type', '=', 'expiring')
+            .where('expiresAt', 'is not', null)
+            .where('expiresAt', '>', new Date())
+            .where('expiresAt', '<=', new Date(Date.now() + EXPIRY_LEAD_MS))
+            .execute();
+
+          return {
+            expiredIds: expired.map((row) => row.id),
+            expiringIds: expiring.map((row) => row.id),
+          };
+        },
+      );
+
+      // Постановка после фиксации транзакции: обработчик читает запись из
+      // базы заново и до фиксации увидел бы прежнее состояние.
+      for (const verificationId of expiredIds) {
+        await this.notifyVerification(QueueJob.PAGE_VERIFICATION_EXPIRED, {
+          verificationId,
+        });
+      }
+      for (const verificationId of expiringIds) {
+        await this.notifyVerification(QueueJob.PAGE_VERIFICATION_EXPIRING, {
+          verificationId,
+        });
+      }
+
+      if (expiredIds.length > 0) {
+        this.logger.log(`Проверок переведено в expired: ${expiredIds.length}`);
+      }
+      return expiredIds.length;
     } catch (err) {
       // Планировщик не должен ронять приложение: такт пропускается,
       // следующий пройдет через час.
@@ -720,6 +809,37 @@ export class PageVerificationService {
    * Вынесено отдельным методом, чтобы поведение при занятой блокировке
    * проверялось тестом, а не только на живой базе с двумя репликами.
    */
+  /**
+   * Поставить уведомление в очередь.
+   *
+   * Отказ очереди не отменяет уже совершенного действия: страница
+   * подтверждена, отправлена или отклонена, и откатывать это из-за
+   * недоступного Redis нельзя. Поэтому ошибка только записывается в журнал.
+   */
+  private async notifyVerification(
+    job: QueueJob,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.notificationQueue.add(job, data, { removeOnComplete: true });
+    } catch (err) {
+      this.logger.error(
+        `Уведомление ${job} не поставлено в очередь: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  private async verifierIdsOf(verificationId: string): Promise<string[]> {
+    const rows = await this.db
+      .selectFrom('pageVerifiers')
+      .select('userId')
+      .where('pageVerificationId', '=', verificationId)
+      .execute();
+    return rows.map((row) => row.userId);
+  }
+
   private async tryAcquireExpiryLock(trx: any): Promise<boolean> {
     const lock = await sql<{ locked: boolean }>`
       SELECT pg_try_advisory_xact_lock(${EXPIRY_LOCK_KEY}) AS locked
@@ -731,7 +851,15 @@ export class PageVerificationService {
   private async requireVerification(pageId: string, workspaceId: string) {
     const verification = await this.db
       .selectFrom('pageVerifications')
-      .select(['id', 'status', 'mode', 'periodAmount', 'periodUnit'])
+      .select([
+        'id',
+        'spaceId',
+        'status',
+        'requestedById',
+        'mode',
+        'periodAmount',
+        'periodUnit',
+      ])
       .where('pageId', '=', pageId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();

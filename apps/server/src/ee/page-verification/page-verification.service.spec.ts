@@ -56,15 +56,17 @@ function build(
   const pagePermissionRepo: any = {
     filterAccessiblePageIds: jest.fn().mockResolvedValue([]),
   };
+  const notificationQueue: any = { add: jest.fn(async () => {}) };
   const service = new PageVerificationService(
     db,
     pageRepo,
     pageAccessService,
     spaceMemberRepo,
     pagePermissionRepo,
+    notificationQueue,
   );
   jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
-  return { service };
+  return { service, notificationQueue };
 }
 
 describe('PageVerificationService, разграничение прав', () => {

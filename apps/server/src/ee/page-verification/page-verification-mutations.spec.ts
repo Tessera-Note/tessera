@@ -56,7 +56,13 @@ function build(
           return chain;
         },
         where: () => chain,
-        execute: async () => [],
+        // Проход по срокам берет идентификаторы переведенных записей, чтобы
+        // поставить по каждой уведомление, поэтому возвращаются строки.
+        returning: () => chain,
+        execute: async () =>
+          Array.from({ length: options.updatedRows ?? 0 }, (_, i) => ({
+            id: `v-${i + 1}`,
+          })),
         executeTakeFirst: async () => ({
           numUpdatedRows: BigInt(options.updatedRows ?? 0),
         }),
@@ -95,15 +101,24 @@ function build(
       ),
   };
 
+  const notificationQueue: any = { add: jest.fn(async () => {}) };
   const service = new PageVerificationService(
     db,
     pageRepo,
     pageAccessService,
     spaceMemberRepo,
     pagePermissionRepo,
+    notificationQueue,
   );
   jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
-  return { service, inserts, deletes, updates, pagePermissionRepo };
+  return {
+    service,
+    inserts,
+    deletes,
+    updates,
+    pagePermissionRepo,
+    notificationQueue,
+  };
 }
 
 const SETUP = {
@@ -697,5 +712,132 @@ describe('PageVerificationService, контракт списка', () => {
     );
 
     expect(result.items).toEqual([]);
+  });
+});
+
+/**
+ * Обработчики уведомлений о верификации были написаны целиком, вместе с
+ * письмами и типами задач, но в очередь их никто не ставил: во всем сервере
+ * постановок было две, упоминание и комментарий. Проверка верификации, отправка
+ * на утверждение, отказ и истечение срока проходили молча.
+ */
+describe('PageVerificationService, постановка уведомлений', () => {
+  const VERIFICATION = {
+    id: 'v1',
+    spaceId: 'space-1',
+    status: 'pending_approval',
+    requestedById: 'author-1',
+    mode: 'period',
+  };
+
+  it('подтверждение уведомляет проверяющих', async () => {
+    const { service, notificationQueue } = build({
+      verifier: { id: 'v' },
+      verification: VERIFICATION,
+      verifierRows: [{ userId: 'u2' }, { userId: 'user-1' }],
+    });
+
+    await service.verifyPage('page-1', 'ws-1', USER);
+
+    expect(notificationQueue.add).toHaveBeenCalledWith(
+      'page-verified-notification',
+      expect.objectContaining({
+        pageId: 'page-1',
+        spaceId: 'space-1',
+        actorId: 'user-1',
+        verifierIds: ['u2'],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('отправка на утверждение уведомляет проверяющих', async () => {
+    const { service, notificationQueue } = build({
+      verification: { ...VERIFICATION, status: 'pending' },
+      verifierRows: [{ userId: 'u2' }],
+    });
+
+    await service.submitForApproval('page-1', 'ws-1', USER);
+
+    expect(notificationQueue.add).toHaveBeenCalledWith(
+      'page-approval-requested-notification',
+      expect.objectContaining({ verifierIds: ['u2'], actorId: 'user-1' }),
+      expect.anything(),
+    );
+  });
+
+  it('отказ уведомляет отправившего на утверждение', async () => {
+    const { service, notificationQueue } = build({
+      verifier: { id: 'v' },
+      verification: VERIFICATION,
+    });
+
+    await service.rejectApproval(
+      { pageId: 'page-1', comment: 'Поправьте раздел' } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(notificationQueue.add).toHaveBeenCalledWith(
+      'page-approval-rejected-notification',
+      expect.objectContaining({
+        requestedById: 'author-1',
+        comment: 'Поправьте раздел',
+      }),
+      expect.anything(),
+    );
+  });
+
+  /** Уведомлять некого, и молчание здесь правильное поведение. */
+  it('отказ без записи об отправившем не ставит задачу', async () => {
+    const { service, notificationQueue } = build({
+      verifier: { id: 'v' },
+      verification: { ...VERIFICATION, requestedById: null },
+    });
+
+    await service.rejectApproval(
+      { pageId: 'page-1', comment: 'Причина' } as any,
+      'ws-1',
+      USER,
+    );
+
+    expect(notificationQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('истечение срока уведомляет по каждой переведенной проверке', async () => {
+    const { service, notificationQueue } = build({ updatedRows: 2 });
+    jest
+      .spyOn(service as any, 'tryAcquireExpiryLock')
+      .mockResolvedValue(true);
+
+    await service.expireOverdueVerifications();
+
+    const expiredJobs = notificationQueue.add.mock.calls.filter(
+      (call: any[]) => call[0] === 'page-verification-expired',
+    );
+    expect(expiredJobs.map((call: any[]) => call[1].verificationId)).toEqual([
+      'v-1',
+      'v-2',
+    ]);
+  });
+
+  /**
+   * Действие уже совершено и записано. Откатывать подтверждение из-за
+   * недоступной очереди нельзя, иначе отказ Redis отменял бы работу человека.
+   */
+  it('отказ очереди не отменяет действия', async () => {
+    const { service, notificationQueue, updates } = build({
+      verifier: { id: 'v' },
+      verification: VERIFICATION,
+      verifierRows: [{ userId: 'u2' }],
+    });
+    notificationQueue.add.mockRejectedValue(new Error('очередь недоступна'));
+
+    await expect(service.verifyPage('page-1', 'ws-1', USER)).resolves.toEqual({
+      success: true,
+    });
+    expect(
+      updates.find((u) => u.table === 'pageVerifications').values.status,
+    ).toBe('verified');
   });
 });
