@@ -40,6 +40,14 @@ export const DIRECT_NOTIFICATION_TYPES: NotificationType[] = [
   NotificationType.COMMENT_RESOLVED,
   NotificationType.PAGE_USER_MENTION,
   NotificationType.PAGE_PERMISSION_GRANTED,
+  // Верификация адресована конкретному человеку и ждет от него действия,
+  // поэтому вкладка та же, что у упоминания, а не лента обновлений. Раньше
+  // разницы не было: эти уведомления не создавались вовсе.
+  NotificationType.PAGE_VERIFIED,
+  NotificationType.PAGE_APPROVAL_REQUESTED,
+  NotificationType.PAGE_APPROVAL_REJECTED,
+  NotificationType.PAGE_VERIFICATION_EXPIRING,
+  NotificationType.PAGE_VERIFICATION_EXPIRED,
 ];
 
 export const UPDATES_NOTIFICATION_TYPES: NotificationType[] = [

@@ -11,15 +11,16 @@ function build() {
     findById: jest.fn().mockResolvedValue(updated),
   };
   const notificationQueue: any = { add: jest.fn(async () => {}) };
+  const wsService: any = { emitCommentEvent: jest.fn() };
   const service = new CommentService(
     commentRepo,
     {} as any,
-    {} as any,
+    wsService,
     {} as any,
     {} as any,
     notificationQueue,
   );
-  return { service, commentRepo, notificationQueue };
+  return { service, commentRepo, notificationQueue, wsService };
 }
 
 describe('CommentService.resolve', () => {
@@ -106,5 +107,45 @@ describe('CommentService.resolve, уведомление автора', () => {
     await service.resolve({ ...owned, creatorId: null }, true, user);
 
     expect(notificationQueue.add).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Клиент объявляет `commentResolved` и обрабатывает его наравне с
+ * `commentUpdated`, но событие никто не слал: создание и правка комментария
+ * его отправляют, разрешение не отправляло.
+ */
+describe('CommentService.resolve, событие соседним вкладкам', () => {
+  const comment = {
+    id: 'c1',
+    pageId: 'p1',
+    spaceId: 'sp1',
+    workspaceId: 'ws1',
+    creatorId: 'author-1',
+  } as any;
+  const user = { id: 'user-1' } as any;
+
+  it('отметка рассылается по сокету', async () => {
+    const { service, wsService } = build();
+
+    await service.resolve(comment, true, user);
+
+    expect(wsService.emitCommentEvent).toHaveBeenCalledWith(
+      'sp1',
+      'p1',
+      expect.objectContaining({ operation: 'commentResolved', pageId: 'p1' }),
+    );
+  });
+
+  it('снятие отметки рассылается тем же событием', async () => {
+    const { service, wsService } = build();
+
+    await service.resolve(comment, false, user);
+
+    expect(wsService.emitCommentEvent).toHaveBeenCalledWith(
+      'sp1',
+      'p1',
+      expect.objectContaining({ operation: 'commentResolved' }),
+    );
   });
 });

@@ -117,7 +117,7 @@ export class CommentNotificationService {
       await this.notificationService.queueEmail(
         recipientId,
         notification.id,
-        `${actor.name} comentou em ${pageTitle}`,
+        `${actor.name} commented on ${pageTitle}`,
         CommentCreateEmail({ actorName: actor.name, pageTitle, pageUrl }),
         NotificationType.COMMENT_CREATED,
       );

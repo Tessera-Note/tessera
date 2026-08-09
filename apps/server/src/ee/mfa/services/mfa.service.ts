@@ -352,7 +352,7 @@ export class MfaService {
     try {
       await this.mailService.sendToQueue({
         to: target.email,
-        subject: 'Двоетапну перевірку скинуто',
+        subject: 'Two-factor authentication was reset',
         template: MfaResetEmail({
           username: target.name,
           workspaceName: workspace.name,

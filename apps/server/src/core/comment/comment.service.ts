@@ -204,10 +204,21 @@ export class CommentService {
       );
     }
 
-    return this.commentRepo.findById(comment.id, {
+    const updated = await this.commentRepo.findById(comment.id, {
       includeCreator: true,
       includeResolvedBy: true,
     });
+
+    // Клиент объявляет и обрабатывает `commentResolved`, но события никто не
+    // слал: создание и правка комментария его отправляют, разрешение не
+    // отправляло. Соседняя вкладка не видела отметку до перезапроса.
+    this.wsService.emitCommentEvent(comment.spaceId, comment.pageId, {
+      operation: 'commentResolved',
+      pageId: comment.pageId,
+      comment: updated,
+    });
+
+    return updated;
   }
 
   async update(

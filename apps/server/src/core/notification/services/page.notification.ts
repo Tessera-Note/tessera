@@ -146,7 +146,7 @@ export class PageNotificationService {
     if (!context) return;
 
     const { actor, pageTitle, basePageUrl } = context;
-    const accessLabel = role === 'writer' ? 'edição' : 'leitura';
+    const accessLabel = role === 'writer' ? 'edit' : 'read';
 
     for (const userId of usersWithSpaceAccess) {
       const notification = await this.notificationService.create({
@@ -397,7 +397,7 @@ export class PageNotificationService {
     await this.notificationService.queueEmail(
       userId,
       notificationIds[0],
-      `Seu resumo: ${pageUpdates.length} ${pageUpdates.length === 1 ? 'atualização' : 'atualizações'} de página`,
+      `Your digest: ${pageUpdates.length} page ${pageUpdates.length === 1 ? 'update' : 'updates'}`,
       PageUpdateDigestEmail({
         userName: user.name,
         pageUpdates,

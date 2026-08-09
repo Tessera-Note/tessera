@@ -804,12 +804,6 @@ export class PageVerificationService {
   }
 
   /**
-   * Взять консультативную блокировку прохода.
-   *
-   * Вынесено отдельным методом, чтобы поведение при занятой блокировке
-   * проверялось тестом, а не только на живой базе с двумя репликами.
-   */
-  /**
    * Поставить уведомление в очередь.
    *
    * Отказ очереди не отменяет уже совершенного действия: страница
@@ -840,6 +834,12 @@ export class PageVerificationService {
     return rows.map((row) => row.userId);
   }
 
+  /**
+   * Взять консультативную блокировку прохода.
+   *
+   * Вынесено отдельным методом, чтобы поведение при занятой блокировке
+   * проверялось тестом, а не только на живой базе с двумя репликами.
+   */
   private async tryAcquireExpiryLock(trx: any): Promise<boolean> {
     const lock = await sql<{ locked: boolean }>`
       SELECT pg_try_advisory_xact_lock(${EXPIRY_LOCK_KEY}) AS locked

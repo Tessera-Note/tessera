@@ -328,7 +328,7 @@ export class WorkspaceInvitationService {
 
       await this.mailService.sendToQueue({
         to: invitedByUser.email,
-        subject: `${newUser.name} aceitou seu convite para a Tessera`,
+        subject: `${newUser.name} accepted your invitation to Tessera`,
         template: emailTemplate,
       });
     }
@@ -480,7 +480,7 @@ export class WorkspaceInvitationService {
 
     await this.mailService.sendToQueue({
       to: inviteeEmail,
-      subject: `${invitedByName} convidou você para a Tessera`,
+      subject: `${invitedByName} invited you to Tessera`,
       template: emailTemplate,
     });
   }
