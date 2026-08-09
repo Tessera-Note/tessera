@@ -22,7 +22,8 @@ import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo'
 import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
 import { needsWebSearch } from '../ai/freshness.util';
-import { buildWebSearchQuery } from '../ai/search-query.util';
+import { buildSearchPlan } from '../ai/search-plan.util';
+import { buildImageQuery, needsImages } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import {
   editRefusalNotice,
@@ -419,57 +420,90 @@ export class AiChatService {
     // Решение о запуске принимается по характеру запроса, а не по пустой
     // выдаче из вики: запрос про текущие события нередко дает совпадение по
     // словам и все равно требует свежих данных.
+    // Разговор, которому один раз понадобились внешние данные, нуждается в
+    // них и дальше: признаки свежести есть в первом сообщении, а в уточнениях
+    // вроде «добавь фото» их нет.
+    const previousTurnSearched = history.some(
+      (msg) =>
+        Array.isArray(msg.toolCalls) &&
+        (msg.toolCalls as any[]).some((call) => call?.name === 'search_web'),
+    );
+
+    // Просьба про изображения сама по себе требует смотреть наружу: в вики
+    // постеров нет, а обычный поиск отдает страницы, а не картинки.
+    const wantsImages = needsImages(params.content);
+
     if (
-      needsWebSearch(params.content) &&
+      (needsWebSearch(params.content, { previousTurnSearched }) ||
+        wantsImages) &&
       (await this.webSearchService.isConfigured(workspaceId))
     ) {
       const webCallId = `websearch-${chatId}-${history.length}`;
 
-      // В поиск уходит запрос, собранный из сообщения, а не сообщение
-      // целиком: обращение к агенту вроде «создай страницу» уводит выдачу в
-      // сторону сильнее, чем помогают остальные слова.
-      const webQuery = buildWebSearchQuery(params.content);
+      // Несколько заходов с разными формулировками вместо одного: одна выдача
+      // одного формулирования давала обрывок, из которого агент собирал
+      // страницу и публиковал ее как результат.
+      const plan = buildSearchPlan(params.content, new Date().getFullYear());
 
       yield {
         type: 'tool_call',
         id: webCallId,
         name: 'search_web',
-        args: { query: webQuery },
+        args: { queries: plan },
       };
 
-      const webResults = await this.webSearchService.search(
-        webQuery,
+      const webResults = await this.webSearchService.searchMany(
+        plan,
         workspaceId,
       );
 
-      yield {
-        type: 'tool_result',
-        id: webCallId,
-        result: {
-          count: webResults.length,
-          results: webResults.map((r) => ({ title: r.title, url: r.url })),
-        },
+      // Запрос картинок строится отдельно: слова про формат («фото»,
+      // «постеры») описывают не предмет поиска, а то, что с ним сделать, и в
+      // запросе изображений только мешают.
+      const images = wantsImages
+        ? await this.webSearchService.searchImages(
+            buildImageQuery(params.content),
+            workspaceId,
+          )
+        : [];
+
+      const webResult = {
+        count: webResults.length,
+        results: webResults.map((r) => ({ title: r.title, url: r.url })),
+        images: images.length,
       };
+
+      yield { type: 'tool_result', id: webCallId, result: webResult };
 
       webToolCall = {
         id: webCallId,
         name: 'search_web',
-        args: { query: webQuery },
-        result: {
-          count: webResults.length,
-          results: webResults.map((r) => ({ title: r.title, url: r.url })),
-        },
+        args: { queries: plan },
+        result: webResult,
       };
 
       if (webResults.length > 0) {
         contextText +=
           '\n\n## Results from the web\n' +
-          'These came from a live web search run just now. Prefer them over ' +
+          `These came from ${plan.length} live web searches run just now ` +
+          `(${plan.map((q) => `"${q}"`).join(', ')}). Prefer them over ` +
           'your own recollection for anything time-sensitive, and cite the ' +
           'links you used.\n' +
           webResults
             .map((r) => `### ${r.title}\n${r.url}\n${r.snippet}`)
             .join('\n\n');
+      }
+
+      if (images.length > 0) {
+        contextText +=
+          '\n\n## Images found for this request\n' +
+          'The user asked for pictures. Embed the relevant ones with ' +
+          'markdown image syntax `![caption](url)` directly in the page, one ' +
+          'per item where it fits. Do not replace a picture with a link to ' +
+          'the page it came from.\n' +
+          images
+            .map((i) => `- ${i.title || 'без названия'}: ${i.imageUrl}`)
+            .join('\n');
       }
     }
 
@@ -1040,8 +1074,11 @@ export class AiChatService {
       // Запасное значение то же, что у `DEFAULT_AI_LANGUAGE`: португальский
       // здесь был вторым наследием форка, и при незаданной локали агент
       // отвечал не на языке интерфейса.
-      `Always write in ${language ?? 'English'}, ` +
-      'unless the user writes to you in another language — then reply in the language they used. ' +
+      `The interface language of this user is ${language ?? 'English'}. ` +
+      'Write in the language the user writes to you in, and fall back to the ' +
+      'interface language only when that is unclear. This applies to page ' +
+      'content too: a page you create for a request written in one language ' +
+      'must be in that language, not in the interface language. ' +
       'When a question needs current information — today\'s events, recent ' +
       'releases, prices, schedules, anything time-sensitive — a web search is ' +
       'run for you automatically and its results appear under "Results from ' +
@@ -1078,6 +1115,21 @@ export class AiChatService {
       'Add "parentPageId":"PAGE_REFERENCE_HERE" to create it under an existing page; omit it to ' +
       'create the page at the root of the space. Never refuse a request to create a page on the ' +
       'grounds that you cannot create pages.\n' +
+      // Замечено на живом случае: на просьбу собрать топ-13 агент опубликовал
+      // страницу с местами с девятого по тринадцатое и двумя врезками о том,
+      // что данных нет. Это отчет о неудаче, оформленный как документ.
+      'Ask before you publish something you know is incomplete. If the user ' +
+      'asked for a list of N items and you can only confirm a few, or the ' +
+      'request is ambiguous in a way that changes the answer, ask one short ' +
+      'question first and create nothing. Never create a page whose body is ' +
+      'mostly a notice about missing data, placeholders, or warning callouts ' +
+      'explaining what you could not find — that is a report of failure ' +
+      'dressed up as a document, and it is worse than a question.\n' +
+      // «На свое усмотрение» это разрешение решить, а не повод отказаться.
+      'When the user says the choice is yours, they are giving you permission ' +
+      'to decide, not asking you to prove the choice is unknowable. Pick a ' +
+      'reasonable interpretation, say in one line which one you picked, and ' +
+      'deliver the whole thing.\n' +
       'The "operation" can be "append" (add to bottom), "prepend" (add to top), or "replace" (overwrite entire document).\n' +
       'To update a page title, use:\n\n' +
       ':::UPDATE_TITLE:::\n' +
