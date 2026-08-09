@@ -1620,5 +1620,6 @@
   "error.sso.user_has_no_links": "У цього користувача немає звʼязків із постачальниками входу",
   "Deleted user": "Видалений користувач",
   "This account no longer exists.": "Цього облікового запису більше немає.",
-  "This account is deactivated.": "Обліковий запис вимкнено."
+  "This account is deactivated.": "Обліковий запис вимкнено.",
+  "error.auth.email_not_verified": "Підтвердьте адресу електронної пошти. Посилання для підтвердження надіслано вам листом."
 }

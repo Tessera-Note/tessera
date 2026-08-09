@@ -1620,5 +1620,6 @@
   "error.sso.user_has_no_links": "У этого пользователя нет связей с провайдерами входа",
   "Deleted user": "Удаленный пользователь",
   "This account no longer exists.": "Этой учетной записи больше нет.",
-  "This account is deactivated.": "Учетная запись отключена."
+  "This account is deactivated.": "Учетная запись отключена.",
+  "error.auth.email_not_verified": "Подтвердите адрес электронной почты. Ссылка для подтверждения отправлена вам письмом."
 }

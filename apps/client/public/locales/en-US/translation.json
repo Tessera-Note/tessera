@@ -1602,5 +1602,6 @@
   "error.sso.user_has_no_links": "This user has no sign-in provider links",
   "Deleted user": "Deleted user",
   "This account no longer exists.": "This account no longer exists.",
-  "This account is deactivated.": "This account is deactivated."
+  "This account is deactivated.": "This account is deactivated.",
+  "error.auth.email_not_verified": "Please verify your email address. Check your inbox for the verification link."
 }

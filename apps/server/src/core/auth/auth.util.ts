@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Workspace } from '@tessera/db/types/entity.types';
 import { createHmac } from 'node:crypto';
+import { ErrorMessage } from '../../common/errors/app-error';
 
 export function computeEmailSignature(
   email: string,
@@ -26,9 +27,12 @@ export function throwIfEmailNotVerified(opts: {
     opts.workspaceId,
     opts.appSecret,
   );
+  // Клиент по этому отказу уводит на страницу подтверждения, и раньше он
+  // узнавал его сравнением английского текста сообщения. Перевод сообщения
+  // сломал бы переход молча, поэтому опознается код.
   throw new BadRequestException({
-    message:
-      'Please verify your email address. Check your inbox for the verification link.',
+    message: ErrorMessage['error.auth.email_not_verified'],
+    code: 'error.auth.email_not_verified',
     emailSignature,
   });
 }

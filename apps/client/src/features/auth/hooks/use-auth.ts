@@ -53,8 +53,10 @@ export default function useAuth() {
     } catch (err) {
       setIsLoading(false);
 
-      const message = err.response?.data?.message;
-      if (isCloud() && message?.includes("verify your email")) {
+      // Опознается код, а не английский текст сообщения: текст переводится, и
+      // сравнение по нему сломало бы переход молча.
+      const code = err.response?.data?.code;
+      if (isCloud() && code === "error.auth.email_not_verified") {
         const sig = err.response?.data?.emailSignature;
         navigate(
           `${APP_ROUTE.AUTH.VERIFY_EMAIL}?email=${encodeURIComponent(data.email)}${sig ? `&sig=${sig}` : ""}`,

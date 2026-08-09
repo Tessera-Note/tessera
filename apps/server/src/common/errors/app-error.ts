@@ -43,6 +43,8 @@ export const ErrorMessage = {
   'error.import.pdf_unreadable': 'The PDF file could not be parsed',
   'error.import.pdf_no_text_layer':
     'This PDF has no text layer: it is a scan or an image-only document',
+  'error.auth.email_not_verified':
+    'Please verify your email address. Check your inbox for the verification link.',
   'error.mcp.cells_required': 'The cells argument is required',
   'error.mcp.argument_must_be_object':
     'The {{argument}} argument must be an object of the form { "key": value }',
