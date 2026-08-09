@@ -23,7 +23,14 @@ import rowClasses from "@/components/ui/clickable-table-row.module.css";
 
 export default function FavoritesPage() {
   const { t } = useTranslation();
-  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useFavoritesQuery("page");
+  const {
+    data,
+    isLoading,
+    isError,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useFavoritesQuery("page");
   const favorites = data?.pages.flatMap((p) => p.items) ?? [];
 
   if (isLoading) {

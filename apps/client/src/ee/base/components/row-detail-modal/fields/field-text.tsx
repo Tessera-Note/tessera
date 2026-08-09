@@ -75,7 +75,9 @@ export function FieldText({ property, value, readOnly, onChange }: FieldProps) {
           rel="noopener noreferrer"
           className={classes.fieldTrailing}
           onMouseDown={(e) => e.stopPropagation()}
-          aria-label={property.type === "email" ? `Email ${text}` : `Open ${text}`}
+          aria-label={
+            property.type === "email" ? `Email ${text}` : `Open ${text}`
+          }
         >
           {property.type === "email" ? (
             <IconMail size={14} />

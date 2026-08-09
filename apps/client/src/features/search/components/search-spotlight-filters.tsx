@@ -203,7 +203,9 @@ export function SearchSpotlightFilters({
                       </Text>
                     )}
                 </div>
-                {contentType === option.value && <IconCheck size={20} aria-hidden />}
+                {contentType === option.value && (
+                  <IconCheck size={20} aria-hidden />
+                )}
               </Group>
             </Menu.Item>
           ))}

@@ -1,8 +1,8 @@
-import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
-import type { SpaceTreeNode } from '@/features/page/tree/types';
-import type { IMovePage } from '@/features/page/types/page.types';
-import type { DropOp } from '@/features/page/tree/model/tree-model.types';
-import { treeModel } from '@/features/page/tree/model/tree-model';
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
+import type { SpaceTreeNode } from "@/features/page/tree/types";
+import type { IMovePage } from "@/features/page/types/page.types";
+import type { DropOp } from "@/features/page/tree/model/tree-model.types";
+import { treeModel } from "@/features/page/tree/model/tree-model";
 
 export function dropOpToMovePayload(
   tree: SpaceTreeNode[],

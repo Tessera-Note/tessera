@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { Feature } from "@/ee/features";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 interface ExportModalProps {
   id: string;
@@ -79,8 +80,7 @@ export default function ExportModal({
     } catch (err) {
       notifications.show({
         message:
-          "Export failed: " +
-          (err?.response?.data?.message ?? err?.message ?? ""),
+          "Export failed: " + (getApiErrorMessage(err, err?.message) ?? ""),
         color: "red",
       });
       console.error("export error", err);
@@ -184,7 +184,11 @@ export default function ExportModal({
             <Button onClick={onClose} variant="default">
               {t("Cancel")}
             </Button>
-            <Tooltip label={upgradeLabel} disabled={!blockedByLicense} withArrow>
+            <Tooltip
+              label={upgradeLabel}
+              disabled={!blockedByLicense}
+              withArrow
+            >
               <Button
                 onClick={handleExport}
                 loading={isExporting}

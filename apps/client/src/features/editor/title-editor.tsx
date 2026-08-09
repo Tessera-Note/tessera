@@ -179,7 +179,9 @@ export function TitleEditor({
 
   useEffect(() => {
     if (!titleEditor) return;
-    titleEditor.setEditable(editable && currentPageEditMode === PageEditMode.Edit);
+    titleEditor.setEditable(
+      editable && currentPageEditMode === PageEditMode.Edit,
+    );
   }, [currentPageEditMode, titleEditor, editable]);
 
   const openSearchDialog = () => {

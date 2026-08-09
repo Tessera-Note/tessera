@@ -33,7 +33,9 @@ const ROW_NUMBER_COLUMN_WIDTH = 64;
 
 const columnHelper = createColumnHelper<IBaseRow>();
 
-function buildColumns(properties: IBaseProperty[]): ColumnDef<IBaseRow, unknown>[] {
+function buildColumns(
+  properties: IBaseProperty[],
+): ColumnDef<IBaseRow, unknown>[] {
   const rowNumberColumn = columnHelper.display({
     id: "__row_number",
     header: "#",
@@ -85,9 +87,7 @@ function buildSortingState(config: ViewConfig | undefined): SortingState {
   }));
 }
 
-function buildColumnSizing(
-  config: ViewConfig | undefined,
-): ColumnSizingState {
+function buildColumnSizing(config: ViewConfig | undefined): ColumnSizingState {
   const sizing: ColumnSizingState = {
     __row_number: ROW_NUMBER_COLUMN_WIDTH,
   };
@@ -99,7 +99,6 @@ function buildColumnSizing(
   return sizing;
 }
 
-
 function buildColumnOrder(
   config: ViewConfig | undefined,
   properties: IBaseProperty[],
@@ -108,7 +107,9 @@ function buildColumnOrder(
     const orderSet = new Set(config.propertyOrder);
     const missing = properties
       .filter((p) => !orderSet.has(p.id))
-      .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+      .sort((a, b) =>
+        a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
+      )
       .map((p) => p.id);
     return ["__row_number", ...config.propertyOrder, ...missing];
   }
@@ -131,7 +132,9 @@ function buildColumnPinning(
   };
 }
 
-export function buildLayoutConfigPatch(table: Table<IBaseRow>): ViewConfigPatch {
+export function buildLayoutConfigPatch(
+  table: Table<IBaseRow>,
+): ViewConfigPatch {
   const state = table.getState();
 
   const propertyWidths: Record<string, number> = {};
@@ -195,10 +198,7 @@ export function useBaseTable(
   const properties = useMemo(() => base?.properties ?? [], [base?.properties]);
   const viewConfig = activeView?.config;
 
-  const columns = useMemo(
-    () => buildColumns(properties),
-    [properties],
-  );
+  const columns = useMemo(() => buildColumns(properties), [properties]);
 
   const initialSorting = useMemo(
     () => buildSortingState(viewConfig),
@@ -220,9 +220,13 @@ export function useBaseTable(
     [viewConfig, properties],
   );
 
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(derivedColumnOrder);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(derivedColumnVisibility);
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(derivedColumnSizing);
+  const [columnOrder, setColumnOrder] =
+    useState<ColumnOrderState>(derivedColumnOrder);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    derivedColumnVisibility,
+  );
+  const [columnSizing, setColumnSizing] =
+    useState<ColumnSizingState>(derivedColumnSizing);
 
   // Re-seed from the server only on view switch. Within the same view local
   // state is the source of truth. Without this guard, any ws-driven

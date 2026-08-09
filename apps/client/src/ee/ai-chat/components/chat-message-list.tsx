@@ -174,10 +174,7 @@ export default function ChatMessageList({
         aria-label={t("Chat transcript")}
       >
         {messages.map((msg) => (
-          <ErrorBoundary
-            key={msg.id}
-            fallback={<ChatMessageErrorFallback />}
-          >
+          <ErrorBoundary key={msg.id} fallback={<ChatMessageErrorFallback />}>
             <ChatMessage message={msg} />
           </ErrorBoundary>
         ))}

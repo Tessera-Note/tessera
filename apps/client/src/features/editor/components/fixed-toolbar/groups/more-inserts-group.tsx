@@ -149,7 +149,8 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
                 )
               }
               onClick={() => {
-                if (hasBases) insertBaseEmbedBlock(editor, { template: "kanban" });
+                if (hasBases)
+                  insertBaseEmbedBlock(editor, { template: "kanban" });
               }}
             >
               {t("Kanban")}
@@ -209,7 +210,10 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
         >
           Vimeo
         </Menu.Item>
-        <Menu.Item leftSection={<LoomIcon size={16} />} onClick={() => setEmbed("loom")}>
+        <Menu.Item
+          leftSection={<LoomIcon size={16} />}
+          onClick={() => setEmbed("loom")}
+        >
           Loom
         </Menu.Item>
         <Menu.Item
@@ -230,7 +234,10 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
         >
           Typeform
         </Menu.Item>
-        <Menu.Item leftSection={<MiroIcon size={16} />} onClick={() => setEmbed("miro")}>
+        <Menu.Item
+          leftSection={<MiroIcon size={16} />}
+          onClick={() => setEmbed("miro")}
+        >
           Miro
         </Menu.Item>
         <Menu.Item

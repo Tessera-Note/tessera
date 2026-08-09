@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  Popover,
-  InputBase,
-  Input,
-  SegmentedControl,
-} from "@mantine/core";
+import { Popover, InputBase, Input, SegmentedControl } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { IconChevronDown } from "@tabler/icons-react";
 import clsx from "clsx";
@@ -137,7 +132,10 @@ export function FilterDateInput({ op, value, onChange }: FilterDateInputProps) {
           {triggerLabel ?? <Input.Placeholder>{t("Select")}</Input.Placeholder>}
         </InputBase>
       </Popover.Target>
-      <Popover.Dropdown p={op === "isWithin" ? 0 : "xs"} onKeyDown={handleEscape}>
+      <Popover.Dropdown
+        p={op === "isWithin" ? 0 : "xs"}
+        onKeyDown={handleEscape}
+      >
         {op === "isWithin" ? (
           <div className={cellClasses.selectDropdown}>
             {DATE_RANGE_PRESETS.map((p) =>

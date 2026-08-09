@@ -21,6 +21,7 @@ import {
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { generateScimToken } from '../scim-token.util';
 import { CreateScimTokenDto, UpdateScimTokenDto } from '../dto/scim-token.dto';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 /**
  * Предел числа живых токенов на рабочее пространство.
@@ -56,11 +57,7 @@ export class ScimTokenService {
     }
   }
 
-  async list(
-    pagination: PaginationOptions,
-    user: User,
-    workspace: Workspace,
-  ) {
+  async list(pagination: PaginationOptions, user: User, workspace: Workspace) {
     this.assertCanManage(user, workspace);
 
     return this.scimTokenRepo.listPaginated(workspace.id, pagination);
@@ -73,18 +70,12 @@ export class ScimTokenService {
    * уходит только хеш. Показать его повторно нельзя даже администратору,
    * поэтому экран предупреждает об этом при создании.
    */
-  async create(
-    dto: CreateScimTokenDto,
-    user: User,
-    workspace: Workspace,
-  ) {
+  async create(dto: CreateScimTokenDto, user: User, workspace: Workspace) {
     this.assertCanManage(user, workspace);
 
     const active = await this.scimTokenRepo.countActive(workspace.id);
     if (Number(active?.count ?? 0) >= MAX_ACTIVE_TOKENS) {
-      throw new BadRequestException(
-        `Достигнут предел в ${MAX_ACTIVE_TOKENS} действующих токенов. Отзовите ненужные`,
-      );
+      throw badRequest('error.scim.token_limit', { limit: MAX_ACTIVE_TOKENS });
     }
 
     const { token, tokenHash, tokenLastFour } = generateScimToken();
@@ -123,7 +114,7 @@ export class ScimTokenService {
     );
 
     if (Number(result?.numUpdatedRows ?? 0) === 0) {
-      throw new NotFoundException('Токен SCIM не найден');
+      throw notFound('error.scim.token_not_found');
     }
 
     this.auditService.log({
@@ -142,7 +133,7 @@ export class ScimTokenService {
     const result = await this.scimTokenRepo.revoke(tokenId, workspace.id);
 
     if (Number(result?.numUpdatedRows ?? 0) === 0) {
-      throw new NotFoundException('Токен SCIM не найден');
+      throw notFound('error.scim.token_not_found');
     }
 
     this.auditService.log({

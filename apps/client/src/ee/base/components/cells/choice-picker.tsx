@@ -14,8 +14,19 @@ import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 
 const CHOICE_COLORS = [
-  "gray", "red", "pink", "grape", "violet", "indigo",
-  "blue", "cyan", "teal", "green", "lime", "yellow", "orange",
+  "gray",
+  "red",
+  "pink",
+  "grape",
+  "violet",
+  "indigo",
+  "blue",
+  "cyan",
+  "teal",
+  "green",
+  "lime",
+  "yellow",
+  "orange",
 ];
 
 const STATUS_CATEGORY_LABELS: Record<string, string> = {
@@ -25,9 +36,7 @@ const STATUS_CATEGORY_LABELS: Record<string, string> = {
 };
 const STATUS_CATEGORY_ORDER = ["todo", "inProgress", "complete"];
 
-type NavItem =
-  | { kind: "choice"; choice: Choice }
-  | { kind: "add" };
+type NavItem = { kind: "choice"; choice: Choice } | { kind: "add" };
 
 type ChoiceGroup = { label: string | null; choices: Choice[] };
 
@@ -85,7 +94,10 @@ export function ChoicePicker({
       (byCategory[cat] ??= []).push(choice);
     }
     return STATUS_CATEGORY_ORDER.filter((key) => byCategory[key]?.length).map(
-      (key) => ({ label: STATUS_CATEGORY_LABELS[key] ?? key, choices: byCategory[key] }),
+      (key) => ({
+        label: STATUS_CATEGORY_LABELS[key] ?? key,
+        choices: byCategory[key],
+      }),
     );
   }, [choices, search, grouped, multiple, selectedSet]);
 
@@ -104,7 +116,8 @@ export function ChoicePicker({
       choices.some((c) => c.name.toLowerCase() === trimmedSearch.toLowerCase()),
     [choices, trimmedSearch],
   );
-  const showAddOption = allowCreate && trimmedSearch.length > 0 && !hasExactMatch;
+  const showAddOption =
+    allowCreate && trimmedSearch.length > 0 && !hasExactMatch;
   const addOptionColor = useMemo(
     () => CHOICE_COLORS[choices.length % CHOICE_COLORS.length],
     [choices.length],
@@ -140,7 +153,15 @@ export function ChoicePicker({
     });
     onToggle(newChoice);
     setSearch("");
-  }, [trimmedSearch, addOptionColor, choices, typeOptions, property, updatePropertyMutation, onToggle]);
+  }, [
+    trimmedSearch,
+    addOptionColor,
+    choices,
+    typeOptions,
+    property,
+    updatePropertyMutation,
+    onToggle,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -164,7 +185,15 @@ export function ChoicePicker({
         }
       }
     },
-    [onEscape, handleNavKey, activeIndex, navItems, onToggle, handleAddOption, showAddOption],
+    [
+      onEscape,
+      handleNavKey,
+      activeIndex,
+      navItems,
+      onToggle,
+      handleAddOption,
+      showAddOption,
+    ],
   );
 
   const addOptionIdx = flatChoices.length;
@@ -208,7 +237,9 @@ export function ChoicePicker({
         {groups.map((group) => (
           <div key={group.label ?? "all"}>
             {group.label && (
-              <div className={cellClasses.selectCategoryLabel}>{group.label}</div>
+              <div className={cellClasses.selectCategoryLabel}>
+                {group.label}
+              </div>
             )}
             {group.choices.map((choice) => {
               const idx = choiceIdxMap.get(choice.id) ?? -1;
@@ -220,7 +251,8 @@ export function ChoicePicker({
                   className={clsx(
                     cellClasses.selectOption,
                     isSelected && cellClasses.selectOptionActive,
-                    idx === activeIndex && cellClasses.selectOptionKeyboardActive,
+                    idx === activeIndex &&
+                      cellClasses.selectOptionKeyboardActive,
                   )}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onClick={() => onToggle(choice)}
@@ -241,13 +273,17 @@ export function ChoicePicker({
             ref={setOptionRef(addOptionIdx)}
             className={clsx(
               cellClasses.addOptionRow,
-              addOptionIdx === activeIndex && cellClasses.selectOptionKeyboardActive,
+              addOptionIdx === activeIndex &&
+                cellClasses.selectOptionKeyboardActive,
             )}
             onMouseEnter={() => setActiveIndex(addOptionIdx)}
             onClick={handleAddOption}
           >
             <span className={cellClasses.addOptionLabel}>Add option:</span>
-            <span className={cellClasses.badge} style={choiceColor(addOptionColor)}>
+            <span
+              className={cellClasses.badge}
+              style={choiceColor(addOptionColor)}
+            >
               {trimmedSearch}
             </span>
           </div>

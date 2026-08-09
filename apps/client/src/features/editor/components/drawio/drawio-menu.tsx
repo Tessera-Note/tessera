@@ -153,41 +153,44 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
     currentAlt: editorState?.alt || "",
   });
 
-  const saveData = useCallback(async (svgXml: string) => {
-    if (isSavingRef.current) return;
+  const saveData = useCallback(
+    async (svgXml: string) => {
+      if (isSavingRef.current) return;
 
-    isSavingRef.current = true;
-    setIsSaving(true);
+      isSavingRef.current = true;
+      setIsSaving(true);
 
-    try {
-      const svgString = decodeBase64ToSvgString(svgXml);
-      const fileName = "diagram.drawio.svg";
-      const drawioSVGFile = await svgStringToFile(svgString, fileName);
+      try {
+        const svgString = decodeBase64ToSvgString(svgXml);
+        const fileName = "diagram.drawio.svg";
+        const drawioSVGFile = await svgStringToFile(svgString, fileName);
 
-      // @ts-ignore
-      const pageId = editor.storage?.pageId;
-      const attachmentId = editorState?.attachmentId;
+        // @ts-ignore
+        const pageId = editor.storage?.pageId;
+        const attachmentId = editorState?.attachmentId;
 
-      let attachment: IAttachment = null;
-      if (attachmentId) {
-        attachment = await uploadFile(drawioSVGFile, pageId, attachmentId);
-      } else {
-        attachment = await uploadFile(drawioSVGFile, pageId);
+        let attachment: IAttachment = null;
+        if (attachmentId) {
+          attachment = await uploadFile(drawioSVGFile, pageId, attachmentId);
+        } else {
+          attachment = await uploadFile(drawioSVGFile, pageId);
+        }
+
+        editor.commands.updateAttributes("drawio", {
+          src: `/api/files/${attachment.id}/${attachment.fileName}?t=${new Date(attachment.updatedAt).getTime()}`,
+          title: attachment.fileName,
+          size: attachment.fileSize,
+          attachmentId: attachment.id,
+        });
+
+        isDirtyRef.current = false;
+      } finally {
+        isSavingRef.current = false;
+        setIsSaving(false);
       }
-
-      editor.commands.updateAttributes("drawio", {
-        src: `/api/files/${attachment.id}/${attachment.fileName}?t=${new Date(attachment.updatedAt).getTime()}`,
-        title: attachment.fileName,
-        size: attachment.fileSize,
-        attachmentId: attachment.id,
-      });
-
-      isDirtyRef.current = false;
-    } finally {
-      isSavingRef.current = false;
-      setIsSaving(false);
-    }
-  }, [editor, editorState?.attachmentId]);
+    },
+    [editor, editorState?.attachmentId],
+  );
 
   const handleClose = useCallback(() => {
     if (!isDirtyRef.current) {
@@ -319,90 +322,103 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
           altTextPanel
         ) : (
           <div className={classes.toolbar}>
-          <Tooltip position="top" label={t("Align left")} withinPortal={false}>
-            <ActionIcon
-              onClick={alignLeft}
-              size="lg"
-              aria-label={t("Align left")}
-              variant="subtle"
-              className={clsx({ [classes.active]: editorState?.isAlignLeft })}
+            <Tooltip
+              position="top"
+              label={t("Align left")}
+              withinPortal={false}
             >
-              <IconLayoutAlignLeft size={18} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={alignLeft}
+                size="lg"
+                aria-label={t("Align left")}
+                variant="subtle"
+                className={clsx({ [classes.active]: editorState?.isAlignLeft })}
+              >
+                <IconLayoutAlignLeft size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip
-            position="top"
-            label={t("Align center")}
-            withinPortal={false}
-          >
-            <ActionIcon
-              onClick={alignCenter}
-              size="lg"
-              aria-label={t("Align center")}
-              variant="subtle"
-              className={clsx({ [classes.active]: editorState?.isAlignCenter })}
+            <Tooltip
+              position="top"
+              label={t("Align center")}
+              withinPortal={false}
             >
-              <IconLayoutAlignCenter size={18} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={alignCenter}
+                size="lg"
+                aria-label={t("Align center")}
+                variant="subtle"
+                className={clsx({
+                  [classes.active]: editorState?.isAlignCenter,
+                })}
+              >
+                <IconLayoutAlignCenter size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip position="top" label={t("Align right")}>
-            <ActionIcon
-              onClick={alignRight}
-              size="lg"
-              aria-label={t("Align right")}
-              variant="subtle"
-              className={clsx({ [classes.active]: editorState?.isAlignRight })}
-            >
-              <IconLayoutAlignRight size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Align right")}>
+              <ActionIcon
+                onClick={alignRight}
+                size="lg"
+                aria-label={t("Align right")}
+                variant="subtle"
+                className={clsx({
+                  [classes.active]: editorState?.isAlignRight,
+                })}
+              >
+                <IconLayoutAlignRight size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <div className={classes.divider} />
+            <div className={classes.divider} />
 
-          {altTextButton}
+            {altTextButton}
 
-          <div className={classes.divider} />
+            <div className={classes.divider} />
 
-          <Tooltip position="top" label={t("Edit")} withinPortal={false}>
-            <ActionIcon
-              onClick={handleOpen}
-              size="lg"
-              aria-label={t("Edit")}
-              variant="subtle"
-              loading={isLoading}
-            >
-              <IconEdit size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Edit")} withinPortal={false}>
+              <ActionIcon
+                onClick={handleOpen}
+                size="lg"
+                aria-label={t("Edit")}
+                variant="subtle"
+                loading={isLoading}
+              >
+                <IconEdit size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip position="top" label={t("Download")} withinPortal={false}>
-            <ActionIcon
-              onClick={handleDownload}
-              size="lg"
-              aria-label={t("Download")}
-              variant="subtle"
-            >
-              <IconDownload size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Download")} withinPortal={false}>
+              <ActionIcon
+                onClick={handleDownload}
+                size="lg"
+                aria-label={t("Download")}
+                variant="subtle"
+              >
+                <IconDownload size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip position="top" label={t("Delete")} withinPortal={false}>
-            <ActionIcon
-              onClick={handleDelete}
-              size="lg"
-              aria-label={t("Delete")}
-              variant="subtle"
-            >
-              <IconTrash size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Delete")} withinPortal={false}>
+              <ActionIcon
+                onClick={handleDelete}
+                size="lg"
+                aria-label={t("Delete")}
+                variant="subtle"
+              >
+                <IconTrash size={18} />
+              </ActionIcon>
+            </Tooltip>
           </div>
         )}
       </BaseBubbleMenu>
 
-      <Modal.Root opened={opened} onClose={handleClose} fullScreen closeOnEscape={false}>
+      <Modal.Root
+        opened={opened}
+        onClose={handleClose}
+        fullScreen
+        closeOnEscape={false}
+      >
         <Modal.Overlay />
         <Modal.Content style={{ overflow: "hidden" }}>
           <Modal.Body pos="relative">

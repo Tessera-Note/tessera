@@ -26,9 +26,7 @@ export async function getWorkspaceLabels(
   return req.data;
 }
 
-export async function addLabelsToPage(
-  data: IAddLabels,
-): Promise<ILabel[]> {
+export async function addLabelsToPage(data: IAddLabels): Promise<ILabel[]> {
   const req = await api.post<ILabel[]>("/pages/labels/add", data);
   return req.data;
 }

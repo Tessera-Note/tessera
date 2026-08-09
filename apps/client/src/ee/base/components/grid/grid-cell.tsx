@@ -45,12 +45,16 @@ export const GridCell = memo(function GridCell({
   const isPinned = cell.column.getIsPinned();
   const pinOffset = isPinned ? cell.column.getStart("left") : undefined;
 
-  const [editingCell, setEditingCell] = useAtom(editingCellAtomFamily(pageId)) as unknown as [EditingCell, (val: EditingCell) => void];
+  const [editingCell, setEditingCell] = useAtom(
+    editingCellAtomFamily(pageId),
+  ) as unknown as [EditingCell, (val: EditingCell) => void];
   const [activeFormulaEditor, setActiveFormulaEditor] = useAtom(
     activeFormulaEditorAtomFamily(pageId),
   ) as unknown as [FormulaEditorTarget, (val: FormulaEditorTarget) => void];
 
-  const setFocusedCell = useSetAtom(focusedCellAtomFamily(pageId) as PrimitiveAtom<FocusedCell>);
+  const setFocusedCell = useSetAtom(
+    focusedCellAtomFamily(pageId) as PrimitiveAtom<FocusedCell>,
+  );
   const isFocused = useAtomValue(
     useMemo(
       () =>
@@ -90,7 +94,14 @@ export const GridCell = memo(function GridCell({
     }
     if (isSystemPropertyType(property.type)) return;
     flushSync(() => setEditingCell({ rowId, propertyId: property.id }));
-  }, [property, isRowNumber, rowId, readOnly, setEditingCell, setActiveFormulaEditor]);
+  }, [
+    property,
+    isRowNumber,
+    rowId,
+    readOnly,
+    setEditingCell,
+    setActiveFormulaEditor,
+  ]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -276,8 +287,7 @@ export const GridCell = memo(function GridCell({
       </Popover.Dropdown>
     </Popover>
   );
-},
-gridCellPropsEqual);
+}, gridCellPropsEqual);
 
 // Cell instances are re-created whenever the table data identity changes;
 // compare by coordinates + value so unchanged cells skip re-rendering.

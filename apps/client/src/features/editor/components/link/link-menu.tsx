@@ -69,7 +69,10 @@ export const EditorLinkMenu: FC<EditorLinkMenuProps> = ({ editor }) => {
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         dismiss();
       }
     };
@@ -106,7 +109,14 @@ export const EditorLinkMenu: FC<EditorLinkMenuProps> = ({ editor }) => {
       }}
       style={{ zIndex: 198, position: "relative" }}
     >
-      <Paper ref={containerRef} w={320} p="sm" shadow="md" radius={6} withBorder>
+      <Paper
+        ref={containerRef}
+        w={320}
+        p="sm"
+        shadow="md"
+        radius={6}
+        withBorder
+      >
         <LinkEditorPanel onSetLink={onSetLink} />
       </Paper>
     </BubbleMenu>

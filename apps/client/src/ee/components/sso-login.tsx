@@ -36,7 +36,8 @@ export default function SsoLogin() {
   const { data, isLoading } = useWorkspacePublicDataQuery();
   const { data: currentUser } = useCurrentUser();
   const [ldapModalOpened, setLdapModalOpened] = useState(false);
-  const [selectedLdapProvider, setSelectedLdapProvider] = useState<IAuthProvider | null>(null);
+  const [selectedLdapProvider, setSelectedLdapProvider] =
+    useState<IAuthProvider | null>(null);
   const autoRedirectedRef = useRef(false);
 
   const handleSsoLogin = (provider: IAuthProvider) => {

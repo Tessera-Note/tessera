@@ -9,6 +9,7 @@ import { currentUserAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useCreatePersonalSpaceMutation } from "@/ee/personal-space/queries/personal-space-query";
 import { getSpaceUrl } from "@/lib/config.ts";
 import { notifications } from "@mantine/notifications";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -26,7 +27,8 @@ export default function CreatePersonalSpaceModal({ opened, onClose }: Props) {
   const currentUser = useAtomValue(currentUserAtom);
   const createMutation = useCreatePersonalSpaceMutation();
 
-  const firstName = (currentUser?.user?.name ?? "").trim().split(/\s+/)[0] || "";
+  const firstName =
+    (currentUser?.user?.name ?? "").trim().split(/\s+/)[0] || "";
 
   const form = useForm<FormValues>({
     validate: zod4Resolver(formSchema),
@@ -44,7 +46,7 @@ export default function CreatePersonalSpaceModal({ opened, onClose }: Props) {
       navigate(getSpaceUrl(createdSpace.slug));
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

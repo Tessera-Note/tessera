@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function EnableScim() {
   const { t } = useTranslation();
@@ -24,7 +25,7 @@ export default function EnableScim() {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

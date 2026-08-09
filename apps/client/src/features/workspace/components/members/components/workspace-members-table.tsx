@@ -21,7 +21,8 @@ import MemberActionMenu from "@/features/workspace/components/members/components
 
 export default function WorkspaceMembersTable() {
   const { t } = useTranslation();
-  const { search, cursor, goNext, goPrev, handleSearch } = usePaginateAndSearch();
+  const { search, cursor, goNext, goPrev, handleSearch } =
+    usePaginateAndSearch();
   const { data, isLoading } = useWorkspaceMembersQuery({
     cursor,
     limit: 100,

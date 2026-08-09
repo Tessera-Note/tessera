@@ -59,9 +59,9 @@ describe('SearchAttachmentsService', () => {
   it('returns nothing for an empty query without touching the database', async () => {
     const { service, where } = build();
 
-    await expect(service.search('   ', 'workspace-1', 'user-1')).resolves.toEqual(
-      { items: [] },
-    );
+    await expect(
+      service.search('   ', 'workspace-1', 'user-1'),
+    ).resolves.toEqual({ items: [] });
     expect(where).not.toHaveBeenCalled();
   });
 

@@ -292,7 +292,7 @@ describe('SamlService, обратный вызов', () => {
         SAMLResponse: 'ответ',
         RelayState: relay,
       }),
-    ).rejects.toThrow(/не подтвержден/);
+    ).rejects.toMatchObject({ response: { code: 'error.sso.not_confirmed' } });
   });
 
   it('профиль без почты дает понятный отказ', async () => {
@@ -305,7 +305,7 @@ describe('SamlService, обратный вызов', () => {
         SAMLResponse: 'ответ',
         RelayState: relay,
       }),
-    ).rejects.toThrow(/адрес электронной почты/);
+    ).rejects.toMatchObject({ response: { code: 'error.sso.no_email' } });
   });
 
   it('успешный вход выдает сессию и отмечает вход', async () => {

@@ -535,7 +535,14 @@ const CommandGroups: SlashMenuGroupedItemsType = {
     {
       title: "Emoji",
       description: "Insert emoji.",
-      searchTerms: ["emoji", "icon", "smiley", "emoticon", "symbol", "reaction"],
+      searchTerms: [
+        "emoji",
+        "icon",
+        "smiley",
+        "emoticon",
+        "symbol",
+        "reaction",
+      ],
       icon: IconMoodSmile,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).insertContent(":").run();

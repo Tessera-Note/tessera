@@ -21,7 +21,7 @@ export const userAtom = atom(
         user: newUser,
       });
     }
-  }
+  },
 );
 
 export const workspaceAtom = atom(
@@ -37,5 +37,5 @@ export const workspaceAtom = atom(
         workspace: newWorkspace,
       });
     }
-  }
+  },
 );

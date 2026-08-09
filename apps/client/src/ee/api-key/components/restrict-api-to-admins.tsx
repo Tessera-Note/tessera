@@ -13,6 +13,7 @@ import {
   ResponsiveSettingsControl,
 } from "@/components/ui/responsive-settings-row";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function RestrictApiToAdmins() {
   const { t } = useTranslation();
@@ -33,7 +34,7 @@ export default function RestrictApiToAdmins() {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
@@ -42,9 +43,7 @@ export default function RestrictApiToAdmins() {
   return (
     <ResponsiveSettingsRow>
       <ResponsiveSettingsContent>
-        <Text size="md">
-          {t("Restrict API key creation to admins")}
-        </Text>
+        <Text size="md">{t("Restrict API key creation to admins")}</Text>
         <Text size="sm" c="dimmed">
           {t(
             "Only admins and owners can create new API keys. Existing member keys will continue to work.",
@@ -53,11 +52,7 @@ export default function RestrictApiToAdmins() {
       </ResponsiveSettingsContent>
 
       <ResponsiveSettingsControl>
-        <Tooltip
-          label={upgradeLabel}
-          disabled={hasAccess}
-          refProp="rootRef"
-        >
+        <Tooltip label={upgradeLabel} disabled={hasAccess} refProp="rootRef">
           <Switch
             checked={checked}
             onChange={handleChange}

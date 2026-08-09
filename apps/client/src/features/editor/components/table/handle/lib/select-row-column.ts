@@ -26,8 +26,7 @@ export function buildRowOrColumnSelection(
 
   if (index < 0 || index >= map.height) return null;
   const firstCellPos = tableStart + map.map[index * map.width];
-  const lastCellPos =
-    tableStart + map.map[index * map.width + (map.width - 1)];
+  const lastCellPos = tableStart + map.map[index * map.width + (map.width - 1)];
   const $first = state.doc.resolve(firstCellPos);
   const $last = state.doc.resolve(lastCellPos);
   return CellSelection.rowSelection($first, $last);

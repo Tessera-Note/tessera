@@ -36,7 +36,9 @@ function build(options: { configured?: boolean; workspace?: any } = {}) {
   m.discovery.mockReset().mockResolvedValue({ настройка: true });
   m.buildAuthorizationUrl
     .mockReset()
-    .mockReturnValue(new URL('https://accounts.google.com/o/oauth2/v2/auth?x=1'));
+    .mockReturnValue(
+      new URL('https://accounts.google.com/o/oauth2/v2/auth?x=1'),
+    );
   m.randomPKCECodeVerifier.mockReset().mockReturnValue('проверочное');
   m.calculatePKCECodeChallenge.mockReset().mockResolvedValue('вызов');
   m.randomState.mockReset().mockReturnValue('состояние');
@@ -130,9 +132,9 @@ describe('GoogleService, начало входа', () => {
   it('без ключей вход не начинается', async () => {
     const { service } = build({ configured: false });
 
-    await expect(service.buildLoginRedirect('ws-1')).rejects.toThrow(
-      /не настроен/,
-    );
+    await expect(service.buildLoginRedirect('ws-1')).rejects.toMatchObject({
+      response: { code: 'error.sso.google_not_configured' },
+    });
   });
 
   it('неизвестное пространство отвергается', async () => {
@@ -158,7 +160,11 @@ describe('GoogleService, обратный вызов', () => {
 
   it('успешный вход выдает сессию и отмечает вход', async () => {
     const { service, userRepo, auditService } = build();
-    grantWith({ sub: 'g-1', email: 'petrov@tessera.com', email_verified: true });
+    grantWith({
+      sub: 'g-1',
+      email: 'petrov@tessera.com',
+      email_verified: true,
+    });
 
     await expect(callback(service)).resolves.toEqual({
       authToken: 'сессия',
@@ -183,7 +189,9 @@ describe('GoogleService, обратный вызов', () => {
       email_verified: false,
     });
 
-    await expect(callback(service)).rejects.toThrow(/не подтвержден/);
+    await expect(callback(service)).rejects.toMatchObject({
+      response: { code: 'error.sso.email_not_verified' },
+    });
     expect(ssoIdentity.resolveUser).not.toHaveBeenCalled();
   });
 
@@ -191,16 +199,18 @@ describe('GoogleService, обратный вызов', () => {
     const { service } = build();
     grantWith({ sub: 'g-1', email_verified: true });
 
-    await expect(callback(service)).rejects.toThrow(
-      /адрес электронной почты/,
-    );
+    await expect(callback(service)).rejects.toMatchObject({
+      response: { code: 'error.sso.no_email' },
+    });
   });
 
   it('без идентификатора вход отвергается', async () => {
     const { service } = build();
     grantWith({ email: 'petrov@tessera.com', email_verified: true });
 
-    await expect(callback(service)).rejects.toThrow(/идентификатор/);
+    await expect(callback(service)).rejects.toMatchObject({
+      response: { code: 'error.sso.no_subject' },
+    });
   });
 
   it('состояние сверяется с тем, что вернул провайдер', async () => {

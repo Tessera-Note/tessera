@@ -35,8 +35,22 @@ export const ColumnHandleMenu = React.memo(function ColumnHandleMenu({
 }: ColumnHandleMenuProps) {
   const { t } = useTranslation();
 
-  const moveLeft = useTableMoveRowColumn(editor, "col", index, "left", tableNode, tablePos);
-  const moveRight = useTableMoveRowColumn(editor, "col", index, "right", tableNode, tablePos);
+  const moveLeft = useTableMoveRowColumn(
+    editor,
+    "col",
+    index,
+    "left",
+    tableNode,
+    tablePos,
+  );
+  const moveRight = useTableMoveRowColumn(
+    editor,
+    "col",
+    index,
+    "right",
+    tableNode,
+    tablePos,
+  );
   const clearCol = useTableClear(editor, tableNode, tablePos, {
     kind: "col",
     index,
@@ -99,7 +113,14 @@ export const ColumnHandleMenu = React.memo(function ColumnHandleMenu({
           </Menu.Sub.Item>
         </Menu.Sub.Target>
         <Menu.Sub.Dropdown>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 8,
+              padding: 8,
+            }}
+          >
             {TABLE_COLORS.map((c) => (
               <button
                 key={c.name}
@@ -116,7 +137,9 @@ export const ColumnHandleMenu = React.memo(function ColumnHandleMenu({
                 <ColorSwatch
                   color={c.color || "#ffffff"}
                   size={22}
-                  style={{ border: c.color === "" ? "1px solid #e5e7eb" : undefined }}
+                  style={{
+                    border: c.color === "" ? "1px solid #e5e7eb" : undefined,
+                  }}
                 />
               </button>
             ))}
@@ -143,10 +166,7 @@ export const ColumnHandleMenu = React.memo(function ColumnHandleMenu({
 
       <Menu.Divider />
 
-      <Menu.Item
-        leftSection={<IconEraser size={16} />}
-        onClick={clearCol}
-      >
+      <Menu.Item leftSection={<IconEraser size={16} />} onClick={clearCol}>
         {t("Clear cells")}
       </Menu.Item>
       <Menu.Item

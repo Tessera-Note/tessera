@@ -60,9 +60,9 @@ export function useCreateCommentMutation() {
   return useMutation<IComment, Error, Partial<IComment>>({
     mutationFn: (data) => createComment(data),
     onSuccess: (newComment) => {
-      const cache = queryClient.getQueryData(
-        RQ_KEY(newComment.pageId),
-      ) as InfiniteData<IPagination<IComment>> | undefined;
+      const cache = queryClient.getQueryData(RQ_KEY(newComment.pageId)) as
+        | InfiniteData<IPagination<IComment>>
+        | undefined;
 
       if (cache && cache.pages.length > 0) {
         const alreadyExists = cache.pages.some((page) =>
@@ -99,9 +99,9 @@ export function useUpdateCommentMutation() {
   return useMutation<IComment, Error, Partial<IComment>>({
     mutationFn: (data) => updateComment(data),
     onSuccess: (updatedComment) => {
-      const cache = queryClient.getQueryData(
-        RQ_KEY(updatedComment.pageId),
-      ) as InfiniteData<IPagination<IComment>> | undefined;
+      const cache = queryClient.getQueryData(RQ_KEY(updatedComment.pageId)) as
+        | InfiniteData<IPagination<IComment>>
+        | undefined;
 
       if (cache) {
         queryClient.setQueryData(RQ_KEY(updatedComment.pageId), {
@@ -133,9 +133,9 @@ export function useDeleteCommentMutation(pageId?: string) {
   return useMutation({
     mutationFn: (commentId: string) => deleteComment(commentId),
     onSuccess: (_data, commentId) => {
-      const cache = queryClient.getQueryData(
-        RQ_KEY(pageId),
-      ) as InfiniteData<IPagination<IComment>> | undefined;
+      const cache = queryClient.getQueryData(RQ_KEY(pageId)) as
+        | InfiniteData<IPagination<IComment>>
+        | undefined;
 
       if (cache) {
         queryClient.setQueryData(RQ_KEY(pageId), {

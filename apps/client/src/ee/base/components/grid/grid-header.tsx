@@ -1,5 +1,9 @@
 import { memo, useMemo } from "react";
-import { Table, ColumnOrderState, VisibilityState } from "@tanstack/react-table";
+import {
+  Table,
+  ColumnOrderState,
+  VisibilityState,
+} from "@tanstack/react-table";
 import { IBaseRow, IBaseProperty } from "@/ee/base/types/base.types";
 import { GridHeaderCell } from "./grid-header-cell";
 import { CreatePropertyPopover } from "@/ee/base/components/property/create-property-popover";

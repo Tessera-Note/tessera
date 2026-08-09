@@ -165,7 +165,9 @@ export default function DrawioView(props: NodeViewProps) {
                   if (data.parentEvent !== "save") {
                     return;
                   }
-                  saveData(data.xml, true).then(() => close()).catch(() => {});
+                  saveData(data.xml, true)
+                    .then(() => close())
+                    .catch(() => {});
                 }}
                 onClose={(data: EventExit) => {
                   if (data.parentEvent) {

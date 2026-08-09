@@ -122,7 +122,10 @@ export class AiService {
     }
 
     if (action && ACTION_PROMPTS[action]) {
-      const base = ACTION_PROMPTS[action].replace(/\{\{language\}\}/g, language);
+      const base = ACTION_PROMPTS[action].replace(
+        /\{\{language\}\}/g,
+        language,
+      );
       const prefix = action === AiAction.TRANSLATE ? '' : languageRule;
 
       if (customPrompt) {

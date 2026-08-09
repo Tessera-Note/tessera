@@ -48,7 +48,7 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
 
   const { data: searchResults, isLoading } = useUnifiedSearch(
     searchParams,
-    !isAiMode // Disable regular search when in AI mode
+    !isAiMode, // Disable regular search when in AI mode
   );
   const {
     //@ts-ignore
@@ -76,9 +76,10 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
   useEffect(() => {
     if (aiSearchError) {
       notifications.show({
-        message: aiSearchError.message || t("AI search failed. Please try again."),
+        message:
+          aiSearchError.message || t("AI search failed. Please try again."),
         color: "red",
-        position: "top-center"
+        position: "top-center",
       });
     }
   }, [aiSearchError, t]);
@@ -130,7 +131,12 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
             leftSection={<IconSearch size={20} stroke={1.5} />}
             style={{ flex: 1 }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && isAiMode && query.trim() && !isAiLoading) {
+              if (
+                e.key === "Enter" &&
+                isAiMode &&
+                query.trim() &&
+                !isAiLoading
+              ) {
                 e.preventDefault();
                 handleAiSearchTrigger();
               }
@@ -180,14 +186,15 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
               {query.length === 0 && (
                 <Spotlight.Empty>{t("Ask a question...")}</Spotlight.Empty>
               )}
-              {query.length > 0 && (isAiLoading || aiSearchResult || streamingAnswer) && (
-                <AiSearchResult
-                  result={aiSearchResult}
-                  isLoading={isAiLoading}
-                  streamingAnswer={streamingAnswer}
-                  streamingSources={streamingSources}
-                />
-              )}
+              {query.length > 0 &&
+                (isAiLoading || aiSearchResult || streamingAnswer) && (
+                  <AiSearchResult
+                    result={aiSearchResult}
+                    isLoading={isAiLoading}
+                    streamingAnswer={streamingAnswer}
+                    streamingSources={streamingSources}
+                  />
+                )}
               {query.length > 0 && !isAiLoading && !aiSearchResult && (
                 <Spotlight.Empty>{t("No answer available")}</Spotlight.Empty>
               )}
@@ -195,7 +202,9 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
           ) : (
             <>
               {query.length === 0 && resultItems.length === 0 && (
-                <Spotlight.Empty>{t("Start typing to search...")}</Spotlight.Empty>
+                <Spotlight.Empty>
+                  {t("Start typing to search...")}
+                </Spotlight.Empty>
               )}
 
               {query.length > 0 && !isLoading && resultItems.length === 0 && (

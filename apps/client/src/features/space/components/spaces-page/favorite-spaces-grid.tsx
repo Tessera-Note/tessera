@@ -1,4 +1,13 @@
-import { Text, SimpleGrid, Card, rem, Group, Box, Button, Title } from "@mantine/core";
+import {
+  Text,
+  SimpleGrid,
+  Card,
+  rem,
+  Group,
+  Box,
+  Button,
+  Title,
+} from "@mantine/core";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -42,9 +51,7 @@ export default function FavoriteSpacesGrid() {
             radius="md"
             component={Link}
             to={getSpaceUrl(fav.space!.slug)}
-            onMouseEnter={() =>
-              prefetchSpace(fav.space!.slug, fav.space!.id)
-            }
+            onMouseEnter={() => prefetchSpace(fav.space!.slug, fav.space!.id)}
             className={spaceClasses.card}
             withBorder
           >

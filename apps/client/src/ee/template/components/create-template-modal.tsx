@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  Modal,
-  TextInput,
-  Select,
-  Button,
-  Stack,
-  Group,
-} from "@mantine/core";
+import { Modal, TextInput, Select, Button, Stack, Group } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useCreateTemplateMutation } from "../queries/template-query";
@@ -33,9 +26,7 @@ export default function CreateTemplateModal({
 
   const scopeOptions = [
     ...(isWorkspaceAdmin
-      ? [
-          { group: t("Workspace"), items: [{ value: "", label: t("Global") }] },
-        ]
+      ? [{ group: t("Workspace"), items: [{ value: "", label: t("Global") }] }]
       : []),
     ...(spaces?.items?.length
       ? [
@@ -84,7 +75,11 @@ export default function CreateTemplateModal({
           onChange={(e) => setTitle(e.currentTarget.value)}
           data-autofocus
           onKeyDown={(e) => {
-            if (e.key === "Enter" && title.trim() && !createMutation.isPending) {
+            if (
+              e.key === "Enter" &&
+              title.trim() &&
+              !createMutation.isPending
+            ) {
               handleCreate();
             }
           }}

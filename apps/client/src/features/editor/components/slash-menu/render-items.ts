@@ -67,7 +67,7 @@ const renderItems = () => {
           },
         },
         popup,
-        updatePosition
+        updatePosition,
       );
     },
     onUpdate: (props: {

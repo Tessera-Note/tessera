@@ -116,7 +116,7 @@ export default function TemplateCard({
         <div className={classes.footer}>
           <span className={classes.scopeDot} aria-hidden="true" />
           <Text size="sm" fw={500} c="dimmed">
-            {template.spaceId ? (spaceName || t("Space")) : t("Global")}
+            {template.spaceId ? spaceName || t("Space") : t("Global")}
           </Text>
         </div>
       </div>

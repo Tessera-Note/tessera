@@ -10,7 +10,12 @@ import {
   Tooltip,
   VisuallyHidden,
 } from "@mantine/core";
-import { IconDots, IconSettings, IconEye, IconEyeOff } from "@tabler/icons-react";
+import {
+  IconDots,
+  IconSettings,
+  IconEye,
+  IconEyeOff,
+} from "@tabler/icons-react";
 import StarButton from "@/features/favorite/components/star-button";
 import {
   useWatchedSpaceIds,
@@ -35,7 +40,15 @@ import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { AvatarIconType } from "@/features/attachments/types/attachment.types.ts";
 import { AutoTooltipText } from "@/components/ui/auto-tooltip-text.tsx";
 
-function WatchButton({ spaceId, watchedIds, size = 16 }: { spaceId: string; watchedIds: Set<string>; size?: number }) {
+function WatchButton({
+  spaceId,
+  watchedIds,
+  size = 16,
+}: {
+  spaceId: string;
+  watchedIds: Set<string>;
+  size?: number;
+}) {
   const { t } = useTranslation();
   const watchMutation = useWatchSpaceMutation();
   const unwatchMutation = useUnwatchSpaceMutation();
@@ -154,7 +167,13 @@ export default function AllSpacesList({
                           variant="filled"
                           size="md"
                         />
-                        <div style={{ minWidth: 0, overflow: "hidden", maxWidth: 350 }}>
+                        <div
+                          style={{
+                            minWidth: 0,
+                            overflow: "hidden",
+                            maxWidth: 350,
+                          }}
+                        >
                           <AutoTooltipText fz="sm" fw={500} lineClamp={1}>
                             {space.name}
                           </AutoTooltipText>
@@ -174,8 +193,17 @@ export default function AllSpacesList({
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs" justify="flex-end" wrap="nowrap">
-                      <StarButton type="space" spaceId={space.id} name={space.name} size={16} />
-                      <WatchButton spaceId={space.id} watchedIds={watchedIds} size={16} />
+                      <StarButton
+                        type="space"
+                        spaceId={space.id}
+                        name={space.name}
+                        size={16}
+                      />
+                      <WatchButton
+                        spaceId={space.id}
+                        watchedIds={watchedIds}
+                        size={16}
+                      />
                       <Menu position="bottom-end">
                         <Menu.Target>
                           <ActionIcon

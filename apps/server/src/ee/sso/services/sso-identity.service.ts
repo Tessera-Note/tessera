@@ -13,6 +13,7 @@ import { GroupUserRepo } from '@tessera/db/repos/group/group-user.repo';
 import { executeTx } from '@tessera/db/utils';
 import { UserRole } from '../../../common/helpers/types/permission';
 import { WorkspaceService } from '../../../core/workspace/services/workspace.service';
+import { badRequest, unauthorized } from '../../../common/errors/app-error';
 
 /**
  * Общая часть входа через внешнего провайдера, не зависящая от протокола.
@@ -57,7 +58,7 @@ export class SsoIdentityService {
       .executeTakeFirst();
 
     if (!provider) {
-      throw new BadRequestException('Провайдер входа недоступен');
+      throw badRequest('error.sso.provider_unavailable');
     }
     return provider;
   }
@@ -86,13 +87,13 @@ export class SsoIdentityService {
       .execute();
 
     if (providers.length === 0) {
-      throw new BadRequestException('Провайдер входа недоступен');
+      throw badRequest('error.sso.provider_unavailable');
     }
     if (providers.length > 1) {
       this.logger.error(
         `В пространстве ${workspaceId} несколько включенных провайдеров типа ${type}`,
       );
-      throw new BadRequestException('Настройка провайдера входа неоднозначна');
+      throw badRequest('error.sso.provider_ambiguous');
     }
     return providers[0];
   }
@@ -126,7 +127,7 @@ export class SsoIdentityService {
     if (linked) {
       const user = await this.userRepo.findById(linked.userId, workspace.id);
       if (!user) {
-        throw new UnauthorizedException('Учетная запись недоступна');
+        throw unauthorized('error.sso.account_unavailable');
       }
       return user;
     }
@@ -154,9 +155,7 @@ export class SsoIdentityService {
         this.logger.warn(
           `Вход отвергнут: учетная запись ${existing.id} уже связана с провайдером ${provider.id} под другим идентификатором`,
         );
-        throw new UnauthorizedException(
-          'Учетная запись с этим адресом уже связана с провайдером под другим идентификатором. Обратитесь к администратору',
-        );
+        throw unauthorized('error.sso.identity_conflict');
       }
 
       await this.linkAccount(existing.id, provider.id, subject, workspace.id);
@@ -164,9 +163,7 @@ export class SsoIdentityService {
     }
 
     if (!provider.allowSignup) {
-      throw new UnauthorizedException(
-        'Этот провайдер не создает новые учетные записи. Обратитесь к администратору',
-      );
+      throw unauthorized('error.sso.signup_disabled');
     }
 
     return this.createUser({ provider, workspace, subject, email, name });

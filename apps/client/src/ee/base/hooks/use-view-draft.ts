@@ -70,7 +70,10 @@ export function useViewDraft(args: UseViewDraftArgs): ViewDraftState {
           ? ({ op: "and", children: [] } as FilterGroup)
           : next;
       const mergedSorts = current?.sorts;
-      if (mergedFilter === undefined && (mergedSorts === undefined || mergedSorts === null)) {
+      if (
+        mergedFilter === undefined &&
+        (mergedSorts === undefined || mergedSorts === null)
+      ) {
         setDraft(RESET);
         return;
       }
@@ -91,10 +94,15 @@ export function useViewDraft(args: UseViewDraftArgs): ViewDraftState {
       // If baseline sorts exist, clearing to undefined would fall back to them.
       // Persist an empty array to explicitly override with no sorts.
       const mergedSorts =
-        next === undefined && baselineSorts !== undefined && baselineSorts.length > 0
+        next === undefined &&
+        baselineSorts !== undefined &&
+        baselineSorts.length > 0
           ? []
           : next;
-      if (mergedFilter === undefined && (mergedSorts === undefined || mergedSorts === null)) {
+      if (
+        mergedFilter === undefined &&
+        (mergedSorts === undefined || mergedSorts === null)
+      ) {
         setDraft(RESET);
         return;
       }

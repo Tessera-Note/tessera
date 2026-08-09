@@ -191,10 +191,7 @@ export function useDeleteSpaceMutation() {
   });
 }
 
-export function useSpaceMembersInfiniteQuery(
-  spaceId: string,
-  query?: string,
-) {
+export function useSpaceMembersInfiniteQuery(spaceId: string, query?: string) {
   return useInfiniteQuery({
     queryKey: ["spaceMembers", spaceId, query],
     queryFn: ({ pageParam }) =>

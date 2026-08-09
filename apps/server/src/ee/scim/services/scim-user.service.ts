@@ -275,7 +275,11 @@ export class ScimUserService {
         UserRole.MEMBER,
         trx,
       );
-      await this.groupUserRepo.addUserToDefaultGroup(user.id, workspace.id, trx);
+      await this.groupUserRepo.addUserToDefaultGroup(
+        user.id,
+        workspace.id,
+        trx,
+      );
 
       return user;
     });
@@ -345,10 +349,7 @@ export class ScimUserService {
     const row = await this.scimUserRepo.findById(id, workspace.id);
     if (!row) throw new NotFoundException(`User ${id} not found`);
 
-    const current = new scimmy.Schemas.User(
-      this.toResource(row) as any,
-      'out',
-    );
+    const current = new scimmy.Schemas.User(this.toResource(row) as any, 'out');
 
     let patched: any;
     try {
@@ -417,7 +418,9 @@ export class ScimUserService {
           email: values.email,
           name: values.name,
           scimExternalId: values.scimExternalId,
-          deactivatedAt: values.active ? null : (row.deactivatedAt ?? new Date()),
+          deactivatedAt: values.active
+            ? null
+            : (row.deactivatedAt ?? new Date()),
         },
         trx,
       );
@@ -541,9 +544,7 @@ export class ScimUserService {
   ): Promise<void> {
     const other = await this.scimUserRepo.findByEmail(email, workspace.id);
     if (other && other.id !== id) {
-      throw new ConflictException(
-        `User with userName ${email} already exists`,
-      );
+      throw new ConflictException(`User with userName ${email} already exists`);
     }
   }
 
@@ -555,15 +556,16 @@ export class ScimUserService {
     const email = payload?.userName || fromEmails;
 
     if (typeof email !== 'string' || !email.includes('@')) {
-      throw new BadRequestException(
-        'userName must be a valid email address',
-      );
+      throw new BadRequestException('userName must be a valid email address');
     }
     return email.toLowerCase();
   }
 
   private nameOf(payload: any): string {
-    if (typeof payload?.displayName === 'string' && payload.displayName.trim()) {
+    if (
+      typeof payload?.displayName === 'string' &&
+      payload.displayName.trim()
+    ) {
       return payload.displayName.trim();
     }
     const given = payload?.name?.givenName ?? '';
@@ -571,5 +573,4 @@ export class ScimUserService {
     const formatted = payload?.name?.formatted ?? '';
     return (formatted || `${given} ${family}`).trim();
   }
-
 }

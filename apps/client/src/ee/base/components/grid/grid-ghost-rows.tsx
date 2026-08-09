@@ -11,7 +11,11 @@ type GridGhostRowsProps = {
 
 // Empty-state ghost rows shown when no data rows exist and no filter is active.
 // Clicking any ghost row creates the first real row; cells align via subgrid.
-export function GridGhostRows({ count, columnCount, onCreate }: GridGhostRowsProps) {
+export function GridGhostRows({
+  count,
+  columnCount,
+  onCreate,
+}: GridGhostRowsProps) {
   return (
     <>
       {Array.from({ length: count }).map((_, rowIdx) => (

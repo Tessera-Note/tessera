@@ -1,7 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAtom } from "jotai";
 import { Menu, ActionIcon, Tooltip } from "@mantine/core";
-import { IconPlus, IconTable, IconLayoutKanban, IconArrowLeft } from "@tabler/icons-react";
+import {
+  IconPlus,
+  IconTable,
+  IconLayoutKanban,
+  IconArrowLeft,
+} from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { IBase } from "@/ee/base/types/base.types";
 import { useCreateViewMutation } from "@/ee/base/queries/base-view-query";
@@ -35,7 +40,11 @@ export function ViewCreateMenu({ base, pageId }: ViewCreateMenuProps) {
   }, []);
 
   const submitView = useCallback(
-    (input: { name: string; type: "table" | "kanban"; config?: Record<string, unknown> }) => {
+    (input: {
+      name: string;
+      type: "table" | "kanban";
+      config?: Record<string, unknown>;
+    }) => {
       createViewMutation.mutate(
         { pageId, ...input },
         { onSuccess: (created) => setActiveViewId(created.id) },
@@ -96,7 +105,12 @@ export function ViewCreateMenu({ base, pageId }: ViewCreateMenuProps) {
     >
       <Menu.Target>
         <Tooltip label={t("Add view")}>
-          <ActionIcon variant="subtle" size="sm" color="gray" aria-label={t("Add view")}>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            color="gray"
+            aria-label={t("Add view")}
+          >
             <IconPlus size={14} />
           </ActionIcon>
         </Tooltip>
@@ -105,10 +119,16 @@ export function ViewCreateMenu({ base, pageId }: ViewCreateMenuProps) {
       <Menu.Dropdown ref={dropdownRef}>
         {panel === "types" && (
           <>
-            <Menu.Item leftSection={<IconTable size={14} />} onClick={handleCreateTable}>
+            <Menu.Item
+              leftSection={<IconTable size={14} />}
+              onClick={handleCreateTable}
+            >
               {t("Table")}
             </Menu.Item>
-            <Menu.Item leftSection={<IconLayoutKanban size={14} />} onClick={handleBoardClick}>
+            <Menu.Item
+              leftSection={<IconLayoutKanban size={14} />}
+              onClick={handleBoardClick}
+            >
               {t("Kanban")}
             </Menu.Item>
           </>
@@ -116,7 +136,10 @@ export function ViewCreateMenu({ base, pageId }: ViewCreateMenuProps) {
 
         {panel === "groupBy" && (
           <>
-            <Menu.Item leftSection={<IconArrowLeft size={14} />} onClick={() => setPanel("types")}>
+            <Menu.Item
+              leftSection={<IconArrowLeft size={14} />}
+              onClick={() => setPanel("types")}
+            >
               {t("Group by")}
             </Menu.Item>
             <Menu.Divider />

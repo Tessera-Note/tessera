@@ -55,11 +55,7 @@ export default function CreatedByMe({ spaceId }: Props) {
                   <UnstyledButton
                     className={rowClasses.link}
                     component={Link}
-                    to={buildPageUrl(
-                      page?.space.slug,
-                      page.slugId,
-                      page.title,
-                    )}
+                    to={buildPageUrl(page?.space.slug, page.slugId, page.title)}
                   >
                     <Group wrap="nowrap">
                       <PageListIcon icon={page.icon} isBase={page.isBase} />

@@ -47,7 +47,9 @@ function build(overrides: {
     pageService: { updatePageContent: jest.fn().mockResolvedValue(undefined) },
     pageRepo: {
       findById: overrides.findByIdThrows
-        ? jest.fn().mockRejectedValue(new Error('invalid input syntax for uuid'))
+        ? jest
+            .fn()
+            .mockRejectedValue(new Error('invalid input syntax for uuid'))
         : jest.fn().mockResolvedValue(overrides.page),
       updatePage: jest.fn().mockResolvedValue(undefined),
     },
@@ -211,10 +213,7 @@ describe('AiChatService edit command authorization', () => {
   it('reports each command separately when several are emitted', async () => {
     const { service } = build({ page: allowedPage });
 
-    const outcomes = await run(
-      service,
-      `${editCommand()}\n${titleCommand()}`,
-    );
+    const outcomes = await run(service, `${editCommand()}\n${titleCommand()}`);
 
     expect(outcomes).toHaveLength(2);
     expect(outcomes.map((o: any) => o.action)).toEqual(['content', 'title']);
@@ -364,7 +363,12 @@ describe('AiChatService.sendMessage mentioned-page authorization', () => {
   }
 
   function buildSendMessageService(opts: {
-    mentionedPages: Array<{ id: string; spaceId: string; title: string; content: string }>;
+    mentionedPages: Array<{
+      id: string;
+      spaceId: string;
+      title: string;
+      content: string;
+    }>;
     restrictedPageIds: Set<string>;
   }) {
     // Order matters: sendMessage issues selectFrom() in this sequence for the

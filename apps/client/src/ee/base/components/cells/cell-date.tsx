@@ -1,10 +1,7 @@
 import { useCallback } from "react";
 import { Popover } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
-import {
-  IBaseProperty,
-  DateTypeOptions,
-} from "@/ee/base/types/base.types";
+import { IBaseProperty, DateTypeOptions } from "@/ee/base/types/base.types";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 
 type CellDateProps = {
@@ -26,8 +23,18 @@ export function formatDateDisplay(
     if (isNaN(date.getTime())) return "";
 
     const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
     const month = months[date.getMonth()];
     const day = date.getDate();
@@ -124,11 +131,7 @@ export function CellDate({
           </div>
         </Popover.Target>
         <Popover.Dropdown p="xs" onKeyDown={handleKeyDown}>
-          <DatePicker
-            value={pickerValue}
-            onChange={handleChange}
-            size="sm"
-          />
+          <DatePicker value={pickerValue} onChange={handleChange} size="sm" />
         </Popover.Dropdown>
       </Popover>
     );

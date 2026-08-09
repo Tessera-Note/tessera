@@ -1,10 +1,6 @@
 import { GridContainer } from "@/ee/base/components/grid/grid-container";
 import { Table } from "@tanstack/react-table";
-import {
-  IBase,
-  IBaseRow,
-  IBaseView,
-} from "@/ee/base/types/base.types";
+import { IBase, IBaseRow, IBaseView } from "@/ee/base/types/base.types";
 
 type BaseTableProps = {
   base: IBase;

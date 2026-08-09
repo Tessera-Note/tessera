@@ -8,7 +8,9 @@ import { normalizePageReference } from './page-reference.util';
 describe('normalizePageReference, формы из транскрипта', () => {
   it('адрес страницы из строки браузера', () => {
     expect(
-      normalizePageReference('http://localhost:3000/s/general/p/filmy-pOHJzJpYni'),
+      normalizePageReference(
+        'http://localhost:3000/s/general/p/filmy-pOHJzJpYni',
+      ),
     ).toBe('pOHJzJpYni');
   });
 

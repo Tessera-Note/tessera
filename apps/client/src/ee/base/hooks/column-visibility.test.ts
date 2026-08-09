@@ -3,7 +3,12 @@ import { buildColumnVisibility } from "./column-visibility";
 import type { IBaseProperty } from "@/ee/base/types/base.types";
 
 const property = (id: string, isPrimary = false): IBaseProperty =>
-  ({ id, name: id, type: isPrimary ? "title" : "text", isPrimary }) as IBaseProperty;
+  ({
+    id,
+    name: id,
+    type: isPrimary ? "title" : "text",
+    isPrimary,
+  }) as IBaseProperty;
 
 const PROPERTIES = [
   property("title", true),

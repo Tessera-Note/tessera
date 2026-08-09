@@ -196,7 +196,6 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
     [data, spaceId],
   );
 
-
   // Stable callbacks for DocTree. Without these, every parent render recreates
   // the props and tears down every row's draggable/dropTarget subscription,
   // defeating memo(DocTreeRow).

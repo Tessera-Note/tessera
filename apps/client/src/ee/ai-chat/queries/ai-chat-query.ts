@@ -15,8 +15,7 @@ import {
 export function useChatsQuery() {
   return useInfiniteQuery({
     queryKey: ["ai-chats"],
-    queryFn: ({ pageParam }) =>
-      listChats({ cursor: pageParam, limit: 30 }),
+    queryFn: ({ pageParam }) => listChats({ cursor: pageParam, limit: 30 }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.meta.hasNextPage ? lastPage.meta.nextCursor : undefined,

@@ -1,4 +1,11 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Row, VisibilityState } from "@tanstack/react-table";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -172,17 +179,14 @@ export const GridRow = memo(function GridRow({
           // участвует: шапка ее не нумерует, и тело должно считать так же,
           // иначе ячейка объявляет себя колонкой на единицу дальше, чем она
           // есть среди свойств.
-          colIndex={
-            cell.column.id === "__row_number" ? undefined : cellIndex
-          }
+          colIndex={cell.column.id === "__row_number" ? undefined : cellIndex}
           onCellUpdate={onCellUpdate}
           pageId={pageId}
         />
       ))}
     </div>
   );
-},
-gridRowPropsEqual);
+}, gridRowPropsEqual);
 
 // row compares by row.original: React Query structural sharing keeps
 // unchanged rows reference-stable, while TanStack re-instantiates Row/Cell

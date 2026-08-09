@@ -96,7 +96,13 @@ export function CellLongText({
       <Popover.Target>
         <div className={cellClasses.popoverTargetFlex}>
           {preview ? (
-            <Tooltip label={toText(value)} multiline withinPortal openDelay={400} maw={420}>
+            <Tooltip
+              label={toText(value)}
+              multiline
+              withinPortal
+              openDelay={400}
+              maw={420}
+            >
               <span className={cellClasses.longTextPreview}>{preview}</span>
             </Tooltip>
           ) : (

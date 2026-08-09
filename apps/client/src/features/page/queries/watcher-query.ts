@@ -37,7 +37,9 @@ export function useUnwatchPageMutation() {
     mutationFn: (pageId: string) => unwatchPage(pageId),
     onSuccess: (_data, pageId) => {
       queryClient.setQueryData([WATCHER_KEY, pageId], { watching: false });
-      notifications.show({ message: t("You are no longer watching this page") });
+      notifications.show({
+        message: t("You are no longer watching this page"),
+      });
     },
   });
 }

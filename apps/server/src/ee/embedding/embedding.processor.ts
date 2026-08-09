@@ -34,9 +34,8 @@ export class EmbeddingProcessor extends WorkerHost {
       // переиндексации, которой не происходило.
       case QueueJob.WORKSPACE_DELETE_EMBEDDINGS: {
         if (!workspaceId) return;
-        const removed = await this.embeddingService.removeWorkspace(
-          workspaceId,
-        );
+        const removed =
+          await this.embeddingService.removeWorkspace(workspaceId);
         this.logger.debug(
           `Removed ${removed} embedding row(s) of workspace ${workspaceId}`,
         );
@@ -57,9 +56,8 @@ export class EmbeddingProcessor extends WorkerHost {
 
       case QueueJob.WORKSPACE_DELETED: {
         if (!workspaceId) return;
-        const removed = await this.embeddingService.removeWorkspace(
-          workspaceId,
-        );
+        const removed =
+          await this.embeddingService.removeWorkspace(workspaceId);
         this.logger.debug(
           `Removed ${removed} embedding row(s) of deleted workspace ${workspaceId}`,
         );

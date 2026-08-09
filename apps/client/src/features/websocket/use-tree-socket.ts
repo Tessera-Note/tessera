@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 import { socketAtom } from "@/features/websocket/atoms/socket-atom.ts";
 import { useAtom } from "jotai";
-import { treeDataAtom, treeRefreshTokenAtom } from "@/features/page/tree/atoms/tree-data-atom.ts";
+import {
+  treeDataAtom,
+  treeRefreshTokenAtom,
+} from "@/features/page/tree/atoms/tree-data-atom.ts";
 import { WebSocketEvent } from "@/features/websocket/types";
 import { SpaceTreeNode } from "@/features/page/tree/types.ts";
 import { useQueryClient } from "@tanstack/react-query";

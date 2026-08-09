@@ -63,10 +63,7 @@ type BasePropertyEvent = {
 };
 
 type BaseViewEvent = {
-  operation:
-    | "base:view:created"
-    | "base:view:updated"
-    | "base:view:deleted";
+  operation: "base:view:created" | "base:view:updated" | "base:view:deleted";
   pageId: string;
   view?: IBaseView;
   viewId?: string;
@@ -162,8 +159,13 @@ export function useBaseSocket(pageId: string | undefined): void {
       switch (event.operation) {
         case "base:row:created": {
           const e = event as BaseRowCreated;
-          const baseForCreate = queryClient.getQueryData<IBase>(["bases", pageId]);
-          const hasKanbanForCreate = (baseForCreate?.views ?? []).some((v) => v.type === "kanban");
+          const baseForCreate = queryClient.getQueryData<IBase>([
+            "bases",
+            pageId,
+          ]);
+          const hasKanbanForCreate = (baseForCreate?.views ?? []).some(
+            (v) => v.type === "kanban",
+          );
           if (hasKanbanForCreate) {
             invalidateBaseRows(pageId);
           } else {
@@ -187,8 +189,13 @@ export function useBaseSocket(pageId: string | undefined): void {
         }
         case "base:row:updated": {
           const e = event as BaseRowUpdated;
-          const baseForUpdate = queryClient.getQueryData<IBase>(["bases", pageId]);
-          const hasKanbanForUpdate = (baseForUpdate?.views ?? []).some((v) => v.type === "kanban");
+          const baseForUpdate = queryClient.getQueryData<IBase>([
+            "bases",
+            pageId,
+          ]);
+          const hasKanbanForUpdate = (baseForUpdate?.views ?? []).some(
+            (v) => v.type === "kanban",
+          );
           if (hasKanbanForUpdate) {
             invalidateBaseRows(pageId);
           } else {
@@ -271,8 +278,13 @@ export function useBaseSocket(pageId: string | undefined): void {
         }
         case "base:row:reordered": {
           const e = event as BaseRowReordered;
-          const baseForReorder = queryClient.getQueryData<IBase>(["bases", pageId]);
-          const hasKanbanForReorder = (baseForReorder?.views ?? []).some((v) => v.type === "kanban");
+          const baseForReorder = queryClient.getQueryData<IBase>([
+            "bases",
+            pageId,
+          ]);
+          const hasKanbanForReorder = (baseForReorder?.views ?? []).some(
+            (v) => v.type === "kanban",
+          );
           if (hasKanbanForReorder) {
             invalidateBaseRows(pageId);
           } else {

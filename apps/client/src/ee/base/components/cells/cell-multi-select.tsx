@@ -1,10 +1,4 @@
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-} from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Popover, TextInput } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import clsx from "clsx";
@@ -21,13 +15,22 @@ import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 
 const CHOICE_COLORS = [
-  "gray", "red", "pink", "grape", "violet", "indigo",
-  "blue", "cyan", "teal", "green", "lime", "yellow", "orange",
+  "gray",
+  "red",
+  "pink",
+  "grape",
+  "violet",
+  "indigo",
+  "blue",
+  "cyan",
+  "teal",
+  "green",
+  "lime",
+  "yellow",
+  "orange",
 ];
 
-type NavItem =
-  | { kind: "choice"; choice: Choice }
-  | { kind: "add" };
+type NavItem = { kind: "choice"; choice: Choice } | { kind: "add" };
 
 type CellMultiSelectProps = {
   value: unknown;
@@ -65,7 +68,9 @@ export function CellMultiSelect({
 
   const filteredChoices = (
     search
-      ? choices.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+      ? choices.filter((c) =>
+          c.name.toLowerCase().includes(search.toLowerCase()),
+        )
       : choices
   ).filter((c) => !selectedSet.has(c.id));
 
@@ -125,7 +130,16 @@ export function CellMultiSelect({
     });
     onValueChange([...selectedIds, newChoice.id]);
     setSearch("");
-  }, [trimmedSearch, addOptionColor, choices, typeOptions, property, updatePropertyMutation, selectedIds, onValueChange]);
+  }, [
+    trimmedSearch,
+    addOptionColor,
+    choices,
+    typeOptions,
+    property,
+    updatePropertyMutation,
+    selectedIds,
+    onValueChange,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -149,7 +163,15 @@ export function CellMultiSelect({
         }
       }
     },
-    [onCancel, handleNavKey, activeIndex, navItems, handleToggle, handleAddOption, showAddOption],
+    [
+      onCancel,
+      handleNavKey,
+      activeIndex,
+      navItems,
+      handleToggle,
+      handleAddOption,
+      showAddOption,
+    ],
   );
 
   if (isEditing) {
@@ -231,7 +253,8 @@ export function CellMultiSelect({
                 ref={setOptionRef(addOptionIdx)}
                 className={clsx(
                   cellClasses.addOptionRow,
-                  addOptionIdx === activeIndex && cellClasses.selectOptionKeyboardActive,
+                  addOptionIdx === activeIndex &&
+                    cellClasses.selectOptionKeyboardActive,
                 )}
                 onMouseEnter={() => setActiveIndex(addOptionIdx)}
                 onClick={handleAddOption}

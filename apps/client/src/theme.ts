@@ -39,7 +39,7 @@ export const theme = createTheme({
     blue,
     red,
   },
-  defaultRadius: 'sm',
+  defaultRadius: "sm",
   components: {
     Tooltip: Tooltip.extend({
       defaultProps: {

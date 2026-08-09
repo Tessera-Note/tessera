@@ -47,8 +47,22 @@ export const RowHandleMenu = React.memo(function RowHandleMenu({
       .run();
   };
 
-  const moveUp = useTableMoveRowColumn(editor, "row", index, "up", tableNode, tablePos);
-  const moveDown = useTableMoveRowColumn(editor, "row", index, "down", tableNode, tablePos);
+  const moveUp = useTableMoveRowColumn(
+    editor,
+    "row",
+    index,
+    "up",
+    tableNode,
+    tablePos,
+  );
+  const moveDown = useTableMoveRowColumn(
+    editor,
+    "row",
+    index,
+    "down",
+    tableNode,
+    tablePos,
+  );
   const clearRow = useTableClear(editor, tableNode, tablePos, {
     kind: "row",
     index,
@@ -63,7 +77,14 @@ export const RowHandleMenu = React.memo(function RowHandleMenu({
           </Menu.Sub.Item>
         </Menu.Sub.Target>
         <Menu.Sub.Dropdown>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 8,
+              padding: 8,
+            }}
+          >
             {TABLE_COLORS.map((c) => (
               <button
                 key={c.name}
@@ -80,7 +101,9 @@ export const RowHandleMenu = React.memo(function RowHandleMenu({
                 <ColorSwatch
                   color={c.color || "#ffffff"}
                   size={22}
-                  style={{ border: c.color === "" ? "1px solid #e5e7eb" : undefined }}
+                  style={{
+                    border: c.color === "" ? "1px solid #e5e7eb" : undefined,
+                  }}
                 />
               </button>
             ))}

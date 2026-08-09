@@ -65,68 +65,75 @@ export default function ExcalidrawView(props: NodeViewProps) {
     open();
   };
 
-  const saveData = useCallback(async (updateSrc = true) => {
-    if (!excalidrawAPI || isSavingRef.current) {
-      return;
-    }
-
-    isSavingRef.current = true;
-    setIsSaving(true);
-
-    try {
-      const { exportToSvg } = await import("@excalidraw/excalidraw");
-
-      const svg = await exportToSvg({
-        elements: excalidrawAPI?.getSceneElements(),
-        appState: {
-          exportEmbedScene: true,
-          exportWithDarkMode: false,
-        },
-        files: excalidrawAPI?.getFiles(),
-      });
-
-      const serializer = new XMLSerializer();
-      let svgString = serializer.serializeToString(svg);
-
-      // Экспортированный SVG не должен ссылаться на сторонний CDN:
-      // шрифты раздаются приложением по пути из EXCALIDRAW_ASSET_PATH.
-      svgString = svgString.replace(
-        /https:\/\/unpkg\.com\/@excalidraw\/excalidraw@[^/]*\/dist\/prod\//g,
-        "/excalidraw-assets/",
-      );
-
-      const fileName = "diagram.excalidraw.svg";
-      const excalidrawSvgFile = await svgStringToFile(svgString, fileName);
-
-      // @ts-ignore
-      const pageId = editor.storage?.pageId;
-
-      let attachment: IAttachment = null;
-      if (attachmentId) {
-        attachment = await uploadFile(excalidrawSvgFile, pageId, attachmentId);
-      } else {
-        attachment = await uploadFile(excalidrawSvgFile, pageId);
+  const saveData = useCallback(
+    async (updateSrc = true) => {
+      if (!excalidrawAPI || isSavingRef.current) {
+        return;
       }
 
-      if (updateSrc) {
-        updateAttributes({
-          src: `/api/files/${attachment.id}/${attachment.fileName}?t=${new Date(attachment.updatedAt).getTime()}`,
-          title: attachment.fileName,
-          size: attachment.fileSize,
-          attachmentId: attachment.id,
-        });
-      } else {
-        updateAttributes({
-          attachmentId: attachment.id,
-        });
-      }
+      isSavingRef.current = true;
+      setIsSaving(true);
 
-      isDirtyRef.current = false;
-    } finally {
-      isSavingRef.current = false;
-      setIsSaving(false);
-    }
-  }, [excalidrawAPI, editor, attachmentId, updateAttributes]);
+      try {
+        const { exportToSvg } = await import("@excalidraw/excalidraw");
+
+        const svg = await exportToSvg({
+          elements: excalidrawAPI?.getSceneElements(),
+          appState: {
+            exportEmbedScene: true,
+            exportWithDarkMode: false,
+          },
+          files: excalidrawAPI?.getFiles(),
+        });
+
+        const serializer = new XMLSerializer();
+        let svgString = serializer.serializeToString(svg);
+
+        // Экспортированный SVG не должен ссылаться на сторонний CDN:
+        // шрифты раздаются приложением по пути из EXCALIDRAW_ASSET_PATH.
+        svgString = svgString.replace(
+          /https:\/\/unpkg\.com\/@excalidraw\/excalidraw@[^/]*\/dist\/prod\//g,
+          "/excalidraw-assets/",
+        );
+
+        const fileName = "diagram.excalidraw.svg";
+        const excalidrawSvgFile = await svgStringToFile(svgString, fileName);
+
+        // @ts-ignore
+        const pageId = editor.storage?.pageId;
+
+        let attachment: IAttachment = null;
+        if (attachmentId) {
+          attachment = await uploadFile(
+            excalidrawSvgFile,
+            pageId,
+            attachmentId,
+          );
+        } else {
+          attachment = await uploadFile(excalidrawSvgFile, pageId);
+        }
+
+        if (updateSrc) {
+          updateAttributes({
+            src: `/api/files/${attachment.id}/${attachment.fileName}?t=${new Date(attachment.updatedAt).getTime()}`,
+            title: attachment.fileName,
+            size: attachment.fileSize,
+            attachmentId: attachment.id,
+          });
+        } else {
+          updateAttributes({
+            attachmentId: attachment.id,
+          });
+        }
+
+        isDirtyRef.current = false;
+      } finally {
+        isSavingRef.current = false;
+        setIsSaving(false);
+      }
+    },
+    [excalidrawAPI, editor, attachmentId, updateAttributes],
+  );
 
   const handleSaveAndExit = useCallback(async () => {
     try {
@@ -196,7 +203,11 @@ export default function ExcalidrawView(props: NodeViewProps) {
           bg="var(--mantine-color-body)"
           p="xs"
         >
-          <Button onClick={handleSaveAndExit} size={"compact-sm"} loading={isSaving}>
+          <Button
+            onClick={handleSaveAndExit}
+            size={"compact-sm"}
+            loading={isSaving}
+          >
             {t("Save & Exit")}
           </Button>
           <Button onClick={handleClose} color="red" size={"compact-sm"}>

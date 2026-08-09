@@ -26,16 +26,13 @@ export function useCreatePropertyMutation() {
   return useMutation<IBaseProperty, Error, CreatePropertyInput>({
     mutationFn: (data) => createProperty(data),
     onSuccess: (newProperty) => {
-      queryClient.setQueryData<IBase>(
-        ["bases", newProperty.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            properties: [...old.properties, newProperty],
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", newProperty.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          properties: [...old.properties, newProperty],
+        };
+      });
     },
     onError: (error) => {
       notifications.show({
@@ -51,18 +48,15 @@ export function useUpdatePropertyMutation() {
   return useMutation<UpdatePropertyResult, Error, UpdatePropertyInput>({
     mutationFn: (data) => updateProperty(data),
     onSuccess: (result, variables) => {
-      queryClient.setQueryData<IBase>(
-        ["bases", variables.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            properties: old.properties.map((p) =>
-              p.id === result.property.id ? result.property : p,
-            ),
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", variables.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          properties: old.properties.map((p) =>
+            p.id === result.property.id ? result.property : p,
+          ),
+        };
+      });
 
       if (variables.type && !result.jobId) {
         queryClient.invalidateQueries({
@@ -84,18 +78,15 @@ export function useDeletePropertyMutation() {
   return useMutation<void, Error, DeletePropertyInput>({
     mutationFn: (data) => deleteProperty(data),
     onSuccess: (_, variables) => {
-      queryClient.setQueryData<IBase>(
-        ["bases", variables.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            properties: old.properties.filter(
-              (p) => p.id !== variables.propertyId,
-            ),
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", variables.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          properties: old.properties.filter(
+            (p) => p.id !== variables.propertyId,
+          ),
+        };
+      });
 
       queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
         { queryKey: ["base-rows", variables.pageId] },
@@ -126,7 +117,12 @@ export function useDeletePropertyMutation() {
 
 export function useReorderPropertyMutation() {
   const { t } = useTranslation();
-  return useMutation<void, Error, ReorderPropertyInput, { previous: IBase | undefined }>({
+  return useMutation<
+    void,
+    Error,
+    ReorderPropertyInput,
+    { previous: IBase | undefined }
+  >({
     mutationFn: (data) => reorderProperty(data),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({
@@ -138,29 +134,23 @@ export function useReorderPropertyMutation() {
         variables.pageId,
       ]);
 
-      queryClient.setQueryData<IBase>(
-        ["bases", variables.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            properties: old.properties.map((p) =>
-              p.id === variables.propertyId
-                ? { ...p, position: variables.position }
-                : p,
-            ),
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", variables.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          properties: old.properties.map((p) =>
+            p.id === variables.propertyId
+              ? { ...p, position: variables.position }
+              : p,
+          ),
+        };
+      });
 
       return { previous };
     },
     onError: (error, variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(
-          ["bases", variables.pageId],
-          context.previous,
-        );
+        queryClient.setQueryData(["bases", variables.pageId], context.previous);
       }
       notifications.show({
         message: getApiErrorMessage(error, t("Failed to reorder property")),

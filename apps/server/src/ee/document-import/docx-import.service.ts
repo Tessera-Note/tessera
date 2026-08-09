@@ -6,6 +6,7 @@ import { StorageService } from '../../integrations/storage/storage.service';
 import { getAttachmentFolderPath } from '../../core/attachment/attachment.utils';
 import { AttachmentType } from '../../core/attachment/attachment.constants';
 import { sanitizeFileName } from '../../common/helpers';
+import { badRequest } from '../../common/errors/app-error';
 
 /**
  * Расширение по типу картинки, вшитой в документ.
@@ -64,7 +65,7 @@ export class DocxImportService {
     userId: string,
   ): Promise<string> {
     if (!fileBuffer?.length) {
-      throw new BadRequestException('Файл документа пуст');
+      throw badRequest('error.import.docx_empty');
     }
 
     let result: { value: string; messages: { message: string }[] };
@@ -83,7 +84,7 @@ export class DocxImportService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new BadRequestException('Не удалось разобрать документ Word');
+      throw badRequest('error.import.docx_unreadable');
     }
 
     // Предупреждения разбора не ошибка: mammoth сообщает о стилях, которым

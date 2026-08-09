@@ -41,9 +41,9 @@ function build(
   };
 
   const pageRepo: any = {
-    findById: jest.fn().mockResolvedValue(
-      'page' in options ? options.page : PAGE,
-    ),
+    findById: jest
+      .fn()
+      .mockResolvedValue('page' in options ? options.page : PAGE),
   };
   const pageAccessService: any = {
     validateCanViewWithPermissions: jest.fn(async () => {
@@ -189,18 +189,15 @@ describe('PageVerificationService, контракт выдачи', () => {
     ['verified', 'expiring', 'verified'],
     ['expired', 'expiring', 'expired'],
     ['obsolete', 'qms', 'obsolete'],
-  ])(
-    'статус %s типа %s отдается как %s',
-    async (status, type, expected) => {
-      const { service } = build({
-        verification: { ...ROW, status, type },
-      });
+  ])('статус %s типа %s отдается как %s', async (status, type, expected) => {
+    const { service } = build({
+      verification: { ...ROW, status, type },
+    });
 
-      const info = await service.getVerificationInfo('page-1', 'ws-1', USER);
+    const info = await service.getVerificationInfo('page-1', 'ws-1', USER);
 
-      expect(info.status).toBe(expected);
-    },
-  );
+    expect(info.status).toBe(expected);
+  });
 
   // none заставил бы интерфейс предложить настройку и получить отказ
   // «уже настроена», поэтому запись остается видимой.
@@ -309,11 +306,7 @@ describe('PageVerificationService, контракт выдачи', () => {
   it('внутренние колонки наружу не выдаются', async () => {
     const { service } = build({ verification: ROW });
 
-    const info: any = await service.getVerificationInfo(
-      'page-1',
-      'ws-1',
-      USER,
-    );
+    const info: any = await service.getVerificationInfo('page-1', 'ws-1', USER);
 
     expect(info).not.toHaveProperty('workspaceId');
     expect(info).not.toHaveProperty('spaceId');

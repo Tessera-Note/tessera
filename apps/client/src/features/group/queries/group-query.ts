@@ -22,7 +22,7 @@ import { IUser } from "@/features/user/types/user.types.ts";
 import { useEffect } from "react";
 import { validate as isValidUuid } from "uuid";
 import { queryClient } from "@/main.tsx";
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from "react-i18next";
 
 export function useGetGroupsQuery(
   params?: QueryParams,

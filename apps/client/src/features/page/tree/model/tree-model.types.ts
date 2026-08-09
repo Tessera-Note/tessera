@@ -4,9 +4,9 @@ export type TreeNode<T extends object = object> = T & {
 };
 
 export type DropOp =
-  | { kind: 'reorder-before'; targetId: string }
-  | { kind: 'reorder-after'; targetId: string }
-  | { kind: 'make-child'; targetId: string };
+  | { kind: "reorder-before"; targetId: string }
+  | { kind: "reorder-after"; targetId: string }
+  | { kind: "make-child"; targetId: string };
 
 export type DropResult = {
   parentId: string | null;

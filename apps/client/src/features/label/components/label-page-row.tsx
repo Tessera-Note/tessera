@@ -40,9 +40,7 @@ export function LabelPageRow({ page, currentLabelName }: LabelPageRowProps) {
           )}
         </div>
         <div className={classes.rowBody}>
-          <div className={classes.rowTitle}>
-            {page.title || t("Untitled")}
-          </div>
+          <div className={classes.rowTitle}>{page.title || t("Untitled")}</div>
           <div className={classes.rowMeta}>
             {page.space && (
               <>

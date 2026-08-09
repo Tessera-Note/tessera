@@ -80,14 +80,21 @@ export function PropertyRow({
           <Popover.Target>
             <button
               type="button"
-              className={clsx(classes.propertyLabel, classes.propertyLabelButton, {
-                [classes.propertyLabelActive]: menuOpened,
-              })}
+              className={clsx(
+                classes.propertyLabel,
+                classes.propertyLabelButton,
+                {
+                  [classes.propertyLabelActive]: menuOpened,
+                },
+              )}
               onClick={handleLabelClick}
               data-property-menu-target
             >
               {label}
-              <IconChevronDown size={13} className={classes.propertyLabelChevron} />
+              <IconChevronDown
+                size={13}
+                className={classes.propertyLabelChevron}
+              />
             </button>
           </Popover.Target>
           <Popover.Dropdown

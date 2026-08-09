@@ -18,7 +18,11 @@ import {
   IconTrashX,
 } from "@tabler/icons-react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { isCellSelection, isEditorReady, isTextSelected } from "@tessera/editor-ext";
+import {
+  isCellSelection,
+  isEditorReady,
+  isTextSelected,
+} from "@tessera/editor-ext";
 import { useTranslation } from "react-i18next";
 import classes from "../common/toolbar-menu.module.css";
 

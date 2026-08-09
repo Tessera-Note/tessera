@@ -1,7 +1,18 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Group, Popover, Text, TextInput, UnstyledButton } from "@mantine/core";
-import { IBaseProperty, KanbanColumn, SelectTypeOptions } from "@/ee/base/types/base.types";
+import {
+  Button,
+  Group,
+  Popover,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "@mantine/core";
+import {
+  IBaseProperty,
+  KanbanColumn,
+  SelectTypeOptions,
+} from "@/ee/base/types/base.types";
 import { useUpdatePropertyMutation } from "@/ee/base/queries/base-property-query";
 import classes from "@/ee/base/styles/kanban.module.css";
 
@@ -12,7 +23,12 @@ type KanbanColumnTitleProps = {
   canEdit: boolean;
 };
 
-export function KanbanColumnTitle({ column, property, pageId, canEdit }: KanbanColumnTitleProps) {
+export function KanbanColumnTitle({
+  column,
+  property,
+  pageId,
+  canEdit,
+}: KanbanColumnTitleProps) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const [draft, setDraft] = useState("");

@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  Accordion,
-  Group,
-  Text,
-  Tooltip,
-  UnstyledButton,
-} from "@mantine/core";
+import { Accordion, Group, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import type { FormulaFn } from "@tessera/base-formula/client";
 import classes from "@/ee/base/styles/formula.module.css";
 
@@ -67,9 +61,7 @@ export function FunctionPalette({
                       className={classes.fnChip}
                     >
                       {fn.name}
-                      <span className={classes.fnChipParens}>
-                        ()
-                      </span>
+                      <span className={classes.fnChipParens}>()</span>
                     </UnstyledButton>
                   </Tooltip>
                 ))}

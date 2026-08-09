@@ -8,7 +8,10 @@ import { languageForRequest } from './request-language.util';
 describe('languageForRequest', () => {
   it('чистый русский запрос дает русский, несмотря на украинскую локаль', () => {
     expect(
-      languageForRequest('создай страницу с фильмами которые в прокате', 'uk-UA'),
+      languageForRequest(
+        'создай страницу с фильмами которые в прокате',
+        'uk-UA',
+      ),
     ).toBe('Russian');
   });
 
@@ -42,11 +45,14 @@ describe('languageForRequest', () => {
   it.each([
     ['uk-UA', 'Ukrainian'],
     ['ru-RU', 'Russian'],
-  ])('по-настоящему смешанный текст решается локалью %s', (locale, expected) => {
-    expect(
-      languageForRequest('що це таке и что это такое, если або', locale),
-    ).toBe(expected);
-  });
+  ])(
+    'по-настоящему смешанный текст решается локалью %s',
+    (locale, expected) => {
+      expect(
+        languageForRequest('що це таке и что это такое, если або', locale),
+      ).toBe(expected);
+    },
+  );
 
   it('кириллица без различающих букв отдает решение локали', () => {
     expect(languageForRequest('привет как дела', 'uk-UA')).toBe('Ukrainian');

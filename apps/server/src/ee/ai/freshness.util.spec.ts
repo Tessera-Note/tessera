@@ -3,7 +3,9 @@ import { needsWebSearch } from './freshness.util';
 describe('needsWebSearch, случай ради которого сделано', () => {
   it('запрос про текущий прокат требует поиска', () => {
     expect(needsWebSearch('Какой сейчас топ проката?')).toBe(true);
-    expect(needsWebSearch('составь список фильмов в текущем прокате')).toBe(true);
+    expect(needsWebSearch('составь список фильмов в текущем прокате')).toBe(
+      true,
+    );
     expect(needsWebSearch('what is in the box office now')).toBe(true);
   });
 });

@@ -109,7 +109,6 @@ export function useTreeMutation(spaceId: string): UseTreeMutation {
         payload.parentPageId,
         pageData,
       );
-
     },
     [setData, store, movePageMutation, spaceId, t],
   );
@@ -209,7 +208,6 @@ export function useTreeMutation(spaceId: string): UseTreeMutation {
         ) {
           navigate(getSpaceUrl(spaceSlug));
         }
-
       } catch (error) {
         console.error("Failed to delete page:", error);
       }

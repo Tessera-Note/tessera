@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { type IBase, type IBaseProperty, type IBaseRow, type IBaseView, type FilterGroup, type KanbanColumn as KanbanColumnType, KANBAN_CARD_DRAG_TYPE } from "@/ee/base/types/base.types";
+import {
+  type IBase,
+  type IBaseProperty,
+  type IBaseRow,
+  type IBaseView,
+  type FilterGroup,
+  type KanbanColumn as KanbanColumnType,
+  KANBAN_CARD_DRAG_TYPE,
+} from "@/ee/base/types/base.types";
 import { buildColumnFilter } from "@/ee/base/services/kanban-column-filter";
 import { formatKanbanCount } from "@/ee/base/services/format-kanban-count";
 import { useKanbanColumnAutoScroll } from "@/ee/base/hooks/use-kanban-autoscroll";
@@ -23,7 +31,11 @@ type KanbanColumnProps = {
   canEdit: boolean;
   onOpenRow: (rowId: string) => void;
   onHide: (columnKey: string) => void;
-  registerCardRef: (rowId: string, columnKey: string, el: HTMLDivElement | null) => void;
+  registerCardRef: (
+    rowId: string,
+    columnKey: string,
+    el: HTMLDivElement | null,
+  ) => void;
   registerColumnRows: (columnKey: string, rows: IBaseRow[]) => void;
 };
 
@@ -61,9 +73,11 @@ export function KanbanColumn({
         }
       }
     }
-    return flat.slice().sort((a, b) =>
-      a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
-    );
+    return flat
+      .slice()
+      .sort((a, b) =>
+        a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
+      );
   }, [rowsQuery.data]);
 
   const count = rowsQuery.isSuccess
@@ -94,7 +108,8 @@ export function KanbanColumn({
     return dropTargetForElements({
       element: listEl,
       canDrop: ({ source }) =>
-        source.data.type === KANBAN_CARD_DRAG_TYPE && source.data.pageId === pageId,
+        source.data.type === KANBAN_CARD_DRAG_TYPE &&
+        source.data.pageId === pageId,
       getData: () => ({ columnKey: column.key, isColumnBody: true }),
     });
   }, [column.key, pageId]);
@@ -110,7 +125,11 @@ export function KanbanColumn({
     ) {
       rowsQuery.fetchNextPage();
     }
-  }, [rowsQuery.hasNextPage, rowsQuery.isFetchingNextPage, rowsQuery.fetchNextPage]);
+  }, [
+    rowsQuery.hasNextPage,
+    rowsQuery.isFetchingNextPage,
+    rowsQuery.fetchNextPage,
+  ]);
 
   const addCard = useCallback(
     (placement: "top" | "bottom") => {
@@ -119,12 +138,21 @@ export function KanbanColumn({
         position =
           placement === "top"
             ? generateJitteredKeyBetween(null, rows[0]?.position ?? null)
-            : generateJitteredKeyBetween(rows[rows.length - 1]?.position ?? null, null);
+            : generateJitteredKeyBetween(
+                rows[rows.length - 1]?.position ?? null,
+                null,
+              );
       } catch {
         position = undefined;
       }
       createCard.mutate(
-        { pageId, destColumnFilter: filter, groupByPropertyId, columnKey: column.key, position },
+        {
+          pageId,
+          destColumnFilter: filter,
+          groupByPropertyId,
+          columnKey: column.key,
+          position,
+        },
         {
           onSuccess: (newRow) => {
             pendingScrollRef.current = placement;
@@ -133,7 +161,15 @@ export function KanbanColumn({
         },
       );
     },
-    [createCard, pageId, filter, groupByPropertyId, column.key, onOpenRow, rows],
+    [
+      createCard,
+      pageId,
+      filter,
+      groupByPropertyId,
+      column.key,
+      onOpenRow,
+      rows,
+    ],
   );
 
   return (

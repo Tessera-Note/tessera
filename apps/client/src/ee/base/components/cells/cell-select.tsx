@@ -14,13 +14,22 @@ import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 
 const CHOICE_COLORS = [
-  "gray", "red", "pink", "grape", "violet", "indigo",
-  "blue", "cyan", "teal", "green", "lime", "yellow", "orange",
+  "gray",
+  "red",
+  "pink",
+  "grape",
+  "violet",
+  "indigo",
+  "blue",
+  "cyan",
+  "teal",
+  "green",
+  "lime",
+  "yellow",
+  "orange",
 ];
 
-type NavItem =
-  | { kind: "choice"; choice: Choice }
-  | { kind: "add" };
+type NavItem = { kind: "choice"; choice: Choice } | { kind: "add" };
 
 type CellSelectProps = {
   value: unknown;
@@ -54,9 +63,7 @@ export function CellSelect({
   }, [isEditing]);
 
   const filteredChoices = search
-    ? choices.filter((c) =>
-        c.name.toLowerCase().includes(search.toLowerCase()),
-      )
+    ? choices.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
     : choices;
 
   const handleSelect = useCallback(
@@ -111,7 +118,15 @@ export function CellSelect({
       },
     });
     onCommit(newChoice.id);
-  }, [trimmedSearch, addOptionColor, choices, typeOptions, property, updatePropertyMutation, onCommit]);
+  }, [
+    trimmedSearch,
+    addOptionColor,
+    choices,
+    typeOptions,
+    property,
+    updatePropertyMutation,
+    onCommit,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -135,7 +150,15 @@ export function CellSelect({
         }
       }
     },
-    [onCancel, handleNavKey, activeIndex, navItems, handleSelect, handleAddOption, showAddOption],
+    [
+      onCancel,
+      handleNavKey,
+      activeIndex,
+      navItems,
+      handleSelect,
+      handleAddOption,
+      showAddOption,
+    ],
   );
 
   if (isEditing) {
@@ -187,7 +210,8 @@ export function CellSelect({
                   className={clsx(
                     cellClasses.selectOption,
                     isSelected && cellClasses.selectOptionActive,
-                    idx === activeIndex && cellClasses.selectOptionKeyboardActive,
+                    idx === activeIndex &&
+                      cellClasses.selectOptionKeyboardActive,
                   )}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onClick={() => handleSelect(choice)}
@@ -206,7 +230,8 @@ export function CellSelect({
                 ref={setOptionRef(addOptionIdx)}
                 className={clsx(
                   cellClasses.addOptionRow,
-                  addOptionIdx === activeIndex && cellClasses.selectOptionKeyboardActive,
+                  addOptionIdx === activeIndex &&
+                    cellClasses.selectOptionKeyboardActive,
                 )}
                 onMouseEnter={() => setActiveIndex(addOptionIdx)}
                 onClick={handleAddOption}

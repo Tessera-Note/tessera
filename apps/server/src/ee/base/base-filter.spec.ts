@@ -1,7 +1,4 @@
-import {
-  matchesBaseRowFilter,
-  collectPushdownConditions,
-} from './base-filter';
+import { matchesBaseRowFilter, collectPushdownConditions } from './base-filter';
 
 // Среда: 2026-08-05. Неделя понедельник 2026-08-03 — воскресенье 2026-08-09.
 const NOW = new Date('2026-08-05T12:00:00.000Z');
@@ -513,7 +510,11 @@ describe('collectPushdownConditions', () => {
 
   it('не сужает contains с пустой подстрокой', () => {
     expect(
-      collectPushdownConditions({ propertyId: 'p1', op: 'contains', value: '' }),
+      collectPushdownConditions({
+        propertyId: 'p1',
+        op: 'contains',
+        value: '',
+      }),
     ).toEqual([]);
   });
 

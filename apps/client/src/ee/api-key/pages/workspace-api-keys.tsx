@@ -14,7 +14,7 @@ import Paginate from "@/components/common/paginate";
 import { useCursorPaginate } from "@/hooks/use-cursor-paginate";
 import { useGetApiKeysQuery } from "@/ee/api-key/queries/api-key-query.ts";
 import { IApiKey } from "@/ee/api-key";
-import useUserRole from '@/hooks/use-user-role.tsx';
+import useUserRole from "@/hooks/use-user-role.tsx";
 import RestrictApiToAdmins from "@/ee/api-key/components/restrict-api-to-admins";
 import { getDocsUrl } from "@/lib/config.ts";
 
@@ -64,7 +64,9 @@ export default function WorkspaceApiKeys() {
         <Trans
           i18nKey="Manage API keys for all users in the workspace. View the <anchor>API documentation</anchor> for usage details."
           components={{
-            anchor: <Anchor href={getDocsUrl("api")} target="_blank" size="sm" />,
+            anchor: (
+              <Anchor href={getDocsUrl("api")} target="_blank" size="sm" />
+            ),
           }}
         />
       </Text>

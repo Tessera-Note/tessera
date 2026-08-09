@@ -1,7 +1,7 @@
 import "@mantine/core/styles.css";
 import "@mantine/spotlight/styles.css";
 import "@mantine/notifications/styles.css";
-import '@mantine/dates/styles.css';
+import "@mantine/dates/styles.css";
 import "@/styles/a11y-overrides.css";
 
 import ReactDOM from "react-dom/client";
@@ -44,7 +44,8 @@ if (isCloud() && isPostHogEnabled) {
 }
 
 const container = document.getElementById("root") as HTMLElement;
-const root = (container as any).__reactRoot ??= ReactDOM.createRoot(container);
+const root = ((container as any).__reactRoot ??=
+  ReactDOM.createRoot(container));
 
 root.render(
   <BrowserRouter>

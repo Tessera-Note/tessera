@@ -1,13 +1,7 @@
 import React from "react";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import classes from "@/ee/billing/components/billing.module.css";
-import {
-  Group,
-  Paper,
-  SimpleGrid,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Group, Paper, SimpleGrid, Text, TextInput } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import CopyTextButton from "@/components/common/copy.tsx";

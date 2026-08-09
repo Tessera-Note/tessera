@@ -18,6 +18,7 @@ import {
 } from "@/features/user/atoms/current-user-atom.ts";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { RESET } from "jotai/utils";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function ManageHostname() {
   const { t } = useTranslation();
@@ -89,7 +90,7 @@ function ChangeHostnameForm({ onClose }: ChangeHostnameFormProps) {
       window.location.href = getHostnameUrl(data.hostname.toLowerCase());
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

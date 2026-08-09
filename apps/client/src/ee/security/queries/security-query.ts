@@ -15,7 +15,10 @@ import { notifications } from "@mantine/notifications";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import { IPagination } from "@/lib/types.ts";
 
-export function useGetSsoProviders(): UseQueryResult<IPagination<IAuthProvider>, Error> {
+export function useGetSsoProviders(): UseQueryResult<
+  IPagination<IAuthProvider>,
+  Error
+> {
   return useQuery({
     queryKey: ["sso-providers"],
     queryFn: () => getSsoProviders(),

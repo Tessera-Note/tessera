@@ -21,7 +21,10 @@ interface EditGroupFormProps {
   onClose?: () => void;
   group?: IGroup;
 }
-export function EditGroupForm({ onClose, group: groupProp }: EditGroupFormProps) {
+export function EditGroupForm({
+  onClose,
+  group: groupProp,
+}: EditGroupFormProps) {
   const { t } = useTranslation();
   const updateGroupMutation = useUpdateGroupMutation();
   const { isSuccess } = updateGroupMutation;

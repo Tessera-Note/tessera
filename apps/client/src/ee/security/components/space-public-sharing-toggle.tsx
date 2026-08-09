@@ -74,7 +74,11 @@ export default function SpacePublicSharingToggle({
         </Text>
       </div>
       <Tooltip
-        label={!hasSharingControls ? upgradeLabel : t("Public sharing is disabled at the workspace level")}
+        label={
+          !hasSharingControls
+            ? upgradeLabel
+            : t("Public sharing is disabled at the workspace level")
+        }
         disabled={!isDisabled}
         refProp="rootRef"
       >

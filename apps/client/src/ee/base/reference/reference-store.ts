@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { referenceStoreAtomFamily, mergeReferences } from "@/ee/base/atoms/reference-store-atom";
-import { useResolvedPages, type ResolvedPage } from "@/ee/base/queries/base-page-resolver-query";
+import {
+  referenceStoreAtomFamily,
+  mergeReferences,
+} from "@/ee/base/atoms/reference-store-atom";
+import {
+  useResolvedPages,
+  type ResolvedPage,
+} from "@/ee/base/queries/base-page-resolver-query";
 import type { RowReferences, UserRef } from "@/ee/base/types/base.types";
 import useCurrentUser from "@/features/user/hooks/use-current-user";
 
@@ -42,7 +48,9 @@ export function useHydrateCurrentUser(pageId: string): void {
   const u = currentUser?.user;
   useEffect(() => {
     if (!u) return;
-    hydrateUsers([{ id: u.id, name: u.name ?? null, avatarUrl: u.avatarUrl ?? null }]);
+    hydrateUsers([
+      { id: u.id, name: u.name ?? null, avatarUrl: u.avatarUrl ?? null },
+    ]);
   }, [u?.id, u?.name, u?.avatarUrl, hydrateUsers]);
 }
 

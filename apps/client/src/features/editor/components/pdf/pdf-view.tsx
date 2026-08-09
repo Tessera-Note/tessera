@@ -7,11 +7,7 @@ import clsx from "clsx";
 import classes from "./pdf-view.module.css";
 import { useTranslation } from "react-i18next";
 import { isInternalFileUrl } from "@tessera/editor-ext";
-import {
-  IconFileTypePdf,
-  IconPaperclip,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconFileTypePdf, IconPaperclip, IconTrash } from "@tabler/icons-react";
 
 export default function PdfView(props: NodeViewProps) {
   const { t } = useTranslation();
@@ -99,7 +95,10 @@ export default function PdfView(props: NodeViewProps) {
   if (!src || !safeSrc) {
     return (
       <NodeViewWrapper data-drag-handle>
-        <div className={`${classes.pdfWrapper} ${placeholder ? classes.skeleton : ''}`} style={{ height: placeholder ? 600 : undefined }}>
+        <div
+          className={`${classes.pdfWrapper} ${placeholder ? classes.skeleton : ""}`}
+          style={{ height: placeholder ? 600 : undefined }}
+        >
           {placeholder && (
             <Group justify="center" wrap="nowrap" gap="xs" maw="100%" px="md">
               <Loader size={20} style={{ flexShrink: 0 }} />
@@ -127,7 +126,9 @@ export default function PdfView(props: NodeViewProps) {
       <NodeViewWrapper data-drag-handle>
         <div
           data-pdf-error
-          className={clsx(classes.pdfError, { "ProseMirror-selectednode": selected })}
+          className={clsx(classes.pdfError, {
+            "ProseMirror-selectednode": selected,
+          })}
           onClick={handleSelect}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -174,7 +175,11 @@ export default function PdfView(props: NodeViewProps) {
           />
           {editor.isEditable && (
             <div className={classes.hoverMenu}>
-              <Tooltip position="top" label={t("Convert to attachment")} withinPortal>
+              <Tooltip
+                position="top"
+                label={t("Convert to attachment")}
+                withinPortal
+              >
                 <ActionIcon
                   size="sm"
                   variant="filled"

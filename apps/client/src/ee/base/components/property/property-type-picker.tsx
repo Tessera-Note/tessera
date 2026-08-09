@@ -31,8 +31,9 @@ export function PropertyTypePicker({
 
   const types = propertyTypes
     .filter(({ type }) => !excludeTypes?.has(type))
-    .filter(({ labelKey }) =>
-      !search || t(labelKey).toLowerCase().includes(search.toLowerCase())
+    .filter(
+      ({ labelKey }) =>
+        !search || t(labelKey).toLowerCase().includes(search.toLowerCase()),
     );
 
   return (

@@ -30,7 +30,9 @@ function CommentDialog({ editor, pageId, readOnly }: CommentDialogProps) {
   const [comment, setComment] = useState("");
   const [, setShowCommentPopup] = useAtom(showCommentPopupAtom);
   const [, setShowReadOnlyCommentPopup] = useAtom(showReadOnlyCommentPopupAtom);
-  const [readOnlyCommentData, setReadOnlyCommentData] = useAtom(readOnlyCommentDataAtom);
+  const [readOnlyCommentData, setReadOnlyCommentData] = useAtom(
+    readOnlyCommentDataAtom,
+  );
   const [, setActiveCommentId] = useAtom(activeCommentIdAtom);
   const [draftCommentId, setDraftCommentId] = useAtom(draftCommentIdAtom);
   const [currentUser] = useAtom(currentUserAtom);
@@ -101,7 +103,6 @@ function CommentDialog({ editor, pageId, readOnly }: CommentDialogProps) {
           editor.view.dispatch(editor.state.tr.scrollIntoView());
         }
       }, 400);
-
     } finally {
       setShowCommentPopup(false);
       setDraftCommentId("");

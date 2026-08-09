@@ -10,10 +10,7 @@ import {
   Button,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import {
-  IBaseProperty,
-  ViewSortConfig,
-} from "@/ee/base/types/base.types";
+import { IBaseProperty, ViewSortConfig } from "@/ee/base/types/base.types";
 import { useTranslation } from "react-i18next";
 import { useEscapeClose } from "@/ee/base/hooks/use-escape-close";
 import viewClasses from "@/ee/base/styles/views.module.css";
@@ -83,9 +80,7 @@ export function ViewSortConfigPopover({
   const handlePropertyChange = useCallback(
     (index: number, propertyId: string | null) => {
       if (!propertyId) return;
-      onChange(
-        sorts.map((s, i) => (i === index ? { ...s, propertyId } : s)),
-      );
+      onChange(sorts.map((s, i) => (i === index ? { ...s, propertyId } : s)));
     },
     [sorts, onChange],
   );
@@ -95,17 +90,14 @@ export function ViewSortConfigPopover({
       if (!direction) return;
       onChange(
         sorts.map((s, i) =>
-          i === index
-            ? { ...s, direction: direction as "asc" | "desc" }
-            : s,
+          i === index ? { ...s, direction: direction as "asc" | "desc" } : s,
         ),
       );
     },
     [sorts, onChange],
   );
 
-  const canAddMore =
-    sortableProperties.length > sorts.length + (draft ? 1 : 0);
+  const canAddMore = sortableProperties.length > sorts.length + (draft ? 1 : 0);
 
   return (
     <Popover
@@ -193,11 +185,7 @@ export function ViewSortConfigPopover({
                 />
               </Group>
               <Group justify="flex-end" gap="xs">
-                <Button
-                  variant="default"
-                  size="xs"
-                  onClick={handleCancelDraft}
-                >
+                <Button variant="default" size="xs" onClick={handleCancelDraft}>
                   {t("Cancel")}
                 </Button>
                 <Button size="xs" onClick={handleSaveDraft}>

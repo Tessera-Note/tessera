@@ -1,1 +1,1 @@
-export const SOCKET_URL = undefined
+export const SOCKET_URL = undefined;

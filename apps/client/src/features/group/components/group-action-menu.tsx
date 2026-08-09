@@ -20,7 +20,9 @@ export default function GroupActionMenu(props: GroupActionMenuProps = {}) {
   const { t } = useTranslation();
   const { groupId: routeGroupId } = useParams();
   const groupId = props.group?.id ?? routeGroupId;
-  const { data: queriedGroup } = useGroupQuery(props.group ? undefined : groupId);
+  const { data: queriedGroup } = useGroupQuery(
+    props.group ? undefined : groupId,
+  );
   const group = props.group ?? queriedGroup;
   const deleteGroupMutation = useDeleteGroupMutation();
   const navigate = useNavigate();
@@ -66,7 +68,9 @@ export default function GroupActionMenu(props: GroupActionMenuProps = {}) {
               <ActionIcon
                 variant="subtle"
                 color="gray"
-                aria-label={t("Group actions for {{name}}", { name: group.name })}
+                aria-label={t("Group actions for {{name}}", {
+                  name: group.name,
+                })}
               >
                 <IconDots size={20} stroke={2} />
               </ActionIcon>

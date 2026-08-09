@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod/v4";
 import { MfaBackupCodeInput } from "./mfa-backup-code-input";
 import { AuthLayout } from "@/features/auth/components/auth-layout.tsx";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 const formSchema = z.object({
   code: z
@@ -58,8 +59,7 @@ export function MfaChallenge() {
     } catch (error: any) {
       setIsLoading(false);
       notifications.show({
-        message:
-          error.response?.data?.message || t("Invalid verification code"),
+        message: getApiErrorMessage(error, t("Invalid verification code")),
         color: "red",
       });
       form.setFieldValue("code", "");
@@ -68,97 +68,97 @@ export function MfaChallenge() {
 
   return (
     <AuthLayout>
-    <Container size={420} className={classes.container}>
-      <Paper radius="lg" p={40} className={classes.paper}>
-        <Stack align="center" gap="xl">
-          <Center>
-            <ThemeIcon size={80} radius="xl" variant="light" color="blue">
-              <IconDeviceMobile size={40} stroke={1.5} />
-            </ThemeIcon>
-          </Center>
+      <Container size={420} className={classes.container}>
+        <Paper radius="lg" p={40} className={classes.paper}>
+          <Stack align="center" gap="xl">
+            <Center>
+              <ThemeIcon size={80} radius="xl" variant="light" color="blue">
+                <IconDeviceMobile size={40} stroke={1.5} />
+              </ThemeIcon>
+            </Center>
 
-          <Stack align="center" gap="xs">
-            <Title order={2} ta="center" fw={600}>
-              {t("Two-factor authentication")}
-            </Title>
-            <Text size="sm" c="dimmed" ta="center">
-              {useBackupCode
-                ? t("Enter one of your backup codes")
-                : t("Enter the 6-digit code found in your authenticator app")}
-            </Text>
-          </Stack>
+            <Stack align="center" gap="xs">
+              <Title order={2} ta="center" fw={600}>
+                {t("Two-factor authentication")}
+              </Title>
+              <Text size="sm" c="dimmed" ta="center">
+                {useBackupCode
+                  ? t("Enter one of your backup codes")
+                  : t("Enter the 6-digit code found in your authenticator app")}
+              </Text>
+            </Stack>
 
-          {!useBackupCode ? (
-            <form
-              onSubmit={form.onSubmit(handleSubmit)}
-              style={{ width: "100%" }}
-            >
-              <Stack gap="lg">
-                <Center>
-                  <PinInput
-                    length={6}
-                    type="number"
-                    autoFocus
-                    data-autofocus
-                    oneTimeCode
-                    {...form.getInputProps("code")}
-                    error={!!form.errors.code}
-                    styles={{
-                      input: {
-                        fontSize: "1.2rem",
-                        textAlign: "center",
-                      },
+            {!useBackupCode ? (
+              <form
+                onSubmit={form.onSubmit(handleSubmit)}
+                style={{ width: "100%" }}
+              >
+                <Stack gap="lg">
+                  <Center>
+                    <PinInput
+                      length={6}
+                      type="number"
+                      autoFocus
+                      data-autofocus
+                      oneTimeCode
+                      {...form.getInputProps("code")}
+                      error={!!form.errors.code}
+                      styles={{
+                        input: {
+                          fontSize: "1.2rem",
+                          textAlign: "center",
+                        },
+                      }}
+                    />
+                  </Center>
+                  {form.errors.code && (
+                    <Text c="red" size="sm" ta="center">
+                      {form.errors.code}
+                    </Text>
+                  )}
+
+                  <Button
+                    type="submit"
+                    fullWidth
+                    size="md"
+                    loading={isLoading}
+                    leftSection={<IconLock size={18} />}
+                  >
+                    {t("Verify")}
+                  </Button>
+
+                  <Anchor
+                    component="button"
+                    type="button"
+                    size="sm"
+                    c="dimmed"
+                    onClick={() => {
+                      setUseBackupCode(true);
+                      form.setFieldValue("code", "");
+                      form.clearErrors();
                     }}
-                  />
-                </Center>
-                {form.errors.code && (
-                  <Text c="red" size="sm" ta="center">
-                    {form.errors.code}
-                  </Text>
-                )}
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  size="md"
-                  loading={isLoading}
-                  leftSection={<IconLock size={18} />}
-                >
-                  {t("Verify")}
-                </Button>
-
-                <Anchor
-                  component="button"
-                  type="button"
-                  size="sm"
-                  c="dimmed"
-                  onClick={() => {
-                    setUseBackupCode(true);
-                    form.setFieldValue("code", "");
-                    form.clearErrors();
-                  }}
-                >
-                  {t("Use backup code")}
-                </Anchor>
-              </Stack>
-            </form>
-          ) : (
-            <MfaBackupCodeInput
-              value={form.values.code}
-              onChange={(value) => form.setFieldValue("code", value)}
-              error={form.errors.code?.toString()}
-              onSubmit={() => handleSubmit(form.values)}
-              onCancel={() => {
-                setUseBackupCode(false);
-                form.setFieldValue("code", "");
-                form.clearErrors();
-              }}
-              isLoading={isLoading}
-            />
-          )}
-        </Stack>
-      </Paper>
-    </Container>
+                  >
+                    {t("Use backup code")}
+                  </Anchor>
+                </Stack>
+              </form>
+            ) : (
+              <MfaBackupCodeInput
+                value={form.values.code}
+                onChange={(value) => form.setFieldValue("code", value)}
+                error={form.errors.code?.toString()}
+                onSubmit={() => handleSubmit(form.values)}
+                onCancel={() => {
+                  setUseBackupCode(false);
+                  form.setFieldValue("code", "");
+                  form.clearErrors();
+                }}
+                isLoading={isLoading}
+              />
+            )}
+          </Stack>
+        </Paper>
+      </Container>
     </AuthLayout>
   );
 }

@@ -19,8 +19,12 @@ export type FileValue = {
   url?: string;
 };
 
-function buildFileUrl(file: Pick<FileValue, "id" | "fileName" | "url">): string {
-  return file.url ?? `/api/files/${file.id}/${encodeURIComponent(file.fileName)}`;
+function buildFileUrl(
+  file: Pick<FileValue, "id" | "fileName" | "url">,
+): string {
+  return (
+    file.url ?? `/api/files/${file.id}/${encodeURIComponent(file.fileName)}`
+  );
 }
 
 type CellFileProps = {

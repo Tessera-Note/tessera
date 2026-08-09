@@ -182,7 +182,6 @@ export class CreateRowDto {
   @IsString()
   @IsOptional()
   requestId?: string;
-
 }
 
 export class RowInfoDto {
@@ -220,7 +219,6 @@ export class UpdateRowDto {
   @IsString()
   @IsOptional()
   requestId?: string;
-
 }
 
 export class DeleteRowDto {
@@ -240,7 +238,6 @@ export class DeleteRowDto {
   @IsString()
   @IsOptional()
   requestId?: string;
-
 }
 
 export class DeleteRowsDto {
@@ -262,7 +259,6 @@ export class DeleteRowsDto {
   @IsString()
   @IsOptional()
   requestId?: string;
-
 }
 
 export class ReorderRowDto {
@@ -286,7 +282,6 @@ export class ReorderRowDto {
   @IsString()
   @IsOptional()
   requestId?: string;
-
 }
 
 export class ListRowsDto {

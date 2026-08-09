@@ -9,6 +9,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function DisablePublicSharing() {
   const { t } = useTranslation();
@@ -45,7 +46,7 @@ function DisablePublicSharingToggle() {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
@@ -75,7 +76,11 @@ function DisablePublicSharingToggle() {
   };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasSharingControls} refProp="rootRef">
+    <Tooltip
+      label={upgradeLabel}
+      disabled={hasSharingControls}
+      refProp="rootRef"
+    >
       <Switch
         checked={checked}
         onChange={handleChange}

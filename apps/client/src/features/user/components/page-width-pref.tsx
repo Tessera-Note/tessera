@@ -4,7 +4,11 @@ import { MantineSize, Switch, Text } from "@mantine/core";
 import { useAtom } from "jotai/index";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ResponsiveSettingsRow, ResponsiveSettingsContent, ResponsiveSettingsControl } from "@/components/ui/responsive-settings-row";
+import {
+  ResponsiveSettingsRow,
+  ResponsiveSettingsContent,
+  ResponsiveSettingsControl,
+} from "@/components/ui/responsive-settings-row";
 
 export default function PageWidthPref() {
   const { t } = useTranslation();

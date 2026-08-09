@@ -31,7 +31,10 @@ interface PageFindDialogDialogProps {
   editable?: boolean;
 }
 
-function SearchAndReplaceDialog({ editor, editable = true }: PageFindDialogDialogProps) {
+function SearchAndReplaceDialog({
+  editor,
+  editable = true,
+}: PageFindDialogDialogProps) {
   const { t } = useTranslation();
   const [searchText, setSearchText] = useState("");
   const [replaceText, setReplaceText] = useState("");
@@ -167,11 +170,11 @@ function SearchAndReplaceDialog({ editor, editable = true }: PageFindDialogDialo
       searchText.trim() === ""
         ? ""
         : editor?.storage?.searchAndReplace?.results.length > 0
-        ? editor?.storage?.searchAndReplace?.resultIndex +
-          1 +
-          "/" +
-          editor?.storage?.searchAndReplace?.results.length
-        : t("Not found"),
+          ? editor?.storage?.searchAndReplace?.resultIndex +
+            1 +
+            "/" +
+            editor?.storage?.searchAndReplace?.results.length
+          : t("Not found"),
     [
       searchText,
       editor?.storage?.searchAndReplace?.resultIndex,
@@ -188,7 +191,6 @@ function SearchAndReplaceDialog({ editor, editable = true }: PageFindDialogDialo
     <Dialog
       className={classes.findDialog}
       opened={pageFindState.isOpen}
-
       size="lg"
       radius="md"
       w={"auto"}

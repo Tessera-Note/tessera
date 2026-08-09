@@ -2,12 +2,22 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { extractClosestEdge, type Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import {
+  extractClosestEdge,
+  type Edge,
+} from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { getReorderDestinationIndex } from "@atlaskit/pragmatic-drag-and-drop-hitbox/util/get-reorder-destination-index";
 import { reorder } from "@atlaskit/pragmatic-drag-and-drop/reorder";
 import { triggerPostMoveFlash } from "@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash";
 import * as liveRegion from "@atlaskit/pragmatic-drag-and-drop-live-region";
-import { IBase, IBaseRow, IBaseView, FilterGroup, KANBAN_CARD_DRAG_TYPE, KANBAN_COLUMN_DRAG_TYPE } from "@/ee/base/types/base.types";
+import {
+  IBase,
+  IBaseRow,
+  IBaseView,
+  FilterGroup,
+  KANBAN_CARD_DRAG_TYPE,
+  KANBAN_COLUMN_DRAG_TYPE,
+} from "@/ee/base/types/base.types";
 import { useKanbanColumns } from "@/ee/base/hooks/use-kanban-columns";
 import { useUpdateViewMutation } from "@/ee/base/queries/base-view-query";
 import { useKanbanMoveCardMutation } from "@/ee/base/queries/base-row-query";
@@ -28,29 +38,44 @@ type BaseKanbanProps = {
   viewFilter: FilterGroup | undefined;
 };
 
-export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter }: BaseKanbanProps) {
+export function BaseKanban({
+  base,
+  view,
+  pageId,
+  embedded,
+  editable,
+  viewFilter,
+}: BaseKanbanProps) {
   const { t } = useTranslation();
-  const { groupByPropertyId, groupByProperty, columns, hasValidGroupBy } = useKanbanColumns(base, view);
+  const { groupByPropertyId, groupByProperty, columns, hasValidGroupBy } =
+    useKanbanColumns(base, view);
   const updateView = useUpdateViewMutation();
   const moveCard = useKanbanMoveCardMutation();
   const { openRow } = useRowDetailModal(pageId);
 
   const openRowRef = useRef(openRow);
-  useLayoutEffect(() => { openRowRef.current = openRow; });
+  useLayoutEffect(() => {
+    openRowRef.current = openRow;
+  });
   const handleOpenRow = useCallback((id: string) => openRowRef.current(id), []);
 
   const boardRef = useRef<HTMLDivElement>(null);
   useKanbanBoardAutoScroll(boardRef, pageId);
 
-  const cardRefs = useRef<Map<string, { columnKey: string; el: HTMLDivElement }>>(new Map());
+  const cardRefs = useRef<
+    Map<string, { columnKey: string; el: HTMLDivElement }>
+  >(new Map());
 
-  const registerCardRef = useCallback((rowId: string, columnKey: string, el: HTMLDivElement | null) => {
-    if (el) {
-      cardRefs.current.set(rowId, { columnKey, el });
-    } else {
-      cardRefs.current.delete(rowId);
-    }
-  }, []);
+  const registerCardRef = useCallback(
+    (rowId: string, columnKey: string, el: HTMLDivElement | null) => {
+      if (el) {
+        cardRefs.current.set(rowId, { columnKey, el });
+      } else {
+        cardRefs.current.delete(rowId);
+      }
+    },
+    [],
+  );
 
   const columnRows = useRef<Map<string, IBaseRow[]>>(new Map());
 
@@ -60,21 +85,35 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
 
   const hideColumn = useCallback(
     (key: string) => {
-      const next = Array.from(new Set([...(view.config?.hiddenChoiceIds ?? []), key]));
-      updateView.mutate({ viewId: view.id, pageId, config: { hiddenChoiceIds: next } });
+      const next = Array.from(
+        new Set([...(view.config?.hiddenChoiceIds ?? []), key]),
+      );
+      updateView.mutate({
+        viewId: view.id,
+        pageId,
+        config: { hiddenChoiceIds: next },
+      });
     },
     [updateView, view.id, view.config?.hiddenChoiceIds, pageId],
   );
 
-  const onCardDropRef = useRef<(args: {
-    draggedRowId: string;
-    sourceColumnKey: string;
-    targetColumnKey: string;
-    targetRowId: string | null;
-    edge: Edge | null;
-  }) => void>(() => {});
+  const onCardDropRef = useRef<
+    (args: {
+      draggedRowId: string;
+      sourceColumnKey: string;
+      targetColumnKey: string;
+      targetRowId: string | null;
+      edge: Edge | null;
+    }) => void
+  >(() => {});
   useLayoutEffect(() => {
-    onCardDropRef.current = ({ draggedRowId, sourceColumnKey, targetColumnKey, targetRowId, edge }) => {
+    onCardDropRef.current = ({
+      draggedRowId,
+      sourceColumnKey,
+      targetColumnKey,
+      targetRowId,
+      edge,
+    }) => {
       if (!groupByPropertyId) return;
       const targetColumnRows = columnRows.current.get(targetColumnKey) ?? [];
       const result = resolveCardDrop({
@@ -86,8 +125,16 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
         targetColumnRows,
       });
       if (!result) return;
-      const sourceFilter = buildColumnFilter(viewFilter, groupByPropertyId, sourceColumnKey);
-      const destFilter = buildColumnFilter(viewFilter, groupByPropertyId, targetColumnKey);
+      const sourceFilter = buildColumnFilter(
+        viewFilter,
+        groupByPropertyId,
+        sourceColumnKey,
+      );
+      const destFilter = buildColumnFilter(
+        viewFilter,
+        groupByPropertyId,
+        targetColumnKey,
+      );
       moveCard.mutate({
         pageId,
         rowId: draggedRowId,
@@ -100,15 +147,19 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
       });
       const el = cardRefs.current.get(draggedRowId)?.el;
       if (el) triggerPostMoveFlash(el);
-      const targetColumnName = columns.find((c) => c.key === targetColumnKey)?.name ?? "";
-      liveRegion.announce(t("Moved card to {{column}}", { column: targetColumnName }));
+      const targetColumnName =
+        columns.find((c) => c.key === targetColumnKey)?.name ?? "";
+      liveRegion.announce(
+        t("Moved card to {{column}}", { column: targetColumnName }),
+      );
     };
   });
 
   useEffect(() => {
     return monitorForElements({
       canMonitor: ({ source }) =>
-        source.data?.type === KANBAN_CARD_DRAG_TYPE && source.data?.pageId === pageId,
+        source.data?.type === KANBAN_CARD_DRAG_TYPE &&
+        source.data?.pageId === pageId,
       onDrop: ({ location, source }) => {
         const target = location.current.dropTargets[0];
         if (!target) return;
@@ -118,16 +169,24 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
         const isColumnBody = target.data.isColumnBody === true;
         const targetRowId = isColumnBody ? null : (target.data.rowId as string);
         const edge = isColumnBody ? null : extractClosestEdge(target.data);
-        onCardDropRef.current({ draggedRowId, sourceColumnKey, targetColumnKey, targetRowId, edge });
+        onCardDropRef.current({
+          draggedRowId,
+          sourceColumnKey,
+          targetColumnKey,
+          targetRowId,
+          edge,
+        });
       },
     });
   }, [pageId]);
 
-  const onColumnDropRef = useRef<(args: {
-    sourceColumnKey: string;
-    targetColumnKey: string;
-    edge: Edge | null;
-  }) => void>(() => {});
+  const onColumnDropRef = useRef<
+    (args: {
+      sourceColumnKey: string;
+      targetColumnKey: string;
+      edge: Edge | null;
+    }) => void
+  >(() => {});
   useLayoutEffect(() => {
     onColumnDropRef.current = ({ sourceColumnKey, targetColumnKey, edge }) => {
       const fullOrder: string[] = view.config?.choiceOrder?.length
@@ -149,8 +208,21 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
           axis: "horizontal",
         });
         if (finishIndex === visStart) return;
-        const reorderedVisible = reorder({ list: visibleKeys, startIndex: visStart, finishIndex });
-        updateView.mutate({ viewId: view.id, pageId, config: { choiceOrder: [...reorderedVisible, ...(view.config?.hiddenChoiceIds ?? [])] } });
+        const reorderedVisible = reorder({
+          list: visibleKeys,
+          startIndex: visStart,
+          finishIndex,
+        });
+        updateView.mutate({
+          viewId: view.id,
+          pageId,
+          config: {
+            choiceOrder: [
+              ...reorderedVisible,
+              ...(view.config?.hiddenChoiceIds ?? []),
+            ],
+          },
+        });
       } else {
         const finishIndex = getReorderDestinationIndex({
           startIndex,
@@ -159,19 +231,31 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
           axis: "horizontal",
         });
         if (finishIndex === startIndex) return;
-        const newChoiceOrder = reorder({ list: fullOrder, startIndex, finishIndex });
-        updateView.mutate({ viewId: view.id, pageId, config: { choiceOrder: newChoiceOrder } });
+        const newChoiceOrder = reorder({
+          list: fullOrder,
+          startIndex,
+          finishIndex,
+        });
+        updateView.mutate({
+          viewId: view.id,
+          pageId,
+          config: { choiceOrder: newChoiceOrder },
+        });
       }
 
-      const targetColumnName = columns.find((c) => c.key === targetColumnKey)?.name ?? "";
-      liveRegion.announce(t("Moved column to {{column}}", { column: targetColumnName }));
+      const targetColumnName =
+        columns.find((c) => c.key === targetColumnKey)?.name ?? "";
+      liveRegion.announce(
+        t("Moved column to {{column}}", { column: targetColumnName }),
+      );
     };
   });
 
   useEffect(() => {
     return monitorForElements({
       canMonitor: ({ source }) =>
-        source.data?.type === KANBAN_COLUMN_DRAG_TYPE && source.data?.pageId === pageId,
+        source.data?.type === KANBAN_COLUMN_DRAG_TYPE &&
+        source.data?.pageId === pageId,
       onDrop: ({ location, source }) => {
         const target = location.current.dropTargets[0];
         if (!target) return;
@@ -184,13 +268,23 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
   }, [pageId]);
 
   if (!hasValidGroupBy) {
-    return <KanbanEmptyState base={base} view={view} pageId={pageId} editable={editable} />;
+    return (
+      <KanbanEmptyState
+        base={base}
+        view={view}
+        pageId={pageId}
+        editable={editable}
+      />
+    );
   }
 
   return (
     <div
       ref={boardRef}
-      className={clsx(classes.board, embedded ? classes.boardEmbed : classes.boardFullPage)}
+      className={clsx(
+        classes.board,
+        embedded ? classes.boardEmbed : classes.boardFullPage,
+      )}
     >
       {columns.map((column) => (
         <KanbanColumn

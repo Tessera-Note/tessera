@@ -16,7 +16,14 @@ type CellUrlProps = {
 const toDraft = (value: unknown) => (typeof value === "string" ? value : "");
 const parse = (draft: string) => draft || null;
 
-export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel }: CellUrlProps) {
+export function CellUrl({
+  value,
+  property,
+  rowId,
+  isEditing,
+  onCommit,
+  onCancel,
+}: CellUrlProps) {
   const { draft, setDraft, inputRef, handleKeyDown, handleBlur } =
     useEditableTextCell({
       value,
@@ -55,7 +62,13 @@ export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel 
   }
 
   return (
-    <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
+    <Tooltip
+      label={displayValue}
+      multiline
+      withinPortal
+      openDelay={400}
+      maw={420}
+    >
       <a
         className={cellClasses.urlLink}
         href={safeHref}

@@ -124,7 +124,10 @@ function PagePill({ page }: { page: PillPage }) {
         {page.icon ? (
           <span className={cellClasses.pagePillIcon}>{page.icon}</span>
         ) : (
-          <IconFileDescription size={14} className={cellClasses.pagePillIconFallback} />
+          <IconFileDescription
+            size={14}
+            className={cellClasses.pagePillIconFallback}
+          />
         )}
         <span className={cellClasses.pagePillText}>{title}</span>
       </Link>
@@ -134,7 +137,13 @@ function PagePill({ page }: { page: PillPage }) {
 
 type PagePickerProps = {
   pageId: string | null;
-  resolvedPage: { id: string; slugId: string; title: string | null; icon: string | null; space: { id: string; slug: string; name: string } | null } | null;
+  resolvedPage: {
+    id: string;
+    slugId: string;
+    title: string | null;
+    icon: string | null;
+    space: { id: string; slug: string; name: string } | null;
+  } | null;
   spaceId?: string;
   onCommit: (value: unknown) => void;
   onCancel: () => void;
@@ -241,7 +250,11 @@ function PagePicker({
     >
       <Popover.Target>
         <div className={cellClasses.popoverTarget}>
-          {resolvedPage ? <PagePill page={resolvedPage} /> : <span className={cellClasses.emptyValue} />}
+          {resolvedPage ? (
+            <PagePill page={resolvedPage} />
+          ) : (
+            <span className={cellClasses.emptyValue} />
+          )}
         </div>
       </Popover.Target>
       <Popover.Dropdown p={0}>
@@ -290,46 +303,47 @@ function PagePicker({
             </div>
           ) : (
             <>
-          {suggestions.length === 0 && (
-            <div className={cellClasses.personDropdownHint}>
-              {trimmed ? "No pages found" : "No pages yet"}
-            </div>
-          )}
-          {suggestions.map((page, idx) => {
-            const isSelected = page.id === pageId;
-            return (
-              <div
-                key={page.id}
-                ref={setOptionRef(idx)}
-                className={clsx(
-                  cellClasses.selectOption,
-                  isSelected && cellClasses.selectOptionActive,
-                  idx === activeIndex && cellClasses.selectOptionKeyboardActive,
-                )}
-                onMouseEnter={() => setActiveIndex(idx)}
-                onClick={() => handleSelect(page.id)}
-              >
-                {page.icon ? (
-                  <span>{page.icon}</span>
-                ) : (
-                  <IconFileDescription
-                    size={14}
-                    color="var(--mantine-color-dimmed)"
-                  />
-                )}
-                <div className={cellClasses.pageOptionText}>
-                  <span className={cellClasses.personOptionName}>
-                    {getPageTitle(page.title, undefined, t)}
-                  </span>
-                  {page.space?.name && (
-                    <Text size="xs" c="dimmed" truncate>
-                      {page.space.name}
-                    </Text>
-                  )}
+              {suggestions.length === 0 && (
+                <div className={cellClasses.personDropdownHint}>
+                  {trimmed ? "No pages found" : "No pages yet"}
                 </div>
-              </div>
-            );
-          })}
+              )}
+              {suggestions.map((page, idx) => {
+                const isSelected = page.id === pageId;
+                return (
+                  <div
+                    key={page.id}
+                    ref={setOptionRef(idx)}
+                    className={clsx(
+                      cellClasses.selectOption,
+                      isSelected && cellClasses.selectOptionActive,
+                      idx === activeIndex &&
+                        cellClasses.selectOptionKeyboardActive,
+                    )}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    onClick={() => handleSelect(page.id)}
+                  >
+                    {page.icon ? (
+                      <span>{page.icon}</span>
+                    ) : (
+                      <IconFileDescription
+                        size={14}
+                        color="var(--mantine-color-dimmed)"
+                      />
+                    )}
+                    <div className={cellClasses.pageOptionText}>
+                      <span className={cellClasses.personOptionName}>
+                        {getPageTitle(page.title, undefined, t)}
+                      </span>
+                      {page.space?.name && (
+                        <Text size="xs" c="dimmed" truncate>
+                          {page.space.name}
+                        </Text>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </>
           )}
         </div>

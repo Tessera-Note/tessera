@@ -41,11 +41,18 @@ type Panel = "typePicker" | "configure" | "confirmDiscard";
 
 const noop = () => {};
 
-export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, renderTarget }: CreatePropertyPopoverProps) {
+export function CreatePropertyPopover({
+  pageId,
+  properties,
+  onPropertyCreated,
+  renderTarget,
+}: CreatePropertyPopoverProps) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const [panel, setPanel] = useState<Panel>("typePicker");
-  const [selectedType, setSelectedType] = useState<BasePropertyType | null>(null);
+  const [selectedType, setSelectedType] = useState<BasePropertyType | null>(
+    null,
+  );
   const [name, setName] = useState("");
   const [typeOptions, setTypeOptions] = useState<Record<string, unknown>>({});
   // Portal target for nested Select dropdowns to avoid triggering closeOnClickOutside.
@@ -155,9 +162,10 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
         pageId,
         name: finalName,
         type: selectedType,
-        typeOptions: Object.keys(typeOptions).length > 0
-          ? typeOptions as TypeOptions
-          : undefined,
+        typeOptions:
+          Object.keys(typeOptions).length > 0
+            ? (typeOptions as TypeOptions)
+            : undefined,
       },
       {
         onSuccess: (created) => {
@@ -166,7 +174,17 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
       },
     );
     handleClose();
-  }, [selectedType, nameTaken, name, fallbackName, typeOptions, pageId, createPropertyMutation, handleClose, onPropertyCreated]);
+  }, [
+    selectedType,
+    nameTaken,
+    name,
+    fallbackName,
+    typeOptions,
+    pageId,
+    createPropertyMutation,
+    handleClose,
+    onPropertyCreated,
+  ]);
 
   const handleBackToTypePicker = useCallback(() => {
     setPanel("typePicker");
@@ -207,21 +225,25 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
     [],
   );
 
-  const syntheticProperty: IBaseProperty = useMemo(() => ({
-    id: "",
-    pageId,
-    name: name || "",
-    type: selectedType ?? "text",
-    position: "",
-    typeOptions: typeOptions as TypeOptions,
-    isPrimary: false,
-    workspaceId: "",
-    createdAt: "",
-    updatedAt: "",
-  }), [pageId, name, selectedType, typeOptions]);
+  const syntheticProperty: IBaseProperty = useMemo(
+    () => ({
+      id: "",
+      pageId,
+      name: name || "",
+      type: selectedType ?? "text",
+      position: "",
+      typeOptions: typeOptions as TypeOptions,
+      isPrimary: false,
+      workspaceId: "",
+      createdAt: "",
+      updatedAt: "",
+    }),
+    [pageId, name, selectedType, typeOptions],
+  );
 
   const TypeIcon = selectedTypeIcon;
-  const showOptions = !!selectedType && (getDescriptor(selectedType)?.hasOptions ?? false);
+  const showOptions =
+    !!selectedType && (getDescriptor(selectedType)?.hasOptions ?? false);
 
   return (
     <>
@@ -274,141 +296,160 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
             maxWidth: "calc(100vw - 32px)",
           }}
         >
-          <div ref={scrollRef} style={{ overflowY: "auto", overflowX: "hidden" }}>
-          {panel === "typePicker" && (
-            <Stack gap={0} p={4}>
-              <ScrollArea.Autosize
-                mah="min(60vh, 400px)"
-                scrollbarSize={6}
-                offsetScrollbars
-              >
-                <PropertyTypePicker
-                  onSelect={handleTypeSelect}
-                  showSearch
+          <div
+            ref={scrollRef}
+            style={{ overflowY: "auto", overflowX: "hidden" }}
+          >
+            {panel === "typePicker" && (
+              <Stack gap={0} p={4}>
+                <ScrollArea.Autosize
+                  mah="min(60vh, 400px)"
+                  scrollbarSize={6}
+                  offsetScrollbars
+                >
+                  <PropertyTypePicker onSelect={handleTypeSelect} showSearch />
+                </ScrollArea.Autosize>
+              </Stack>
+            )}
+            {panel === "configure" && selectedType === "formula" && (
+              <Stack gap="xs" p="sm">
+                <TextInput
+                  ref={nameInputRef}
+                  size="xs"
+                  label={t("Name")}
+                  placeholder={fallbackName}
+                  value={name}
+                  onChange={(e) => setName(e.currentTarget.value)}
+                  error={
+                    nameTaken
+                      ? t("A property with this name already exists")
+                      : undefined
+                  }
                 />
-              </ScrollArea.Autosize>
-            </Stack>
-          )}
-          {panel === "configure" && selectedType === "formula" && (
-            <Stack gap="xs" p="sm">
-              <TextInput
-                ref={nameInputRef}
-                size="xs"
-                label={t("Name")}
-                placeholder={fallbackName}
-                value={name}
-                onChange={(e) => setName(e.currentTarget.value)}
-                error={nameTaken ? t("A property with this name already exists") : undefined}
-              />
-              <FormulaEditor
-                properties={properties ?? []}
-                editingPropertyId={null}
-                name={name.trim() || undefined}
-                onCancel={handleBackToTypePicker}
-                disabled={nameTaken}
-                onSave={(source, ast, resultType, dependencies) => {
-                  if (nameTaken) return;
-                  createPropertyMutation.mutate(
-                    {
-                      pageId,
-                      name: name.trim() || fallbackName,
-                      type: "formula",
-                      typeOptions: {
-                        source,
-                        ast,
-                        resultType,
-                        dependencies,
-                        astVersion: 1,
-                      } as TypeOptions,
-                    },
-                    { onSuccess: (created) => onPropertyCreated?.(created) },
-                  );
-                  handleClose();
-                }}
-              />
-            </Stack>
-          )}
-          {(panel === "configure" || panel === "confirmDiscard") && selectedType !== "formula" && (
-            <Stack gap={0} p="sm" style={panel === "confirmDiscard" ? { display: "none" } : undefined}>
-              <TextInput
-                ref={nameInputRef}
-                size="xs"
-                label={t("Name")}
-                placeholder={fallbackName}
-                value={name}
-                onChange={(e) => setName(e.currentTarget.value)}
-                onKeyDown={handleNameKeyDown}
-                error={nameTaken ? t("A property with this name already exists") : undefined}
-                mb="xs"
-              />
-              <UnstyledButton
-                onClick={handleBackToTypePicker}
-                py={6}
-                px={0}
-                mb={showOptions ? "xs" : 0}
-              >
-                <Group gap={8} wrap="nowrap">
-                  {TypeIcon && <TypeIcon size={14} />}
-                  <Text size="sm" style={{ flex: 1 }}>
-                    {selectedTypeLabel}
-                  </Text>
-                  <IconChevronRight size={14} />
-                </Group>
-              </UnstyledButton>
+                <FormulaEditor
+                  properties={properties ?? []}
+                  editingPropertyId={null}
+                  name={name.trim() || undefined}
+                  onCancel={handleBackToTypePicker}
+                  disabled={nameTaken}
+                  onSave={(source, ast, resultType, dependencies) => {
+                    if (nameTaken) return;
+                    createPropertyMutation.mutate(
+                      {
+                        pageId,
+                        name: name.trim() || fallbackName,
+                        type: "formula",
+                        typeOptions: {
+                          source,
+                          ast,
+                          resultType,
+                          dependencies,
+                          astVersion: 1,
+                        } as TypeOptions,
+                      },
+                      { onSuccess: (created) => onPropertyCreated?.(created) },
+                    );
+                    handleClose();
+                  }}
+                />
+              </Stack>
+            )}
+            {(panel === "configure" || panel === "confirmDiscard") &&
+              selectedType !== "formula" && (
+                <Stack
+                  gap={0}
+                  p="sm"
+                  style={
+                    panel === "confirmDiscard" ? { display: "none" } : undefined
+                  }
+                >
+                  <TextInput
+                    ref={nameInputRef}
+                    size="xs"
+                    label={t("Name")}
+                    placeholder={fallbackName}
+                    value={name}
+                    onChange={(e) => setName(e.currentTarget.value)}
+                    onKeyDown={handleNameKeyDown}
+                    error={
+                      nameTaken
+                        ? t("A property with this name already exists")
+                        : undefined
+                    }
+                    mb="xs"
+                  />
+                  <UnstyledButton
+                    onClick={handleBackToTypePicker}
+                    py={6}
+                    px={0}
+                    mb={showOptions ? "xs" : 0}
+                  >
+                    <Group gap={8} wrap="nowrap">
+                      {TypeIcon && <TypeIcon size={14} />}
+                      <Text size="sm" style={{ flex: 1 }}>
+                        {selectedTypeLabel}
+                      </Text>
+                      <IconChevronRight size={14} />
+                    </Group>
+                  </UnstyledButton>
 
-              {showOptions && (
-                <>
-                  <Divider mb="xs" />
-                  <ScrollArea.Autosize mah={300} scrollbarSize={6} offsetScrollbars>
-                    <PropertyOptions
-                      property={syntheticProperty}
-                      onUpdate={handleOptionsUpdate}
-                      onClose={noop}
-                      onDirtyChange={noop}
-                      hideButtons
-                      dropdownPortalTarget={dropdownNode}
-                    />
-                  </ScrollArea.Autosize>
-                </>
+                  {showOptions && (
+                    <>
+                      <Divider mb="xs" />
+                      <ScrollArea.Autosize
+                        mah={300}
+                        scrollbarSize={6}
+                        offsetScrollbars
+                      >
+                        <PropertyOptions
+                          property={syntheticProperty}
+                          onUpdate={handleOptionsUpdate}
+                          onClose={noop}
+                          onDirtyChange={noop}
+                          hideButtons
+                          dropdownPortalTarget={dropdownNode}
+                        />
+                      </ScrollArea.Autosize>
+                    </>
+                  )}
+
+                  <Divider my="xs" />
+                  <Group gap="xs" justify="flex-end">
+                    <Button variant="default" size="xs" onClick={attemptClose}>
+                      {t("Cancel")}
+                    </Button>
+                    <Button
+                      size="xs"
+                      onClick={handleCreate}
+                      disabled={nameTaken}
+                    >
+                      {t("Create property")}
+                    </Button>
+                  </Group>
+                </Stack>
               )}
-
-              <Divider my="xs" />
-              <Group gap="xs" justify="flex-end">
-                <Button variant="default" size="xs" onClick={attemptClose}>
-                  {t("Cancel")}
-                </Button>
-                <Button size="xs" onClick={handleCreate} disabled={nameTaken}>
-                  {t("Create property")}
-                </Button>
-              </Group>
-            </Stack>
-          )}
-          {panel === "confirmDiscard" && (
-            <Stack gap="xs" p="sm">
-              <Text size="sm" fw={600}>
-                {t("Unsaved changes")}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {t("You have unsaved changes. Do you want to discard them?")}
-              </Text>
-              <Group gap="xs" justify="flex-end">
-                <Button
-                  variant="default"
-                  size="xs"
-                  onClick={handleCancelDiscard}
-                >
-                  {t("Keep editing")}
-                </Button>
-                <Button
-                  color="red"
-                  size="xs"
-                  onClick={handleConfirmDiscard}
-                >
-                  {t("Discard")}
-                </Button>
-              </Group>
-            </Stack>
-          )}
+            {panel === "confirmDiscard" && (
+              <Stack gap="xs" p="sm">
+                <Text size="sm" fw={600}>
+                  {t("Unsaved changes")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("You have unsaved changes. Do you want to discard them?")}
+                </Text>
+                <Group gap="xs" justify="flex-end">
+                  <Button
+                    variant="default"
+                    size="xs"
+                    onClick={handleCancelDiscard}
+                  >
+                    {t("Keep editing")}
+                  </Button>
+                  <Button color="red" size="xs" onClick={handleConfirmDiscard}>
+                    {t("Discard")}
+                  </Button>
+                </Group>
+              </Stack>
+            )}
           </div>
         </Popover.Dropdown>
       </Popover>

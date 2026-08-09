@@ -18,6 +18,10 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { buildLdapUserFilter } from '../ldap.util';
+import {
+  serviceUnavailable,
+  unauthorized,
+} from '../../../common/errors/app-error';
 
 /** Код результата LDAP для неверных учетных данных, RFC 4511. */
 const INVALID_CREDENTIALS = 49;
@@ -111,9 +115,7 @@ export class LdapService {
         err instanceof Error ? err.message : String(err)
       }`,
     );
-    throw new ServiceUnavailableException(
-      'Каталог пользователей недоступен. Обратитесь к администратору',
-    );
+    throw serviceUnavailable('error.sso.directory_unavailable');
   }
 
   /** Первое непустое значение атрибута: каталог отдает их списками. */
@@ -233,9 +235,7 @@ export class LdapService {
       this.logger.error(
         `Каталог провайдера ${providerId} не отдал устойчивый идентификатор записи ${entry.dn}`,
       );
-      throw new ServiceUnavailableException(
-        'Каталог не отдает устойчивый идентификатор пользователя. Обратитесь к администратору',
-      );
+      throw serviceUnavailable('error.sso.directory_no_stable_id');
     }
 
     const email = this.pick(attributes, [
@@ -244,9 +244,7 @@ export class LdapService {
     ]);
 
     if (!email) {
-      throw new UnauthorizedException(
-        'В каталоге у этой учетной записи нет адреса электронной почты',
-      );
+      throw unauthorized('error.sso.directory_no_email');
     }
 
     const whole = this.pick(attributes, [
@@ -346,15 +344,13 @@ export class LdapService {
       }
 
       if (entries.length === 0) {
-        throw new UnauthorizedException('Неверное имя пользователя или пароль');
+        throw unauthorized('error.sso.credentials_invalid');
       }
       if (entries.length > 1) {
         this.logger.error(
           `Фильтр провайдера ${provider.id} нашел несколько записей, вход отвергнут`,
         );
-        throw new ServiceUnavailableException(
-          'Настройка каталога неоднозначна. Обратитесь к администратору',
-        );
+        throw serviceUnavailable('error.sso.directory_ambiguous');
       }
 
       return entries[0];
@@ -378,7 +374,7 @@ export class LdapService {
       await client.bind(dn, password);
     } catch (err: any) {
       if (err?.code === INVALID_CREDENTIALS) {
-        throw new UnauthorizedException('Неверное имя пользователя или пароль');
+        throw unauthorized('error.sso.credentials_invalid');
       }
       this.directoryFailure(provider.id, 'проверка пароля', err);
     } finally {

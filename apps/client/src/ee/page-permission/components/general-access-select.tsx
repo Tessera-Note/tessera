@@ -68,7 +68,10 @@ export function GeneralAccessSelect({
   return (
     <Menu withArrow disabled={disabled}>
       <Menu.Target>
-        <UnstyledButton className={classes.generalAccessBox} disabled={disabled}>
+        <UnstyledButton
+          className={classes.generalAccessBox}
+          disabled={disabled}
+        >
           <div
             className={`${classes.generalAccessIcon} ${isDirectlyRestricted || showInheritedState ? classes.generalAccessIconRestricted : ""}`}
           >

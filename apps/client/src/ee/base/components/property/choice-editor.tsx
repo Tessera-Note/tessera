@@ -1,4 +1,11 @@
-import { useState, useCallback, useMemo, useEffect, useRef, useLayoutEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import {
   TextInput,
   Group,
@@ -39,8 +46,19 @@ import { generateBaseChoiceId } from "@/ee/base/utils/generate-base-id";
 import { DefaultValuePicker } from "./default-value-picker";
 
 const CHOICE_COLORS = [
-  "gray", "red", "pink", "grape", "violet", "indigo",
-  "blue", "cyan", "teal", "green", "lime", "yellow", "orange",
+  "gray",
+  "red",
+  "pink",
+  "grape",
+  "violet",
+  "indigo",
+  "blue",
+  "cyan",
+  "teal",
+  "green",
+  "lime",
+  "yellow",
+  "orange",
 ];
 
 const STATUS_CATEGORIES = [
@@ -52,9 +70,24 @@ const STATUS_CATEGORIES = [
 // Default choices for a new status property, one per category.
 export function defaultStatusChoices(): Choice[] {
   return [
-    { id: generateBaseChoiceId(), name: "Not started", color: "gray", category: "todo" },
-    { id: generateBaseChoiceId(), name: "In progress", color: "blue", category: "inProgress" },
-    { id: generateBaseChoiceId(), name: "Done", color: "green", category: "complete" },
+    {
+      id: generateBaseChoiceId(),
+      name: "Not started",
+      color: "gray",
+      category: "todo",
+    },
+    {
+      id: generateBaseChoiceId(),
+      name: "In progress",
+      color: "blue",
+      category: "inProgress",
+    },
+    {
+      id: generateBaseChoiceId(),
+      name: "Done",
+      color: "green",
+      category: "complete",
+    },
   ];
 }
 
@@ -138,7 +171,12 @@ export function ChoiceEditor({
     if (draft.length !== initialChoices.length) return true;
     return draft.some((d, i) => {
       const o = initialChoices[i];
-      return d.id !== o.id || d.name !== o.name || d.color !== o.color || d.category !== o.category;
+      return (
+        d.id !== o.id ||
+        d.name !== o.name ||
+        d.color !== o.color ||
+        d.category !== o.category
+      );
     });
   }, [draft, initialChoices, defaultDraft, initialDefaultValue]);
 
@@ -149,11 +187,15 @@ export function ChoiceEditor({
   const hasEmptyNames = draft.some((c) => !c.name.trim());
 
   const handleRename = useCallback((choiceId: string, name: string) => {
-    setDraft((prev) => prev.map((c) => (c.id === choiceId ? { ...c, name } : c)));
+    setDraft((prev) =>
+      prev.map((c) => (c.id === choiceId ? { ...c, name } : c)),
+    );
   }, []);
 
   const handleColorChange = useCallback((choiceId: string, color: string) => {
-    setDraft((prev) => prev.map((c) => (c.id === choiceId ? { ...c, color } : c)));
+    setDraft((prev) =>
+      prev.map((c) => (c.id === choiceId ? { ...c, color } : c)),
+    );
   }, []);
 
   const handleRemove = useCallback((choiceId: string) => {
@@ -168,20 +210,23 @@ export function ChoiceEditor({
     });
   }, []);
 
-  const handleAdd = useCallback((category?: "todo" | "inProgress" | "complete") => {
-    const id = generateBaseChoiceId();
-    setDraft((prev) => {
-      const colorIndex = prev.length % CHOICE_COLORS.length;
-      const newChoice: Choice = {
-        id,
-        name: "",
-        color: CHOICE_COLORS[colorIndex],
-        ...(category ? { category } : {}),
-      };
-      return [...prev, newChoice];
-    });
-    setFocusChoiceId(id);
-  }, []);
+  const handleAdd = useCallback(
+    (category?: "todo" | "inProgress" | "complete") => {
+      const id = generateBaseChoiceId();
+      setDraft((prev) => {
+        const colorIndex = prev.length % CHOICE_COLORS.length;
+        const newChoice: Choice = {
+          id,
+          name: "",
+          color: CHOICE_COLORS[colorIndex],
+          ...(category ? { category } : {}),
+        };
+        return [...prev, newChoice];
+      });
+      setFocusChoiceId(id);
+    },
+    [],
+  );
 
   const handleAlphabetize = useCallback(() => {
     setDraft((prev) => [...prev].sort((a, b) => a.name.localeCompare(b.name)));
@@ -222,7 +267,9 @@ export function ChoiceEditor({
   const handleCategoryReorder = useCallback(
     (category: string, activeId: string, targetId: string, edge: Edge) => {
       setDraft((prev) => {
-        const catChoices = prev.filter((c) => (c.category ?? "todo") === category);
+        const catChoices = prev.filter(
+          (c) => (c.category ?? "todo") === category,
+        );
         const startIndex = catChoices.findIndex((c) => c.id === activeId);
         const indexOfTarget = catChoices.findIndex((c) => c.id === targetId);
         if (startIndex === -1 || indexOfTarget === -1) return prev;
@@ -258,9 +305,14 @@ export function ChoiceEditor({
         <Text size="xs" fw={600}>
           {t("Options")}
         </Text>
-        <UnstyledButton onClick={handleAlphabetize} className={classes.alphabetizeBtn}>
+        <UnstyledButton
+          onClick={handleAlphabetize}
+          className={classes.alphabetizeBtn}
+        >
           <IconArrowsSort size={14} color="var(--mantine-color-dimmed)" />
-          <Text size="xs" c="dimmed">{t("Alphabetize")}</Text>
+          <Text size="xs" c="dimmed">
+            {t("Alphabetize")}
+          </Text>
         </UnstyledButton>
       </Group>
 
@@ -306,7 +358,11 @@ export function ChoiceEditor({
             <Button variant="default" size="xs" onClick={handleCancel}>
               {t("Cancel")}
             </Button>
-            <Button size="xs" onClick={handleSave} disabled={!isDirty || hasEmptyNames}>
+            <Button
+              size="xs"
+              onClick={handleSave}
+              disabled={!isDirty || hasEmptyNames}
+            >
               {t("Save")}
             </Button>
           </Group>
@@ -356,12 +412,11 @@ function FlatChoiceList({
         />
       ))}
 
-      <UnstyledButton
-        onClick={() => onAdd()}
-        className={classes.addOptionBtn}
-      >
+      <UnstyledButton onClick={() => onAdd()} className={classes.addOptionBtn}>
         <IconPlus size={14} color="var(--mantine-color-dimmed)" />
-        <Text size="xs" c="dimmed">{t("Add option")}</Text>
+        <Text size="xs" c="dimmed">
+          {t("Add option")}
+        </Text>
       </UnstyledButton>
     </Stack>
   );
@@ -385,11 +440,20 @@ function StatusChoiceList({
   onColorChange: (id: string, color: string) => void;
   onRemove: (id: string) => void;
   onAdd: (category: "todo" | "inProgress" | "complete") => void;
-  onCategoryReorder: (category: string, activeId: string, targetId: string, edge: Edge) => void;
+  onCategoryReorder: (
+    category: string,
+    activeId: string,
+    targetId: string,
+    edge: Edge,
+  ) => void;
   dropdownPortalTarget?: HTMLElement | null;
 }) {
   const grouped = useMemo(() => {
-    const groups: Record<string, Choice[]> = { todo: [], inProgress: [], complete: [] };
+    const groups: Record<string, Choice[]> = {
+      todo: [],
+      inProgress: [],
+      complete: [],
+    };
     for (const choice of draft) {
       const cat = choice.category ?? "todo";
       (groups[cat] ?? groups.todo).push(choice);
@@ -485,7 +549,9 @@ function CategorySection({
         className={classes.addOptionBtn}
       >
         <IconPlus size={14} color="var(--mantine-color-dimmed)" />
-        <Text size="xs" c="dimmed">{t("Add option")}</Text>
+        <Text size="xs" c="dimmed">
+          {t("Add option")}
+        </Text>
       </UnstyledButton>
     </Stack>
   );
@@ -547,8 +613,7 @@ function SortableChoiceRow({
       dropTargetForElements({
         element: row,
         canDrop: ({ source }) =>
-          source.data.type === dragType &&
-          source.data.choiceId !== choice.id,
+          source.data.type === dragType && source.data.choiceId !== choice.id,
         getData: ({ input, element }) =>
           attachClosestEdge(
             { choiceId: choice.id },
@@ -560,11 +625,7 @@ function SortableChoiceRow({
           setClosestEdge(null);
           const edge = extractClosestEdge(self.data);
           if (!edge) return;
-          onReorderRef.current(
-            source.data.choiceId as string,
-            choice.id,
-            edge,
-          );
+          onReorderRef.current(source.data.choiceId as string, choice.id, edge);
           triggerPostMoveFlash(row);
           liveRegion.announce("Moved option");
         },
@@ -601,7 +662,11 @@ function SortableChoiceRow({
         onChange={(e) => onRename(choice.id, e.currentTarget.value)}
         style={{ flex: 1 }}
         error={hasError}
-        styles={hasError ? { input: { borderColor: "var(--mantine-color-red-6)" } } : undefined}
+        styles={
+          hasError
+            ? { input: { borderColor: "var(--mantine-color-red-6)" } }
+            : undefined
+        }
       />
       <CloseButton size="sm" onClick={() => onRemove(choice.id)} />
       {closestEdge && <BaseDropEdgeIndicator edge={closestEdge} />}
@@ -659,9 +724,10 @@ function ColorDot({
                   height: 24,
                   borderRadius: "50%",
                   backgroundColor: dotColors.backgroundColor as string,
-                  border: c === color
-                    ? `2px solid ${dotColors.color as string}`
-                    : "2px solid transparent",
+                  border:
+                    c === color
+                      ? `2px solid ${dotColors.color as string}`
+                      : "2px solid transparent",
                 }}
               />
             );

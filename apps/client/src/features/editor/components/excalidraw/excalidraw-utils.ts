@@ -8,8 +8,8 @@ export interface LibraryPersistenceAdapter {
   load(metadata: { source: "load" | "save" }):
     | Promise<{ libraryItems: LibraryItems } | null>
     | {
-    libraryItems: LibraryItems;
-  }
+        libraryItems: LibraryItems;
+      }
     | null;
 
   save(libraryData: LibraryPersistedData): Promise<void> | void;
@@ -25,7 +25,10 @@ export const localStorageLibraryAdapter: LibraryPersistenceAdapter = {
         return JSON.parse(data);
       }
     } catch (e) {
-      console.error("Error downloading Excalidraw library from localStorage", e);
+      console.error(
+        "Error downloading Excalidraw library from localStorage",
+        e,
+      );
     }
     return null;
   },

@@ -73,9 +73,7 @@ describe('AiAnswersController', () => {
       res as any,
     );
 
-    expect(spaceMemberRepo.getUserSpaceIdsQuery).toHaveBeenCalledWith(
-      'user-1',
-    );
+    expect(spaceMemberRepo.getUserSpaceIdsQuery).toHaveBeenCalledWith('user-1');
     expect(where).toHaveBeenCalledWith('spaceId', 'in', 'SPACE_SUBQUERY');
   });
 
@@ -125,9 +123,7 @@ describe('AiAnswersController', () => {
       call[0].includes('"sources"'),
     );
     expect(sourcesCall).toBeDefined();
-    const payload = JSON.parse(
-      sourcesCall[0].replace(/^data: /, '').trim(),
-    );
+    const payload = JSON.parse(sourcesCall[0].replace(/^data: /, '').trim());
     expect(payload.sources.map((s: any) => s.pageId)).toEqual(['page-a']);
   });
 });

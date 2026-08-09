@@ -158,7 +158,7 @@ describe('AiProviderFactory.createEmbeddingModel', () => {
           baseUrl: null,
           baseUrlOverride: null,
           apiKey: 'k',
-          model: null ,
+          model: null,
         },
         'text-embedding-3-small',
       ),

@@ -17,10 +17,7 @@ import {
   IconUserEdit,
   IconMathFunction,
 } from "@tabler/icons-react";
-import type {
-  BasePropertyType,
-  TypeOptions,
-} from "@/ee/base/types/base.types";
+import type { BasePropertyType, TypeOptions } from "@/ee/base/types/base.types";
 import { CellText } from "@/ee/base/components/cells/cell-text";
 import { CellLongText } from "@/ee/base/components/cells/cell-long-text";
 import { CellNumber } from "@/ee/base/components/cells/cell-number";
@@ -64,7 +61,14 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellText,
     icon: IconLetterT,
     labelKey: "Title",
-    filterOperators: ["eq", "neq", "contains", "ncontains", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "neq",
+      "contains",
+      "ncontains",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "text",
     isSystem: false,
     hasOptions: false,
@@ -74,7 +78,14 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellText,
     icon: IconLetterT,
     labelKey: "Text",
-    filterOperators: ["eq", "neq", "contains", "ncontains", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "neq",
+      "contains",
+      "ncontains",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "text",
     isSystem: false,
     hasOptions: true,
@@ -84,7 +95,14 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellLongText,
     icon: IconAlignLeft,
     labelKey: "Long text",
-    filterOperators: ["eq", "neq", "contains", "ncontains", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "neq",
+      "contains",
+      "ncontains",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "text",
     isSystem: false,
     hasOptions: true,
@@ -143,7 +161,16 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellDate,
     icon: IconCalendar,
     labelKey: "Date",
-    filterOperators: ["eq", "before", "after", "onOrBefore", "onOrAfter", "isWithin", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "before",
+      "after",
+      "onOrBefore",
+      "onOrAfter",
+      "isWithin",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "date",
     isSystem: false,
     hasOptions: true,
@@ -203,7 +230,14 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellUrl,
     icon: IconLink,
     labelKey: "URL",
-    filterOperators: ["eq", "neq", "contains", "ncontains", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "neq",
+      "contains",
+      "ncontains",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "text",
     isSystem: false,
     hasOptions: true,
@@ -213,7 +247,14 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellEmail,
     icon: IconMail,
     labelKey: "Email",
-    filterOperators: ["eq", "neq", "contains", "ncontains", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "neq",
+      "contains",
+      "ncontains",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "text",
     isSystem: false,
     hasOptions: true,
@@ -223,7 +264,16 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellCreatedAt,
     icon: IconClockPlus,
     labelKey: "Created at",
-    filterOperators: ["eq", "before", "after", "onOrBefore", "onOrAfter", "isWithin", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "before",
+      "after",
+      "onOrBefore",
+      "onOrAfter",
+      "isWithin",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "date",
     isSystem: true,
     hasOptions: false,
@@ -234,7 +284,16 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     cellComponent: CellLastEditedAt,
     icon: IconClockEdit,
     labelKey: "Last edited at",
-    filterOperators: ["eq", "before", "after", "onOrBefore", "onOrAfter", "isWithin", "isEmpty", "isNotEmpty"],
+    filterOperators: [
+      "eq",
+      "before",
+      "after",
+      "onOrBefore",
+      "onOrAfter",
+      "isWithin",
+      "isEmpty",
+      "isNotEmpty",
+    ],
     filterInput: "date",
     isSystem: true,
     hasOptions: false,
@@ -253,12 +312,18 @@ export const PROPERTY_TYPE_REGISTRY: Record<
   },
 };
 
-export function getDescriptor(type: string): ClientPropertyTypeDescriptor | undefined {
-  return (PROPERTY_TYPE_REGISTRY as Record<string, ClientPropertyTypeDescriptor>)[type];
+export function getDescriptor(
+  type: string,
+): ClientPropertyTypeDescriptor | undefined {
+  return (
+    PROPERTY_TYPE_REGISTRY as Record<string, ClientPropertyTypeDescriptor>
+  )[type];
 }
 
 export const SYSTEM_PROPERTY_TYPES: ReadonlySet<string> = new Set(
-  Object.values(PROPERTY_TYPE_REGISTRY).filter((d) => d.isSystem).map((d) => d.type),
+  Object.values(PROPERTY_TYPE_REGISTRY)
+    .filter((d) => d.isSystem)
+    .map((d) => d.type),
 );
 
 export function isSystemPropertyType(type: string): boolean {
@@ -268,9 +333,23 @@ export function isSystemPropertyType(type: string): boolean {
 export const DEFAULT_FILTER_OPERATORS = ["eq", "neq", "isEmpty", "isNotEmpty"];
 
 export const PROPERTY_PICKER_ORDER: BasePropertyType[] = [
-  "text", "longText", "number", "select", "status", "multiSelect", "date",
-  "person", "file", "formula", "page", "checkbox", "url", "email",
-  "createdAt", "lastEditedAt", "lastEditedBy",
+  "text",
+  "longText",
+  "number",
+  "select",
+  "status",
+  "multiSelect",
+  "date",
+  "person",
+  "file",
+  "formula",
+  "page",
+  "checkbox",
+  "url",
+  "email",
+  "createdAt",
+  "lastEditedAt",
+  "lastEditedBy",
 ];
 
 export const propertyTypes = PROPERTY_PICKER_ORDER.map((type) => {

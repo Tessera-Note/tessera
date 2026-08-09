@@ -30,8 +30,8 @@ export const propertyMenuDirtyAtomFamily = atomFamily((_pageId: string) =>
   atom<boolean>(false),
 );
 
-export const propertyMenuCloseRequestAtomFamily = atomFamily((_pageId: string) =>
-  atom<number>(0),
+export const propertyMenuCloseRequestAtomFamily = atomFamily(
+  (_pageId: string) => atom<number>(0),
 );
 
 export const selectedRowIdsAtomFamily = atomFamily((_pageId: string) =>

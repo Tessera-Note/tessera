@@ -30,7 +30,10 @@ function describeConversion(
       };
     }
     if (from === "select" || from === "status") {
-      return { message: "Cells will be replaced with the option name.", lossy: true };
+      return {
+        message: "Cells will be replaced with the option name.",
+        lossy: true,
+      };
     }
     if (from === "multiSelect") {
       return {
@@ -40,7 +43,10 @@ function describeConversion(
       };
     }
     if (from === "person") {
-      return { message: "Cells will be replaced with the person's name.", lossy: true };
+      return {
+        message: "Cells will be replaced with the person's name.",
+        lossy: true,
+      };
     }
     if (from === "file") {
       return {
@@ -50,7 +56,10 @@ function describeConversion(
       };
     }
     if (from === "page") {
-      return { message: "Cells will be replaced with the page title.", lossy: true };
+      return {
+        message: "Cells will be replaced with the page title.",
+        lossy: true,
+      };
     }
   }
 
@@ -108,7 +117,10 @@ function describeConversion(
     };
   }
 
-  return { message: "Cells will be reinterpreted under the new type.", lossy: false };
+  return {
+    message: "Cells will be reinterpreted under the new type.",
+    lossy: false,
+  };
 }
 
 export function conversionWarning(

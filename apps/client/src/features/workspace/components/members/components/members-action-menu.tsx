@@ -21,6 +21,7 @@ import { resetUserMfa } from "@/ee/mfa";
 import { unlinkSsoAccount } from "@/ee/security/services/security-service.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 interface Props {
   userId: string;
@@ -56,9 +57,10 @@ export default function MemberActionMenu({
     } catch (err) {
       notifications.show({
         color: "red",
-        message:
-          err?.response?.data?.message ??
+        message: getApiErrorMessage(
+          err,
           t("Failed to reset two-factor authentication"),
+        ),
       });
     }
   };
@@ -95,9 +97,10 @@ export default function MemberActionMenu({
     } catch (err) {
       notifications.show({
         color: "red",
-        message:
-          err?.response?.data?.message ??
+        message: getApiErrorMessage(
+          err,
           t("Failed to remove sign-in provider link"),
+        ),
       });
     }
   };

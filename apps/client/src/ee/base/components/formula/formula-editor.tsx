@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Button,
-  Divider,
-  Group,
-  Paper,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Button, Divider, Group, Paper, Stack, Text } from "@mantine/core";
 import {
   IconAlertTriangle,
   IconMathFunction,
@@ -147,7 +140,10 @@ export function FormulaEditor({
               </Group>
             ) : parseState.state === "ok" ? (
               <Group gap={6} c="dimmed">
-                <IconPointFilled size={10} color="var(--mantine-color-teal-6)" />
+                <IconPointFilled
+                  size={10}
+                  color="var(--mantine-color-teal-6)"
+                />
                 <Text size="xs">
                   Returns{" "}
                   <Text span fw={600} c="gray.8">

@@ -68,7 +68,9 @@ describe('PdfImportService, PDF без текстового слоя', () => {
   const expectClearMessage = async (result: any) => {
     const { service } = build(result);
 
-    await expect(convert(service)).rejects.toThrow(/нет текстового слоя/i);
+    await expect(convert(service)).rejects.toMatchObject({
+      response: { code: 'error.import.pdf_no_text_layer' },
+    });
     await expect(convert(service)).rejects.toBeInstanceOf(BadRequestException);
   };
 

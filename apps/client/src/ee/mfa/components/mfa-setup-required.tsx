@@ -17,35 +17,35 @@ export default function MfaSetupRequired() {
 
   return (
     <AuthLayout>
-    <Container size="sm" py="xl">
-      <Paper shadow="sm" p="xl" radius="md" withBorder>
-        <Stack>
-          <Title order={2} ta="center">
-            {t("Two-factor authentication required")}
-          </Title>
+      <Container size="sm" py="xl">
+        <Paper shadow="sm" p="xl" radius="md" withBorder>
+          <Stack>
+            <Title order={2} ta="center">
+              {t("Two-factor authentication required")}
+            </Title>
 
-          <Alert icon={<IconAlertCircle size="1rem" />} color="yellow">
-            <Text size="sm">
+            <Alert icon={<IconAlertCircle size="1rem" />} color="yellow">
+              <Text size="sm">
+                {t(
+                  "Your workspace requires two-factor authentication. Please set it up to continue.",
+                )}
+              </Text>
+            </Alert>
+
+            <Text c="dimmed" size="sm" ta="center">
               {t(
-                "Your workspace requires two-factor authentication. Please set it up to continue.",
+                "This adds an extra layer of security to your account by requiring a verification code from your authenticator app.",
               )}
             </Text>
-          </Alert>
 
-          <Text c="dimmed" size="sm" ta="center">
-            {t(
-              "This adds an extra layer of security to your account by requiring a verification code from your authenticator app.",
-            )}
-          </Text>
-
-          <MfaSetupModal
-            opened={true}
-            onComplete={handleSetupComplete}
-            isRequired={true}
-          />
-        </Stack>
-      </Paper>
-    </Container>
+            <MfaSetupModal
+              opened={true}
+              onComplete={handleSetupComplete}
+              isRequired={true}
+            />
+          </Stack>
+        </Paper>
+      </Container>
     </AuthLayout>
   );
 }

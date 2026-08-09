@@ -10,11 +10,7 @@ import {
   TextInput,
   useComputedColorScheme,
 } from "@mantine/core";
-import {
-  IconChevronDown,
-  IconLabel,
-  IconSearch,
-} from "@tabler/icons-react";
+import { IconChevronDown, IconLabel, IconSearch } from "@tabler/icons-react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";

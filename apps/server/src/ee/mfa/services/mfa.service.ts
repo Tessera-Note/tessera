@@ -39,6 +39,7 @@ import {
   hashBackupCode,
   verifyTotp,
 } from '../mfa.util';
+import { badRequest, unauthorized } from '../../../common/errors/app-error';
 
 /**
  * Остаток резервных кодов, ниже которого пользователя стоит предупредить.
@@ -160,19 +161,19 @@ export class MfaService {
    */
   async completeLogin(mfaToken: string, code: string): Promise<string> {
     if (!mfaToken) {
-      throw new UnauthorizedException('Сеанс подтверждения истек');
+      throw unauthorized('error.mfa.session_expired');
     }
 
     let payload: any;
     try {
       payload = await this.tokenService.verifyJwt(mfaToken, JwtType.MFA_TOKEN);
     } catch {
-      throw new UnauthorizedException('Сеанс подтверждения истек');
+      throw unauthorized('error.mfa.session_expired');
     }
 
     const verified = await this.verifyCode(payload.sub, code);
     if (!verified) {
-      throw new UnauthorizedException('Код неверен');
+      throw unauthorized('error.mfa.code_invalid');
     }
 
     const user = await this.userRepo.findById(payload.sub, payload.workspaceId);
@@ -354,14 +355,12 @@ export class MfaService {
 
     const target = await this.userRepo.findById(targetUserId, workspace.id);
     if (!target) {
-      throw new BadRequestException('Пользователь не найден');
+      throw badRequest('error.mfa.user_not_found');
     }
 
     const record = await this.findRecord(target.id);
     if (!record?.isEnabled) {
-      throw new BadRequestException(
-        'У этого пользователя второй фактор не подключен',
-      );
+      throw badRequest('error.mfa.not_enabled_for_user');
     }
 
     await this.db.deleteFrom('userMfa').where('id', '=', record.id).execute();
@@ -457,7 +456,7 @@ export class MfaService {
   async regenerateBackupCodes(user: User, confirmPassword?: string) {
     const record = await this.findRecord(user.id);
     if (!record?.isEnabled) {
-      throw new BadRequestException('Второй фактор не подключен');
+      throw badRequest('error.mfa.not_enabled');
     }
 
     await this.assertPassword(user, confirmPassword);
@@ -488,7 +487,7 @@ export class MfaService {
   async setup(user: User, workspace: Workspace) {
     const existing = await this.findRecord(user.id);
     if (existing?.isEnabled) {
-      throw new BadRequestException('Второй фактор уже подключен');
+      throw badRequest('error.mfa.already_enabled');
     }
 
     const secret = generateTotpSecret();
@@ -534,7 +533,7 @@ export class MfaService {
       .executeTakeFirst();
 
     if (!stored) {
-      throw new BadRequestException('Второй фактор уже подключен');
+      throw badRequest('error.mfa.already_enabled');
     }
 
     const issuer = workspace.name || 'Tessera';
@@ -557,15 +556,15 @@ export class MfaService {
   async enable(user: User, verificationCode: string) {
     const record = await this.findRecord(user.id);
     if (!record?.secret) {
-      throw new BadRequestException('Подключение второго фактора не начато');
+      throw badRequest('error.mfa.setup_not_started');
     }
     if (record.isEnabled) {
-      throw new BadRequestException('Второй фактор уже подключен');
+      throw badRequest('error.mfa.already_enabled');
     }
 
     const secret = decryptSecret(record.secret, this.appSecret);
     if (!secret || !verifyTotp(secret, verificationCode)) {
-      throw new BadRequestException('Код неверен');
+      throw badRequest('error.mfa.code_invalid');
     }
 
     const backupCodes = generateBackupCodes();
@@ -592,7 +591,7 @@ export class MfaService {
   async disable(user: User, confirmPassword?: string) {
     const record = await this.findRecord(user.id);
     if (!record?.isEnabled) {
-      throw new BadRequestException('Второй фактор не подключен');
+      throw badRequest('error.mfa.not_enabled');
     }
 
     await this.assertPassword(user, confirmPassword);
@@ -613,7 +612,7 @@ export class MfaService {
       ? await comparePasswordHash(password, stored.password)
       : false;
     if (!matches) {
-      throw new UnauthorizedException('Пароль неверен');
+      throw unauthorized('error.mfa.password_invalid');
     }
   }
 

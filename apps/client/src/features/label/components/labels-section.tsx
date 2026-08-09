@@ -71,9 +71,7 @@ export function LabelsSection({ pageId, canEdit }: LabelsSectionProps) {
                   onClick={() => setOpen((v) => !v)}
                 >
                   <IconPlus size={12} stroke={2} />
-                  <span>
-                    {labels.length === 0 ? t("Add label") : t("Add")}
-                  </span>
+                  <span>{labels.length === 0 ? t("Add label") : t("Add")}</span>
                 </button>
               </Popover.Target>
               <Popover.Dropdown p={0} className={classes.popover}>

@@ -21,10 +21,18 @@ type KanbanColumnHeaderProps = {
   onAddCard: () => void;
 };
 
-export function KanbanColumnHeader({ column, pageId, property, count, canEdit, onHide, onAddCard }: KanbanColumnHeaderProps) {
+export function KanbanColumnHeader({
+  column,
+  pageId,
+  property,
+  count,
+  canEdit,
+  onHide,
+  onAddCard,
+}: KanbanColumnHeaderProps) {
   const { t } = useTranslation();
   const dotColor = column.color
-    ? choiceColor(column.color).color as string
+    ? (choiceColor(column.color).color as string)
     : "light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3))";
 
   const headerRef = useRef<HTMLDivElement>(null);
@@ -37,7 +45,13 @@ export function KanbanColumnHeader({ column, pageId, property, count, canEdit, o
   });
 
   return (
-    <div ref={headerRef} className={clsx(classes.columnHeader, isDragging && classes.columnHeaderDragging)}>
+    <div
+      ref={headerRef}
+      className={clsx(
+        classes.columnHeader,
+        isDragging && classes.columnHeaderDragging,
+      )}
+    >
       {canEdit && (
         <div ref={handleRef} className={classes.columnDragHandle} aria-hidden>
           <IconGripVertical size={14} />
@@ -52,14 +66,29 @@ export function KanbanColumnHeader({ column, pageId, property, count, canEdit, o
           background: dotColor,
         }}
       />
-      <KanbanColumnTitle column={column} property={property} pageId={pageId} canEdit={canEdit} />
+      <KanbanColumnTitle
+        column={column}
+        property={property}
+        pageId={pageId}
+        canEdit={canEdit}
+      />
       {count !== undefined && <Text className={classes.count}>{count}</Text>}
       {canEdit && (
         <>
           {property && (
-            <KanbanColumnMenu property={property} pageId={pageId} onHide={onHide} />
+            <KanbanColumnMenu
+              property={property}
+              pageId={pageId}
+              onHide={onHide}
+            />
           )}
-          <ActionIcon variant="subtle" size="sm" color="gray" aria-label={t("Add card")} onClick={onAddCard}>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            color="gray"
+            aria-label={t("Add card")}
+            onClick={onAddCard}
+          >
             <IconPlus size={14} />
           </ActionIcon>
         </>

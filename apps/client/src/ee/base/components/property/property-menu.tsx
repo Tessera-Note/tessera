@@ -105,11 +105,16 @@ export function PropertyMenuContent({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [optionsDirty, setOptionsDirty] = useState(false);
   // Portal target for nested Select dropdowns to avoid triggering closeOnClickOutside.
-  const [optionsAnchor, setOptionsAnchor] = useState<HTMLDivElement | null>(null);
-  const [pendingTargetType, setPendingTargetType] = useState<BasePropertyType | null>(null);
+  const [optionsAnchor, setOptionsAnchor] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [pendingTargetType, setPendingTargetType] =
+    useState<BasePropertyType | null>(null);
   const pendingActionRef = useRef<"back" | "close" | null>(null);
   const sourcePanelRef = useRef<"rename" | "options" | null>(null);
-  const [closeRequest] = useAtom(propertyMenuCloseRequestAtomFamily(pageId)) as unknown as [number];
+  const [closeRequest] = useAtom(
+    propertyMenuCloseRequestAtomFamily(pageId),
+  ) as unknown as [number];
   const closeRequestRef = useRef(closeRequest);
 
   const renameDirty = renameValue !== property.name;
@@ -302,7 +307,9 @@ export function PropertyMenuContent({
             <Button
               size="xs"
               onClick={handleRenameAndClose}
-              disabled={!renameValue.trim() || renameValue.trim() === property.name}
+              disabled={
+                !renameValue.trim() || renameValue.trim() === property.name
+              }
             >
               {t("Save")}
             </Button>
@@ -318,10 +325,7 @@ export function PropertyMenuContent({
               size="xs"
               onClick={() => setPanel("main")}
             >
-              <IconChevronRight
-                size={14}
-                className={classes.chevronBack}
-              />
+              <IconChevronRight size={14} className={classes.chevronBack} />
             </ActionIcon>
             <Text size="xs" fw={600} c="dimmed">
               {t("Change type")}
@@ -386,10 +390,7 @@ export function PropertyMenuContent({
               size="xs"
               onClick={handleOptionsBack}
             >
-              <IconChevronRight
-                size={14}
-                className={classes.chevronBack}
-              />
+              <IconChevronRight size={14} className={classes.chevronBack} />
             </ActionIcon>
             <Text size="xs" fw={600} c="dimmed">
               {t("Property options")}
@@ -423,11 +424,7 @@ export function PropertyMenuContent({
             >
               {t("Cancel")}
             </Button>
-            <Button
-              color="red"
-              size="xs"
-              onClick={handleDelete}
-            >
+            <Button color="red" size="xs" onClick={handleDelete}>
               {t("Delete")}
             </Button>
           </Group>
@@ -442,18 +439,10 @@ export function PropertyMenuContent({
             {t("You have unsaved changes. Do you want to discard them?")}
           </Text>
           <Group gap="xs" justify="flex-end">
-            <Button
-              variant="default"
-              size="xs"
-              onClick={handleCancelDiscard}
-            >
+            <Button variant="default" size="xs" onClick={handleCancelDiscard}>
               {t("Keep editing")}
             </Button>
-            <Button
-              color="red"
-              size="xs"
-              onClick={handleConfirmDiscard}
-            >
+            <Button color="red" size="xs" onClick={handleConfirmDiscard}>
               {t("Discard")}
             </Button>
           </Group>
@@ -545,10 +534,7 @@ function MainPanel({
         />
       )}
       {!isSystem && !property.isPrimary && (
-        <UnstyledButton
-          className={cellClasses.menuItem}
-          onClick={onChangeType}
-        >
+        <UnstyledButton className={cellClasses.menuItem} onClick={onChangeType}>
           <Group gap={8} wrap="nowrap" style={{ flex: 1 }}>
             {TypeIcon ? <TypeIcon size={14} /> : null}
             <Text size="sm">
@@ -580,4 +566,3 @@ function MainPanel({
     </Stack>
   );
 }
-

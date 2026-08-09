@@ -17,7 +17,8 @@ export default function VerifyEmail() {
   const navigate = useNavigate();
   const token = searchParams.get("token");
   const rawEmail = searchParams.get("email");
-  const email = rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : null;
+  const email =
+    rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : null;
   const sig = searchParams.get("sig");
   const [isResending, setIsResending] = useState(false);
   const [resent, setResent] = useState(false);
@@ -77,36 +78,38 @@ export default function VerifyEmail() {
 
   return (
     <AuthLayout>
-    <Container size={420} className={classes.container}>
-      <Box p="xl" className={classes.containerBox}>
-        <Title order={2} ta="center" fw={500} mb="md">
-          {t("Check your email")}
-        </Title>
-        <Text ta="center" c="dimmed" mb="md">
-          {email
-            ? t("We sent a verification link to {{email}}.", { email })
-            : t("We sent a verification link to your email.")}
-        </Text>
-        <Text ta="center" size="sm" c="dimmed" mb="lg">
-          {t("Click the link to verify your email and access your workspace.")}
-        </Text>
-        {email && sig && !resent && (
-          <Button
-            fullWidth
-            variant="light"
-            onClick={handleResend}
-            loading={isResending}
-          >
-            {t("Resend verification email")}
-          </Button>
-        )}
-        {resent && (
-          <Text ta="center" size="sm" c="dimmed">
-            {t("Verification email sent. Please check your inbox.")}
+      <Container size={420} className={classes.container}>
+        <Box p="xl" className={classes.containerBox}>
+          <Title order={2} ta="center" fw={500} mb="md">
+            {t("Check your email")}
+          </Title>
+          <Text ta="center" c="dimmed" mb="md">
+            {email
+              ? t("We sent a verification link to {{email}}.", { email })
+              : t("We sent a verification link to your email.")}
           </Text>
-        )}
-      </Box>
-    </Container>
+          <Text ta="center" size="sm" c="dimmed" mb="lg">
+            {t(
+              "Click the link to verify your email and access your workspace.",
+            )}
+          </Text>
+          {email && sig && !resent && (
+            <Button
+              fullWidth
+              variant="light"
+              onClick={handleResend}
+              loading={isResending}
+            >
+              {t("Resend verification email")}
+            </Button>
+          )}
+          {resent && (
+            <Text ta="center" size="sm" c="dimmed">
+              {t("Verification email sent. Please check your inbox.")}
+            </Text>
+          )}
+        </Box>
+      </Container>
     </AuthLayout>
   );
 }

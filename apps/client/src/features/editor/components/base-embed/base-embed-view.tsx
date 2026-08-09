@@ -65,7 +65,7 @@ export function BaseEmbedView({ node, editor, deleteNode }: NodeViewProps) {
     isLoading,
     isError,
     error,
-  } = useBaseQuery(pendingKey ? "" : pageId ?? "");
+  } = useBaseQuery(pendingKey ? "" : (pageId ?? ""));
   const { data: page } = usePageQuery({ pageId: pageId ?? undefined });
 
   useEffect(() => {
@@ -166,7 +166,9 @@ export function BaseEmbedView({ node, editor, deleteNode }: NodeViewProps) {
       <BaseView
         pageId={pageId}
         embedded
-        editable={hasBases && editor.isEditable && (base?.permissions?.canEdit ?? false)}
+        editable={
+          hasBases && editor.isEditable && (base?.permissions?.canEdit ?? false)
+        }
       />
     );
   }

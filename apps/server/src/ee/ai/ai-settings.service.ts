@@ -119,8 +119,9 @@ export class AiSettingsService {
       ? decryptSecret(row.apiKeyEncrypted, appSecret)
       : null;
 
-    const driver = (row?.driver ||
-      this.environmentService.getAiDriver()) as AiDriver | '';
+    const driver = (row?.driver || this.environmentService.getAiDriver()) as
+      | AiDriver
+      | '';
 
     if (!driver) {
       return {
@@ -183,7 +184,9 @@ export class AiSettingsService {
    * пустом значении наследуется от чата: у большинства рабочих пространств
    * провайдер один и тот же, и заставлять выбирать его дважды незачем.
    */
-  async resolveEmbedding(workspaceId: string): Promise<ResolvedEmbeddingConfig> {
+  async resolveEmbedding(
+    workspaceId: string,
+  ): Promise<ResolvedEmbeddingConfig> {
     const row = await this.repo.findByWorkspaceId(workspaceId);
     const appSecret = this.environmentService.getAppSecret();
 
@@ -191,8 +194,9 @@ export class AiSettingsService {
       this.environmentService.getAiDriver() ||
       '') as AiDriver | '';
 
-    const driver = ((row?.embeddingDriver as AiDriver) ||
-      chatDriver) as AiDriver | '';
+    const driver = ((row?.embeddingDriver as AiDriver) || chatDriver) as
+      | AiDriver
+      | '';
 
     const storedKey = row
       ? decryptSecret(row.embeddingApiKeyEncrypted, appSecret)
@@ -236,7 +240,9 @@ export class AiSettingsService {
       ? decryptSecret(row.webSearchApiKeyEncrypted, appSecret)
       : null;
 
-    const storedKey = row ? decryptSecret(row.apiKeyEncrypted, appSecret) : null;
+    const storedKey = row
+      ? decryptSecret(row.apiKeyEncrypted, appSecret)
+      : null;
     const storedEmbeddingKey = row
       ? decryptSecret(row.embeddingApiKeyEncrypted, appSecret)
       : null;
@@ -257,7 +263,8 @@ export class AiSettingsService {
       webSearchBaseUrl: row?.webSearchBaseUrl ?? null,
       webSearchApiKeyPreview: maskSecret(storedWebKey),
       hasWebSearchApiKey: Boolean(storedWebKey),
-      managedByEnv: !row?.driver && Boolean(this.environmentService.getAiDriver()),
+      managedByEnv:
+        !row?.driver && Boolean(this.environmentService.getAiDriver()),
       configured: this.isUsable(resolved),
     };
   }
@@ -399,7 +406,9 @@ export class AiSettingsService {
       }
 
       if (driver === 'ollama') {
-        const body = await this.fetchJson(`${this.trimSlash(baseUrl)}/api/tags`);
+        const body = await this.fetchJson(
+          `${this.trimSlash(baseUrl)}/api/tags`,
+        );
         const models = (body?.models ?? []).map((m: any) => ({
           id: m.name,
           label: m.name,
@@ -438,8 +447,9 @@ export class AiSettingsService {
     override?: { driver?: string; baseUrl?: string; apiKey?: string },
   ): Promise<{ models: Array<{ id: string; label: string }> }> {
     const embedding = await this.resolveEmbedding(workspaceId);
-    const driver = ((override?.driver as AiDriver) ||
-      embedding.driver) as AiDriver | '';
+    const driver = ((override?.driver as AiDriver) || embedding.driver) as
+      | AiDriver
+      | '';
 
     const apiKey = override?.apiKey?.trim() || embedding.apiKey;
     const baseUrl = this.effectiveBaseUrl(
@@ -506,8 +516,6 @@ export class AiSettingsService {
       );
     }
   }
-
-
 
   /** Round-trips a tiny completion so admins get a real answer, not a guess. */
   async testConnection(
@@ -603,8 +611,6 @@ export class AiSettingsService {
   }
 
   private sortModels(models: Array<{ id: string; label: string }>) {
-    return models
-      .filter((m) => m.id)
-      .sort((a, b) => a.id.localeCompare(b.id));
+    return models.filter((m) => m.id).sort((a, b) => a.id.localeCompare(b.id));
   }
 }

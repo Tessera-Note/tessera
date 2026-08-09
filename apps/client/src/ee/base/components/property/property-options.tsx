@@ -194,7 +194,10 @@ function useEditableTypeOptions(
     if (hideButtons) onUpdateRef.current(draft);
   }, [hideButtons, draft]);
 
-  const isDirty = useMemo(() => !optionsEqual(draft, initial), [draft, initial]);
+  const isDirty = useMemo(
+    () => !optionsEqual(draft, initial),
+    [draft, initial],
+  );
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
@@ -339,7 +342,9 @@ function NumberOptions({
         label={t("Format")}
         allowDeselect={false}
         checkIconPosition="right"
-        comboboxProps={{ portalProps: { target: dropdownPortalTarget ?? undefined } }}
+        comboboxProps={{
+          portalProps: { target: dropdownPortalTarget ?? undefined },
+        }}
         data={[
           { value: "plain", label: t("Number") },
           { value: "currency", label: t("Currency") },
@@ -355,7 +360,9 @@ function NumberOptions({
           label={t("Currency")}
           allowDeselect={false}
           checkIconPosition="right"
-          comboboxProps={{ portalProps: { target: dropdownPortalTarget ?? undefined } }}
+          comboboxProps={{
+            portalProps: { target: dropdownPortalTarget ?? undefined },
+          }}
           data={CURRENCIES.map((c) => ({
             value: c.code,
             label: `${c.name} (${c.code})`,
@@ -371,7 +378,9 @@ function NumberOptions({
         label={t("Thousands and decimal separators")}
         allowDeselect={false}
         checkIconPosition="right"
-        comboboxProps={{ portalProps: { target: dropdownPortalTarget ?? undefined } }}
+        comboboxProps={{
+          portalProps: { target: dropdownPortalTarget ?? undefined },
+        }}
         data={[
           { value: "none", label: t("None") },
           { value: "local", label: t("Local") },
@@ -388,7 +397,9 @@ function NumberOptions({
         label={t("Decimal places")}
         allowDeselect={false}
         checkIconPosition="right"
-        comboboxProps={{ portalProps: { target: dropdownPortalTarget ?? undefined } }}
+        comboboxProps={{
+          portalProps: { target: dropdownPortalTarget ?? undefined },
+        }}
         data={[
           { value: "default", label: t("Default") },
           ...Array.from({ length: 9 }, (_, i) => ({
@@ -396,16 +407,23 @@ function NumberOptions({
             label: String(i),
           })),
         ]}
-        value={options.precision == null ? "default" : String(options.precision)}
+        value={
+          options.precision == null ? "default" : String(options.precision)
+        }
         onChange={(val) =>
-          update({ precision: val == null || val === "default" ? undefined : Number(val) })
+          update({
+            precision:
+              val == null || val === "default" ? undefined : Number(val),
+          })
         }
       />
       <NumberInput
         size="xs"
         label={t("Default value")}
         placeholder={t("None")}
-        value={typeof options.defaultValue === "number" ? options.defaultValue : ""}
+        value={
+          typeof options.defaultValue === "number" ? options.defaultValue : ""
+        }
         onChange={(val) =>
           update({ defaultValue: typeof val === "number" ? val : undefined })
         }
@@ -446,7 +464,9 @@ function DateOptions({
           label={t("Time format")}
           allowDeselect={false}
           checkIconPosition="right"
-          comboboxProps={{ portalProps: { target: dropdownPortalTarget ?? undefined } }}
+          comboboxProps={{
+            portalProps: { target: dropdownPortalTarget ?? undefined },
+          }}
           data={[
             { value: "12h", label: "12-hour" },
             { value: "24h", label: "24-hour" },

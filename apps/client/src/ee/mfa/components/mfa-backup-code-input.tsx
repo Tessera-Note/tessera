@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  TextInput,
-  Button,
-  Stack,
-  Text,
-  Alert,
-} from "@mantine/core";
+import { TextInput, Button, Stack, Text, Alert } from "@mantine/core";
 import { IconKey, IconAlertCircle } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 

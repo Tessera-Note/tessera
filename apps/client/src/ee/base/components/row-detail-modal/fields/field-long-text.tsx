@@ -9,7 +9,12 @@ const normalize = (s: string) => {
   return trimmed.length ? trimmed : null;
 };
 
-export function FieldLongText({ property, value, readOnly, onChange }: FieldProps) {
+export function FieldLongText({
+  property,
+  value,
+  readOnly,
+  onChange,
+}: FieldProps) {
   const text = toText(value);
   const [draft, setDraft] = useState(text);
   const [focused, setFocused] = useState(false);

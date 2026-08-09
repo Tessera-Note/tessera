@@ -325,9 +325,7 @@ export function ViewFilterConfigPopover({
 
   const handleValueChange = useCallback(
     (index: number, value: unknown) => {
-      onChange(
-        conditions.map((f, i) => (i === index ? { ...f, value } : f)),
-      );
+      onChange(conditions.map((f, i) => (i === index ? { ...f, value } : f)));
     },
     [conditions, onChange],
   );
@@ -427,61 +425,68 @@ export function ViewFilterConfigPopover({
             );
           })}
 
-          {draft && (() => {
-            const needsValue = !NO_VALUE_OPERATORS.includes(draft.op);
-            const property = properties.find((p) => p.id === draft.propertyId);
-            const validOperators = property
-              ? getOperatorsForType(property.type)
-              : OPERATORS.map((op) => op.value);
-            const operatorOptions = OPERATORS.filter((op) =>
-              validOperators.includes(op.value),
-            ).map((op) => ({ value: op.value, label: t(op.labelKey) }));
+          {draft &&
+            (() => {
+              const needsValue = !NO_VALUE_OPERATORS.includes(draft.op);
+              const property = properties.find(
+                (p) => p.id === draft.propertyId,
+              );
+              const validOperators = property
+                ? getOperatorsForType(property.type)
+                : OPERATORS.map((op) => op.value);
+              const operatorOptions = OPERATORS.filter((op) =>
+                validOperators.includes(op.value),
+              ).map((op) => ({ value: op.value, label: t(op.labelKey) }));
 
-            return (
-              <Stack gap={6}>
-                <Group gap="xs" wrap="nowrap">
-                  <Select
-                    size="xs"
-                    comboboxProps={{ withinPortal: false }}
-                    data={propertyOptions}
-                    searchable
-                    openOnFocus={false}
-                    nothingFoundMessage={t("No match")}
-                    value={draft.propertyId}
-                    onChange={handleDraftPropertyChange}
-                    style={{ flex: 1 }}
-                  />
-                  <Select
-                    size="xs"
-                    comboboxProps={{ withinPortal: false }}
-                    data={operatorOptions}
-                    searchable
-                    openOnFocus={false}
-                    nothingFoundMessage={t("No match")}
-                    value={draft.op}
-                    onChange={handleDraftOperatorChange}
-                    w={130}
-                  />
-                  {needsValue && (
-                    <FilterValueInput
-                      condition={draft}
-                      property={property}
-                      onChange={handleDraftValueChange}
-                      t={t}
+              return (
+                <Stack gap={6}>
+                  <Group gap="xs" wrap="nowrap">
+                    <Select
+                      size="xs"
+                      comboboxProps={{ withinPortal: false }}
+                      data={propertyOptions}
+                      searchable
+                      openOnFocus={false}
+                      nothingFoundMessage={t("No match")}
+                      value={draft.propertyId}
+                      onChange={handleDraftPropertyChange}
+                      style={{ flex: 1 }}
                     />
-                  )}
-                </Group>
-                <Group justify="flex-end" gap="xs">
-                  <Button variant="default" size="xs" onClick={handleCancelDraft}>
-                    {t("Cancel")}
-                  </Button>
-                  <Button size="xs" onClick={handleSaveDraft}>
-                    {t("Save")}
-                  </Button>
-                </Group>
-              </Stack>
-            );
-          })()}
+                    <Select
+                      size="xs"
+                      comboboxProps={{ withinPortal: false }}
+                      data={operatorOptions}
+                      searchable
+                      openOnFocus={false}
+                      nothingFoundMessage={t("No match")}
+                      value={draft.op}
+                      onChange={handleDraftOperatorChange}
+                      w={130}
+                    />
+                    {needsValue && (
+                      <FilterValueInput
+                        condition={draft}
+                        property={property}
+                        onChange={handleDraftValueChange}
+                        t={t}
+                      />
+                    )}
+                  </Group>
+                  <Group justify="flex-end" gap="xs">
+                    <Button
+                      variant="default"
+                      size="xs"
+                      onClick={handleCancelDraft}
+                    >
+                      {t("Cancel")}
+                    </Button>
+                    <Button size="xs" onClick={handleSaveDraft}>
+                      {t("Save")}
+                    </Button>
+                  </Group>
+                </Stack>
+              );
+            })()}
 
           {!draft && (
             <UnstyledButton

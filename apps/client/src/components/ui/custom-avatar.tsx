@@ -51,34 +51,39 @@ function sanitizeInitialsSource(name: string) {
 export const CustomAvatar = React.forwardRef<
   HTMLInputElement,
   CustomAvatarProps
->(({ avatarUrl, name, type, color, variant, ...props }: CustomAvatarProps, ref) => {
-  const avatarLink = getAvatarUrl(avatarUrl, type);
-  const isInitials = !color || color === "initials";
-  const pickedColor = isInitials ? pickInitialsColor(name ?? "") : color;
-  const hue = pickedColor.split(".")[0];
-  const initialsSource = sanitizeInitialsSource(name ?? "");
+>(
+  (
+    { avatarUrl, name, type, color, variant, ...props }: CustomAvatarProps,
+    ref,
+  ) => {
+    const avatarLink = getAvatarUrl(avatarUrl, type);
+    const isInitials = !color || color === "initials";
+    const pickedColor = isInitials ? pickInitialsColor(name ?? "") : color;
+    const hue = pickedColor.split(".")[0];
+    const initialsSource = sanitizeInitialsSource(name ?? "");
 
-  const resolvedColor = variant === "filled" ? pickedColor : hue;
+    const resolvedColor = variant === "filled" ? pickedColor : hue;
 
-  const placeholderStyles =
-    isInitials && variant !== "filled"
-      ? {
-          placeholder: {
-            color: `var(--mantine-color-${hue}-9)`,
-          },
-        }
-      : undefined;
+    const placeholderStyles =
+      isInitials && variant !== "filled"
+        ? {
+            placeholder: {
+              color: `var(--mantine-color-${hue}-9)`,
+            },
+          }
+        : undefined;
 
-  return (
-    <Avatar
-      ref={ref}
-      src={avatarLink}
-      name={initialsSource}
-      alt={name}
-      color={resolvedColor}
-      variant={variant}
-      styles={placeholderStyles}
-      {...props}
-    />
-  );
-});
+    return (
+      <Avatar
+        ref={ref}
+        src={avatarLink}
+        name={initialsSource}
+        alt={name}
+        color={resolvedColor}
+        variant={variant}
+        styles={placeholderStyles}
+        {...props}
+      />
+    );
+  },
+);

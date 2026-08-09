@@ -48,18 +48,15 @@ export default function TemplateList() {
     useDisclosure(false);
   const [previewOpened, { open: openPreview, close: closePreview }] =
     useDisclosure(false);
-  const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] =
-    useDisclosure(false);
+  const [
+    createModalOpened,
+    { open: openCreateModal, close: closeCreateModal },
+  ] = useDisclosure(false);
 
-  const {
-    data,
-    isLoading,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useGetTemplatesQuery({
-    spaceId: spaceFilter || undefined,
-  });
+  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useGetTemplatesQuery({
+      spaceId: spaceFilter || undefined,
+    });
 
   const templates = data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -71,9 +68,7 @@ export default function TemplateList() {
     ...(spaces?.items?.map((s) => ({ value: s.id, label: s.name })) || []),
   ];
 
-  const spaceNameMap = new Map(
-    spaces?.items?.map((s) => [s.id, s.name]) || [],
-  );
+  const spaceNameMap = new Map(spaces?.items?.map((s) => [s.id, s.name]) || []);
 
   const handlePreview = (template: ITemplate) => {
     setSelectedTemplate(template);
@@ -138,13 +133,25 @@ export default function TemplateList() {
         {isLoading ? (
           <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }}>
             {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} radius="md" padding="lg" style={{ boxShadow: "rgba(0, 0, 0, 0.07) 0px 2px 45px 4px" }}>
+              <Card
+                key={i}
+                radius="md"
+                padding="lg"
+                style={{ boxShadow: "rgba(0, 0, 0, 0.07) 0px 2px 45px 4px" }}
+              >
                 <Group justify="space-between" align="flex-start" mb="md">
                   <Skeleton width={36} height={36} radius="md" />
                 </Group>
                 <Skeleton height={14} width="70%" mb={8} />
                 <Skeleton height={10} width="50%" mb="sm" />
-                <Group justify="space-between" pt="sm" style={{ borderTop: "1px solid var(--mantine-color-gray-2)", marginTop: "auto" }}>
+                <Group
+                  justify="space-between"
+                  pt="sm"
+                  style={{
+                    borderTop: "1px solid var(--mantine-color-gray-2)",
+                    marginTop: "auto",
+                  }}
+                >
                   <Skeleton height={20} width={60} radius="xl" />
                   <Group gap={6}>
                     <Skeleton height={18} circle />
@@ -206,7 +213,9 @@ export default function TemplateList() {
             opened={previewOpened}
             onClose={closePreview}
             onUse={() => handleUse(selectedTemplate)}
-            onEdit={isWorkspaceAdmin ? () => handleEdit(selectedTemplate) : undefined}
+            onEdit={
+              isWorkspaceAdmin ? () => handleEdit(selectedTemplate) : undefined
+            }
           />
           <UseTemplateModal
             template={selectedTemplate}

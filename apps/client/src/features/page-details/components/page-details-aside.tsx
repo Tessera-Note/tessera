@@ -27,14 +27,15 @@ export function PageDetailsAside() {
     pageId: extractPageSlugId(pageSlug),
   });
   const pageEditor = useAtomValue(pageEditorAtom);
-  const { data: counts, isLoading: countsLoading } = useBacklinksCountQuery(page?.id);
+  const { data: counts, isLoading: countsLoading } = useBacklinksCountQuery(
+    page?.id,
+  );
   const [modalOpened, { open: openModal, close: closeModal }] =
     useDisclosure(false);
 
   if (!page) return null;
 
-  const wordCount: number =
-    pageEditor?.storage?.characterCount?.words?.() ?? 0;
+  const wordCount: number = pageEditor?.storage?.characterCount?.words?.() ?? 0;
   const characterCount: number =
     pageEditor?.storage?.characterCount?.characters?.() ?? 0;
 
@@ -230,7 +231,11 @@ function BacklinksRow({
           ) : (
             <Text size="sm">{count}</Text>
           )}
-          <IconChevronRight size={16} stroke={2} color="var(--mantine-color-dimmed)" />
+          <IconChevronRight
+            size={16}
+            stroke={2}
+            color="var(--mantine-color-dimmed)"
+          />
         </Group>
       </Group>
     </UnstyledButton>

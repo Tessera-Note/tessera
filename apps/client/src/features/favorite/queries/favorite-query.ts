@@ -26,7 +26,10 @@ export function useFavoritesQuery(type?: FavoriteType, spaceId?: string) {
   });
 }
 
-export function useFavoriteIds(type: FavoriteType, spaceId?: string): Set<string> {
+export function useFavoriteIds(
+  type: FavoriteType,
+  spaceId?: string,
+): Set<string> {
   const { data } = useQuery({
     queryKey: ["favorite-ids", type, spaceId],
     queryFn: () => getFavoriteIds(type, spaceId),

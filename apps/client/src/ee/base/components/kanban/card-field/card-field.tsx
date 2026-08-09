@@ -15,7 +15,10 @@ import { ChoiceBadge } from "@/ee/base/components/cells/choice-badge";
 import { BadgeOverflowList } from "@/ee/base/components/cells/badge-overflow";
 import { PersonReadList } from "@/ee/base/components/cells/person-read-list";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
-import { useReferenceStore, useResolvePage } from "@/ee/base/reference/reference-store";
+import {
+  useReferenceStore,
+  useResolvePage,
+} from "@/ee/base/reference/reference-store";
 import {
   formatNumber,
   formatDateDisplay,
@@ -60,7 +63,13 @@ export function CardField({ property, value, pageId }: CardFieldProps) {
     case "file":
       return <FileField value={value} />;
     case "page":
-      return <PageField value={value} basePageId={pageId} propertyPageId={property.pageId} />;
+      return (
+        <PageField
+          value={value}
+          basePageId={pageId}
+          propertyPageId={property.pageId}
+        />
+      );
     case "checkbox":
       return <CheckboxField value={value} />;
     case "url":
@@ -89,7 +98,9 @@ function TextField({ value }: { value: unknown }) {
 }
 
 function LongTextField({ value }: { value: unknown }) {
-  const preview = formatLongTextPreview(typeof value === "string" ? value : undefined);
+  const preview = formatLongTextPreview(
+    typeof value === "string" ? value : undefined,
+  );
   if (!preview) return null;
   return (
     <Text size="xs" c="dimmed" lineClamp={2}>
@@ -98,16 +109,32 @@ function LongTextField({ value }: { value: unknown }) {
   );
 }
 
-function NumberField({ value, property }: { value: unknown; property: IBaseProperty }) {
+function NumberField({
+  value,
+  property,
+}: {
+  value: unknown;
+  property: IBaseProperty;
+}) {
   const num = typeof value === "number" ? value : null;
   if (num === null) return null;
-  const formatted = formatNumber(num, property.typeOptions as NumberTypeOptions | undefined);
+  const formatted = formatNumber(
+    num,
+    property.typeOptions as NumberTypeOptions | undefined,
+  );
   if (!formatted) return null;
   return <Text size="sm">{formatted}</Text>;
 }
 
-function SelectField({ value, property }: { value: unknown; property: IBaseProperty }) {
-  const choices = (property.typeOptions as SelectTypeOptions | undefined)?.choices ?? [];
+function SelectField({
+  value,
+  property,
+}: {
+  value: unknown;
+  property: IBaseProperty;
+}) {
+  const choices =
+    (property.typeOptions as SelectTypeOptions | undefined)?.choices ?? [];
   const selectedId = typeof value === "string" ? value : null;
   const choice = choices.find((c) => c.id === selectedId);
   if (!choice) return null;
@@ -119,13 +146,24 @@ function SelectField({ value, property }: { value: unknown; property: IBasePrope
   );
 }
 
-function MultiSelectField({ value, property }: { value: unknown; property: IBaseProperty }) {
-  const choices = (property.typeOptions as SelectTypeOptions | undefined)?.choices ?? [];
+function MultiSelectField({
+  value,
+  property,
+}: {
+  value: unknown;
+  property: IBaseProperty;
+}) {
+  const choices =
+    (property.typeOptions as SelectTypeOptions | undefined)?.choices ?? [];
   const selectedIds = Array.isArray(value) ? (value as string[]) : [];
   const selectedChoices = choices.filter((c) => selectedIds.includes(c.id));
   if (selectedChoices.length === 0) return null;
   const chips = selectedChoices.map((choice) => (
-    <span key={choice.id} className={cellClasses.badge} style={choiceColor(choice.color)}>
+    <span
+      key={choice.id}
+      className={cellClasses.badge}
+      style={choiceColor(choice.color)}
+    >
       {choice.name}
     </span>
   ));
@@ -138,9 +176,18 @@ function MultiSelectField({ value, property }: { value: unknown; property: IBase
   );
 }
 
-function DateField({ value, property }: { value: unknown; property: IBaseProperty }) {
+function DateField({
+  value,
+  property,
+}: {
+  value: unknown;
+  property: IBaseProperty;
+}) {
   const dateStr = typeof value === "string" ? value : null;
-  const formatted = formatDateDisplay(dateStr, property.typeOptions as DateTypeOptions | undefined);
+  const formatted = formatDateDisplay(
+    dateStr,
+    property.typeOptions as DateTypeOptions | undefined,
+  );
   if (!formatted) return null;
   return (
     <Text size="xs" c="dimmed">
@@ -170,7 +217,13 @@ function PersonField({ value, pageId }: { value: unknown; pageId: string }) {
   return <PersonReadList personIds={personIds} users={store.users} />;
 }
 
-function LastEditedByField({ value, pageId }: { value: unknown; pageId: string }) {
+function LastEditedByField({
+  value,
+  pageId,
+}: {
+  value: unknown;
+  pageId: string;
+}) {
   const userId = typeof value === "string" ? value : null;
   const store = useReferenceStore(pageId);
   if (!userId) return null;
@@ -178,7 +231,12 @@ function LastEditedByField({ value, pageId }: { value: unknown; pageId: string }
   const name = user?.name ?? userId.substring(0, 8);
   return (
     <Group gap={6} wrap="nowrap" style={{ overflow: "hidden" }}>
-      <CustomAvatar avatarUrl={user?.avatarUrl ?? ""} name={name} size={20} radius="xl" />
+      <CustomAvatar
+        avatarUrl={user?.avatarUrl ?? ""}
+        name={name}
+        size={20}
+        radius="xl"
+      />
       <Tooltip label={name} withinPortal openDelay={400} disabled={!name}>
         <Text size="xs" truncate>
           {name}
@@ -190,7 +248,9 @@ function LastEditedByField({ value, pageId }: { value: unknown; pageId: string }
 
 function FileField({ value }: { value: unknown }) {
   const files = Array.isArray(value)
-    ? (value as FileValue[]).filter((f) => f && typeof f === "object" && "id" in f && "fileName" in f)
+    ? (value as FileValue[]).filter(
+        (f) => f && typeof f === "object" && "id" in f && "fileName" in f,
+      )
     : [];
   if (files.length === 0) return null;
   const maxVisible = 2;
@@ -203,7 +263,9 @@ function FileField({ value }: { value: unknown }) {
           {file.fileName}
         </span>
       ))}
-      {overflow > 0 && <span className={cellClasses.overflowCount}>+{overflow}</span>}
+      {overflow > 0 && (
+        <span className={cellClasses.overflowCount}>+{overflow}</span>
+      )}
     </div>
   );
 }
@@ -248,7 +310,10 @@ function PageField({
         {resolvedPage.icon ? (
           <span className={cellClasses.pagePillIcon}>{resolvedPage.icon}</span>
         ) : (
-          <IconFileDescription size={14} className={cellClasses.pagePillIconFallback} />
+          <IconFileDescription
+            size={14}
+            className={cellClasses.pagePillIconFallback}
+          />
         )}
         <span className={cellClasses.pagePillText}>{title}</span>
       </Link>
@@ -273,7 +338,13 @@ function UrlField({ value }: { value: unknown }) {
     );
   }
   return (
-    <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
+    <Tooltip
+      label={displayValue}
+      multiline
+      withinPortal
+      openDelay={400}
+      maw={420}
+    >
       <a
         className={cellClasses.urlLink}
         href={safeHref}
@@ -292,7 +363,13 @@ function EmailField({ value }: { value: unknown }) {
   const displayValue = typeof value === "string" ? value : "";
   if (!displayValue) return null;
   return (
-    <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
+    <Tooltip
+      label={displayValue}
+      multiline
+      withinPortal
+      openDelay={400}
+      maw={420}
+    >
       <a
         className={cellClasses.emailLink}
         href={`mailto:${displayValue}`}
@@ -305,7 +382,13 @@ function EmailField({ value }: { value: unknown }) {
   );
 }
 
-function FormulaField({ value, property }: { value: unknown; property: IBaseProperty }) {
+function FormulaField({
+  value,
+  property,
+}: {
+  value: unknown;
+  property: IBaseProperty;
+}) {
   if (isFormulaErrorCell(value)) {
     return (
       <Tooltip label={`${value.__err}: ${value.msg}`} withinPortal>
@@ -329,7 +412,8 @@ function FormulaField({ value, property }: { value: unknown; property: IBaseProp
     return <DateField value={value} property={property} />;
   }
 
-  const text = typeof value === "string" ? value : value != null ? String(value) : null;
+  const text =
+    typeof value === "string" ? value : value != null ? String(value) : null;
   if (!text) return null;
   return (
     <Text size="sm" lineClamp={2}>

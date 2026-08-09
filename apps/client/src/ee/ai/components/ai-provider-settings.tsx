@@ -31,6 +31,7 @@ import {
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 const DRIVER_OPTIONS: Array<{ value: AiDriver; label: string }> = [
   { value: "", label: "Use server environment (default)" },
@@ -221,7 +222,8 @@ export default function AiProviderSettings() {
     kind: "chat" | "embedding",
     opts?: { silent?: boolean },
   ) => {
-    const mutation = kind === "chat" ? chatModelsMutation : embeddingModelsMutation;
+    const mutation =
+      kind === "chat" ? chatModelsMutation : embeddingModelsMutation;
     try {
       const { models } = await mutation.mutateAsync({
         driver:
@@ -247,7 +249,7 @@ export default function AiProviderSettings() {
     } catch (err: any) {
       if (opts?.silent) return;
       notifications.show({
-        message: err?.response?.data?.message ?? err?.message,
+        message: getApiErrorMessage(err, err?.message),
         color: "red",
       });
     }
@@ -286,7 +288,7 @@ export default function AiProviderSettings() {
       });
     } catch (err: any) {
       notifications.show({
-        message: err?.response?.data?.message ?? err?.message,
+        message: getApiErrorMessage(err, err?.message),
         color: "red",
       });
     }
@@ -302,7 +304,7 @@ export default function AiProviderSettings() {
       });
     } catch (err: any) {
       notifications.show({
-        message: err?.response?.data?.message ?? err?.message,
+        message: getApiErrorMessage(err, err?.message),
         color: "red",
       });
     }
@@ -318,7 +320,7 @@ export default function AiProviderSettings() {
       });
     } catch (err: any) {
       notifications.show({
-        message: err?.response?.data?.message ?? err?.message,
+        message: getApiErrorMessage(err, err?.message),
         color: "red",
       });
     }
@@ -511,7 +513,9 @@ export default function AiProviderSettings() {
 
       <TextInput
         label={t("Embedding base URL")}
-        description={t("Optional. Defaults to the address of the selected provider.")}
+        description={t(
+          "Optional. Defaults to the address of the selected provider.",
+        )}
         placeholder="https://api.openai.com/v1"
         value={form.embeddingBaseUrl}
         onChange={(e) => set("embeddingBaseUrl", e.currentTarget.value)}
@@ -545,11 +549,7 @@ export default function AiProviderSettings() {
         </Button>
       </Group>
 
-      <Divider
-        my="xs"
-        label={t("Web search")}
-        labelPosition="left"
-      />
+      <Divider my="xs" label={t("Web search")} labelPosition="left" />
 
       <Text size="sm" c="dimmed">
         {t(

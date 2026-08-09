@@ -51,7 +51,7 @@ export function ShareSearchSpotlight({ shareId }: ShareSearchSpotlightProps) {
               dangerouslySetInnerHTML={{
                 __html: DOMPurify.sanitize(page.highlight, {
                   ALLOWED_TAGS: ["mark", "em", "strong", "b"],
-                  ALLOWED_ATTR: []
+                  ALLOWED_ATTR: [],
                 }),
               }}
             />

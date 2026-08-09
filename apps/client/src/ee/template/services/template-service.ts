@@ -12,9 +12,7 @@ export async function getTemplates(params?: {
   return req.data;
 }
 
-export async function getTemplateById(
-  templateId: string,
-): Promise<ITemplate> {
+export async function getTemplateById(templateId: string): Promise<ITemplate> {
   const req = await api.post<ITemplate>("/templates/info", { templateId });
   return req.data;
 }

@@ -42,10 +42,7 @@ export class AiSettingsController {
 
   @HttpCode(HttpStatus.OK)
   @Post()
-  async get(
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
+  async get(@AuthUser() user: User, @AuthWorkspace() workspace: Workspace) {
     this.assertCanManage(user, workspace);
     return this.aiSettingsService.getView(workspace.id);
   }
@@ -96,10 +93,7 @@ export class AiSettingsController {
 
   @HttpCode(HttpStatus.OK)
   @Post('reset')
-  async reset(
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
+  async reset(@AuthUser() user: User, @AuthWorkspace() workspace: Workspace) {
     this.assertCanManage(user, workspace);
     return this.aiSettingsService.reset(workspace.id);
   }
@@ -117,19 +111,19 @@ export class AiSettingsController {
 
   @HttpCode(HttpStatus.OK)
   @Post('test')
-  async test(
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
+  async test(@AuthUser() user: User, @AuthWorkspace() workspace: Workspace) {
     this.assertCanManage(user, workspace);
 
-    return this.aiSettingsService.testConnection(workspace.id, async (config) => {
-      const result = await generateText({
-        model: this.providerFactory.createModel(config, config.chatModel),
-        prompt: 'Reply with the single word: ok',
-      });
-      return result.text;
-    });
+    return this.aiSettingsService.testConnection(
+      workspace.id,
+      async (config) => {
+        const result = await generateText({
+          model: this.providerFactory.createModel(config, config.chatModel),
+          prompt: 'Reply with the single word: ok',
+        });
+        return result.text;
+      },
+    );
   }
 
   private assertCanManage(user: User, workspace: Workspace) {

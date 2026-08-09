@@ -283,7 +283,6 @@ const MentionList = forwardRef<any, MentionListProps>((props, ref) => {
         slugId: createdPage.slugId,
         creatorId: currentUser?.user.id,
       });
-
     } catch (err) {
       throw new Error("Failed to create page");
     }

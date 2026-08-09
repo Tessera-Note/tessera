@@ -11,7 +11,11 @@ import { MfaBackupCodesModal } from "@/ee/mfa";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
-import { ResponsiveSettingsRow, ResponsiveSettingsContent, ResponsiveSettingsControl } from "@/components/ui/responsive-settings-row";
+import {
+  ResponsiveSettingsRow,
+  ResponsiveSettingsContent,
+  ResponsiveSettingsControl,
+} from "@/components/ui/responsive-settings-row";
 
 export function MfaSettings() {
   const { t } = useTranslation();
@@ -69,10 +73,7 @@ export function MfaSettings() {
 
         <ResponsiveSettingsControl>
           {!isMfaEnabled ? (
-            <Tooltip
-              label={upgradeLabel}
-              disabled={canUseMfa}
-            >
+            <Tooltip label={upgradeLabel} disabled={canUseMfa}>
               <Button
                 disabled={!canUseMfa}
                 variant="default"

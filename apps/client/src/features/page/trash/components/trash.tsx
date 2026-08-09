@@ -10,11 +10,7 @@ import {
   Stack,
   Menu,
 } from "@mantine/core";
-import {
-  IconDots,
-  IconRestore,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconDots, IconRestore, IconTrash } from "@tabler/icons-react";
 import { TrashBanner } from "@/features/page/trash/components/trash-banner.tsx";
 import {
   useDeletedPagesQuery,
@@ -38,7 +34,8 @@ export default function Trash() {
   const { cursor, goNext, goPrev } = useCursorPaginate();
   const { data: space } = useGetSpaceBySlugQuery(spaceSlug);
   const { data: deletedPages, isLoading } = useDeletedPagesQuery(space?.id, {
-    cursor, limit: 50
+    cursor,
+    limit: 50,
   });
   const restorePageMutation = useRestorePageMutation();
   const deletePageMutation = useDeletePageMutation();

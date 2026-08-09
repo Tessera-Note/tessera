@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { IAuthProvider } from "@/ee/security/types/security.types";
 import APP_ROUTE, { getPostLoginRedirect } from "@/lib/app-route";
 import { ldapLogin } from "@/ee/security/services/ldap-auth-service";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 const formSchema = z.object({
   username: z.string().min(1, { message: "Username is required" }),
@@ -69,8 +70,7 @@ export function LdapLoginModal({
       }
     } catch (err: any) {
       setIsLoading(false);
-      const errorMessage =
-        err.response?.data?.message || "Authentication failed";
+      const errorMessage = getApiErrorMessage(err, "Authentication failed");
       setError(errorMessage);
 
       notifications.show({

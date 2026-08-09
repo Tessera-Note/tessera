@@ -19,7 +19,9 @@ const ResultPreview = memo(({ output, isLoading }: ResultPreviewProps) => {
         <div className={classes.resultPreviewWrapper}>
           {parsedOutput && (
             <div
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parsedOutput) }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(parsedOutput),
+              }}
             />
           )}
           {isLoading && <Loader size={12} ml="xs" display="inline-block" />}

@@ -27,9 +27,7 @@ import { AgentImageService } from './agent-image.service';
 import { languageForRequest } from '../ai/request-language.util';
 import { buildImageQuery, needsImages } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
-import {
-  editRefusalNotice,
-} from '../ai/ai-language.util';
+import { editRefusalNotice } from '../ai/ai-language.util';
 
 /** How many wiki pages get pulled into the prompt when retrieving context. */
 const RETRIEVAL_LIMIT = 5;
@@ -341,7 +339,9 @@ export class AiChatService {
 
       if (pages.length > 0) {
         contextText = pages
-          .map((p) => `## ${p.title}\n${this.extractTextFromContent(p.content)}`)
+          .map(
+            (p) => `## ${p.title}\n${this.extractTextFromContent(p.content)}`,
+          )
           .join('\n\n');
       }
     }
@@ -401,10 +401,7 @@ export class AiChatService {
       contextText +=
         '\n\n## Related pages found in the wiki\n' +
         retrieved.pages
-          .map(
-            (p) =>
-              `### ${p.title} (ID: ${p.id})\n${p.excerpt}`,
-          )
+          .map((p) => `### ${p.title} (ID: ${p.id})\n${p.excerpt}`)
           .join('\n\n');
     }
 
@@ -1104,7 +1101,7 @@ export class AiChatService {
       'you from the language of the request and the user profile — do not ' +
       'override it because a source you found is in another language. It ' +
       'applies to page content too, not just to your reply. ' +
-      'When a question needs current information — today\'s events, recent ' +
+      "When a question needs current information — today's events, recent " +
       'releases, prices, schedules, anything time-sensitive — a web search is ' +
       'run for you automatically and its results appear under "Results from ' +
       'the web" in your context. Use them and cite the links. Never answer ' +
@@ -1210,7 +1207,9 @@ export class AiChatService {
         text += this.extractTextFromNode(child);
       }
       // Add newline after block-level nodes
-      if (['paragraph', 'heading', 'listItem', 'blockquote'].includes(node.type)) {
+      if (
+        ['paragraph', 'heading', 'listItem', 'blockquote'].includes(node.type)
+      ) {
         text += '\n';
       }
     }

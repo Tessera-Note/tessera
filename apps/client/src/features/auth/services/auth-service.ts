@@ -38,7 +38,9 @@ export async function forgotPassword(data: IForgotPassword): Promise<void> {
   await api.post<void>("/auth/forgot-password", data);
 }
 
-export async function passwordReset(data: IPasswordReset): Promise<{ requiresLogin?: boolean; }> {
+export async function passwordReset(
+  data: IPasswordReset,
+): Promise<{ requiresLogin?: boolean }> {
   const req = await api.post("/auth/password-reset", data);
   return req.data;
 }
@@ -51,4 +53,3 @@ export async function getCollabToken(): Promise<ICollabToken> {
   const req = await api.post<ICollabToken>("/auth/collab-token");
   return req.data;
 }
-

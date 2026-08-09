@@ -161,7 +161,13 @@ export default function SpaceMembersList({
 
                       {member.type === "group" && <IconGroupCircle />}
 
-                      <div style={{ minWidth: 0, overflow: "hidden", maxWidth: 260 }}>
+                      <div
+                        style={{
+                          minWidth: 0,
+                          overflow: "hidden",
+                          maxWidth: 260,
+                        }}
+                      >
                         <AutoTooltipText fz="sm" fw={500}>
                           {member?.name}
                         </AutoTooltipText>
@@ -177,9 +183,7 @@ export default function SpaceMembersList({
 
                   <Table.Td>
                     {readOnly ? (
-                      <Text fz="sm">
-                        {t(getSpaceRoleLabel(member.role))}
-                      </Text>
+                      <Text fz="sm">{t(getSpaceRoleLabel(member.role))}</Text>
                     ) : (
                       <RoleSelectMenu
                         roles={spaceRoleData}

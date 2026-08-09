@@ -100,8 +100,7 @@ export function FullEditor({
     PageEditMode.Edit;
   // Inline comments need PageEditor's synced Yjs binding to create relative
   // selections, so commenters retain the collaborative editor in View mode.
-  const needsCollaborativeEditor =
-    canComment || (editable && isEditMode);
+  const needsCollaborativeEditor = canComment || (editable && isEditMode);
 
   // Apply the user's saved preference only once on initial load, not on every
   // page navigation — so the mode sticks across navigations within a session.

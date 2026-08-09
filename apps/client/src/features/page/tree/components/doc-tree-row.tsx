@@ -5,31 +5,31 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from 'react';
-import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+} from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
   dropTargetForElements,
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-import { pointerOutsideOfPreview } from '@atlaskit/pragmatic-drag-and-drop/element/pointer-outside-of-preview';
-import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { pointerOutsideOfPreview } from "@atlaskit/pragmatic-drag-and-drop/element/pointer-outside-of-preview";
+import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import {
   attachInstruction,
   extractInstruction,
   type Instruction,
   type ItemMode,
-} from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
-import { triggerPostMoveFlash } from '@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash';
-import * as liveRegion from '@atlaskit/pragmatic-drag-and-drop-live-region';
+} from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
+import { triggerPostMoveFlash } from "@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash";
+import * as liveRegion from "@atlaskit/pragmatic-drag-and-drop-live-region";
 
-import type { TreeNode, DropOp } from '../model/tree-model.types';
-import { treeModel } from '../model/tree-model';
-import { DocTreeDropIndicator } from './doc-tree-drop-indicator';
-import { DocTreeDragPreview } from './doc-tree-drag-preview';
-import type { RenderRowProps } from './doc-tree';
-import styles from '../styles/tree.module.css';
+import type { TreeNode, DropOp } from "../model/tree-model.types";
+import { treeModel } from "../model/tree-model";
+import { DocTreeDropIndicator } from "./doc-tree-drop-indicator";
+import { DocTreeDragPreview } from "./doc-tree-drag-preview";
+import type { RenderRowProps } from "./doc-tree";
+import styles from "../styles/tree.module.css";
 
 type Props<T extends object> = {
   node: TreeNode<T>;
@@ -55,7 +55,7 @@ type Props<T extends object> = {
   getRootData: () => TreeNode<T>[];
 };
 
-const DRAG_TYPE = 'doc-tree-item';
+const DRAG_TYPE = "doc-tree-item";
 const AUTO_EXPAND_MS = 500;
 
 function DocTreeRowInner<T extends object>(props: Props<T>) {
@@ -143,7 +143,7 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
           onGenerateDragPreview: ({ nativeSetDragImage }) => {
             setCustomNativeDragPreview({
               nativeSetDragImage,
-              getOffset: pointerOutsideOfPreview({ x: '16px', y: '8px' }),
+              getOffset: pointerOutsideOfPreview({ x: "16px", y: "8px" }),
               render: ({ container }) => {
                 const root = createRoot(container);
                 // flushSync forces the preview to paint into `container`
@@ -153,7 +153,9 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
                 // falls back to a default snapshot of the source row (and the
                 // stale image can linger on screen).
                 flushSync(() => {
-                  root.render(<DocTreeDragPreview label={getDragLabel(node)} />);
+                  root.render(
+                    <DocTreeDragPreview label={getDragLabel(node)} />,
+                  );
                 });
                 return () => root.unmount();
               },
@@ -168,15 +170,15 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
     if (!dropDisabled) {
       const mode: ItemMode =
         isOpen && hasChildren
-          ? 'expanded'
+          ? "expanded"
           : isLastSibling
-            ? 'last-in-group'
-            : 'standard';
+            ? "last-in-group"
+            : "standard";
       // Always block 'reparent' (out of scope per spec).
       // Block 'reorder-below' when the row is open with children — ambiguous gesture,
       // force users to drop into the folder via 'make-child' instead.
-      const block: Instruction['type'][] = ['reparent'];
-      if (isOpen && hasChildren) block.push('reorder-below');
+      const block: Instruction["type"][] = ["reparent"];
+      if (isOpen && hasChildren) block.push("reorder-below");
 
       cleanups.push(
         dropTargetForElements({
@@ -209,12 +211,7 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
             // regardless of the specific instruction type. Reorder-before and
             // reorder-after also benefit: once expanded, the user can see the
             // children and refine their drop target.
-            if (
-              inst &&
-              hasChildren &&
-              !isOpen &&
-              !autoExpandTimerRef.current
-            ) {
+            if (inst && hasChildren && !isOpen && !autoExpandTimerRef.current) {
               autoExpandTimerRef.current = setTimeout(() => {
                 onToggle(node.id, true);
                 autoExpandTimerRef.current = null;
@@ -229,40 +226,38 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
             setInstruction(null);
             cancelAutoExpand();
             const inst = extractInstruction(self.data);
-            if (!inst || inst.type === 'instruction-blocked') return;
+            if (!inst || inst.type === "instruction-blocked") return;
             const sourceId = source.data.id as string;
             const op: DropOp =
-              inst.type === 'reorder-above'
-                ? { kind: 'reorder-before', targetId: node.id }
-                : inst.type === 'reorder-below'
-                  ? { kind: 'reorder-after', targetId: node.id }
-                  : inst.type === 'make-child'
-                    ? { kind: 'make-child', targetId: node.id }
+              inst.type === "reorder-above"
+                ? { kind: "reorder-before", targetId: node.id }
+                : inst.type === "reorder-below"
+                  ? { kind: "reorder-after", targetId: node.id }
+                  : inst.type === "make-child"
+                    ? { kind: "make-child", targetId: node.id }
                     : null!;
             if (!op) return;
             onMove(sourceId, op);
             triggerPostMoveFlash(el);
             const liveTree = getRootData();
             const parentName =
-              op.kind === 'make-child'
+              op.kind === "make-child"
                 ? getDragLabel(node)
                 : (() => {
                     const sib = treeModel.siblingsOf(liveTree, op.targetId);
                     const parent = sib?.parentId
                       ? treeModel.find(liveTree, sib.parentId)
                       : null;
-                    return parent ? getDragLabel(parent) : 'root';
+                    return parent ? getDragLabel(parent) : "root";
                   })();
             const sourceNode = treeModel.find(liveTree, sourceId);
-            const sourceLabel = sourceNode
-              ? getDragLabel(sourceNode)
-              : 'item';
+            const sourceLabel = sourceNode ? getDragLabel(sourceNode) : "item";
             liveRegion.announce(`Moved ${sourceLabel} under ${parentName}.`);
             // After a make-child drop, expand this row so the user sees the
             // just-dropped child — especially important when the row had no
             // children before (chevron just appeared) so the drop would
             // otherwise be invisible.
-            if (op.kind === 'make-child') onToggle(node.id, true);
+            if (op.kind === "make-child") onToggle(node.id, true);
             if (source.data.isOpenOnDragStart) onToggle(sourceId, true);
           },
         }),
@@ -291,15 +286,15 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
   useEffect(() => () => cancelAutoExpand(), [cancelAutoExpand]);
 
   const effectiveInst =
-    instruction?.type === 'instruction-blocked'
+    instruction?.type === "instruction-blocked"
       ? instruction.desired
       : instruction;
-  const blocked = instruction?.type === 'instruction-blocked';
-  const receivingDrop: 'before' | 'after' | 'make-child' | null = (() => {
+  const blocked = instruction?.type === "instruction-blocked";
+  const receivingDrop: "before" | "after" | "make-child" | null = (() => {
     if (!effectiveInst) return null;
-    if (effectiveInst.type === 'reorder-above') return 'before';
-    if (effectiveInst.type === 'reorder-below') return 'after';
-    if (effectiveInst.type === 'make-child') return 'make-child';
+    if (effectiveInst.type === "reorder-above") return "before";
+    if (effectiveInst.type === "reorder-below") return "after";
+    if (effectiveInst.type === "make-child") return "make-child";
     return null;
   })();
 
@@ -308,13 +303,13 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
   // label so the SR's accessible name is just the page title, not the
   // concatenation of inner action-button aria-labels.
   const treeItemProps = {
-    role: 'treeitem' as const,
-    'aria-level': level + 1,
-    'aria-expanded': hasChildren ? isOpen : undefined,
-    'aria-selected': isSelected ? (true as const) : undefined,
-    'aria-current': isSelected ? ('page' as const) : undefined,
-    'aria-label': getDragLabel(node),
-    'data-row-id': node.id,
+    role: "treeitem" as const,
+    "aria-level": level + 1,
+    "aria-expanded": hasChildren ? isOpen : undefined,
+    "aria-selected": isSelected ? (true as const) : undefined,
+    "aria-current": isSelected ? ("page" as const) : undefined,
+    "aria-label": getDragLabel(node),
+    "data-row-id": node.id,
   };
 
   return (
@@ -327,10 +322,10 @@ function DocTreeRowInner<T extends object>(props: Props<T>) {
         data-dragging={isDragging || undefined}
         data-selected={isSelected || undefined}
         data-receiving-drop={
-          receivingDrop === 'make-child'
+          receivingDrop === "make-child"
             ? blocked
-              ? 'make-child-blocked'
-              : 'make-child'
+              ? "make-child-blocked"
+              : "make-child"
             : undefined
         }
       >

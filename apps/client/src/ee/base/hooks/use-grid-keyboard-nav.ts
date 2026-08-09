@@ -211,28 +211,56 @@ export function useGridKeyboardNav({
         case "ArrowUp":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, -1, 0, false);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              -1,
+              0,
+              false,
+            );
             if (next) goFocused(next);
           }
           break;
         case "ArrowDown":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, 1, 0, false);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              1,
+              0,
+              false,
+            );
             if (next) goFocused(next);
           }
           break;
         case "ArrowLeft":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, 0, -1, false);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              0,
+              -1,
+              false,
+            );
             if (next) goFocused(next);
           }
           break;
         case "ArrowRight":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, 0, 1, false);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              0,
+              1,
+              false,
+            );
             if (next) goFocused(next);
           }
           break;

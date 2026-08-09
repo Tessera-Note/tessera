@@ -35,16 +35,13 @@ export function useCreateViewMutation() {
   return useMutation<IBaseView, Error, CreateViewInput>({
     mutationFn: (data) => createView(data),
     onSuccess: (newView) => {
-      queryClient.setQueryData<IBase>(
-        ["bases", newView.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            views: [...old.views, newView],
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", newView.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          views: [...old.views, newView],
+        };
+      });
     },
     onError: (error) => {
       notifications.show({
@@ -57,7 +54,12 @@ export function useCreateViewMutation() {
 
 export function useUpdateViewMutation() {
   const { t } = useTranslation();
-  return useMutation<IBaseView, Error, UpdateViewInput, { previous: IBase | undefined }>({
+  return useMutation<
+    IBaseView,
+    Error,
+    UpdateViewInput,
+    { previous: IBase | undefined }
+  >({
     mutationFn: (data) => updateView(data),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({
@@ -69,43 +71,37 @@ export function useUpdateViewMutation() {
         variables.pageId,
       ]);
 
-      queryClient.setQueryData<IBase>(
-        ["bases", variables.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            views: old.views.map((v) =>
-              v.id === variables.viewId
-                ? {
-                    ...v,
-                    ...(variables.name !== undefined && {
-                      name: variables.name,
-                    }),
-                    ...(variables.type !== undefined && {
-                      type: variables.type,
-                    }),
-                    ...(variables.config !== undefined && {
-                      config: applyConfigPatch(v.config, variables.config),
-                    }),
-                    ...(variables.position !== undefined && {
-                      position: variables.position,
-                    }),
-                  }
-                : v,
-            ),
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", variables.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          views: old.views.map((v) =>
+            v.id === variables.viewId
+              ? {
+                  ...v,
+                  ...(variables.name !== undefined && {
+                    name: variables.name,
+                  }),
+                  ...(variables.type !== undefined && {
+                    type: variables.type,
+                  }),
+                  ...(variables.config !== undefined && {
+                    config: applyConfigPatch(v.config, variables.config),
+                  }),
+                  ...(variables.position !== undefined && {
+                    position: variables.position,
+                  }),
+                }
+              : v,
+          ),
+        };
+      });
 
       return { previous };
     },
     onError: (error, variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(
-          ["bases", variables.pageId],
-          context.previous,
-        );
+        queryClient.setQueryData(["bases", variables.pageId], context.previous);
       }
       notifications.show({
         message: getApiErrorMessage(error, t("Failed to update view")),
@@ -113,18 +109,15 @@ export function useUpdateViewMutation() {
       });
     },
     onSuccess: (updatedView) => {
-      queryClient.setQueryData<IBase>(
-        ["bases", updatedView.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            views: old.views.map((v) =>
-              v.id === updatedView.id ? updatedView : v,
-            ),
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", updatedView.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          views: old.views.map((v) =>
+            v.id === updatedView.id ? updatedView : v,
+          ),
+        };
+      });
     },
   });
 }
@@ -134,16 +127,13 @@ export function useDeleteViewMutation() {
   return useMutation<void, Error, DeleteViewInput>({
     mutationFn: (data) => deleteView(data),
     onSuccess: (_, variables) => {
-      queryClient.setQueryData<IBase>(
-        ["bases", variables.pageId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            views: old.views.filter((v) => v.id !== variables.viewId),
-          };
-        },
-      );
+      queryClient.setQueryData<IBase>(["bases", variables.pageId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          views: old.views.filter((v) => v.id !== variables.viewId),
+        };
+      });
     },
     onError: (error) => {
       notifications.show({

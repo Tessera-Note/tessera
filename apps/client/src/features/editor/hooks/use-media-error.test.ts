@@ -13,7 +13,10 @@ describe("useMediaError", () => {
   });
 
   it("удаленный файл объясняется словами", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 404 })),
+    );
     const { result } = renderHook(() => useMediaError());
 
     await act(async () => {
@@ -24,7 +27,10 @@ describe("useMediaError", () => {
   });
 
   it("отказ по правам отличается от отсутствия файла", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 403 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 403 })),
+    );
     const { result } = renderHook(() => useMediaError());
 
     await act(async () => {
@@ -35,7 +41,10 @@ describe("useMediaError", () => {
   });
 
   it("статус возвращается вызывающему", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 200 })),
+    );
     const { result } = renderHook(() => useMediaError());
 
     let status: number | undefined;
@@ -47,9 +56,12 @@ describe("useMediaError", () => {
   });
 
   it("обрыв сети дает общее сообщение", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("network");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network");
+      }),
+    );
     const { result } = renderHook(() => useMediaError());
 
     await act(async () => {
@@ -73,7 +85,10 @@ describe("useMediaError", () => {
   });
 
   it("сообщение снимается", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 404 })),
+    );
     const { result } = renderHook(() => useMediaError());
 
     await act(async () => {

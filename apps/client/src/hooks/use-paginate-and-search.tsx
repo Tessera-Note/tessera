@@ -15,12 +15,15 @@ export function usePaginateAndSearch(initialQuery: string = "") {
     }
   }, []);
 
-  const goNext = useCallback((nextCursor: string | null | undefined) => {
-    if (nextCursor) {
-      setCursorStack((prev) => [...prev, cursor]);
-      setCursor(nextCursor);
-    }
-  }, [cursor]);
+  const goNext = useCallback(
+    (nextCursor: string | null | undefined) => {
+      if (nextCursor) {
+        setCursorStack((prev) => [...prev, cursor]);
+        setCursor(nextCursor);
+      }
+    },
+    [cursor],
+  );
 
   const goPrev = useCallback(() => {
     setCursorStack((prev) => {

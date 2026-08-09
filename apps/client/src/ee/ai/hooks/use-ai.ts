@@ -34,7 +34,7 @@ export function useAiStream() {
         setIsStreaming(false);
       }
     },
-    [mutation]
+    [mutation],
   );
 
   const stopStream = useCallback(() => {

@@ -68,56 +68,56 @@ export function InviteSignUpForm() {
 
   return (
     <AuthLayout>
-    <Container size={420} className={classes.container}>
-      <Box p="xl" className={classes.containerBox}>
-        <Title order={2} ta="center" fw={500} mb="md">
-          {t("Join the workspace")}
-        </Title>
+      <Container size={420} className={classes.container}>
+        <Box p="xl" className={classes.containerBox}>
+          <Title order={2} ta="center" fw={500} mb="md">
+            {t("Join the workspace")}
+          </Title>
 
-        <SsoLogin />
+          <SsoLogin />
 
-        {!invitation.enforceSso && (
-          <Stack align="stretch" justify="center" gap="xl">
-            <form onSubmit={form.onSubmit(onSubmit)}>
-              <TextInput
-                id="name"
-                type="text"
-                label={t("Name")}
-                placeholder={t("enter your full name")}
-                variant="filled"
-                {...form.getInputProps("name")}
-              />
+          {!invitation.enforceSso && (
+            <Stack align="stretch" justify="center" gap="xl">
+              <form onSubmit={form.onSubmit(onSubmit)}>
+                <TextInput
+                  id="name"
+                  type="text"
+                  label={t("Name")}
+                  placeholder={t("enter your full name")}
+                  variant="filled"
+                  {...form.getInputProps("name")}
+                />
 
-              <TextInput
-                id="email"
-                type="email"
-                label={t("Email")}
-                value={invitation.email}
-                disabled
-                variant="filled"
-                mt="md"
-              />
+                <TextInput
+                  id="email"
+                  type="email"
+                  label={t("Email")}
+                  value={invitation.email}
+                  disabled
+                  variant="filled"
+                  mt="md"
+                />
 
-              <PasswordInput
-                label={t("Password")}
-                placeholder={t("Your password")}
-                variant="filled"
-                mt="md"
-                visibilityToggleButtonProps={{
-                  "aria-label": t("Toggle password visibility"),
-                  "aria-hidden": false,
-                  tabIndex: 0,
-                }}
-                {...form.getInputProps("password")}
-              />
-              <Button type="submit" fullWidth mt="xl" loading={isLoading}>
-                {t("Sign Up")}
-              </Button>
-            </form>
-          </Stack>
-        )}
-      </Box>
-    </Container>
+                <PasswordInput
+                  label={t("Password")}
+                  placeholder={t("Your password")}
+                  variant="filled"
+                  mt="md"
+                  visibilityToggleButtonProps={{
+                    "aria-label": t("Toggle password visibility"),
+                    "aria-hidden": false,
+                    tabIndex: 0,
+                  }}
+                  {...form.getInputProps("password")}
+                />
+                <Button type="submit" fullWidth mt="xl" loading={isLoading}>
+                  {t("Sign Up")}
+                </Button>
+              </form>
+            </Stack>
+          )}
+        </Box>
+      </Container>
     </AuthLayout>
   );
 }

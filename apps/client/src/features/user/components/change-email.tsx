@@ -56,9 +56,7 @@ export default function ChangeEmail() {
 
 const formSchema = z.object({
   email: z.email({ error: "New email is required" }),
-  password: z
-    .string({ error: "your current password is required" })
-    .min(8),
+  password: z.string({ error: "your current password is required" }).min(8),
 });
 
 type FormValues = z.infer<typeof formSchema>;

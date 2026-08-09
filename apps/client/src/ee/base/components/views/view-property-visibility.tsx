@@ -1,5 +1,13 @@
 import { useMemo, useCallback } from "react";
-import { Popover, Switch, Stack, Text, Group, Divider, UnstyledButton } from "@mantine/core";
+import {
+  Popover,
+  Switch,
+  Stack,
+  Text,
+  Group,
+  Divider,
+  UnstyledButton,
+} from "@mantine/core";
 import { Table } from "@tanstack/react-table";
 import { IBaseRow, IBaseProperty } from "@/ee/base/types/base.types";
 import { propertyTypes } from "@/ee/base/property-types/property-type.registry";
@@ -29,13 +37,13 @@ export function ViewPropertyVisibility({
   useEscapeClose(opened, onClose);
 
   const columns = useMemo(() => {
-    return table
-      .getAllLeafColumns()
-      .filter((col) => col.id !== "__row_number");
+    return table.getAllLeafColumns().filter((col) => col.id !== "__row_number");
   }, [table, properties]);
 
   const allVisible = columns.every((col) => col.getIsVisible());
-  const noneVisible = columns.filter((col) => col.getCanHide()).every((col) => !col.getIsVisible());
+  const noneVisible = columns
+    .filter((col) => col.getCanHide())
+    .every((col) => !col.getIsVisible());
 
   const handleToggle = useCallback(
     (columnId: string, visible: boolean) => {
@@ -113,12 +121,16 @@ export function ViewPropertyVisibility({
 
           <Stack gap={0}>
             {columns.map((col) => {
-              const property = col.columnDef.meta?.property as IBaseProperty | undefined;
+              const property = col.columnDef.meta?.property as
+                | IBaseProperty
+                | undefined;
               if (!property) return null;
 
               const canHide = col.getCanHide();
               const isVisible = col.getIsVisible();
-              const typeConfig = propertyTypes.find((pt) => pt.type === property.type);
+              const typeConfig = propertyTypes.find(
+                (pt) => pt.type === property.type,
+              );
               const TypeIcon = typeConfig?.icon;
 
               return (
@@ -136,7 +148,9 @@ export function ViewPropertyVisibility({
                   style={{ opacity: canHide ? 1 : 0.5 }}
                 >
                   <Group gap={8} wrap="nowrap" style={{ flex: 1 }}>
-                    {TypeIcon && <TypeIcon size={14} style={{ flexShrink: 0 }} />}
+                    {TypeIcon && (
+                      <TypeIcon size={14} style={{ flexShrink: 0 }} />
+                    )}
                     <Text size="sm" className={viewClasses.fieldNameText}>
                       {property.name}
                     </Text>
@@ -152,7 +166,9 @@ export function ViewPropertyVisibility({
                     // to UnstyledButton, firing handleToggle twice. stopPropagation blocks only that
                     // synthetic input click so handleToggle fires exactly once.
                     onClick={(e) => e.stopPropagation()}
-                    styles={{ track: { cursor: canHide ? "pointer" : "not-allowed" } }}
+                    styles={{
+                      track: { cursor: canHide ? "pointer" : "not-allowed" },
+                    }}
                   />
                 </UnstyledButton>
               );

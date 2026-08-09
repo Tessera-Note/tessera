@@ -101,7 +101,9 @@ export function BaseToolbar({
 
   const hiddenPropertyCount = useMemo(() => {
     if (!table) return 0;
-    const cols = table.getAllLeafColumns().filter((col) => col.id !== "__row_number");
+    const cols = table
+      .getAllLeafColumns()
+      .filter((col) => col.id !== "__row_number");
     return cols.filter((col) => col.getCanHide() && !col.getIsVisible()).length;
   }, [table, table?.getState().columnVisibility]);
 
@@ -182,11 +184,7 @@ export function BaseToolbar({
           <>
             <KanbanGroupByPicker base={base} view={activeView} pageId={base.id}>
               <Tooltip label={t("Group by")}>
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  color="gray"
-                >
+                <ActionIcon variant="subtle" size="sm" color="gray">
                   <IconLayoutColumns size={16} />
                 </ActionIcon>
               </Tooltip>

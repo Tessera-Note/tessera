@@ -11,7 +11,7 @@ import { Transaction } from "@tiptap/pm/state";
 function autoJoin(
   transactions: readonly Transaction[],
   newTr: Transaction,
-  nodeTypes: NodeType[]
+  nodeTypes: NodeType[],
 ) {
   // Collect changed ranges across all transactions, mapping earlier ranges
   // forward through later mappings so every position lands in newTr.doc space.

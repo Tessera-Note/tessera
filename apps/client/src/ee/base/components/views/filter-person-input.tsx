@@ -115,7 +115,15 @@ export function FilterPersonInput({
         handleRemove(ids[ids.length - 1]);
       }
     },
-    [handleNavKey, activeIndex, filtered, handleSelect, search, ids, handleRemove],
+    [
+      handleNavKey,
+      activeIndex,
+      filtered,
+      handleSelect,
+      search,
+      ids,
+      handleRemove,
+    ],
   );
 
   return (

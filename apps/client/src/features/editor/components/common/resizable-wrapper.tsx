@@ -1,4 +1,10 @@
-import React, { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import clsx from "clsx";
 import classes from "./resizable-wrapper.module.css";
 
@@ -91,13 +97,19 @@ export const ResizableWrapper: React.FC<ResizableWrapperProps> = ({
     const { minWidth, maxWidth, minHeight, maxHeight } = constraintsRef.current;
 
     const deltaY = e.clientY - drag.startY;
-    const newHeight = Math.min(Math.max(drag.startHeight + deltaY * sign.y, minHeight), maxHeight);
+    const newHeight = Math.min(
+      Math.max(drag.startHeight + deltaY * sign.y, minHeight),
+      maxHeight,
+    );
     heightRef.current = newHeight;
     wrapperRef.current.style.height = `${newHeight}px`;
 
     if (sign.x !== 0) {
       const deltaX = e.clientX - drag.startX;
-      const newWidth = Math.min(Math.max(drag.startWidth + deltaX * sign.x, minWidth), maxWidth);
+      const newWidth = Math.min(
+        Math.max(drag.startWidth + deltaX * sign.x, minWidth),
+        maxWidth,
+      );
       widthRef.current = newWidth;
       wrapperRef.current.style.width = `${newWidth}px`;
     }
@@ -113,22 +125,25 @@ export const ResizableWrapper: React.FC<ResizableWrapperProps> = ({
     onResizeRef.current?.(widthRef.current, heightRef.current);
   }).current;
 
-  const handleResizeStart = useCallback((e: React.MouseEvent, handle: Handle) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragRef.current = {
-      handle,
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: widthRef.current,
-      startHeight: heightRef.current,
-    };
-    setIsResizing(true);
-    document.body.style.cursor = HANDLE_CURSOR[handle];
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  }, [handleMouseMove, handleMouseUp]);
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent, handle: Handle) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragRef.current = {
+        handle,
+        startX: e.clientX,
+        startY: e.clientY,
+        startWidth: widthRef.current,
+        startHeight: heightRef.current,
+      };
+      setIsResizing(true);
+      document.body.style.cursor = HANDLE_CURSOR[handle];
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [handleMouseMove, handleMouseUp],
+  );
 
   useEffect(() => {
     return () => {

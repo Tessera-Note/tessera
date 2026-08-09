@@ -52,9 +52,7 @@ export function DefaultValuePicker({
           )}
           <Text size="xs">{option.label}</Text>
         </Group>
-        {checked && (
-          <IconCheck size={14} color="var(--mantine-color-dimmed)" />
-        )}
+        {checked && <IconCheck size={14} color="var(--mantine-color-dimmed)" />}
       </Group>
     );
   };

@@ -62,22 +62,26 @@ export default function UserApiKeys() {
         <Trans
           i18nKey="View the <anchor>API documentation</anchor> for usage details."
           components={{
-            anchor: <Anchor href={getDocsUrl("api")} target="_blank" size="sm" />,
+            anchor: (
+              <Anchor href={getDocsUrl("api")} target="_blank" size="sm" />
+            ),
           }}
         />
       </Text>
 
       {mcpEnabled && canCreate && (
-        <Alert variant="light" color="blue" mb="md" p="sm" icon={<IconInfoCircle />}>
+        <Alert
+          variant="light"
+          color="blue"
+          mb="md"
+          p="sm"
+          icon={<IconInfoCircle />}
+        >
           <Text size="sm">
             {t(
               "Your workspace has MCP enabled. Use your API key to connect AI assistants.",
             )}{" "}
-            <Anchor
-              href={getDocsUrl("mcp")}
-              target="_blank"
-              size="sm"
-            >
+            <Anchor href={getDocsUrl("mcp")} target="_blank" size="sm">
               {t("Learn more")}
             </Anchor>
           </Text>
@@ -97,9 +101,17 @@ export default function UserApiKeys() {
           </Button>
         </Group>
       ) : restrictToAdmins ? (
-        <Alert variant="light" color="yellow" mb="md" p="sm" icon={<IconInfoCircle />}>
+        <Alert
+          variant="light"
+          color="yellow"
+          mb="md"
+          p="sm"
+          icon={<IconInfoCircle />}
+        >
           <Text size="sm">
-            {t("API key creation is restricted to admins by your workspace administrator.")}
+            {t(
+              "API key creation is restricted to admins by your workspace administrator.",
+            )}
           </Text>
         </Alert>
       ) : null}

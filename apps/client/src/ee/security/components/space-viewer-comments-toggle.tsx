@@ -44,11 +44,7 @@ export default function SpaceViewerCommentsToggle({
           {t("Allow viewers to add comments on pages in this space.")}
         </Text>
       </div>
-      <Tooltip
-        label={upgradeLabel}
-        disabled={!isDisabled}
-        refProp="rootRef"
-      >
+      <Tooltip label={upgradeLabel} disabled={!isDisabled} refProp="rootRef">
         <Switch
           checked={checked}
           onChange={handleChange}

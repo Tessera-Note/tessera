@@ -64,9 +64,9 @@ export class ConfluenceImportService {
    */
   private get importAttachmentService(): ImportAttachmentService {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { ImportAttachmentService } = require(
-      '../../integrations/import/services/import-attachment.service',
-    );
+    const {
+      ImportAttachmentService,
+    } = require('../../integrations/import/services/import-attachment.service');
     return this.moduleRef.get(ImportAttachmentService, { strict: false });
   }
 

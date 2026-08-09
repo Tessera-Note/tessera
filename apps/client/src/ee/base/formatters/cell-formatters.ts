@@ -16,7 +16,9 @@ export function formatTimestamp(value: string | null | undefined): string {
   });
 }
 
-export function formatLongTextPreview(value: string | null | undefined): string {
+export function formatLongTextPreview(
+  value: string | null | undefined,
+): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim();
 }

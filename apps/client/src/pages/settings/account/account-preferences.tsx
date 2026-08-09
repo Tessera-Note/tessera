@@ -31,7 +31,7 @@ export default function AccountPreferences() {
       <Divider my={"md"} />
 
       <PageWidthPref />
-      
+
       <Divider my={"md"} />
 
       <PageEditPref />

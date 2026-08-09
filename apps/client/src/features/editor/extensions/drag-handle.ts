@@ -111,8 +111,7 @@ function nodeDOMAtCoords(
       // elements whose closest editor is this host view.
       if (elem.closest(".ProseMirror") !== view.dom) return false;
       return (
-        elem.parentElement?.matches?.(".ProseMirror") ||
-        elem.matches(selectors)
+        elem.parentElement?.matches?.(".ProseMirror") || elem.matches(selectors)
       );
     });
   if (found && atomSelectors.length > 0) {
@@ -228,10 +227,7 @@ export function DragHandlePlugin(
         ]);
         for (let d = $sel.depth; d > 0; d--) {
           if (customTypes.has($sel.node(d).type.name)) {
-            selection = NodeSelection.create(
-              view.state.doc,
-              $sel.before(d),
-            );
+            selection = NodeSelection.create(view.state.doc, $sel.before(d));
             break;
           }
         }
@@ -279,8 +275,9 @@ export function DragHandlePlugin(
     event.dataTransfer.setData("text/plain", text);
     event.dataTransfer.effectAllowed = "move";
 
-    const previewTemplate =
-      node.querySelector<HTMLElement>("[data-drag-preview]");
+    const previewTemplate = node.querySelector<HTMLElement>(
+      "[data-drag-preview]",
+    );
     if (previewTemplate) {
       const preview = previewTemplate.cloneNode(true) as HTMLElement;
       preview.removeAttribute("hidden");

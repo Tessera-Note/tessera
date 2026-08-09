@@ -23,6 +23,7 @@ import {
   AuditContext,
   AUDIT_CONTEXT_KEY,
 } from '../../common/middlewares/audit-context.middleware';
+import { badRequest } from '../../common/errors/app-error';
 
 /**
  * Ключ консультативной блокировки прохода по сроку хранения. Отличается от
@@ -389,9 +390,7 @@ export class AuditEeService implements IAuditService {
     retentionDays: number,
   ): Promise<void> {
     if (!Number.isInteger(retentionDays) || retentionDays < 0) {
-      throw new BadRequestException(
-        'Срок хранения журнала должен быть целым неотрицательным числом дней',
-      );
+      throw badRequest('error.audit.retention_invalid');
     }
 
     await this.db

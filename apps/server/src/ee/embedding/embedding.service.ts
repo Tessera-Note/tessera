@@ -175,10 +175,20 @@ export class EmbeddingService {
    * один раз на прогон, иначе сохранение настроек в середине оставит вики
    * разбитой на две идентичности.
    */
-  async indexPage(pageId: string, run?: EmbeddingRun): Promise<{ chunks: number }> {
+  async indexPage(
+    pageId: string,
+    run?: EmbeddingRun,
+  ): Promise<{ chunks: number }> {
     const page = await this.db
       .selectFrom('pages')
-      .select(['id', 'title', 'textContent', 'spaceId', 'workspaceId', 'deletedAt'])
+      .select([
+        'id',
+        'title',
+        'textContent',
+        'spaceId',
+        'workspaceId',
+        'deletedAt',
+      ])
       .where('id', '=', pageId)
       .executeTakeFirst();
 
@@ -370,7 +380,6 @@ export class EmbeddingService {
    * `dimensions`. У Gemini и Ollama такой опции нет, и модель на 768 значений
    * упала бы ошибкой Postgres при вставке, из которой не видно, что менять.
    */
-
 
   private assertDimension(length: number | undefined): void {
     if (length === undefined || length === EMBEDDING_DIMENSION) return;

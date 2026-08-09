@@ -19,7 +19,11 @@ import classes from "./page-permission.module.css";
 
 type PagePermissionItemProps = {
   member: IPagePermissionMember;
-  onRoleChange: (memberId: string, type: "user" | "group", role: string) => void;
+  onRoleChange: (
+    memberId: string,
+    type: "user" | "group",
+    role: string,
+  ) => void;
   onRemove: (memberId: string, type: "user" | "group") => void;
   disabled?: boolean;
 };
@@ -47,13 +51,22 @@ export function PagePermissionItem({
           <AutoTooltipText
             fz="sm"
             fw={500}
-            tooltipLabel={isCurrentUser ? `${member.name} (${t("You")})` : member.name}
+            tooltipLabel={
+              isCurrentUser ? `${member.name} (${t("You")})` : member.name
+            }
           >
             {member.name}
-            {isCurrentUser && <Text span c="dimmed"> ({t("You")})</Text>}
+            {isCurrentUser && (
+              <Text span c="dimmed">
+                {" "}
+                ({t("You")})
+              </Text>
+            )}
           </AutoTooltipText>
           <AutoTooltipText fz="xs" c="dimmed">
-            {member.type === "user" ? member.email : formatMemberCount(member.memberCount, t)}
+            {member.type === "user"
+              ? member.email
+              : formatMemberCount(member.memberCount, t)}
           </AutoTooltipText>
         </div>
       </div>
@@ -78,7 +91,9 @@ export function PagePermissionItem({
               {pagePermissionRoleData.map((role) => (
                 <Menu.Item
                   key={role.value}
-                  onClick={() => onRoleChange(member.id, member.type, role.value)}
+                  onClick={() =>
+                    onRoleChange(member.id, member.type, role.value)
+                  }
                   rightSection={
                     role.value === member.role ? <IconCheck size={16} /> : null
                   }

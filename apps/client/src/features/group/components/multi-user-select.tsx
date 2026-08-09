@@ -21,7 +21,9 @@ const renderMultiSelectOption: MultiSelectProps["renderOption"] = ({
       size={36}
     />
     <div>
-      <Text size="sm" lineClamp={1}>{option.label}</Text>
+      <Text size="sm" lineClamp={1}>
+        {option.label}
+      </Text>
       <Text size="xs" opacity={0.5}>
         {option?.["email"]}
       </Text>

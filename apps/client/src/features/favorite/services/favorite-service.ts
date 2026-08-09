@@ -9,9 +9,7 @@ export type ToggleFavoriteParams = {
   templateId?: string;
 };
 
-export async function addFavorite(
-  params: ToggleFavoriteParams,
-): Promise<void> {
+export async function addFavorite(params: ToggleFavoriteParams): Promise<void> {
   await api.post("/favorites/add", params);
 }
 
@@ -21,8 +19,14 @@ export async function removeFavorite(
   await api.post("/favorites/remove", params);
 }
 
-export async function getFavoriteIds(type: FavoriteType, spaceId?: string): Promise<IPagination<string>> {
-  const req = await api.post<IPagination<string>>("/favorites/ids", { type, spaceId });
+export async function getFavoriteIds(
+  type: FavoriteType,
+  spaceId?: string,
+): Promise<IPagination<string>> {
+  const req = await api.post<IPagination<string>>("/favorites/ids", {
+    type,
+    spaceId,
+  });
   return req.data;
 }
 

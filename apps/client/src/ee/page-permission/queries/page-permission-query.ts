@@ -53,18 +53,15 @@ function updatePageRestrictionCache(
   pageId: string,
   hasRestriction: boolean,
 ) {
-  queryClient.setQueriesData<IPage>(
-    { queryKey: ["pages"] },
-    (old) => {
-      if (old?.id === pageId) {
-        return {
-          ...old,
-          permissions: { ...old.permissions, hasRestriction },
-        };
-      }
-      return old;
-    },
-  );
+  queryClient.setQueriesData<IPage>({ queryKey: ["pages"] }, (old) => {
+    if (old?.id === pageId) {
+      return {
+        ...old,
+        permissions: { ...old.permissions, hasRestriction },
+      };
+    }
+    return old;
+  });
   queryClient.invalidateQueries({
     queryKey: ["page-restriction-info", pageId],
   });

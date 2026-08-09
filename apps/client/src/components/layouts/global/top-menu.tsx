@@ -46,10 +46,8 @@ export default function TopMenu() {
   const hasPersonalSpaces = useHasFeature(Feature.PERSONAL_SPACES);
   const settingEnabled = workspace?.settings?.spaces?.allowPersonal === true;
   const { data: personalSpace } = usePersonalSpaceQuery(hasPersonalSpaces);
-  const [
-    createOpened,
-    { open: openCreate, close: closeCreate },
-  ] = useDisclosure(false);
+  const [createOpened, { open: openCreate, close: closeCreate }] =
+    useDisclosure(false);
 
   if (!user || !workspace) {
     return <></>;
@@ -57,145 +55,145 @@ export default function TopMenu() {
 
   return (
     <>
-    <Menu width={250} position="bottom-end" withArrow shadow={"lg"}>
-      <Menu.Target>
-        <UnstyledButton>
-          <Group gap={7} wrap={"nowrap"}>
-            <CustomAvatar
-              avatarUrl={workspace?.logo}
-              name={workspace?.name}
-              variant="filled"
-              size="sm"
-              type={AvatarIconType.WORKSPACE_ICON}
-            />
-            <Text fw={500} size="sm" lh={1} mr={3} lineClamp={1}>
-              {workspace?.name}
-            </Text>
-            <IconChevronDown size={16} />
-          </Group>
-        </UnstyledButton>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Label>{t("Workspace")}</Menu.Label>
-
-        <Menu.Item
-          component={Link}
-          to={APP_ROUTE.SETTINGS.WORKSPACE.GENERAL}
-          leftSection={<IconSettings size={16} />}
-        >
-          {t("Workspace settings")}
-        </Menu.Item>
-
-        <Menu.Item
-          component={Link}
-          to={APP_ROUTE.SETTINGS.WORKSPACE.MEMBERS}
-          leftSection={<IconUsers size={16} />}
-        >
-          {t("Manage members")}
-        </Menu.Item>
-
-        <Menu.Divider />
-
-        <Menu.Label>{t("Account")}</Menu.Label>
-        <Menu.Item component={Link} to={APP_ROUTE.SETTINGS.ACCOUNT.PROFILE}>
-          <Group wrap={"nowrap"}>
-            <CustomAvatar
-              size={"sm"}
-              avatarUrl={user.avatarUrl}
-              name={user.name}
-            />
-
-            <div style={{ width: 190 }}>
-              <Text size="sm" fw={500} lineClamp={1}>
-                {user.name}
+      <Menu width={250} position="bottom-end" withArrow shadow={"lg"}>
+        <Menu.Target>
+          <UnstyledButton>
+            <Group gap={7} wrap={"nowrap"}>
+              <CustomAvatar
+                avatarUrl={workspace?.logo}
+                name={workspace?.name}
+                variant="filled"
+                size="sm"
+                type={AvatarIconType.WORKSPACE_ICON}
+              />
+              <Text fw={500} size="sm" lh={1} mr={3} lineClamp={1}>
+                {workspace?.name}
               </Text>
-              <Text size="xs" c="dimmed" truncate="end">
-                {user.email}
-              </Text>
-            </div>
-          </Group>
-        </Menu.Item>
-        <Menu.Item
-          component={Link}
-          to={APP_ROUTE.SETTINGS.ACCOUNT.PROFILE}
-          leftSection={<IconUserCircle size={16} />}
-        >
-          {t("My profile")}
-        </Menu.Item>
+              <IconChevronDown size={16} />
+            </Group>
+          </UnstyledButton>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>{t("Workspace")}</Menu.Label>
 
-        <Menu.Item
-          component={Link}
-          to={APP_ROUTE.SETTINGS.ACCOUNT.PREFERENCES}
-          leftSection={<IconBrush size={16} />}
-        >
-          {t("My preferences")}
-        </Menu.Item>
-
-        {personalSpace ? (
           <Menu.Item
             component={Link}
-            to={getSpaceUrl(personalSpace.slug)}
-            leftSection={<IconUser size={16} />}
+            to={APP_ROUTE.SETTINGS.WORKSPACE.GENERAL}
+            leftSection={<IconSettings size={16} />}
           >
-            {t("Personal space")}
+            {t("Workspace settings")}
           </Menu.Item>
-        ) : (
-          hasPersonalSpaces &&
-          settingEnabled && (
+
+          <Menu.Item
+            component={Link}
+            to={APP_ROUTE.SETTINGS.WORKSPACE.MEMBERS}
+            leftSection={<IconUsers size={16} />}
+          >
+            {t("Manage members")}
+          </Menu.Item>
+
+          <Menu.Divider />
+
+          <Menu.Label>{t("Account")}</Menu.Label>
+          <Menu.Item component={Link} to={APP_ROUTE.SETTINGS.ACCOUNT.PROFILE}>
+            <Group wrap={"nowrap"}>
+              <CustomAvatar
+                size={"sm"}
+                avatarUrl={user.avatarUrl}
+                name={user.name}
+              />
+
+              <div style={{ width: 190 }}>
+                <Text size="sm" fw={500} lineClamp={1}>
+                  {user.name}
+                </Text>
+                <Text size="xs" c="dimmed" truncate="end">
+                  {user.email}
+                </Text>
+              </div>
+            </Group>
+          </Menu.Item>
+          <Menu.Item
+            component={Link}
+            to={APP_ROUTE.SETTINGS.ACCOUNT.PROFILE}
+            leftSection={<IconUserCircle size={16} />}
+          >
+            {t("My profile")}
+          </Menu.Item>
+
+          <Menu.Item
+            component={Link}
+            to={APP_ROUTE.SETTINGS.ACCOUNT.PREFERENCES}
+            leftSection={<IconBrush size={16} />}
+          >
+            {t("My preferences")}
+          </Menu.Item>
+
+          {personalSpace ? (
             <Menu.Item
-              onClick={openCreate}
+              component={Link}
+              to={getSpaceUrl(personalSpace.slug)}
               leftSection={<IconUser size={16} />}
             >
-              {t("Create personal space")}
+              {t("Personal space")}
             </Menu.Item>
-          )
-        )}
+          ) : (
+            hasPersonalSpaces &&
+            settingEnabled && (
+              <Menu.Item
+                onClick={openCreate}
+                leftSection={<IconUser size={16} />}
+              >
+                {t("Create personal space")}
+              </Menu.Item>
+            )
+          )}
 
-        <Menu.Sub>
-          <Menu.Sub.Target>
-            <Menu.Sub.Item leftSection={<IconBrightnessFilled size={16} />}>
-              {t("Theme")}
-            </Menu.Sub.Item>
-          </Menu.Sub.Target>
+          <Menu.Sub>
+            <Menu.Sub.Target>
+              <Menu.Sub.Item leftSection={<IconBrightnessFilled size={16} />}>
+                {t("Theme")}
+              </Menu.Sub.Item>
+            </Menu.Sub.Target>
 
-          <Menu.Sub.Dropdown>
-            <Menu.Item
-              onClick={() => setColorScheme("light")}
-              leftSection={<IconSun size={16} />}
-              rightSection={
-                colorScheme === "light" ? <IconCheck size={16} /> : null
-              }
-            >
-              {t("Light")}
-            </Menu.Item>
-            <Menu.Item
-              onClick={() => setColorScheme("dark")}
-              leftSection={<IconMoon size={16} />}
-              rightSection={
-                colorScheme === "dark" ? <IconCheck size={16} /> : null
-              }
-            >
-              {t("Dark")}
-            </Menu.Item>
-            <Menu.Item
-              onClick={() => setColorScheme("auto")}
-              leftSection={<IconDeviceDesktop size={16} />}
-              rightSection={
-                colorScheme === "auto" ? <IconCheck size={16} /> : null
-              }
-            >
-              {t("System settings")}
-            </Menu.Item>
-          </Menu.Sub.Dropdown>
-        </Menu.Sub>
+            <Menu.Sub.Dropdown>
+              <Menu.Item
+                onClick={() => setColorScheme("light")}
+                leftSection={<IconSun size={16} />}
+                rightSection={
+                  colorScheme === "light" ? <IconCheck size={16} /> : null
+                }
+              >
+                {t("Light")}
+              </Menu.Item>
+              <Menu.Item
+                onClick={() => setColorScheme("dark")}
+                leftSection={<IconMoon size={16} />}
+                rightSection={
+                  colorScheme === "dark" ? <IconCheck size={16} /> : null
+                }
+              >
+                {t("Dark")}
+              </Menu.Item>
+              <Menu.Item
+                onClick={() => setColorScheme("auto")}
+                leftSection={<IconDeviceDesktop size={16} />}
+                rightSection={
+                  colorScheme === "auto" ? <IconCheck size={16} /> : null
+                }
+              >
+                {t("System settings")}
+              </Menu.Item>
+            </Menu.Sub.Dropdown>
+          </Menu.Sub>
 
-        <Menu.Divider />
+          <Menu.Divider />
 
-        <Menu.Item onClick={logout} leftSection={<IconLogout size={16} />}>
-          {t("Logout")}
-        </Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
+          <Menu.Item onClick={logout} leftSection={<IconLogout size={16} />}>
+            {t("Logout")}
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
 
       <CreatePersonalSpaceModal opened={createOpened} onClose={closeCreate} />
     </>

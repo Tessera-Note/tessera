@@ -67,7 +67,6 @@ export function buildSharedPageTree(
   return sortTree(tree);
 }
 
-
 // Recursively checks if a page exists in the shared page tree.
 export function isPageInTree(
   tree: SharedPageTreeNode[],

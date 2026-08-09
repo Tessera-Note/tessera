@@ -51,15 +51,21 @@ const HistoryItem = memo(function HistoryItem({
           <>
             <Tooltip.Group openDelay={300} closeDelay={100}>
               <Avatar.Group spacing={8}>
-                {contributors.slice(0, MAX_VISIBLE_AVATARS).map((contributor) => (
-                  <Tooltip key={contributor.id} label={contributor.name} withArrow>
-                    <CustomAvatar
-                      size="sm"
-                      avatarUrl={contributor.avatarUrl}
-                      name={contributor.name}
-                    />
-                  </Tooltip>
-                ))}
+                {contributors
+                  .slice(0, MAX_VISIBLE_AVATARS)
+                  .map((contributor) => (
+                    <Tooltip
+                      key={contributor.id}
+                      label={contributor.name}
+                      withArrow
+                    >
+                      <CustomAvatar
+                        size="sm"
+                        avatarUrl={contributor.avatarUrl}
+                        name={contributor.name}
+                      />
+                    </Tooltip>
+                  ))}
                 {contributors.length > MAX_VISIBLE_AVATARS && (
                   <Tooltip
                     withArrow

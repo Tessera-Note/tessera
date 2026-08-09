@@ -19,12 +19,20 @@ type KanbanColumnMenuProps = {
   onHide: () => void;
 };
 
-export function KanbanColumnMenu({ property, pageId, onHide }: KanbanColumnMenuProps) {
+export function KanbanColumnMenu({
+  property,
+  pageId,
+  onHide,
+}: KanbanColumnMenuProps) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const [view, setView] = useState<"menu" | "property">("menu");
-  const [dirty, setDirty] = useAtom(propertyMenuDirtyAtomFamily(pageId)) as unknown as [boolean, (val: boolean) => void];
-  const [closeRequest, setCloseRequest] = useAtom(propertyMenuCloseRequestAtomFamily(pageId)) as unknown as [number, (val: number) => void];
+  const [dirty, setDirty] = useAtom(
+    propertyMenuDirtyAtomFamily(pageId),
+  ) as unknown as [boolean, (val: boolean) => void];
+  const [closeRequest, setCloseRequest] = useAtom(
+    propertyMenuCloseRequestAtomFamily(pageId),
+  ) as unknown as [number, (val: number) => void];
 
   const handleClose = useCallback(() => {
     setOpened(false);

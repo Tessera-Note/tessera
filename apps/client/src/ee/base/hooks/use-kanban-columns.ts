@@ -1,5 +1,12 @@
 import { useMemo } from "react";
-import { IBase, IBaseProperty, IBaseView, KanbanColumn, NO_VALUE_CHOICE_ID, SelectTypeOptions } from "@/ee/base/types/base.types";
+import {
+  IBase,
+  IBaseProperty,
+  IBaseView,
+  KanbanColumn,
+  NO_VALUE_CHOICE_ID,
+  SelectTypeOptions,
+} from "@/ee/base/types/base.types";
 
 export type KanbanGroup = KanbanColumn & { hidden: boolean };
 
@@ -15,22 +22,37 @@ export function useKanbanColumns(
 } {
   return useMemo(() => {
     const groupByPropertyId = view?.config?.groupByPropertyId;
-    const prop = groupByPropertyId ? base?.properties.find((p) => p.id === groupByPropertyId) : undefined;
-    const groupable = prop && (prop.type === "select" || prop.type === "status");
+    const prop = groupByPropertyId
+      ? base?.properties.find((p) => p.id === groupByPropertyId)
+      : undefined;
+    const groupable =
+      prop && (prop.type === "select" || prop.type === "status");
 
     if (!groupable || !prop || !view) {
-      return { groupByPropertyId, groupByProperty: undefined, columns: [], allGroups: [], hasValidGroupBy: false };
+      return {
+        groupByPropertyId,
+        groupByProperty: undefined,
+        columns: [],
+        allGroups: [],
+        hasValidGroupBy: false,
+      };
     }
 
     const typeOptions = prop.typeOptions as SelectTypeOptions;
     const choices = typeOptions?.choices ?? [];
     const choiceMap = new Map(choices.map((c) => [c.id, c]));
-    const validKeys = new Set([NO_VALUE_CHOICE_ID, ...choices.map((c) => c.id)]);
+    const validKeys = new Set([
+      NO_VALUE_CHOICE_ID,
+      ...choices.map((c) => c.id),
+    ]);
 
     const config = view.config;
     const configChoiceOrder: string[] = config.choiceOrder?.length
       ? config.choiceOrder.filter((k) => validKeys.has(k))
-      : [...(typeOptions?.choiceOrder ?? choices.map((c) => c.id)), NO_VALUE_CHOICE_ID];
+      : [
+          ...(typeOptions?.choiceOrder ?? choices.map((c) => c.id)),
+          NO_VALUE_CHOICE_ID,
+        ];
 
     const inOrder = new Set(configChoiceOrder);
     const baseOrder = [
@@ -41,13 +63,31 @@ export function useKanbanColumns(
     const hidden = new Set(config.hiddenChoiceIds ?? []);
     const allGroups: KanbanGroup[] = baseOrder.map((k) => {
       if (k === NO_VALUE_CHOICE_ID) {
-        return { key: k, name: "No value", color: undefined, isNoValue: true, hidden: hidden.has(k) };
+        return {
+          key: k,
+          name: "No value",
+          color: undefined,
+          isNoValue: true,
+          hidden: hidden.has(k),
+        };
       }
       const choice = choiceMap.get(k);
-      return { key: k, name: choice?.name ?? k, color: choice?.color, isNoValue: false, hidden: hidden.has(k) };
+      return {
+        key: k,
+        name: choice?.name ?? k,
+        color: choice?.color,
+        isNoValue: false,
+        hidden: hidden.has(k),
+      };
     });
     const columns: KanbanColumn[] = allGroups.filter((g) => !g.hidden);
 
-    return { groupByPropertyId, groupByProperty: prop, columns, allGroups, hasValidGroupBy: true };
+    return {
+      groupByPropertyId,
+      groupByProperty: prop,
+      columns,
+      allGroups,
+      hasValidGroupBy: true,
+    };
   }, [base, view]);
 }

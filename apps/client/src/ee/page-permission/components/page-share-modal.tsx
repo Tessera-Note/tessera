@@ -41,7 +41,8 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
 
   const [workspace] = useAtom(workspaceAtom);
   const { data: space } = useSpaceQuery(spaceSlug);
-  const workspaceSharingDisabled = workspace?.settings?.sharing?.disabled === true;
+  const workspaceSharingDisabled =
+    workspace?.settings?.sharing?.disabled === true;
   const spaceSharingDisabled = space?.settings?.sharing?.disabled === true;
 
   const { data: page } = usePageQuery({ pageId: pageSlugId });
@@ -52,7 +53,9 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
   const isPubliclyShared = !!share;
 
   const { data: restrictionInfo, isLoading: restrictionLoading } =
-    usePageRestrictionInfoQuery(opened && hasPagePermissions ? pageId : undefined);
+    usePageRestrictionInfoQuery(
+      opened && hasPagePermissions ? pageId : undefined,
+    );
 
   return (
     <>
@@ -72,7 +75,13 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
         }
         variant="default"
         onClick={() => {
-          setActiveTab(isPubliclyShared ? "publish" : hasPagePermissions ? "access" : "publish");
+          setActiveTab(
+            isPubliclyShared
+              ? "publish"
+              : hasPagePermissions
+                ? "access"
+                : "publish",
+          );
           open();
         }}
       >

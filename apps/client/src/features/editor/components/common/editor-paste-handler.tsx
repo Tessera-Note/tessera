@@ -112,8 +112,7 @@ async function reuploadPastedAttachments(
     if (!match) return;
 
     const cleanSrc = src.split("?")[0];
-    const fileName =
-      node.attrs.name || cleanSrc.split("/").pop() || "file";
+    const fileName = node.attrs.name || cleanSrc.split("/").pop() || "file";
 
     pastedNodes.push({
       pos,
@@ -185,37 +184,40 @@ async function reuploadPastedAttachments(
   if (reuploadResults.size === 0) return;
   if (editor.isDestroyed) return;
 
-  editor.chain().command(({ tr }) => {
-    const sorted = [...nodesToReupload].sort((a, b) => b.pos - a.pos);
+  editor
+    .chain()
+    .command(({ tr }) => {
+      const sorted = [...nodesToReupload].sort((a, b) => b.pos - a.pos);
 
-    for (const pastedNode of sorted) {
-      const result = reuploadResults.get(pastedNode.attachmentId);
-      if (!result) continue;
+      for (const pastedNode of sorted) {
+        const result = reuploadResults.get(pastedNode.attachmentId);
+        if (!result) continue;
 
-      const node = tr.doc.nodeAt(pastedNode.pos);
-      if (!node || node.attrs.attachmentId !== pastedNode.attachmentId)
-        continue;
+        const node = tr.doc.nodeAt(pastedNode.pos);
+        if (!node || node.attrs.attachmentId !== pastedNode.attachmentId)
+          continue;
 
-      const newAttrs = { ...node.attrs };
-      newAttrs.attachmentId = result.id;
+        const newAttrs = { ...node.attrs };
+        newAttrs.attachmentId = result.id;
 
-      if (newAttrs.src) {
-        newAttrs.src = `/api/files/${result.id}/${result.fileName}`;
+        if (newAttrs.src) {
+          newAttrs.src = `/api/files/${result.id}/${result.fileName}`;
+        }
+        if (newAttrs.url) {
+          newAttrs.url = `/api/files/${result.id}/${result.fileName}`;
+        }
+        if (pastedNode.nodeTypeName === "attachment") {
+          newAttrs.name = result.fileName;
+          newAttrs.mime = result.mimeType;
+          newAttrs.size = result.fileSize;
+        }
+
+        tr.setNodeMarkup(pastedNode.pos, undefined, newAttrs);
       }
-      if (newAttrs.url) {
-        newAttrs.url = `/api/files/${result.id}/${result.fileName}`;
-      }
-      if (pastedNode.nodeTypeName === "attachment") {
-        newAttrs.name = result.fileName;
-        newAttrs.mime = result.mimeType;
-        newAttrs.size = result.fileSize;
-      }
 
-      tr.setNodeMarkup(pastedNode.pos, undefined, newAttrs);
-    }
-
-    return true;
-  }).run();
+      return true;
+    })
+    .run();
 }
 
 export const handleFileDrop = (

@@ -67,9 +67,9 @@ describe('ScimExceptionFilter, формат', () => {
   });
 
   it('сообщение попадает в detail', () => {
-    expect(run(new UnauthorizedException('Invalid SCIM token')).body.detail).toBe(
-      'Invalid SCIM token',
-    );
+    expect(
+      run(new UnauthorizedException('Invalid SCIM token')).body.detail,
+    ).toBe('Invalid SCIM token');
   });
 });
 

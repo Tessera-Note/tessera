@@ -1,4 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
@@ -48,7 +55,11 @@ export class PageVerificationController {
     @AuthWorkspace() workspace: Workspace,
     @AuthUser() user: User,
   ) {
-    return this.verificationService.updateVerification(body, workspace.id, user);
+    return this.verificationService.updateVerification(
+      body,
+      workspace.id,
+      user,
+    );
   }
 
   @Post('delete-verification')

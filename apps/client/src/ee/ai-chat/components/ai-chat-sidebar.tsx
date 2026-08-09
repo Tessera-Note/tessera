@@ -87,9 +87,12 @@ export default function AiChatSidebar() {
         centered: true,
         children: (
           <Text size="sm">
-            {t("Are you sure you want to delete '{{title}}'? This action cannot be undone.", {
-              title: title || t("Untitled"),
-            })}
+            {t(
+              "Are you sure you want to delete '{{title}}'? This action cannot be undone.",
+              {
+                title: title || t("Untitled"),
+              },
+            )}
           </Text>
         ),
         labels: { confirm: t("Delete"), cancel: t("Cancel") },

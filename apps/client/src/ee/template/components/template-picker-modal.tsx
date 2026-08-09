@@ -11,11 +11,7 @@ import {
   SegmentedControl,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import {
-  IconArrowRight,
-  IconSearch,
-  IconFileText,
-} from "@tabler/icons-react";
+import { IconArrowRight, IconSearch, IconFileText } from "@tabler/icons-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -201,7 +197,7 @@ export default function TemplatePickerModal({
                 <div className={classes.title}>{tpl.title}</div>
                 <div className={classes.scope}>
                   {tpl.spaceId
-                    ? spaceNamesById.get(tpl.spaceId) ?? t("Space")
+                    ? (spaceNamesById.get(tpl.spaceId) ?? t("Space"))
                     : t("Global")}
                 </div>
                 <Button

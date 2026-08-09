@@ -30,7 +30,10 @@ import { Error404 } from "@/components/ui/error-404.tsx";
 
 type RetentionUnit = "days" | "months" | "years";
 
-function daysToRetention(days: number): { amount: number; unit: RetentionUnit } {
+function daysToRetention(days: number): {
+  amount: number;
+  unit: RetentionUnit;
+} {
   if (days >= 365 && days % 365 === 0) {
     return { amount: days / 365, unit: "years" };
   }
@@ -59,8 +62,12 @@ export default function AuditLogs() {
 
   const currentDays = retentionData?.retentionDays ?? 365;
   const parsed = daysToRetention(currentDays);
-  const [retentionAmount, setRetentionAmount] = useState<number | string>(parsed.amount);
-  const [retentionUnit, setRetentionUnit] = useState<RetentionUnit>(parsed.unit);
+  const [retentionAmount, setRetentionAmount] = useState<number | string>(
+    parsed.amount,
+  );
+  const [retentionUnit, setRetentionUnit] = useState<RetentionUnit>(
+    parsed.unit,
+  );
 
   useEffect(() => {
     if (retentionData) {
@@ -142,7 +149,12 @@ export default function AuditLogs() {
         >
           <Popover.Target>
             <Tooltip label={t("Audit settings")}>
-              <ActionIcon variant="default" size="input-sm" ml="auto" onClick={() => setSettingsOpen((o) => !o)}>
+              <ActionIcon
+                variant="default"
+                size="input-sm"
+                ml="auto"
+                onClick={() => setSettingsOpen((o) => !o)}
+              >
                 <IconSettings size={16} />
               </ActionIcon>
             </Tooltip>
@@ -171,7 +183,11 @@ export default function AuditLogs() {
                 ]}
                 value={retentionUnit}
                 onChange={(value) => {
-                  if (value === "days" || value === "months" || value === "years") {
+                  if (
+                    value === "days" ||
+                    value === "months" ||
+                    value === "years"
+                  ) {
                     setRetentionUnit(value);
                   }
                 }}
@@ -194,7 +210,8 @@ export default function AuditLogs() {
               <Button
                 size="xs"
                 onClick={() => {
-                  const num = typeof retentionAmount === "number" ? retentionAmount : 1;
+                  const num =
+                    typeof retentionAmount === "number" ? retentionAmount : 1;
                   const clamped = Math.max(1, num);
                   setRetentionAmount(clamped);
                   const days = retentionToDays(clamped, retentionUnit);

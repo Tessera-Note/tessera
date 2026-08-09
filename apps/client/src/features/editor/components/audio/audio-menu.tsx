@@ -8,10 +8,7 @@ import {
   ShouldShowProps,
 } from "@/features/editor/components/table/types/types.ts";
 import { ActionIcon, Tooltip } from "@mantine/core";
-import {
-  IconDownload,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconDownload, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { getFileUrl } from "@/lib/config.ts";
 import classes from "../common/toolbar-menu.module.css";

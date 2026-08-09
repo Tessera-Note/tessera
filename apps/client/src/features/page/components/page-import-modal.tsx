@@ -37,6 +37,7 @@ import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
 import { queryClient } from "@/main.tsx";
 import bytes from "bytes";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 interface PageImportModalProps {
   spaceId: string;
@@ -193,7 +194,6 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           await queryClient.invalidateQueries({
             queryKey: ["recent-changes", fileTask.spaceId],
           });
-
         }
 
         if (status === "failed") {
@@ -283,7 +283,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         pageCount += 1;
       } catch (err) {
         console.log("Failed to import page", err);
-        const reason = err?.response?.data?.message;
+        const reason = getApiErrorMessage(err, "");
         if (reason) failures.push(reason);
       }
     }
@@ -381,14 +381,13 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           multiple
           resetRef={docxFileRef}
           inputProps={{
-            "aria-label": t("Choose {{format}} file", { format: "Word (DOCX)" }),
+            "aria-label": t("Choose {{format}} file", {
+              format: "Word (DOCX)",
+            }),
           }}
         >
           {(props) => (
-            <Tooltip
-              label={upgradeLabel}
-              disabled={canUseDocx}
-            >
+            <Tooltip label={upgradeLabel} disabled={canUseDocx}>
               <Button
                 disabled={!canUseDocx}
                 justify="start"
@@ -412,10 +411,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           }}
         >
           {(props) => (
-            <Tooltip
-              label={upgradeLabel}
-              disabled={canUsePdf}
-            >
+            <Tooltip label={upgradeLabel} disabled={canUsePdf}>
               <Button
                 disabled={!canUsePdf}
                 justify="start"
@@ -457,10 +453,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           }}
         >
           {(props) => (
-            <Tooltip
-              label={upgradeLabel}
-              disabled={canUseConfluence}
-            >
+            <Tooltip label={upgradeLabel} disabled={canUseConfluence}>
               <Button
                 disabled={!canUseConfluence}
                 justify="start"

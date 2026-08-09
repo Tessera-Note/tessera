@@ -36,7 +36,11 @@ function buildService(overrides: Partial<Record<string, any>> = {}) {
     spaceAbility: { createForUser: jest.fn() },
     baseService: { createBase: jest.fn() },
     searchService: { searchPage: jest.fn().mockResolvedValue({ items: [] }) },
-    commentService: { create: jest.fn(), update: jest.fn(), findByPageId: jest.fn() },
+    commentService: {
+      create: jest.fn(),
+      update: jest.fn(),
+      findByPageId: jest.fn(),
+    },
     commentRepo: { findById: jest.fn(), deleteComment: jest.fn() },
     labelService: {
       getPageLabels: jest.fn(),
@@ -99,7 +103,12 @@ function buildService(overrides: Partial<Record<string, any>> = {}) {
 
 function callTool(service: McpService, name: string, args: any) {
   return service.handleRpcRequest(
-    { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name, arguments: args },
+    },
     user,
     workspace,
   );
@@ -503,7 +512,10 @@ describe('McpService permissions', () => {
   it('upload_attachment strips a data: prefix and needs an extension', async () => {
     const { service, deps } = buildService();
     deps.attachmentService.uploadFile.mockResolvedValue({
-      id: 'att-1', fileName: 'a.png', fileSize: 5, mimeType: 'image/png',
+      id: 'att-1',
+      fileName: 'a.png',
+      fileSize: 5,
+      mimeType: 'image/png',
     });
 
     const bad: any = await callTool(service, 'upload_attachment', {
@@ -618,7 +630,10 @@ describe('McpService permissions', () => {
       { userId: 'user-1', workspaceId: 'workspace-1' },
     );
     expect(JSON.parse(res.result.content[0].text).results[0]).toEqual(
-      expect.objectContaining({ spaceId: 'space-1', highlight: 'a <b>match</b>' }),
+      expect.objectContaining({
+        spaceId: 'space-1',
+        highlight: 'a <b>match</b>',
+      }),
     );
   });
 

@@ -1,8 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  UseQueryResult,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, UseQueryResult } from "@tanstack/react-query";
 import {
   createBase,
   getBaseInfo,
@@ -61,7 +57,8 @@ export function useConvertPageToBaseMutation() {
   return useMutation<IBase, Error, { pageId: string; template?: "kanban" }>({
     mutationFn: ({ pageId, template }) => convertPageToBase(pageId, template),
     onSuccess: (base) => {
-      const markAsBase = (old?: IPage) => (old ? { ...old, isBase: true } : old);
+      const markAsBase = (old?: IPage) =>
+        old ? { ...old, isBase: true } : old;
       queryClient.setQueryData<IPage>(["pages", base.id], markAsBase);
       queryClient.setQueryData<IPage>(["pages", base.slugId], markAsBase);
 
@@ -71,7 +68,9 @@ export function useConvertPageToBaseMutation() {
       });
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
       setTreeData((prev) =>
-        treeModel.update(prev, base.id, { isBase: true } as Partial<SpaceTreeNode>),
+        treeModel.update(prev, base.id, {
+          isBase: true,
+        } as Partial<SpaceTreeNode>),
       );
     },
     onError: (error) => {

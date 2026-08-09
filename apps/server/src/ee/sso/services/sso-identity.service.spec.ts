@@ -118,12 +118,7 @@ function buildResolve(opts: { linked?: any; bound?: any; existing?: any }) {
     findByEmail: jest.fn(async () => opts.existing),
   };
 
-  const service = new SsoIdentityService(
-    db,
-    userRepo,
-    {} as any,
-    {} as any,
-  );
+  const service = new SsoIdentityService(db, userRepo, {} as any, {} as any);
   jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
 
   return { service, inserted };
@@ -143,9 +138,9 @@ describe('SsoIdentityService, неоднозначное совпадение п
       bound: { providerUserId: 'прежний-идентификатор' },
     });
 
-    await expect(service.resolveUser(RESOLVE_ARGS)).rejects.toThrow(
-      /уже связана с провайдером/,
-    );
+    await expect(service.resolveUser(RESOLVE_ARGS)).rejects.toMatchObject({
+      response: { code: 'error.sso.identity_conflict' },
+    });
 
     expect(inserted).toHaveLength(0);
   });

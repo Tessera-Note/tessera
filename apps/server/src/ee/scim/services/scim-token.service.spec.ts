@@ -62,7 +62,11 @@ describe('ScimTokenService, создание', () => {
   it('значение возвращается один раз, хеш наружу не уходит', async () => {
     const { service, created } = build();
 
-    const result: any = await service.create({ name: 'Okta' }, OWNER, WORKSPACE);
+    const result: any = await service.create(
+      { name: 'Okta' },
+      OWNER,
+      WORKSPACE,
+    );
 
     expect(result.token.startsWith(SCIM_TOKEN_PREFIX)).toBe(true);
     expect(result.tokenHash).toBeUndefined();
@@ -93,7 +97,7 @@ describe('ScimTokenService, создание', () => {
 
     await expect(
       service.create({ name: 'еще один' }, OWNER, WORKSPACE),
-    ).rejects.toThrow(/предел/);
+    ).rejects.toMatchObject({ response: { code: 'error.scim.token_limit' } });
     expect(auditService.log).not.toHaveBeenCalled();
   });
 });

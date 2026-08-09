@@ -1,4 +1,12 @@
-import { Popover, Select, Stack, Text, Switch, Group, UnstyledButton } from "@mantine/core";
+import {
+  Popover,
+  Select,
+  Stack,
+  Text,
+  Switch,
+  Group,
+  UnstyledButton,
+} from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { IBase, IBaseView } from "@/ee/base/types/base.types";
 import { useUpdateViewMutation } from "@/ee/base/queries/base-view-query";
@@ -13,7 +21,12 @@ type KanbanGroupByPickerProps = {
   children: React.ReactNode;
 };
 
-export function KanbanGroupByPicker({ base, view, pageId, children }: KanbanGroupByPickerProps) {
+export function KanbanGroupByPicker({
+  base,
+  view,
+  pageId,
+  children,
+}: KanbanGroupByPickerProps) {
   const { t } = useTranslation();
   const updateView = useUpdateViewMutation();
   const { allGroups, hasValidGroupBy } = useKanbanColumns(base, view);
@@ -35,7 +48,11 @@ export function KanbanGroupByPicker({ base, view, pageId, children }: KanbanGrou
     const next = currentlyHidden
       ? current.filter((k) => k !== key)
       : [...current, key];
-    updateView.mutate({ viewId: view.id, pageId, config: { hiddenChoiceIds: next } });
+    updateView.mutate({
+      viewId: view.id,
+      pageId,
+      config: { hiddenChoiceIds: next },
+    });
   };
 
   return (
@@ -90,7 +107,11 @@ export function KanbanGroupByPicker({ base, view, pageId, children }: KanbanGrou
                         />
                         <Text
                           size="sm"
-                          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                          style={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
                         >
                           {g.isNoValue ? t("No value") : g.name}
                         </Text>

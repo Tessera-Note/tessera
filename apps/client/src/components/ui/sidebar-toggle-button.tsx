@@ -1,9 +1,15 @@
 import React from "react";
 import {
   IconLayoutSidebarRightCollapse,
-  IconLayoutSidebarRightExpand
+  IconLayoutSidebarRightExpand,
 } from "@tabler/icons-react";
-import { ActionIcon, BoxProps, ElementProps, MantineColor, MantineSize } from "@mantine/core";
+import {
+  ActionIcon,
+  BoxProps,
+  ElementProps,
+  MantineColor,
+  MantineSize,
+} from "@mantine/core";
 
 export interface SidebarToggleProps extends BoxProps, ElementProps<"button"> {
   size?: MantineSize | `compact-${MantineSize}` | (string & {});
@@ -29,7 +35,7 @@ const SidebarToggle = React.forwardRef<HTMLButtonElement, SidebarToggleProps>(
         )}
       </ActionIcon>
     );
-  }
+  },
 );
 
 export default SidebarToggle;

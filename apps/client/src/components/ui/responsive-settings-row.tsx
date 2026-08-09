@@ -5,7 +5,9 @@ interface ResponsiveSettingsRowProps {
   children: React.ReactNode;
 }
 
-export function ResponsiveSettingsRow({ children }: ResponsiveSettingsRowProps) {
+export function ResponsiveSettingsRow({
+  children,
+}: ResponsiveSettingsRowProps) {
   return (
     <Box
       style={{
@@ -26,22 +28,18 @@ interface ResponsiveSettingsContentProps {
   children: React.ReactNode;
 }
 
-export function ResponsiveSettingsContent({ children }: ResponsiveSettingsContentProps) {
-  return (
-    <Box style={{ flex: "1 1 300px", minWidth: 0 }}>
-      {children}
-    </Box>
-  );
+export function ResponsiveSettingsContent({
+  children,
+}: ResponsiveSettingsContentProps) {
+  return <Box style={{ flex: "1 1 300px", minWidth: 0 }}>{children}</Box>;
 }
 
 interface ResponsiveSettingsControlProps {
   children: React.ReactNode;
 }
 
-export function ResponsiveSettingsControl({ children }: ResponsiveSettingsControlProps) {
-  return (
-    <Box style={{ flex: "0 0 auto" }}>
-      {children}
-    </Box>
-  );
+export function ResponsiveSettingsControl({
+  children,
+}: ResponsiveSettingsControlProps) {
+  return <Box style={{ flex: "0 0 auto" }}>{children}</Box>;
 }

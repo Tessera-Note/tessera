@@ -31,9 +31,9 @@ export const useQuerySubscription = () => {
           });
           break;
         case "commentCreated": {
-          const createCache = queryClient.getQueryData(
-            RQ_KEY(data.pageId),
-          ) as InfiniteData<IPagination<IComment>> | undefined;
+          const createCache = queryClient.getQueryData(RQ_KEY(data.pageId)) as
+            | InfiniteData<IPagination<IComment>>
+            | undefined;
 
           if (createCache && createCache.pages.length > 0) {
             const alreadyExists = createCache.pages.some((page) =>
@@ -55,9 +55,9 @@ export const useQuerySubscription = () => {
         }
         case "commentUpdated":
         case "commentResolved": {
-          const updateCache = queryClient.getQueryData(
-            RQ_KEY(data.pageId),
-          ) as InfiniteData<IPagination<IComment>> | undefined;
+          const updateCache = queryClient.getQueryData(RQ_KEY(data.pageId)) as
+            | InfiniteData<IPagination<IComment>>
+            | undefined;
 
           if (updateCache) {
             queryClient.setQueryData(RQ_KEY(data.pageId), {
@@ -73,9 +73,9 @@ export const useQuerySubscription = () => {
           break;
         }
         case "commentDeleted": {
-          const deleteCache = queryClient.getQueryData(
-            RQ_KEY(data.pageId),
-          ) as InfiniteData<IPagination<IComment>> | undefined;
+          const deleteCache = queryClient.getQueryData(RQ_KEY(data.pageId)) as
+            | InfiniteData<IPagination<IComment>>
+            | undefined;
 
           if (deleteCache) {
             queryClient.setQueryData(RQ_KEY(data.pageId), {

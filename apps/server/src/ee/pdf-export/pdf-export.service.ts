@@ -74,7 +74,8 @@ export class PdfExportService {
 
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
-    @InjectQueue(QueueName.FILE_TASK_QUEUE) private readonly fileTaskQueue: Queue,
+    @InjectQueue(QueueName.FILE_TASK_QUEUE)
+    private readonly fileTaskQueue: Queue,
     private readonly storageService: StorageService,
     private readonly environmentService: EnvironmentService,
     private readonly tokenService: TokenService,
@@ -332,7 +333,7 @@ export class PdfExportService {
     // earlier yields a blank or half-drawn document.
     form.append(
       'waitForExpression',
-      "document.querySelector('[data-pdf-ready=\"true\"]') !== null",
+      'document.querySelector(\'[data-pdf-ready="true"]\') !== null',
     );
     form.append(
       'footer',

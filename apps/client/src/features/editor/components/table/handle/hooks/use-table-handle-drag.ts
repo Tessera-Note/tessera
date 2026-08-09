@@ -66,8 +66,8 @@ export function useTableHandleDrag(
       // scroll horizontally) — registering twice on the same wrapper
       // triggers a dev-mode warning from pragmatic-dnd-auto-scroll.
       orientation === "col" &&
-      wrapper &&
-      !wrapper.classList.contains("tableWrapperNoOverflow")
+        wrapper &&
+        !wrapper.classList.contains("tableWrapperNoOverflow")
         ? autoScrollForElements({
             element: wrapper,
             getAllowedAxis: () => "horizontal",

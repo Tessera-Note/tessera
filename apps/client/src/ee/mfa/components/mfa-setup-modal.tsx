@@ -38,6 +38,7 @@ import { useTranslation } from "react-i18next";
 import { setupMfa, enableMfa } from "@/ee/mfa";
 import { zod4Resolver } from "mantine-form-zod-resolver";
 import { z } from "zod/v4";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 interface MfaSetupModalProps {
   opened: boolean;
@@ -84,7 +85,7 @@ export function MfaSetupModal({
     onError: (error: any) => {
       notifications.show({
         title: t("Error"),
-        message: error.response?.data?.message || t("Failed to setup MFA"),
+        message: getApiErrorMessage(error, t("Failed to setup MFA")),
         color: "red",
       });
     },
@@ -109,8 +110,7 @@ export function MfaSetupModal({
     onError: (error: any) => {
       notifications.show({
         title: t("Error"),
-        message:
-          error.response?.data?.message || t("Invalid verification code"),
+        message: getApiErrorMessage(error, t("Invalid verification code")),
         color: "red",
       });
       form.setFieldValue("verificationCode", "");

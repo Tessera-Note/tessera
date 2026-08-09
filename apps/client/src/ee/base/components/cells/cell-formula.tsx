@@ -1,8 +1,5 @@
 import { Badge, Tooltip } from "@mantine/core";
-import {
-  IBaseProperty,
-  isFormulaErrorCell,
-} from "@/ee/base/types/base.types";
+import { IBaseProperty, isFormulaErrorCell } from "@/ee/base/types/base.types";
 import { CellText } from "./cell-text";
 import { CellNumber } from "./cell-number";
 import { CellCheckbox } from "./cell-checkbox";

@@ -1,7 +1,14 @@
 import { BubbleMenu as BaseBubbleMenu } from "@tiptap/react/menus";
 import { notifications } from "@mantine/notifications";
 import { findParentNode, posToDOMRect, useEditorState } from "@tiptap/react";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Node as PMNode } from "@tiptap/pm/model";
 import { isEditorReady } from "@tessera/editor-ext";
 import {
@@ -346,91 +353,99 @@ export function ExcalidrawMenu({ editor }: EditorMenuProps) {
           altTextPanel
         ) : (
           <div className={classes.toolbar}>
-          <Tooltip position="top" label={t("Align left")} withinPortal={false}>
-            <ActionIcon
-              onClick={alignLeft}
-              size="lg"
-              aria-label={t("Align left")}
-              variant="subtle"
-              className={clsx({
-                [classes.active]: editorState?.isAlignLeft,
-              })}
+            <Tooltip
+              position="top"
+              label={t("Align left")}
+              withinPortal={false}
             >
-              <IconLayoutAlignLeft size={18} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={alignLeft}
+                size="lg"
+                aria-label={t("Align left")}
+                variant="subtle"
+                className={clsx({
+                  [classes.active]: editorState?.isAlignLeft,
+                })}
+              >
+                <IconLayoutAlignLeft size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip
-            position="top"
-            label={t("Align center")}
-            withinPortal={false}
-          >
-            <ActionIcon
-              onClick={alignCenter}
-              size="lg"
-              aria-label={t("Align center")}
-              variant="subtle"
-              className={clsx({
-                [classes.active]: editorState?.isAlignCenter,
-              })}
+            <Tooltip
+              position="top"
+              label={t("Align center")}
+              withinPortal={false}
             >
-              <IconLayoutAlignCenter size={18} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={alignCenter}
+                size="lg"
+                aria-label={t("Align center")}
+                variant="subtle"
+                className={clsx({
+                  [classes.active]: editorState?.isAlignCenter,
+                })}
+              >
+                <IconLayoutAlignCenter size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip position="top" label={t("Align right")} withinPortal={false}>
-            <ActionIcon
-              onClick={alignRight}
-              size="lg"
-              aria-label={t("Align right")}
-              variant="subtle"
-              className={clsx({
-                [classes.active]: editorState?.isAlignRight,
-              })}
+            <Tooltip
+              position="top"
+              label={t("Align right")}
+              withinPortal={false}
             >
-              <IconLayoutAlignRight size={18} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={alignRight}
+                size="lg"
+                aria-label={t("Align right")}
+                variant="subtle"
+                className={clsx({
+                  [classes.active]: editorState?.isAlignRight,
+                })}
+              >
+                <IconLayoutAlignRight size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <div className={classes.divider} />
+            <div className={classes.divider} />
 
-          {altTextButton}
+            {altTextButton}
 
-          <div className={classes.divider} />
+            <div className={classes.divider} />
 
-          <Tooltip position="top" label={t("Edit")} withinPortal={false}>
-            <ActionIcon
-              onClick={handleOpen}
-              size="lg"
-              aria-label={t("Edit")}
-              variant="subtle"
-              loading={isLoading}
-            >
-              <IconEdit size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Edit")} withinPortal={false}>
+              <ActionIcon
+                onClick={handleOpen}
+                size="lg"
+                aria-label={t("Edit")}
+                variant="subtle"
+                loading={isLoading}
+              >
+                <IconEdit size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip position="top" label={t("Download")} withinPortal={false}>
-            <ActionIcon
-              onClick={handleDownload}
-              size="lg"
-              aria-label={t("Download")}
-              variant="subtle"
-            >
-              <IconDownload size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Download")} withinPortal={false}>
+              <ActionIcon
+                onClick={handleDownload}
+                size="lg"
+                aria-label={t("Download")}
+                variant="subtle"
+              >
+                <IconDownload size={18} />
+              </ActionIcon>
+            </Tooltip>
 
-          <Tooltip position="top" label={t("Delete")} withinPortal={false}>
-            <ActionIcon
-              onClick={handleDelete}
-              size="lg"
-              aria-label={t("Delete")}
-              variant="subtle"
-            >
-              <IconTrash size={18} />
-            </ActionIcon>
-          </Tooltip>
+            <Tooltip position="top" label={t("Delete")} withinPortal={false}>
+              <ActionIcon
+                onClick={handleDelete}
+                size="lg"
+                aria-label={t("Delete")}
+                variant="subtle"
+              >
+                <IconTrash size={18} />
+              </ActionIcon>
+            </Tooltip>
           </div>
         )}
       </BaseBubbleMenu>
@@ -457,7 +472,11 @@ export function ExcalidrawMenu({ editor }: EditorMenuProps) {
           bg="var(--mantine-color-body)"
           p="xs"
         >
-          <Button onClick={handleSaveAndExit} size={"compact-sm"} loading={isSaving}>
+          <Button
+            onClick={handleSaveAndExit}
+            size={"compact-sm"}
+            loading={isSaving}
+          >
             {t("Save & Exit")}
           </Button>
           <Button onClick={handleClose} color="red" size={"compact-sm"}>

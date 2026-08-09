@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function EnableAiChat() {
   const { t } = useTranslation();
@@ -48,7 +49,7 @@ function AiChatToggle() {
       setWorkspace(updatedWorkspace);
     } catch (err: any) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

@@ -32,7 +32,13 @@ type PublishTabProps = {
   spaceSharingDisabled?: boolean;
 };
 
-export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDisabled, spaceSharingDisabled }: PublishTabProps) {
+export function PublishTab({
+  pageId,
+  readOnly,
+  isRestricted,
+  workspaceSharingDisabled,
+  spaceSharingDisabled,
+}: PublishTabProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pageSlug, spaceSlug } = useParams();

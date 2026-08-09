@@ -41,7 +41,11 @@ const SUGGESTIONS: Suggestion[] = [
 
 type Props = {
   isStreaming: boolean;
-  onSend: (content: string, mentions: PageMention[], attachments: ChatAttachment[]) => void;
+  onSend: (
+    content: string,
+    mentions: PageMention[],
+    attachments: ChatAttachment[],
+  ) => void;
   onStop: () => void;
 };
 

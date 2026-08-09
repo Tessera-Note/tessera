@@ -213,7 +213,9 @@ describe('ScimUserService, список', () => {
   it('фильтр по userName доходит до запроса', async () => {
     const { service, scimUserRepo } = build();
 
-    await service.list(WORKSPACE, { filter: 'userName eq "petrov@tessera.com"' });
+    await service.list(WORKSPACE, {
+      filter: 'userName eq "petrov@tessera.com"',
+    });
 
     expect(scimUserRepo.list.mock.calls[0][1].email).toBe('petrov@tessera.com');
   });
@@ -246,7 +248,11 @@ describe('ScimUserService, заведение', () => {
     });
 
     const resource: any = await service.create(
-      { userName: 'new@tessera.com', externalId: 'ext-1', displayName: 'Новый' },
+      {
+        userName: 'new@tessera.com',
+        externalId: 'ext-1',
+        displayName: 'Новый',
+      },
       WORKSPACE,
       TOKEN,
     );
@@ -292,7 +298,10 @@ describe('ScimUserService, заведение', () => {
     const { service, userRepo } = build({ rows: [] });
 
     await service.create(
-      { userName: 'new@tessera.com', name: { givenName: 'Иван', familyName: 'Петров' } },
+      {
+        userName: 'new@tessera.com',
+        name: { givenName: 'Иван', familyName: 'Петров' },
+      },
       WORKSPACE,
       TOKEN,
     );
@@ -436,7 +445,11 @@ describe('ScimUserService, совпадение адреса с существу
     const { service } = build({ rows: [row({ scimExternalId: 'ext-1' })] });
 
     const error = await service
-      .create({ userName: 'petrov@tessera.com', externalId: 'ext-2' }, WORKSPACE, TOKEN)
+      .create(
+        { userName: 'petrov@tessera.com', externalId: 'ext-2' },
+        WORKSPACE,
+        TOKEN,
+      )
       .catch((e) => e);
 
     expect(error).toBeInstanceOf(ConflictException);
@@ -484,7 +497,12 @@ describe('ScimUserService, регистр адреса', () => {
     });
 
     await expect(
-      service.replace('u-1', { userName: 'занят@tessera.com' }, WORKSPACE, TOKEN),
+      service.replace(
+        'u-1',
+        { userName: 'занят@tessera.com' },
+        WORKSPACE,
+        TOKEN,
+      ),
     ).rejects.toThrow(ConflictException);
   });
 });
@@ -510,7 +528,9 @@ describe('ScimUserService, замена', () => {
    * новый сотрудник.
    */
   it('отсутствующий в теле externalId сохраняется', async () => {
-    const { service, rows } = build({ rows: [row({ scimExternalId: 'ext-3' })] });
+    const { service, rows } = build({
+      rows: [row({ scimExternalId: 'ext-3' })],
+    });
 
     await service.replace(
       'u-1',
@@ -528,13 +548,21 @@ describe('ScimUserService, замена', () => {
     });
 
     await expect(
-      service.replace('u-1', { userName: 'занят@tessera.com' }, WORKSPACE, TOKEN),
+      service.replace(
+        'u-1',
+        { userName: 'занят@tessera.com' },
+        WORKSPACE,
+        TOKEN,
+      ),
     ).rejects.toThrow(ConflictException);
   });
 
   it('чужой внешний идентификатор дает 409', async () => {
     const { service } = build({
-      rows: [row(), row({ id: 'u-2', email: 'b@tessera.com', scimExternalId: 'ext-9' })],
+      rows: [
+        row(),
+        row({ id: 'u-2', email: 'b@tessera.com', scimExternalId: 'ext-9' }),
+      ],
     });
 
     await expect(
@@ -648,7 +676,9 @@ describe('ScimUserService, частичное изменение', () => {
 
     await service.patch(
       'u-1',
-      patchOp([{ op: 'replace', path: 'userName', value: 'Новый@Tessera.com' }]),
+      patchOp([
+        { op: 'replace', path: 'userName', value: 'Новый@Tessera.com' },
+      ]),
       WORKSPACE,
       TOKEN,
     );
@@ -671,7 +701,9 @@ describe('ScimUserService, частичное изменение', () => {
   });
 
   it('не переданные поля остаются прежними', async () => {
-    const { service, rows } = build({ rows: [row({ scimExternalId: 'ext-5' })] });
+    const { service, rows } = build({
+      rows: [row({ scimExternalId: 'ext-5' })],
+    });
 
     await service.patch(
       'u-1',
@@ -815,7 +847,10 @@ describe('ScimUserService, последний владелец', () => {
   });
 
   it('обычного участника запрет не касается', async () => {
-    const { service, rows } = build({ rows: [row({ role: 'member' })], owners: 1 });
+    const { service, rows } = build({
+      rows: [row({ role: 'member' })],
+      owners: 1,
+    });
 
     await service.deactivate('u-1', WORKSPACE, TOKEN);
 

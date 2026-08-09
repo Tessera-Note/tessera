@@ -1,5 +1,5 @@
 import { atomWithWebStorage } from "@/lib/jotai-helper.ts";
-import { atom } from 'jotai';
+import { atom } from "jotai";
 
 export const tableOfContentAsideAtom = atomWithWebStorage<boolean>(
   "showTOC",

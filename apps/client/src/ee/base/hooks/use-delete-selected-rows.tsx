@@ -40,11 +40,7 @@ export function useDeleteSelectedRows(pageId: string) {
     modals.openConfirmModal({
       title: t("Delete {{count}} rows?", { count: ids.length }),
       centered: true,
-      children: (
-        <Text size="sm">
-          {t("This action cannot be undone.")}
-        </Text>
-      ),
+      children: <Text size="sm">{t("This action cannot be undone.")}</Text>,
       labels: { confirm: t("Delete"), cancel: t("Cancel") },
       confirmProps: { color: "red" },
       onConfirm: () => void runDelete(ids),

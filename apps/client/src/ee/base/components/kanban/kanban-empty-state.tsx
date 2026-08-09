@@ -13,7 +13,12 @@ type KanbanEmptyStateProps = {
   editable: boolean;
 };
 
-export function KanbanEmptyState({ base, view, pageId, editable }: KanbanEmptyStateProps) {
+export function KanbanEmptyState({
+  base,
+  view,
+  pageId,
+  editable,
+}: KanbanEmptyStateProps) {
   const { t } = useTranslation();
   const updateView = useUpdateViewMutation();
   const createProperty = useCreatePropertyMutation();
@@ -30,7 +35,11 @@ export function KanbanEmptyState({ base, view, pageId, editable }: KanbanEmptySt
   const handleSelect = useCallback(
     (value: string | null) => {
       if (!value) return;
-      updateView.mutate({ viewId: view.id, pageId, config: { groupByPropertyId: value } });
+      updateView.mutate({
+        viewId: view.id,
+        pageId,
+        config: { groupByPropertyId: value },
+      });
     },
     [updateView, view.id, pageId],
   );
@@ -46,9 +55,24 @@ export function KanbanEmptyState({ base, view, pageId, editable }: KanbanEmptySt
         type: "status",
         typeOptions: {
           choices: [
-            { id: todoId, name: t("Not started"), color: "gray", category: "todo" },
-            { id: inProgressId, name: t("In progress"), color: "blue", category: "inProgress" },
-            { id: completeId, name: t("Done"), color: "green", category: "complete" },
+            {
+              id: todoId,
+              name: t("Not started"),
+              color: "gray",
+              category: "todo",
+            },
+            {
+              id: inProgressId,
+              name: t("In progress"),
+              color: "blue",
+              category: "inProgress",
+            },
+            {
+              id: completeId,
+              name: t("Done"),
+              color: "green",
+              category: "complete",
+            },
           ],
           choiceOrder: [todoId, inProgressId, completeId],
         },
@@ -75,7 +99,9 @@ export function KanbanEmptyState({ base, view, pageId, editable }: KanbanEmptySt
 
   return (
     <Stack align="center" gap="md" style={{ flex: 1, paddingTop: "15vh" }}>
-      <Text fw={500}>{t("Group this board by a select or status property.")}</Text>
+      <Text fw={500}>
+        {t("Group this board by a select or status property.")}
+      </Text>
       {groupableProperties.length > 0 ? (
         <Select
           placeholder={t("Choose a property")}

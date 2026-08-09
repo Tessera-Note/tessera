@@ -110,7 +110,8 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
   const fixedDateValid =
     mode !== "fixed" ||
     (!!fixedDate && new Date(fixedDate).getTime() > Date.now());
-  const canSaveExpiration = hasExpirationChange && periodValid && fixedDateValid;
+  const canSaveExpiration =
+    hasExpirationChange && periodValid && fixedDateValid;
 
   const storedFixedExpired =
     info.mode === "fixed" &&
@@ -197,16 +198,21 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
             </Text>
             {info.expiresAt && (
               <Text size="xs" c="dimmed">
-                {t(status === "expired" ? "Expired {{date}}" : "Expires {{date}}", {
-                  date: new Date(info.expiresAt).toLocaleDateString(
-                    i18n.language,
-                    {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    },
-                  ),
-                })}
+                {t(
+                  status === "expired"
+                    ? "Expired {{date}}"
+                    : "Expires {{date}}",
+                  {
+                    date: new Date(info.expiresAt).toLocaleDateString(
+                      i18n.language,
+                      {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      },
+                    ),
+                  },
+                )}
               </Text>
             )}
           </div>
@@ -257,9 +263,7 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
               onPeriodAmountChange={setPeriodAmount}
               onPeriodUnitChange={setPeriodUnit}
               onFixedDateChange={setFixedDate}
-              baseDate={
-                info.verifiedAt ? new Date(info.verifiedAt) : undefined
-              }
+              baseDate={info.verifiedAt ? new Date(info.verifiedAt) : undefined}
             />
             {hasExpirationChange && (
               <Button
@@ -392,8 +396,7 @@ function QmsManageContent({ pageId, info, onClose }: ManageContentProps) {
       ),
       labels: { confirm: t("Mark obsolete"), cancel: t("Cancel") },
       confirmProps: { color: "red" },
-      onConfirm: () =>
-        obsoleteMutation.mutate(pageId, { onSuccess: onClose }),
+      onConfirm: () => obsoleteMutation.mutate(pageId, { onSuccess: onClose }),
     });
   };
 

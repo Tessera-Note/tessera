@@ -30,7 +30,7 @@ export const SubpagesMenu = React.memo(
 
         return editor.isActive("subpages");
       },
-      [editor]
+      [editor],
     );
 
     const getReferenceClientRect = useCallback(() => {
@@ -77,7 +77,7 @@ export const SubpagesMenu = React.memo(
         </Tooltip>
       </BaseBubbleMenu>
     );
-  }
+  },
 );
 
 export default SubpagesMenu;

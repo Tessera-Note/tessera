@@ -3,12 +3,12 @@ import { getAppName } from "@/lib/config";
 import { Helmet } from "react-helmet-async";
 
 export default function ForgotPassword() {
-    return (
-        <>
-            <Helmet>
-                <title>Forgot Password - {getAppName()}</title>
-            </Helmet>
-            <ForgotPasswordForm />
-        </>
-    );
+  return (
+    <>
+      <Helmet>
+        <title>Forgot Password - {getAppName()}</title>
+      </Helmet>
+      <ForgotPasswordForm />
+    </>
+  );
 }

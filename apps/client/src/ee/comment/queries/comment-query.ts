@@ -39,7 +39,9 @@ export function useResolveCommentMutation() {
       await queryClient.cancelQueries({ queryKey: RQ_KEY(variables.pageId) });
       const previousCache = queryClient.getQueryData(RQ_KEY(variables.pageId));
 
-      const cache = previousCache as InfiniteData<IPagination<IComment>> | undefined;
+      const cache = previousCache as
+        | InfiniteData<IPagination<IComment>>
+        | undefined;
       if (cache) {
         queryClient.setQueryData(
           RQ_KEY(variables.pageId),
@@ -48,7 +50,11 @@ export function useResolveCommentMutation() {
             resolvedAt: variables.resolved ? new Date() : null,
             resolvedById: variables.resolved ? "optimistic" : null,
             resolvedBy: variables.resolved
-              ? ({ id: "optimistic", name: "", avatarUrl: null } as IComment["resolvedBy"])
+              ? ({
+                  id: "optimistic",
+                  name: "",
+                  avatarUrl: null,
+                } as IComment["resolvedBy"])
               : null,
           })),
         );
@@ -58,7 +64,10 @@ export function useResolveCommentMutation() {
     },
     onError: (_err, variables, context) => {
       if (context?.previousCache) {
-        queryClient.setQueryData(RQ_KEY(variables.pageId), context.previousCache);
+        queryClient.setQueryData(
+          RQ_KEY(variables.pageId),
+          context.previousCache,
+        );
       }
       notifications.show({
         message: t("Failed to resolve comment"),
@@ -66,9 +75,9 @@ export function useResolveCommentMutation() {
       });
     },
     onSuccess: (data: IComment, variables) => {
-      const cache = queryClient.getQueryData(
-        RQ_KEY(data.pageId),
-      ) as InfiniteData<IPagination<IComment>> | undefined;
+      const cache = queryClient.getQueryData(RQ_KEY(data.pageId)) as
+        | InfiniteData<IPagination<IComment>>
+        | undefined;
 
       if (cache) {
         queryClient.setQueryData(
@@ -89,4 +98,4 @@ export function useResolveCommentMutation() {
       });
     },
   });
-} 
+}

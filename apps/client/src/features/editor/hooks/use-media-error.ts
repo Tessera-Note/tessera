@@ -1,5 +1,8 @@
 import { useCallback, useState } from "react";
-import { mediaErrorMessage, resolveMediaErrorStatus } from "@tessera/editor-ext";
+import {
+  mediaErrorMessage,
+  resolveMediaErrorStatus,
+} from "@tessera/editor-ext";
 
 /**
  * Сообщение о недоступном вложении для узлов, которые рисуются React.

@@ -63,7 +63,10 @@ export const MarkdownClipboard = Extension.create({
             }
 
             if (isPlainTextOnly) {
-              if ((view as any).input?.shiftKey || !this.options.transformPastedText) {
+              if (
+                (view as any).input?.shiftKey ||
+                !this.options.transformPastedText
+              ) {
                 return false;
               }
 
@@ -91,8 +94,13 @@ export const MarkdownClipboard = Extension.create({
 
             tr.replaceRange(from, to, contentNodes);
             const insertEnd = tr.mapping.map(from, 1);
-            tr.setSelection(TextSelection.near(tr.doc.resolve(Math.max(from, insertEnd - 2)), -1));
-            tr.setMeta('paste', true)
+            tr.setSelection(
+              TextSelection.near(
+                tr.doc.resolve(Math.max(from, insertEnd - 2)),
+                -1,
+              ),
+            );
+            tr.setMeta("paste", true);
             view.dispatch(tr);
             return true;
           },

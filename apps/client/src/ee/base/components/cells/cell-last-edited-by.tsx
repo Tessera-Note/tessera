@@ -17,7 +17,7 @@ export function CellLastEditedBy({ value, property }: CellLastEditedByProps) {
   const userId = typeof value === "string" ? value : null;
 
   const store = useReferenceStore(property.pageId);
-  const user = userId ? store.users[userId] ?? null : null;
+  const user = userId ? (store.users[userId] ?? null) : null;
 
   if (!userId) {
     return <span className={cellClasses.emptyValue} />;

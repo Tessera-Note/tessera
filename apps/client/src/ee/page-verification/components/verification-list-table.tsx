@@ -28,22 +28,53 @@ type VerificationListTableProps = {
   isLoading: boolean;
 };
 
-function statusBadge(status: VerificationStatus | null, t: (s: string) => string) {
+function statusBadge(
+  status: VerificationStatus | null,
+  t: (s: string) => string,
+) {
   switch (status) {
     case "verified":
-      return <Badge color="green" variant="light" size="sm">{t("Verified")}</Badge>;
+      return (
+        <Badge color="green" variant="light" size="sm">
+          {t("Verified")}
+        </Badge>
+      );
     case "expiring":
-      return <Badge color="orange" variant="light" size="sm">{t("Expiring")}</Badge>;
+      return (
+        <Badge color="orange" variant="light" size="sm">
+          {t("Expiring")}
+        </Badge>
+      );
     case "expired":
-      return <Badge color="red" variant="light" size="sm">{t("Expired")}</Badge>;
+      return (
+        <Badge color="red" variant="light" size="sm">
+          {t("Expired")}
+        </Badge>
+      );
     case "approved":
-      return <Badge color="green" variant="light" size="sm">{t("Approved")}</Badge>;
+      return (
+        <Badge color="green" variant="light" size="sm">
+          {t("Approved")}
+        </Badge>
+      );
     case "draft":
-      return <Badge color="gray" variant="light" size="sm">{t("Draft")}</Badge>;
+      return (
+        <Badge color="gray" variant="light" size="sm">
+          {t("Draft")}
+        </Badge>
+      );
     case "in_approval":
-      return <Badge color="blue" variant="light" size="sm">{t("In approval")}</Badge>;
+      return (
+        <Badge color="blue" variant="light" size="sm">
+          {t("In approval")}
+        </Badge>
+      );
     case "obsolete":
-      return <Badge color="red" variant="light" size="sm">{t("Obsolete")}</Badge>;
+      return (
+        <Badge color="red" variant="light" size="sm">
+          {t("Obsolete")}
+        </Badge>
+      );
     default:
       return null;
   }

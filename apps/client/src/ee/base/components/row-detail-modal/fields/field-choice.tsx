@@ -7,7 +7,12 @@ import { FieldProps, FieldShell } from "./detail-field";
 import classes from "@/ee/base/styles/row-detail-modal.module.css";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 
-export function FieldChoice({ property, value, readOnly, onChange }: FieldProps) {
+export function FieldChoice({
+  property,
+  value,
+  readOnly,
+  onChange,
+}: FieldProps) {
   const [opened, setOpened] = useState(false);
   const multiple = property.type === "multiSelect";
   const choices =

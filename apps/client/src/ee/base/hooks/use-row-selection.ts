@@ -32,7 +32,11 @@ export function useRowSelection(pageId: string) {
       const { shiftKey, rowIndex, orderedRowIds } = opts;
       const next = new Set(selectedIds);
 
-      if (shiftKey && lastToggledIndex !== null && lastToggledIndex !== rowIndex) {
+      if (
+        shiftKey &&
+        lastToggledIndex !== null &&
+        lastToggledIndex !== rowIndex
+      ) {
         const start = Math.min(lastToggledIndex, rowIndex);
         const end = Math.max(lastToggledIndex, rowIndex);
         const anchorId = orderedRowIds[lastToggledIndex];

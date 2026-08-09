@@ -1,6 +1,9 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useStore, type PrimitiveAtom } from "jotai";
-import { pendingTypeInsertAtom, type PendingTypeInsert } from "@/ee/base/atoms/base-atoms";
+import {
+  pendingTypeInsertAtom,
+  type PendingTypeInsert,
+} from "@/ee/base/atoms/base-atoms";
 
 export type UseEditableTextCellParams = {
   value: unknown;
@@ -51,7 +54,10 @@ export function useEditableTextCell({
         pending.propertyId === propertyId;
       const nextDraft = seeded ? pending.char : toDraftRef.current(value);
       if (seeded) {
-        store.set(pendingTypeInsertAtom as PrimitiveAtom<PendingTypeInsert>, null);
+        store.set(
+          pendingTypeInsertAtom as PrimitiveAtom<PendingTypeInsert>,
+          null,
+        );
       }
       setDraft(nextDraft);
       const el = inputRef.current;

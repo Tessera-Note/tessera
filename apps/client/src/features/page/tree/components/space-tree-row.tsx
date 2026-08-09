@@ -79,9 +79,7 @@ export function SpaceTreeRow({
   };
 
   const handleUpdateNodeIcon = (nodeId: string, newIcon: string | null) => {
-    setTreeData((prev) =>
-      updateTreeNodeIcon(prev, nodeId, newIcon),
-    );
+    setTreeData((prev) => updateTreeNodeIcon(prev, nodeId, newIcon));
   };
 
   const handleEmojiIconClick = (e: React.MouseEvent) => {
@@ -91,7 +89,10 @@ export function SpaceTreeRow({
 
   const handleEmojiSelect = (emoji: { native: string }) => {
     handleUpdateNodeIcon(node.id, emoji.native);
-    void updatePageMutation.mutateAsync({ pageId: node.id, icon: emoji.native });
+    void updatePageMutation.mutateAsync({
+      pageId: node.id,
+      icon: emoji.native,
+    });
   };
 
   const handleRemoveEmoji = () => {
@@ -153,7 +154,9 @@ export function SpaceTreeRow({
         />
       </div>
 
-      <span className={classes.text}>{getPageTitle(node.name, node.isBase, t)}</span>
+      <span className={classes.text}>
+        {getPageTitle(node.name, node.isBase, t)}
+      </span>
 
       <div className={classes.actions}>
         <NodeMenu node={node} canEdit={canEdit} />
@@ -260,7 +263,9 @@ function CreateNode({
       variant="subtle"
       color="gray"
       className={classes.actionIcon}
-      aria-label={t("Create subpage of {{name}}", { name: node.name || t("untitled") })}
+      aria-label={t("Create subpage of {{name}}", {
+        name: node.name || t("untitled"),
+      })}
       tabIndex={-1}
       onClick={(e) => {
         e.preventDefault();

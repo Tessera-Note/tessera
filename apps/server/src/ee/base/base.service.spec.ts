@@ -12,7 +12,6 @@ function jsonbPayload(expression: any): any {
   return JSON.parse(value.value);
 }
 
-
 function buildService(
   options: {
     existingProperties?: any[];
@@ -562,7 +561,12 @@ describe('BaseService, форма jsonb во всех точках записи'
     const { service, inserts } = buildService();
 
     await service.createProperty(
-      { pageId: 'page-1', name: 'Поле', type: 'select', typeOptions: { choices: [] } } as any,
+      {
+        pageId: 'page-1',
+        name: 'Поле',
+        type: 'select',
+        typeOptions: { choices: [] },
+      } as any,
       'ws-1',
     );
 
@@ -588,7 +592,11 @@ describe('BaseService, форма jsonb во всех точках записи'
     const { service, updates } = buildService();
 
     await service.updateProperty(
-      { pageId: 'page-1', propertyId: 'p1', typeOptions: { choices: [1] } } as any,
+      {
+        pageId: 'page-1',
+        propertyId: 'p1',
+        typeOptions: { choices: [1] },
+      } as any,
       'ws-1',
     );
 
@@ -651,7 +659,11 @@ describe('BaseService, форма jsonb во всех точках записи'
     const { service, updates } = buildService();
 
     await service.updateView(
-      { pageId: 'page-1', viewId: 'v1', config: { groupByPropertyId: 'p1' } } as any,
+      {
+        pageId: 'page-1',
+        viewId: 'v1',
+        config: { groupByPropertyId: 'p1' },
+      } as any,
       'ws-1',
     );
 
@@ -663,10 +675,17 @@ describe('BaseService, форма jsonb во всех точках записи'
 
   it('все пять методов поднимают версию схемы, кроме createRow', async () => {
     for (const run of [
-      (s: any) => s.createProperty({ pageId: 'page-1', name: 'П', type: 'text' }, 'ws-1'),
-      (s: any) => s.updateProperty({ pageId: 'page-1', propertyId: 'p1', name: 'П' }, 'ws-1'),
-      (s: any) => s.createView({ pageId: 'page-1', name: 'В' }, 'user-1', 'ws-1'),
-      (s: any) => s.updateView({ pageId: 'page-1', viewId: 'v1', name: 'В' }, 'ws-1'),
+      (s: any) =>
+        s.createProperty({ pageId: 'page-1', name: 'П', type: 'text' }, 'ws-1'),
+      (s: any) =>
+        s.updateProperty(
+          { pageId: 'page-1', propertyId: 'p1', name: 'П' },
+          'ws-1',
+        ),
+      (s: any) =>
+        s.createView({ pageId: 'page-1', name: 'В' }, 'user-1', 'ws-1'),
+      (s: any) =>
+        s.updateView({ pageId: 'page-1', viewId: 'v1', name: 'В' }, 'ws-1'),
     ]) {
       const { service, updates } = buildService();
       await run(service);

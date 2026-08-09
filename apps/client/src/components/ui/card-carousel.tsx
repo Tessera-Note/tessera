@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import classes from "./card-carousel.module.css";
@@ -39,7 +45,10 @@ export default function CardCarousel({ children, ariaLabel }: Props) {
   const scrollBy = (direction: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
-    el.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: "smooth" });
+    el.scrollBy({
+      left: direction * el.clientWidth * 0.85,
+      behavior: "smooth",
+    });
   };
 
   return (

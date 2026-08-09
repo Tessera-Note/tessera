@@ -232,9 +232,9 @@ describe('LdapService, отказы', () => {
   it('запись не найдена: общий отказ, без перечисления учетных записей', async () => {
     const { service } = build({ entries: [] });
 
-    await expect(login(service)).rejects.toThrow(
-      /Неверное имя пользователя или пароль/,
-    );
+    await expect(login(service)).rejects.toMatchObject({
+      response: { code: 'error.sso.credentials_invalid' },
+    });
   });
 
   it('неверный пароль пользователя дает тот же общий отказ', async () => {
@@ -285,9 +285,9 @@ describe('LdapService, отказы', () => {
       entries: [{ dn: ENTRY.dn, entryUUID: 'устойчивый-1' }],
     });
 
-    await expect(login(service)).rejects.toThrow(
-      /нет адреса электронной почты/,
-    );
+    await expect(login(service)).rejects.toMatchObject({
+      response: { code: 'error.sso.directory_no_email' },
+    });
   });
 });
 

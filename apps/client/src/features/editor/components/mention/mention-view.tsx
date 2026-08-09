@@ -91,9 +91,7 @@ export default function MentionView(props: NodeViewProps) {
           >
             <IconFileDescription size={18} />
           </ActionIcon>
-          <span className={classes.pageMentionText}>
-            {sharePageTitle}
-          </span>
+          <span className={classes.pageMentionText}>{sharePageTitle}</span>
         </Anchor>
       )}
 
@@ -141,9 +139,7 @@ export default function MentionView(props: NodeViewProps) {
           >
             <IconFileDescription size={18} />
           </ActionIcon>
-          <span className={classes.pageMentionText}>
-            {label}
-          </span>
+          <span className={classes.pageMentionText}>{label}</span>
         </Anchor>
       )}
 
@@ -151,7 +147,12 @@ export default function MentionView(props: NodeViewProps) {
         <Anchor
           component={Link}
           fw={500}
-          to={buildPageUrl(page?.space?.slug || spaceSlug, slugId, page?.title || label, anchorId)}
+          to={buildPageUrl(
+            page?.space?.slug || spaceSlug,
+            slugId,
+            page?.title || label,
+            anchorId,
+          )}
           onClick={handleClick}
           underline="never"
           className={classes.pageMentionLink}

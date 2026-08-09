@@ -59,7 +59,9 @@ export default function AsideChatPanel() {
 
   useEffect(() => {
     if (page && !chatId) {
-      setContextPages([{ id: page.id, title: page.title || "", slugId: page.slugId }]);
+      setContextPages([
+        { id: page.id, title: page.title || "", slugId: page.slugId },
+      ]);
     }
   }, [page, chatId]);
 
@@ -122,8 +124,13 @@ export default function AsideChatPanel() {
   }, [setAsideState]);
 
   const handleSend = useCallback(
-    (content: string, mentions: PageMention[], attachments: ChatAttachment[]) => {
-      const contextPageId = contextPages.length > 0 ? contextPages[0].id : undefined;
+    (
+      content: string,
+      mentions: PageMention[],
+      attachments: ChatAttachment[],
+    ) => {
+      const contextPageId =
+        contextPages.length > 0 ? contextPages[0].id : undefined;
       sendMessage(content, mentions, attachments, contextPageId);
     },
     [sendMessage, contextPages],
@@ -139,9 +146,21 @@ export default function AsideChatPanel() {
   const hasMessages = messages.length > 0 || isStreaming;
 
   const quickActions: QuickAction[] = [
-    { icon: <IconFileText size={16} />, label: t("Summarize this page"), prompt: "Summarize this page" },
-    { icon: <IconLanguage size={16} />, label: t("Translate this page"), prompt: "Translate this page" },
-    { icon: <IconSearch size={16} />, label: t("Analyze for insights"), prompt: "Analyze this page for insights" },
+    {
+      icon: <IconFileText size={16} />,
+      label: t("Summarize this page"),
+      prompt: "Summarize this page",
+    },
+    {
+      icon: <IconLanguage size={16} />,
+      label: t("Translate this page"),
+      prompt: "Translate this page",
+    },
+    {
+      icon: <IconSearch size={16} />,
+      label: t("Analyze for insights"),
+      prompt: "Analyze this page for insights",
+    },
   ];
 
   return (
@@ -166,7 +185,10 @@ export default function AsideChatPanel() {
             </UnstyledButton>
           </Popover.Target>
           <Popover.Dropdown>
-            <AsideChatHistory activeChatId={chatId} onSelect={handleSelectChat} />
+            <AsideChatHistory
+              activeChatId={chatId}
+              onSelect={handleSelectChat}
+            />
           </Popover.Dropdown>
         </Popover>
 
@@ -233,8 +255,14 @@ export default function AsideChatPanel() {
         </>
       ) : (
         <div className={classes.emptyState}>
-          <IconSparkles size={36} stroke={1.5} className={classes.emptyStateIcon} />
-          <div className={classes.emptyStateTitle}>{t("How can I help you today?")}</div>
+          <IconSparkles
+            size={36}
+            stroke={1.5}
+            className={classes.emptyStateIcon}
+          />
+          <div className={classes.emptyStateTitle}>
+            {t("How can I help you today?")}
+          </div>
           <div className={classes.quickActions}>
             {quickActions.map((action) => (
               <button

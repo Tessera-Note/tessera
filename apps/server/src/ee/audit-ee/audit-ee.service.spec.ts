@@ -62,7 +62,9 @@ function build(
         where: () => chain,
         execute: async () => [],
         executeTakeFirst: async () =>
-          'workspace' in options ? options.workspace : { auditRetentionDays: 90 },
+          'workspace' in options
+            ? options.workspace
+            : { auditRetentionDays: 90 },
       };
       return chain;
     },

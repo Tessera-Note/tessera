@@ -19,7 +19,9 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
   function KanbanCard({ base, view, row, columnKey, onOpen }, ref) {
     const { t } = useTranslation();
     const primary = base.properties.find((p) => p.isPrimary);
-    const title = primary ? (row.cells[primary.id] as string | undefined) : undefined;
+    const title = primary
+      ? (row.cells[primary.id] as string | undefined)
+      : undefined;
 
     const visibleIds = view.config?.visiblePropertyIds ?? [];
     const propertyOrder = view.config?.propertyOrder;
@@ -67,7 +69,9 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
         }}
       >
         {closestEdge === "top" && <BaseDropEdgeIndicator edge="top" />}
-        <div className={clsx(classes.cardTitle, !title && classes.cardUntitled)}>
+        <div
+          className={clsx(classes.cardTitle, !title && classes.cardUntitled)}
+        >
           {title || t("Untitled")}
         </div>
         {cardProps.map((property) => (

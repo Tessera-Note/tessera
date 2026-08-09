@@ -141,7 +141,9 @@ export default function SsoProviderList() {
                         <ActionIcon
                           variant="subtle"
                           color="gray"
-                          aria-label={t("Edit {{name}}", { name: provider.name })}
+                          aria-label={t("Edit {{name}}", {
+                            name: provider.name,
+                          })}
                           onClick={() => handleEdit(provider)}
                         >
                           <IconPencil size={16} />

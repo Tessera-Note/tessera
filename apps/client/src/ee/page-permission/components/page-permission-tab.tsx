@@ -89,12 +89,7 @@ export function PagePermissionTab({
       {hasInheritedRestriction && (
         <Paper className={classes.inheritedSection} p="sm" radius="sm">
           <Group gap="sm" wrap="nowrap">
-            <ThemeIcon
-              size="lg"
-              radius="sm"
-              variant="light"
-              color="orange"
-            >
+            <ThemeIcon size="lg" radius="sm" variant="light" color="orange">
               <IconShieldLock size={18} stroke={1.5} />
             </ThemeIcon>
             <Box style={{ flex: 1 }}>
@@ -118,7 +113,10 @@ export function PagePermissionTab({
                       <Text size="xs" fw={500} c="blue">
                         {restrictionInfo.inheritedFrom.title || t("Untitled")}
                       </Text>
-                      <IconArrowRight size={12} color="var(--mantine-color-blue-6)" />
+                      <IconArrowRight
+                        size={12}
+                        color="var(--mantine-color-blue-6)"
+                      />
                     </Group>
                   </Link>
                 )}

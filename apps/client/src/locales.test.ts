@@ -104,7 +104,10 @@ describe("словари i18next", () => {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           walk(full);
-        } else if (/\.tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        } else if (
+          /\.tsx?$/.test(entry.name) &&
+          !entry.name.endsWith(".d.ts")
+        ) {
           const text = fs.readFileSync(full, "utf8");
           for (const match of text.matchAll(call)) {
             used.add(match[2].replace(/\\"/g, '"').replace(/\\'/g, "'"));
@@ -128,19 +131,40 @@ describe("словари i18next", () => {
    * нужного суффикса нет, i18next падает на базовый ключ, а он написан под
    * одну форму, поэтому три числа из четырех выглядят неграмотно.
    */
-  it.each(MAINTAINED)("%s имеет формы few и many у плюральных основ", (locale) => {
-    const dict = readLocale(locale);
-    const stems = new Set(
-      Object.keys(source)
-        .filter((key) => PLURAL_SUFFIX.test(key))
-        .map((key) => key.replace(PLURAL_SUFFIX, "")),
+  it.each(MAINTAINED)(
+    "%s имеет формы few и many у плюральных основ",
+    (locale) => {
+      const dict = readLocale(locale);
+      const stems = new Set(
+        Object.keys(source)
+          .filter((key) => PLURAL_SUFFIX.test(key))
+          .map((key) => key.replace(PLURAL_SUFFIX, "")),
+      );
+
+      const incomplete = [...stems].filter((stem) =>
+        SLAVIC_FORMS.some((form) => !(`${stem}_${form}` in dict)),
+      );
+
+      expect(incomplete).toEqual([]);
+    },
+  );
+
+  /**
+   * Сервер отдает с отказом код, и этот же код служит ключом перевода. Код без
+   * ключа означает, что человек увидит английский запасной текст с сервера,
+   * причем молча: ни сборка, ни линт этого не заметят.
+   */
+  it("каждый код отказа сервера заведен в источнике", () => {
+    const catalogue = fs.readFileSync(
+      path.resolve(__dirname, "../../server/src/common/errors/app-error.ts"),
+      "utf8",
+    );
+    const codes = [...catalogue.matchAll(/'(error\.[\w.]+)':/g)].map(
+      (match) => match[1],
     );
 
-    const incomplete = [...stems].filter((stem) =>
-      SLAVIC_FORMS.some((form) => !(`${stem}_${form}` in dict)),
-    );
-
-    expect(incomplete).toEqual([]);
+    expect(codes.length).toBeGreaterThan(0);
+    expect(codes.filter((code) => !(code in source))).toEqual([]);
   });
 
   it.each(MAINTAINED)("%s покрывает источник целиком", (locale) => {

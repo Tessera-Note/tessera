@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function EnableAiSearch() {
   const { t } = useTranslation();
@@ -49,7 +50,7 @@ export function AiSearchToggle({ size, label }: AiSearchToggleProps) {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

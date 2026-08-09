@@ -1,7 +1,4 @@
-import {
-  IBaseProperty,
-  NumberTypeOptions,
-} from "@/ee/base/types/base.types";
+import { IBaseProperty, NumberTypeOptions } from "@/ee/base/types/base.types";
 import { formatCurrency } from "@/ee/base/constants/currencies";
 import { snapNumber } from "@tessera/base-formula/client";
 import { useEditableTextCell } from "@/ee/base/hooks/use-editable-text-cell";

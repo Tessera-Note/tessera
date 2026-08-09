@@ -15,6 +15,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function EnforceMfa() {
   const { t } = useTranslation();
@@ -54,7 +55,7 @@ export function EnforceMfaToggle({ size, label }: EnforceMfaToggleProps) {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

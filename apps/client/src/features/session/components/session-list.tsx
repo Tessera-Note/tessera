@@ -76,9 +76,7 @@ export default function SessionList() {
             <Text fw={500}>{t("Log out of all devices")}</Text>
             <Group justify="space-between" align="center" mt={4}>
               <Text size="sm" c="dimmed">
-                {t(
-                  "Log out of all sessions except this device",
-                )}
+                {t("Log out of all sessions except this device")}
               </Text>
               <Button
                 variant="outline"

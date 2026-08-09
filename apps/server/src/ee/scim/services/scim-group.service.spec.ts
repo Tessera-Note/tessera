@@ -221,7 +221,12 @@ describe('ScimGroupService, группа без externalId', () => {
     expect(groups[0].scimExternalId).toBeNull();
 
     await expect(
-      service.replace('g-new', { displayName: 'Аналитика 2' }, WORKSPACE, TOKEN),
+      service.replace(
+        'g-new',
+        { displayName: 'Аналитика 2' },
+        WORKSPACE,
+        TOKEN,
+      ),
     ).resolves.toBeDefined();
     expect(groups[0].name).toBe('Аналитика 2');
   });
@@ -670,7 +675,12 @@ describe('ScimGroupService, замена', () => {
       groups: [group({ description: 'Задано человеком' })],
     });
 
-    await service.replace('g-1', { displayName: 'Разработка' }, WORKSPACE, TOKEN);
+    await service.replace(
+      'g-1',
+      { displayName: 'Разработка' },
+      WORKSPACE,
+      TOKEN,
+    );
 
     expect(groups[0].description).toBe('Задано человеком');
   });

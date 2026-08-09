@@ -130,9 +130,7 @@ export default function TemplateEditor() {
 
   const spaceOptions = [
     ...(isWorkspaceAdmin
-      ? [
-          { group: t("Workspace"), items: [{ value: "", label: t("Global") }] },
-        ]
+      ? [{ group: t("Workspace"), items: [{ value: "", label: t("Global") }] }]
       : []),
     ...(spaces?.items?.length
       ? [
@@ -259,101 +257,101 @@ export default function TemplateEditor() {
 
       <div className={classes.header}>
         <Container size={900} h="100%" px={0}>
-        <Group justify="space-between" h="100%" wrap="nowrap">
-          <Link to="/templates" className={classes.backLink}>
-            <IconArrowLeft size={16} />
-            {t("Templates")}
-          </Link>
+          <Group justify="space-between" h="100%" wrap="nowrap">
+            <Link to="/templates" className={classes.backLink}>
+              <IconArrowLeft size={16} />
+              {t("Templates")}
+            </Link>
 
-          <Group gap="xs" wrap="nowrap">
-            {saveStatus === "saving" && (
-              <Text size="xs" c="dimmed">
-                {t("Saving...")}
-              </Text>
-            )}
-            {saveStatus === "saved" && (
-              <Group gap={4} wrap="nowrap">
-                <IconCheck size={14} color="var(--mantine-color-green-6)" />
+            <Group gap="xs" wrap="nowrap">
+              {saveStatus === "saving" && (
                 <Text size="xs" c="dimmed">
-                  {t("Saved")}
+                  {t("Saving...")}
                 </Text>
-              </Group>
-            )}
-            {saveStatus === "error" && (
-              <Text
-                size="xs"
-                c="red"
-                style={{ cursor: "pointer" }}
-                onClick={handleRetry}
-              >
-                {t("Save failed. Retry")}
-              </Text>
-            )}
-
-            <Popover
-              width={300}
-              position="bottom"
-              shadow="md"
-              opened={settingsOpened}
-              onDismiss={closeSettings}
-            >
-              <Popover.Target>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="md"
-                  aria-label={t("Template settings")}
-                  onClick={() => {
-                    setDraftSpaceId(spaceId);
-                    openSettings();
-                  }}
+              )}
+              {saveStatus === "saved" && (
+                <Group gap={4} wrap="nowrap">
+                  <IconCheck size={14} color="var(--mantine-color-green-6)" />
+                  <Text size="xs" c="dimmed">
+                    {t("Saved")}
+                  </Text>
+                </Group>
+              )}
+              {saveStatus === "error" && (
+                <Text
+                  size="xs"
+                  c="red"
+                  style={{ cursor: "pointer" }}
+                  onClick={handleRetry}
                 >
-                  <IconSettings size={18} />
-                </ActionIcon>
-              </Popover.Target>
-              <Popover.Dropdown>
-                <Stack gap="sm">
-                  <Select
-                    label={t("Scope")}
-                    description={t("Choose which space this template belongs to")}
-                    data={spaceOptions}
-                    value={draftSpaceId || ""}
-                    onChange={(val) =>
-                      setDraftSpaceId(val || null)
-                    }
-                    searchable
-                    size="sm"
-                    comboboxProps={{ withinPortal: false }}
-                  />
-                  <Group justify="flex-end" mt="xs">
-                    <Button
-                      variant="default"
-                      size="xs"
-                      onClick={closeSettings}
-                    >
-                      {t("Cancel")}
-                    </Button>
-                    <Button
-                      size="xs"
-                      onClick={() => {
-                        const scopeChanged = draftSpaceId !== spaceId;
-                        handleSpaceIdChange(draftSpaceId);
-                        closeSettings();
-                        if (scopeChanged) {
-                          notifications.show({
-                            message: t("Template scope updated"),
-                          });
-                        }
-                      }}
-                    >
-                      {t("Save")}
-                    </Button>
-                  </Group>
-                </Stack>
-              </Popover.Dropdown>
-            </Popover>
+                  {t("Save failed. Retry")}
+                </Text>
+              )}
+
+              <Popover
+                width={300}
+                position="bottom"
+                shadow="md"
+                opened={settingsOpened}
+                onDismiss={closeSettings}
+              >
+                <Popover.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="md"
+                    aria-label={t("Template settings")}
+                    onClick={() => {
+                      setDraftSpaceId(spaceId);
+                      openSettings();
+                    }}
+                  >
+                    <IconSettings size={18} />
+                  </ActionIcon>
+                </Popover.Target>
+                <Popover.Dropdown>
+                  <Stack gap="sm">
+                    <Select
+                      label={t("Scope")}
+                      description={t(
+                        "Choose which space this template belongs to",
+                      )}
+                      data={spaceOptions}
+                      value={draftSpaceId || ""}
+                      onChange={(val) => setDraftSpaceId(val || null)}
+                      searchable
+                      size="sm"
+                      comboboxProps={{ withinPortal: false }}
+                    />
+                    <Group justify="flex-end" mt="xs">
+                      <Button
+                        variant="default"
+                        size="xs"
+                        onClick={closeSettings}
+                      >
+                        {t("Cancel")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          const scopeChanged = draftSpaceId !== spaceId;
+                          handleSpaceIdChange(draftSpaceId);
+                          closeSettings();
+                          if (scopeChanged) {
+                            notifications.show({
+                              message: t("Template scope updated"),
+                            });
+                          }
+                        }}
+                      >
+                        {t("Save")}
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
+            </Group>
           </Group>
-        </Group>
         </Container>
       </div>
 
@@ -371,11 +369,11 @@ export default function TemplateEditor() {
                   <IconMoodSmile size={20} stroke={1.5} />
                 )
               }
-              removeEmojiAction={() =>
-                handleIconChange(null)
-              }
+              removeEmojiAction={() => handleIconChange(null)}
               readOnly={false}
-              actionIconProps={icon ? { size: "3rem", variant: "transparent" } : undefined}
+              actionIconProps={
+                icon ? { size: "3rem", variant: "transparent" } : undefined
+              }
             />
           </div>
           <input
@@ -383,9 +381,7 @@ export default function TemplateEditor() {
             placeholder={t("Untitled")}
             autoFocus
             value={title}
-            onChange={(e) =>
-              handleTitleChange(e.currentTarget.value)
-            }
+            onChange={(e) => handleTitleChange(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -394,9 +390,7 @@ export default function TemplateEditor() {
               }
             }}
           />
-          {existingTemplate && (
-            <TemplateMeta template={existingTemplate} />
-          )}
+          {existingTemplate && <TemplateMeta template={existingTemplate} />}
         </div>
         <EditorContent editor={editor} />
         {editor && (

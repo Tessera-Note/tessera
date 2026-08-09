@@ -29,13 +29,19 @@ export function useGridAutoScroll<T extends HTMLElement>(
 
     let lockedScrollLeft: number | null = null;
     const keepHorizontalScroll = () => {
-      if (lockedScrollLeft !== null && element.scrollLeft !== lockedScrollLeft) {
+      if (
+        lockedScrollLeft !== null &&
+        element.scrollLeft !== lockedScrollLeft
+      ) {
         element.scrollLeft = lockedScrollLeft;
       }
     };
 
     function speedForDepth(distanceFromEdge: number): number {
-      const depth = Math.min(1, (EARLY_PAN_MARGIN_PX - distanceFromEdge) / EARLY_PAN_MARGIN_PX);
+      const depth = Math.min(
+        1,
+        (EARLY_PAN_MARGIN_PX - distanceFromEdge) / EARLY_PAN_MARGIN_PX,
+      );
       return MIN_PAN_SPEED_PX + (MAX_PAN_SPEED_PX - MIN_PAN_SPEED_PX) * depth;
     }
 
@@ -74,13 +80,20 @@ export function useGridAutoScroll<T extends HTMLElement>(
           source.data?.pageId === pageId,
         getAllowedAxis: () => "horizontal" as const,
         getOverflow: () => ({
-          forLeftEdge: { left: EDGE_OUTWARD_REACH_PX, top: HEADER_BAND_REACH_PX },
-          forRightEdge: { right: EDGE_OUTWARD_REACH_PX, top: HEADER_BAND_REACH_PX },
+          forLeftEdge: {
+            left: EDGE_OUTWARD_REACH_PX,
+            top: HEADER_BAND_REACH_PX,
+          },
+          forRightEdge: {
+            right: EDGE_OUTWARD_REACH_PX,
+            top: HEADER_BAND_REACH_PX,
+          },
         }),
       }),
       monitorForElements({
         canMonitor: ({ source }) =>
-          source.data?.type === COLUMN_DRAG_TYPE && source.data?.pageId === pageId,
+          source.data?.type === COLUMN_DRAG_TYPE &&
+          source.data?.pageId === pageId,
         onDragStart: ({ location, source }) => {
           const cr = source.element.getBoundingClientRect();
           grabOffsetX = location.current.input.clientX - cr.left;

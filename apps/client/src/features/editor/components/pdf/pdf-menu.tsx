@@ -8,10 +8,7 @@ import {
   ShouldShowProps,
 } from "@/features/editor/components/table/types/types.ts";
 import { ActionIcon, Tooltip } from "@mantine/core";
-import {
-  IconPaperclip,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconPaperclip, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import classes from "../common/toolbar-menu.module.css";
 
@@ -116,7 +113,11 @@ export function PdfMenu({ editor }: EditorMenuProps) {
       shouldShow={shouldShow}
     >
       <div className={classes.toolbar}>
-        <Tooltip position="top" label={t("Convert to attachment")} withinPortal={false}>
+        <Tooltip
+          position="top"
+          label={t("Convert to attachment")}
+          withinPortal={false}
+        >
           <ActionIcon
             onClick={handleConvertToAttachment}
             size="lg"

@@ -48,7 +48,9 @@ function build(
       values: (v: any) => {
         inserted.push(v);
         return {
-          returningAll: () => ({ executeTakeFirst: async () => ({ ...v, id: 'new-1' }) }),
+          returningAll: () => ({
+            executeTakeFirst: async () => ({ ...v, id: 'new-1' }),
+          }),
         };
       },
     }),
@@ -164,7 +166,10 @@ describe('SsoService, секреты', () => {
   it('список тоже без секретов', async () => {
     const { service } = build({ rows: [OIDC] });
 
-    const result: any = await service.list(actorWith(UserRole.ADMIN), WORKSPACE);
+    const result: any = await service.list(
+      actorWith(UserRole.ADMIN),
+      WORKSPACE,
+    );
 
     expect(result.items[0].oidcClientSecret).toBeUndefined();
     expect(result.items[0].oidcClientSecretSet).toBe(true);
@@ -422,7 +427,7 @@ describe('SsoService, снятие связи с провайдером', () => 
 
     await expect(
       service.unlinkUser('нет-такого', OWNER, WORKSPACE),
-    ).rejects.toThrow(/Пользователь не найден/);
+    ).rejects.toMatchObject({ response: { code: 'error.sso.user_not_found' } });
   });
 
   // Без связей действие бессмысленно, и молчаливый успех вводил бы в
@@ -432,7 +437,9 @@ describe('SsoService, снятие связи с провайдером', () => 
 
     await expect(
       service.unlinkUser('user-7', OWNER, WORKSPACE),
-    ).rejects.toThrow(/нет связей с провайдерами входа/);
+    ).rejects.toMatchObject({
+      response: { code: 'error.sso.user_has_no_links' },
+    });
 
     expect(auditService.log).not.toHaveBeenCalled();
   });

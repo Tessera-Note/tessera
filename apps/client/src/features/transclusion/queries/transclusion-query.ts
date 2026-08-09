@@ -1,8 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  listReferences,
-  unsyncReference,
-} from "../services/transclusion-api";
+import { listReferences, unsyncReference } from "../services/transclusion-api";
 
 export function useReferencesQuery(
   sourcePageId: string | null,

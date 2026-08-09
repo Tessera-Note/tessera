@@ -138,9 +138,7 @@ export const eventFilterOptions: EventGroup[] = [
   },
   {
     group: "Comment",
-    items: [
-      { value: "comment.deleted", label: "Deleted comment" },
-    ],
+    items: [{ value: "comment.deleted", label: "Deleted comment" }],
   },
   {
     group: "Page",
@@ -154,9 +152,18 @@ export const eventFilterOptions: EventGroup[] = [
       { value: "page.restriction_removed", label: "Removed page restriction" },
       { value: "page.permission_added", label: "Added page permission" },
       { value: "page.permission_removed", label: "Removed page permission" },
-      { value: "page.verification_created", label: "Created page verification" },
-      { value: "page.verification_updated", label: "Updated page verification" },
-      { value: "page.verification_removed", label: "Removed page verification" },
+      {
+        value: "page.verification_created",
+        label: "Created page verification",
+      },
+      {
+        value: "page.verification_updated",
+        label: "Updated page verification",
+      },
+      {
+        value: "page.verification_removed",
+        label: "Removed page verification",
+      },
       { value: "page.verified", label: "Verified page" },
       { value: "page.approval_requested", label: "Requested page approval" },
       { value: "page.approval_rejected", label: "Rejected page approval" },

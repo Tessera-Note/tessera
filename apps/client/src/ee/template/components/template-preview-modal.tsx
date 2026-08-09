@@ -1,4 +1,12 @@
-import { Modal, Text, ScrollArea, Button, Group, Center, Loader } from "@mantine/core";
+import {
+  Modal,
+  Text,
+  ScrollArea,
+  Button,
+  Group,
+  Center,
+  Loader,
+} from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useGetTemplateByIdQuery } from "@/ee/template/queries/template-query";
 import ReadonlyTemplateEditor from "@/ee/template/components/readonly-template-editor";
@@ -26,7 +34,12 @@ export default function TemplatePreviewModal({
   const title = template?.title || t("Untitled");
 
   return (
-    <Modal.Root size={1200} opened={opened} onClose={onClose} aria-label={title}>
+    <Modal.Root
+      size={1200}
+      opened={opened}
+      onClose={onClose}
+      aria-label={title}
+    >
       <Modal.Overlay />
       <Modal.Content style={{ overflow: "hidden" }}>
         <Modal.Header>

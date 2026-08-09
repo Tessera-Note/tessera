@@ -2,10 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Popover } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import clsx from "clsx";
-import {
-  IBaseProperty,
-  PersonTypeOptions,
-} from "@/ee/base/types/base.types";
+import { IBaseProperty, PersonTypeOptions } from "@/ee/base/types/base.types";
 import {
   useReferenceStore,
   useHydrateUsers,
@@ -92,7 +89,14 @@ export function CellPerson({
         }
       }
     },
-    [suggestions, hydrateUsers, allowMultiple, personIds, onCommit, onValueChange],
+    [
+      suggestions,
+      hydrateUsers,
+      allowMultiple,
+      personIds,
+      onCommit,
+      onValueChange,
+    ],
   );
 
   const handleRemove = useCallback(
@@ -126,7 +130,16 @@ export function CellPerson({
         handleRemove(personIds[personIds.length - 1]);
       }
     },
-    [onCancel, handleNavKey, activeIndex, filteredMembers, handleSelect, search, personIds, handleRemove],
+    [
+      onCancel,
+      handleNavKey,
+      activeIndex,
+      filteredMembers,
+      handleSelect,
+      search,
+      personIds,
+      handleRemove,
+    ],
   );
 
   if (isEditing) {
@@ -179,7 +192,9 @@ export function CellPerson({
             <input
               ref={searchRef}
               className={cellClasses.personTagInput}
-              placeholder={personIds.length === 0 ? "Search for a person..." : ""}
+              placeholder={
+                personIds.length === 0 ? "Search for a person..." : ""
+              }
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
               onKeyDown={handleKeyDown}
@@ -203,7 +218,8 @@ export function CellPerson({
                   className={clsx(
                     cellClasses.selectOption,
                     isSelected && cellClasses.selectOptionActive,
-                    idx === activeIndex && cellClasses.selectOptionKeyboardActive,
+                    idx === activeIndex &&
+                      cellClasses.selectOptionKeyboardActive,
                   )}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onClick={() => handleSelect(member.id)}
@@ -244,4 +260,3 @@ export function CellPerson({
 
   return <PersonReadList personIds={personIds} users={store.users} />;
 }
-

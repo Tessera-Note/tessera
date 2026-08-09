@@ -11,7 +11,12 @@ import classes from "@/ee/base/styles/row-detail-modal.module.css";
 const toDraft = (value: unknown) =>
   typeof value === "number" ? String(value) : "";
 
-export function FieldNumber({ property, value, readOnly, onChange }: FieldProps) {
+export function FieldNumber({
+  property,
+  value,
+  readOnly,
+  onChange,
+}: FieldProps) {
   const typeOptions = property.typeOptions as NumberTypeOptions | undefined;
   const numValue = typeof value === "number" ? value : null;
   const [draft, setDraft] = useState(toDraft(value));

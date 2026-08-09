@@ -414,9 +414,7 @@ describe('ConfluenceImportService, архив во вложенной папке
     });
     jest
       .spyOn(fs, 'readdir')
-      .mockResolvedValue([
-        { name: 'OPS', isDirectory: () => true },
-      ] as any);
+      .mockResolvedValue([{ name: 'OPS', isDirectory: () => true }] as any);
 
     const db: any = {
       selectFrom: () => {

@@ -21,7 +21,11 @@ import { ResultPreview } from "./result-preview.tsx";
 import classes from "./ai-menu.module.css";
 import { marked } from "marked";
 import { DOMSerializer } from "@tiptap/pm/model";
-import { copyToClipboard, htmlToMarkdown, isEditorReady } from "@tessera/editor-ext";
+import {
+  copyToClipboard,
+  htmlToMarkdown,
+  isEditorReady,
+} from "@tessera/editor-ext";
 import { useLocation } from "react-router-dom";
 
 interface EditorAiMenuProps {
@@ -182,8 +186,8 @@ const EditorAiMenu = ({ editor }: EditorAiMenuProps): JSX.Element | null => {
         // then decode HTML entities via DOMParser since TipTap would otherwise
         // treat the tagless string as plain text and insert entities literally.
         const content = isSingleParagraph
-          ? new DOMParser().parseFromString(html.slice(3, -4), "text/html")
-              .body.innerHTML
+          ? new DOMParser().parseFromString(html.slice(3, -4), "text/html").body
+              .innerHTML
           : html;
 
         chain.insertContent(content).run();

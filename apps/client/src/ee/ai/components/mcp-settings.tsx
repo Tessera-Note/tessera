@@ -23,6 +23,7 @@ import { getAppUrl } from "@/lib/config.ts";
 import { IconCheck, IconCopy, IconInfoCircle } from "@tabler/icons-react";
 import { CopyButton } from "@/components/common/copy-button.tsx";
 import { getDocsUrl } from "@/lib/config.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function McpSettings() {
   const { t } = useTranslation();
@@ -41,7 +42,7 @@ export default function McpSettings() {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
@@ -51,9 +52,7 @@ export default function McpSettings() {
     <Stack gap="lg">
       {!hasAccess && (
         <Alert icon={<IconInfoCircle />} title={upgradeLabel} color="blue">
-          {t(
-            "MCP is only available in the Tessera enterprise edition.",
-          )}
+          {t("MCP is only available in the Tessera enterprise edition.")}
         </Alert>
       )}
 
@@ -67,7 +66,9 @@ export default function McpSettings() {
             <Trans
               i18nKey="View the <anchor>MCP documentation</anchor>."
               components={{
-                anchor: <Anchor href={getDocsUrl("mcp")} target="_blank" size="sm" />,
+                anchor: (
+                  <Anchor href={getDocsUrl("mcp")} target="_blank" size="sm" />
+                ),
               }}
             />
           </Text>

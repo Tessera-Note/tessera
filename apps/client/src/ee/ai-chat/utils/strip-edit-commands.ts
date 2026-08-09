@@ -11,5 +11,8 @@ const EDIT_COMMAND_RE =
 
 export function stripEditCommands(text?: string | null): string {
   if (!text) return "";
-  return text.replace(EDIT_COMMAND_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+  return text
+    .replace(EDIT_COMMAND_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

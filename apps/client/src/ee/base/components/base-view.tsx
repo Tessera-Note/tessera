@@ -60,12 +60,20 @@ type BaseViewProps = {
   titleSlot?: React.ReactNode;
 };
 
-export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseViewProps) {
+export function BaseView({
+  pageId,
+  embedded,
+  editable = true,
+  titleSlot,
+}: BaseViewProps) {
   const { t } = useTranslation();
   // Subscribe so other clients' edits, schema changes, and async-job completions reconcile into cache.
   useBaseSocket(pageId);
-  const { data: base, isLoading: baseLoading, error: baseError } =
-    useBaseQuery(pageId);
+  const {
+    data: base,
+    isLoading: baseLoading,
+    error: baseError,
+  } = useBaseQuery(pageId);
 
   const navigate = useNavigate();
   const { data: page } = usePageQuery({ pageId });
@@ -157,7 +165,11 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useBaseRowsQuery(base && !isKanban ? pageId : undefined, activeFilter, activeSorts);
+  } = useBaseRowsQuery(
+    base && !isKanban ? pageId : undefined,
+    activeFilter,
+    activeSorts,
+  );
 
   const updateRowMutation = useUpdateRowMutation();
   const createRowMutation = useCreateRowMutation();
@@ -236,17 +248,19 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
           onSuccess: (newRow) => {
             let propertyId = focusPropertyId;
             if (!propertyId) {
-              const firstEditable = table.getVisibleLeafColumns().find((col) => {
-                if (col.id === "__row_number") return false;
-                const prop = col.columnDef.meta?.property as
-                  | IBaseProperty
-                  | undefined;
-                return (
-                  !!prop &&
-                  prop.type !== "checkbox" &&
-                  !isSystemPropertyType(prop.type)
-                );
-              });
+              const firstEditable = table
+                .getVisibleLeafColumns()
+                .find((col) => {
+                  if (col.id === "__row_number") return false;
+                  const prop = col.columnDef.meta?.property as
+                    | IBaseProperty
+                    | undefined;
+                  return (
+                    !!prop &&
+                    prop.type !== "checkbox" &&
+                    !isSystemPropertyType(prop.type)
+                  );
+                });
               propertyId = (
                 firstEditable?.columnDef.meta?.property as
                   | IBaseProperty
@@ -261,7 +275,14 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
         },
       );
     },
-    [editable, pageId, createRowMutation, table, setEditingCell, setFocusedCell],
+    [
+      editable,
+      pageId,
+      createRowMutation,
+      table,
+      setEditingCell,
+      setFocusedCell,
+    ],
   );
 
   const handleViewChange = useCallback(

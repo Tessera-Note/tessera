@@ -60,8 +60,10 @@ export const LinkEditorPanel = ({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const hasUrlItem = state.url.length > 0 && (state.isValidUrl || state.isSearchQuery);
-      const total = (hasUrlItem ? 1 : 0) + (state.isValidUrl ? 0 : pages.length);
+      const hasUrlItem =
+        state.url.length > 0 && (state.isValidUrl || state.isSearchQuery);
+      const total =
+        (hasUrlItem ? 1 : 0) + (state.isValidUrl ? 0 : pages.length);
       if (total === 0) return;
 
       if (e.key === "ArrowDown") {
@@ -82,7 +84,15 @@ export const LinkEditorPanel = ({
         }
       }
     },
-    [pages, selectedIndex, selectPage, state.isValidUrl, state.isSearchQuery, state.url, onSetLink],
+    [
+      pages,
+      selectedIndex,
+      selectPage,
+      state.isValidUrl,
+      state.isSearchQuery,
+      state.url,
+      onSetLink,
+    ],
   );
 
   useEffect(() => {
@@ -92,14 +102,21 @@ export const LinkEditorPanel = ({
   }, [selectedIndex]);
 
   const showPages = pages.length > 0 && !state.isValidUrl;
-  const showUrlItem = state.url.length > 0 && (state.isValidUrl || state.isSearchQuery);
+  const showUrlItem =
+    state.url.length > 0 && (state.isValidUrl || state.isSearchQuery);
   const showDropdown = showPages || showUrlItem;
 
   return (
     <div>
       <form onSubmit={state.handleSubmit}>
         <TextInput
-          leftSection={<IconLink size={16} stroke={1.5} color="var(--mantine-color-dimmed)" />}
+          leftSection={
+            <IconLink
+              size={16}
+              stroke={1.5}
+              color="var(--mantine-color-dimmed)"
+            />
+          }
           classNames={{ input: classes.linkInput }}
           placeholder={t("Paste link or search pages")}
           aria-label={t("Paste link or search pages")}
@@ -165,48 +182,53 @@ export const LinkEditorPanel = ({
               </UnstyledButton>
             )}
 
-            {!state.isValidUrl && pages.map((page, index) => {
-              const itemIndex = showUrlItem ? index + 1 : index;
-              return (
-                <UnstyledButton
-                  data-item-index={itemIndex}
-                  id={`link-editor-option-${itemIndex}`}
-                  role="option"
-                  aria-selected={itemIndex === selectedIndex}
-                  key={page.id || index}
-                  onClick={() => selectPage(page)}
-                  className={clsx(classes.searchItem, {
-                    [classes.selectedSearchItem]: itemIndex === selectedIndex,
-                  })}
-                >
-                  <Group gap={10} wrap="nowrap" align="flex-start">
-                    <span className={classes.pageIcon}>
-                      {page.icon || <IconFileDescription size={18} stroke={1.5} />}
-                    </span>
+            {!state.isValidUrl &&
+              pages.map((page, index) => {
+                const itemIndex = showUrlItem ? index + 1 : index;
+                return (
+                  <UnstyledButton
+                    data-item-index={itemIndex}
+                    id={`link-editor-option-${itemIndex}`}
+                    role="option"
+                    aria-selected={itemIndex === selectedIndex}
+                    key={page.id || index}
+                    onClick={() => selectPage(page)}
+                    className={clsx(classes.searchItem, {
+                      [classes.selectedSearchItem]: itemIndex === selectedIndex,
+                    })}
+                  >
+                    <Group gap={10} wrap="nowrap" align="flex-start">
+                      <span className={classes.pageIcon}>
+                        {page.icon || (
+                          <IconFileDescription size={18} stroke={1.5} />
+                        )}
+                      </span>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <AutoTooltipText size="sm" fw={500} truncate lh={1.3}>
-                        {getPageTitle(page.title, page.isBase, t)}
-                      </AutoTooltipText>
-                      {page.space?.name && (
-                        <AutoTooltipText size="xs" c="dimmed" truncate lh={1.4}>
-                          {page.space.name}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <AutoTooltipText size="sm" fw={500} truncate lh={1.3}>
+                          {getPageTitle(page.title, page.isBase, t)}
                         </AutoTooltipText>
-                      )}
-                    </div>
-                  </Group>
-                </UnstyledButton>
-              );
-            })}
+                        {page.space?.name && (
+                          <AutoTooltipText
+                            size="xs"
+                            c="dimmed"
+                            truncate
+                            lh={1.4}
+                          >
+                            {page.space.name}
+                          </AutoTooltipText>
+                        )}
+                      </div>
+                    </Group>
+                  </UnstyledButton>
+                );
+              })}
           </ScrollArea.Autosize>
         </>
       )}
 
       {onUnsetLink && (
-        <UnstyledButton
-          onClick={onUnsetLink}
-          className={classes.removeLink}
-        >
+        <UnstyledButton onClick={onUnsetLink} className={classes.removeLink}>
           <Text size="sm" c="red">
             {t("Remove link")}
           </Text>

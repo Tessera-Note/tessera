@@ -15,10 +15,8 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
-import {
-  AuditEvent,
-  AuditResource,
-} from '../../../common/events/audit-events';
+import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
+import { badRequest, unauthorized } from '../../../common/errors/app-error';
 
 /**
  * Состояние запроса на вход, живет между перенаправлением и обратным вызовом.
@@ -69,7 +67,11 @@ export class OidcService {
 
   /** Включенный провайдер OIDC рабочего пространства. */
   private findProvider(providerId: string, workspaceId: string) {
-    return this.ssoIdentity.findEnabledProvider(providerId, workspaceId, 'oidc');
+    return this.ssoIdentity.findEnabledProvider(
+      providerId,
+      workspaceId,
+      'oidc',
+    );
   }
 
   /**
@@ -85,7 +87,7 @@ export class OidcService {
       this.environmentService.getAppSecret(),
     );
     if (!secret) {
-      throw new BadRequestException('У провайдера не задан секрет клиента');
+      throw badRequest('error.sso.client_secret_missing');
     }
 
     const client = await this.loadClient();
@@ -94,7 +96,7 @@ export class OidcService {
     try {
       issuer = new URL(provider.oidcIssuer);
     } catch {
-      throw new BadRequestException('Адрес издателя задан неверно');
+      throw badRequest('error.sso.issuer_invalid');
     }
 
     // Библиотека отказывается ходить по HTTP. Послабление разрешается ровно
@@ -103,9 +105,7 @@ export class OidcService {
     // ломает. Если приложение работает по HTTPS, издатель обязан тоже.
     const insecureIssuer = issuer.protocol === 'http:';
     if (insecureIssuer && this.environmentService.isHttps()) {
-      throw new BadRequestException(
-        'Адрес издателя должен начинаться с https',
-      );
+      throw badRequest('error.sso.issuer_not_https');
     }
 
     const options = insecureIssuer
@@ -132,9 +132,7 @@ export class OidcService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new BadRequestException(
-        'Провайдер входа не отвечает или настроен неверно',
-      );
+      throw badRequest('error.sso.provider_unreachable');
     }
   }
 
@@ -190,7 +188,7 @@ export class OidcService {
     workspace: Workspace,
   ): Promise<{ authToken: string; redirect?: string }> {
     if (!flow || flow.providerId !== providerId) {
-      throw new UnauthorizedException('Сеанс входа не найден или истек');
+      throw unauthorized('error.sso.login_session_expired');
     }
 
     const provider = await this.findProvider(providerId, workspace.id);
@@ -213,13 +211,13 @@ export class OidcService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new UnauthorizedException('Вход через провайдера не подтвержден');
+      throw unauthorized('error.sso.not_confirmed');
     }
 
     const claims = tokens.claims();
     const subject = claims?.sub;
     if (!subject) {
-      throw new UnauthorizedException('Провайдер не вернул идентификатор');
+      throw unauthorized('error.sso.no_subject');
     }
 
     let email = (claims as any)?.email as string | undefined;
@@ -249,9 +247,7 @@ export class OidcService {
     }
 
     if (!email) {
-      throw new UnauthorizedException(
-        'Провайдер не вернул адрес электронной почты',
-      );
+      throw unauthorized('error.sso.no_email');
     }
 
     const user = await this.ssoIdentity.resolveUser({

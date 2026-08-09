@@ -39,7 +39,6 @@ export default function SharedPage() {
   useEffect(() => {
     if (shareId && data) {
       if (data.share.key !== shareId) {
-
         // Check if the current page is part of the active sharing tree (sidebar) - If we are part of it, we will not redirect, keeping the sidebar visible.
         const isPartOfTree =
           sharedTreeData && isPageInTree(sharedTreeData, data.page.slugId);
@@ -92,7 +91,9 @@ export default function SharedPage() {
           )}
         >
           <React.Suspense
-            fallback={<div role="status" aria-label={t("Loading page content")} />}
+            fallback={
+              <div role="status" aria-label={t("Loading page content")} />
+            }
           >
             <ReadonlyPageEditor
               key={data.page.id}

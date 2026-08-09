@@ -1,4 +1,4 @@
-import { Skeleton } from '@mantine/core';
+import { Skeleton } from "@mantine/core";
 
 export default function PageListSkeleton() {
   return (

@@ -211,7 +211,6 @@ export function useRestorePageMutation() {
 
         // Add the node to the tree
         setTreeData(treeModel.insert(treeData, parentId, nodeData, index));
-
       }
 
       //  await queryClient.invalidateQueries({ queryKey: ["sidebar-pages", restoredPage.spaceId] });
@@ -229,7 +228,10 @@ export function useRestorePageMutation() {
       queryClient.setQueryData<IPage>(["pages", restoredPage.slugId], merge);
     },
     onError: (error) => {
-      notifications.show({ message: t("Failed to restore page"), color: "red" });
+      notifications.show({
+        message: t("Failed to restore page"),
+        color: "red",
+      });
     },
   });
 }
@@ -240,10 +242,10 @@ export function useGetSidebarPagesQuery(
   return useInfiniteQuery({
     queryKey: ["sidebar-pages", data],
     enabled: !!data?.pageId || !!data?.spaceId,
-    queryFn: ({ pageParam }) => getSidebarPages({ ...data, cursor: pageParam, limit: 100 }),
+    queryFn: ({ pageParam }) =>
+      getSidebarPages({ ...data, cursor: pageParam, limit: 100 }),
     initialPageParam: undefined,
-    getNextPageParam: (lastPage) =>
-      lastPage.meta?.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) => lastPage.meta?.nextCursor ?? undefined,
   });
 }
 
@@ -251,11 +253,14 @@ export function useGetRootSidebarPagesQuery(data: SidebarPagesParams) {
   return useInfiniteQuery({
     queryKey: ["root-sidebar-pages", data.spaceId],
     queryFn: async ({ pageParam }) => {
-      return getSidebarPages({ spaceId: data.spaceId, cursor: pageParam, limit: 100 });
+      return getSidebarPages({
+        spaceId: data.spaceId,
+        cursor: pageParam,
+        limit: 100,
+      });
     },
     initialPageParam: undefined,
-    getNextPageParam: (lastPage) =>
-      lastPage.meta?.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) => lastPage.meta?.nextCursor ?? undefined,
   });
 }
 
@@ -293,11 +298,15 @@ export function useRecentChangesQuery(spaceId?: string) {
   });
 }
 
-export function useCreatedByQuery(params?: { userId?: string; spaceId?: string }) {
+export function useCreatedByQuery(params?: {
+  userId?: string;
+  spaceId?: string;
+}) {
   const { userId, spaceId } = params ?? {};
   return useInfiniteQuery({
     queryKey: ["pages-created-by-user", { userId, spaceId }],
-    queryFn: ({ pageParam }) => getCreatedByPages({ userId, spaceId, cursor: pageParam, limit: 15 }),
+    queryFn: ({ pageParam }) =>
+      getCreatedByPages({ userId, spaceId, cursor: pageParam, limit: 15 }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.meta.hasNextPage ? lastPage.meta.nextCursor : undefined,

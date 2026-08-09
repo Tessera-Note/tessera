@@ -17,6 +17,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
+import { unauthorized } from '../../../common/errors/app-error';
 
 /**
  * Состояние потока входа. Точка возврата и момент выдачи.
@@ -303,7 +304,7 @@ export class SamlService {
     body: { SAMLResponse?: string; RelayState?: string },
   ): Promise<{ authToken: string; redirect?: string }> {
     if (!body?.SAMLResponse) {
-      throw new UnauthorizedException('Провайдер не вернул ответ');
+      throw unauthorized('error.sso.no_response');
     }
 
     const provider = await this.ssoIdentity.findEnabledProvider(
@@ -314,7 +315,7 @@ export class SamlService {
 
     const relay = this.verifyRelay(providerId, body.RelayState);
     if (!relay) {
-      throw new UnauthorizedException('Сеанс входа не найден или истек');
+      throw unauthorized('error.sso.login_session_expired');
     }
 
     const saml = this.buildSaml(provider);
@@ -332,18 +333,16 @@ export class SamlService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new UnauthorizedException('Вход через провайдера не подтвержден');
+      throw unauthorized('error.sso.not_confirmed');
     }
 
     const { subject, email, name } = this.extractIdentity(profile);
 
     if (!subject) {
-      throw new UnauthorizedException('Провайдер не вернул идентификатор');
+      throw unauthorized('error.sso.no_subject');
     }
     if (!email) {
-      throw new UnauthorizedException(
-        'Провайдер не вернул адрес электронной почты',
-      );
+      throw unauthorized('error.sso.no_email');
     }
 
     const user = await this.ssoIdentity.resolveUser({

@@ -16,4 +16,3 @@ export async function getFileTasks(
   const req = await api.post("/file-tasks", { ...params });
   return req.data;
 }
-

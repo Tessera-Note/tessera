@@ -1,4 +1,8 @@
-import { CommandProps, EmojiMartFrequentlyType, EmojiMenuItemType } from "./types";
+import {
+  CommandProps,
+  EmojiMartFrequentlyType,
+  EmojiMenuItemType,
+} from "./types";
 
 export const LOCAL_STORAGE_FREQUENT_KEY = "emoji-mart.frequently";
 
@@ -21,7 +25,7 @@ let _emojiIndex: EmojiIndexEntry[] | null = null;
 
 export const buildEmojiIndex = async (): Promise<EmojiIndexEntry[]> => {
   if (_emojiIndex) return _emojiIndex;
-  const { default: data } = await import('@slidoapp/emoji-mart-data');
+  const { default: data } = await import("@slidoapp/emoji-mart-data");
   _emojiIndex = (Object.values((data as any).emojis) as any[])
     .filter((e) => e.id && e.name && e.skins?.[0]?.native)
     .map((e) => ({
@@ -34,7 +38,8 @@ export const buildEmojiIndex = async (): Promise<EmojiIndexEntry[]> => {
 
 export const incrementEmojiUsage = (emojiId: string) => {
   const stored = JSON.parse(
-    localStorage.getItem(LOCAL_STORAGE_FREQUENT_KEY) || DEFAULT_FREQUENTLY_USED_EMOJI_MART,
+    localStorage.getItem(LOCAL_STORAGE_FREQUENT_KEY) ||
+      DEFAULT_FREQUENTLY_USED_EMOJI_MART,
   );
   stored[emojiId] = (stored[emojiId] ?? 0) + 1;
   localStorage.setItem(LOCAL_STORAGE_FREQUENT_KEY, JSON.stringify(stored));
@@ -53,7 +58,12 @@ export const sortFrequentlyUsedEmoji = async (
         count,
         emoji: entry.native,
         command: ({ editor, range }: CommandProps) => {
-          editor.chain().focus().deleteRange(range).insertContent(entry.native + " ").run();
+          editor
+            .chain()
+            .focus()
+            .deleteRange(range)
+            .insertContent(entry.native + " ")
+            .run();
         },
       };
     })
@@ -63,7 +73,8 @@ export const sortFrequentlyUsedEmoji = async (
 
 export const getFrequentlyUsedEmoji = (): EmojiMartFrequentlyType => {
   return JSON.parse(
-    localStorage.getItem(LOCAL_STORAGE_FREQUENT_KEY) || DEFAULT_FREQUENTLY_USED_EMOJI_MART,
+    localStorage.getItem(LOCAL_STORAGE_FREQUENT_KEY) ||
+      DEFAULT_FREQUENTLY_USED_EMOJI_MART,
   );
 };
 

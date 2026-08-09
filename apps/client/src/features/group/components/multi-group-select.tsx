@@ -42,7 +42,7 @@ export function MultiGroupSelect({
   useEffect(() => {
     if (groups) {
       const groupsData = groups?.items
-        .filter((group: IGroup) => group.name.toLowerCase() !== 'everyone')
+        .filter((group: IGroup) => group.name.toLowerCase() !== "everyone")
         .map((group: IGroup) => {
           return {
             value: group.id,
@@ -57,7 +57,7 @@ export function MultiGroupSelect({
       );
 
       // Combine existing data with new search data
-      setData((prevData) => [... prevData, ... filteredGroupData]);
+      setData((prevData) => [...prevData, ...filteredGroupData]);
     }
   }, [groups]);
 

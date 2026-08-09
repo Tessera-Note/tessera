@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { processPdf } from '@docmost/pdf-inspector';
 import { markdownToHtml } from '@tessera/editor-ext';
+import { badRequest } from '../../common/errors/app-error';
 
 /**
  * Типы PDF, у которых нет текстового слоя.
@@ -47,7 +48,7 @@ export class PdfImportService {
     _userId: string,
   ): Promise<string> {
     if (!fileBuffer?.length) {
-      throw new BadRequestException('Файл PDF пуст');
+      throw badRequest('error.import.pdf_empty');
     }
 
     let result: ReturnType<typeof processPdf>;
@@ -59,7 +60,7 @@ export class PdfImportService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new BadRequestException('Не удалось разобрать файл PDF');
+      throw badRequest('error.import.pdf_unreadable');
     }
 
     const markdown = result?.markdown?.trim() ?? '';
@@ -68,11 +69,7 @@ export class PdfImportService {
       this.logger.debug(
         `PDF без текстового слоя: тип ${result?.pdfType}, страниц ${result?.pageCount}`,
       );
-      throw new BadRequestException(
-        'В этом PDF нет текстового слоя: файл состоит из сканов или ' +
-          'изображений. Распознайте текст любым внешним средством и ' +
-          'загрузите файл повторно.',
-      );
+      throw badRequest('error.import.pdf_no_text_layer');
     }
 
     if (result.pagesNeedingOcr?.length) {

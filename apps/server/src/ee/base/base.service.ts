@@ -26,10 +26,8 @@ import {
   CreateViewDto,
   UpdateViewDto,
 } from './dto/base.dto';
-import {
-  matchesBaseRowFilter,
-  collectPushdownConditions,
-} from './base-filter';
+import { matchesBaseRowFilter, collectPushdownConditions } from './base-filter';
+import { badRequest } from '../../common/errors/app-error';
 
 /**
  * Значение для jsonb-колонки.
@@ -1167,9 +1165,9 @@ export class BaseService {
       .execute();
 
     if (rows.length > CSV_EXPORT_ROW_LIMIT) {
-      throw new BadRequestException(
-        `Экспорт в CSV ограничен ${CSV_EXPORT_ROW_LIMIT} строками`,
-      );
+      throw badRequest('error.base.csv_row_limit', {
+        limit: CSV_EXPORT_ROW_LIMIT,
+      });
     }
 
     // Build CSV Headers
@@ -1178,8 +1176,7 @@ export class BaseService {
 
     // Build CSV Rows
     for (const row of rows) {
-      const cells =
-        row.cells || {};
+      const cells = row.cells || {};
       const rowValues = properties.map((prop) => {
         const val = cells[prop.id];
         if (val === undefined || val === null) return '';

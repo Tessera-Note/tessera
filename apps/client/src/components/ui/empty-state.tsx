@@ -10,7 +10,12 @@ type EmptyStateProps = {
   action?: ReactNode;
 };
 
-export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: EmptyStateProps) {
   return (
     <div className={classes.root}>
       <Stack align="center" gap="xs">

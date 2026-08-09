@@ -14,6 +14,9 @@ export async function verifyEmail(data: { token: string }): Promise<void> {
   await api.post("/workspace/verify-email", data);
 }
 
-export async function resendVerificationEmail(data: { email: string; sig: string }): Promise<void> {
+export async function resendVerificationEmail(data: {
+  email: string;
+  sig: string;
+}): Promise<void> {
   await api.post("/workspace/resend-verification", data);
 }

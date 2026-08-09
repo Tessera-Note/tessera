@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  Post,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Post, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -81,9 +75,7 @@ export class AiAnswersController {
         .join(' | ');
 
       if (!searchTerms) {
-        raw.write(
-          `data: ${JSON.stringify({ error: 'Empty query' })}\n\n`,
-        );
+        raw.write(`data: ${JSON.stringify({ error: 'Empty query' })}\n\n`);
         raw.write('data: [DONE]\n\n');
         raw.end();
         return;
@@ -156,7 +148,10 @@ export class AiAnswersController {
 
       // Build context
       const context = pages
-        .map((p) => `## ${p.title}\n${this.extractText(p.content).substring(0, 2000)}`)
+        .map(
+          (p) =>
+            `## ${p.title}\n${this.extractText(p.content).substring(0, 2000)}`,
+        )
         .join('\n\n');
 
       // Stream AI response

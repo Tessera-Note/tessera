@@ -16,7 +16,11 @@ import {
   IconMoodSmile,
   IconNotes,
 } from "@tabler/icons-react";
-import { CalloutType, isEditorReady, isTextSelected } from "@tessera/editor-ext";
+import {
+  CalloutType,
+  isEditorReady,
+  isTextSelected,
+} from "@tessera/editor-ext";
 import { useTranslation } from "react-i18next";
 import EmojiPicker from "@/components/ui/emoji-picker.tsx";
 import classes from "../common/toolbar-menu.module.css";

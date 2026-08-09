@@ -46,7 +46,7 @@ function CommentListWithTabs() {
 
   const canComment =
     (page?.permissions?.canEdit ?? false) ||
-    (space?.settings?.comments?.allowViewerComments === true);
+    space?.settings?.comments?.allowViewerComments === true;
 
   // Separate active and resolved comments
   const { activeComments, resolvedComments } = useMemo(() => {

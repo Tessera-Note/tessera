@@ -77,9 +77,7 @@ export default function AiSettings() {
               color="blue"
               mb="lg"
             >
-              {t(
-                "AI is only available in the Tessera enterprise edition.",
-              )}
+              {t("AI is only available in the Tessera enterprise edition.")}
             </Alert>
           )}
 

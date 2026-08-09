@@ -34,7 +34,15 @@ type FieldShellProps = {
 // ref injected into this element; without it the picker renders at (0,0).
 export const FieldShell = forwardRef<HTMLDivElement, FieldShellProps>(
   function FieldShell(
-    { cursor = "default", active, locked, alignTop, className, children, ...rest },
+    {
+      cursor = "default",
+      active,
+      locked,
+      alignTop,
+      className,
+      children,
+      ...rest
+    },
     ref,
   ) {
     return (
@@ -101,7 +109,12 @@ type DetailFieldProps = {
   onUpdate: (propertyId: string, value: unknown) => void;
 };
 
-export function DetailField({ property, row, readOnly, onUpdate }: DetailFieldProps) {
+export function DetailField({
+  property,
+  row,
+  readOnly,
+  onUpdate,
+}: DetailFieldProps) {
   const descriptor = getDescriptor(property.type);
   const value = descriptor?.systemAccessor
     ? descriptor.systemAccessor(row)

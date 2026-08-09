@@ -20,9 +20,9 @@ export function useChatStream(
 ) {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState("");
-  const [streamingToolCalls, setStreamingToolCalls] = useState<AiChatToolCall[]>(
-    [],
-  );
+  const [streamingToolCalls, setStreamingToolCalls] = useState<
+    AiChatToolCall[]
+  >([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -59,7 +59,12 @@ export function useChatStream(
   }, []);
 
   const sendMessage = useCallback(
-    (content: string, mentions: PageMention[] = [], attachments: ChatAttachment[] = [], contextPageId?: string) => {
+    (
+      content: string,
+      mentions: PageMention[] = [],
+      attachments: ChatAttachment[] = [],
+      contextPageId?: string,
+    ) => {
       if (isStreaming || (!content.trim() && attachments.length === 0)) return;
 
       setError(null);

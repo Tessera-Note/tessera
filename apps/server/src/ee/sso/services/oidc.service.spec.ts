@@ -425,7 +425,9 @@ describe('OidcService, издатель по HTTP', () => {
 
     await expect(
       service.buildLoginRedirect('prov-1', WORKSPACE),
-    ).rejects.toThrow(/должен начинаться с https/);
+    ).rejects.toMatchObject({
+      response: { code: 'error.sso.issuer_not_https' },
+    });
   });
 
   it('издатель по HTTPS идет без послабления', async () => {
@@ -443,7 +445,7 @@ describe('OidcService, издатель по HTTP', () => {
 
     await expect(
       service.buildLoginRedirect('prov-1', WORKSPACE),
-    ).rejects.toThrow(/задан неверно/);
+    ).rejects.toMatchObject({ response: { code: 'error.sso.issuer_invalid' } });
   });
 });
 

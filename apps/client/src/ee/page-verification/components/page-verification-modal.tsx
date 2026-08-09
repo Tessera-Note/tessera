@@ -47,7 +47,9 @@ export function PageVerificationModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      aria-label={status === "none" ? t("Set up verification") : t("Verify page")}
+      aria-label={
+        status === "none" ? t("Set up verification") : t("Verify page")
+      }
       title={
         <Group gap="xs">
           <IconShieldCheck
@@ -108,11 +110,7 @@ export function PageVerificationBadge({
     // gated; the tooltip explains why.
     return (
       <Tooltip label={lockedLabel} withArrow openDelay={250}>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          aria-label={lockedLabel}
-        >
+        <ActionIcon variant="subtle" color="gray" aria-label={lockedLabel}>
           <IconShieldCheck size={20} stroke={1.5} />
         </ActionIcon>
       </Tooltip>

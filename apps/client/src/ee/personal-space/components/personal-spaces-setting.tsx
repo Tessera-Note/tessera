@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export default function PersonalSpacesSetting() {
   const { t } = useTranslation();
@@ -45,14 +46,18 @@ function PersonalSpacesToggle() {
       setWorkspace(updatedWorkspace);
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
   };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasPersonalSpaces} refProp="rootRef">
+    <Tooltip
+      label={upgradeLabel}
+      disabled={hasPersonalSpaces}
+      refProp="rootRef"
+    >
       <Switch
         checked={checked}
         onChange={handleChange}

@@ -92,12 +92,7 @@ export function SpaceRow({
 
       <div className={classes.pageTitle}>{space.name}</div>
 
-      {!writable && (
-        <IconLock
-          size={14}
-          color="var(--mantine-color-gray-5)"
-        />
-      )}
+      {!writable && <IconLock size={14} color="var(--mantine-color-gray-5)" />}
     </div>
   );
 

@@ -15,6 +15,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
+import { badRequest, unauthorized } from '../../../common/errors/app-error';
 
 /**
  * Издатель Google. Задан константой, а не настройкой: у Google он один,
@@ -83,9 +84,7 @@ export class GoogleService {
 
   private async buildConfig(): Promise<any> {
     if (!this.isConfigured()) {
-      throw new BadRequestException(
-        'Вход через Google не настроен: не заданы GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET',
-      );
+      throw badRequest('error.sso.google_not_configured');
     }
 
     const client = await this.loadClient();
@@ -101,7 +100,7 @@ export class GoogleService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new BadRequestException('Google не отвечает');
+      throw badRequest('error.sso.google_unavailable');
     }
   }
 
@@ -121,7 +120,7 @@ export class GoogleService {
   ): Promise<{ url: string; flow: GoogleFlowState }> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
-      throw new BadRequestException('Рабочее пространство не найдено');
+      throw badRequest('error.sso.workspace_not_found');
     }
 
     await this.findProvider(workspaceId);
@@ -153,12 +152,12 @@ export class GoogleService {
     flow: GoogleFlowState | null,
   ): Promise<{ authToken: string; redirect?: string }> {
     if (!flow?.workspaceId) {
-      throw new UnauthorizedException('Сеанс входа не найден или истек');
+      throw unauthorized('error.sso.login_session_expired');
     }
 
     const workspace = await this.workspaceRepo.findById(flow.workspaceId);
     if (!workspace) {
-      throw new UnauthorizedException('Рабочее пространство не найдено');
+      throw unauthorized('error.sso.workspace_not_found');
     }
 
     const provider = await this.findProvider(workspace.id);
@@ -181,27 +180,25 @@ export class GoogleService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      throw new UnauthorizedException('Вход через Google не подтвержден');
+      throw unauthorized('error.sso.not_confirmed');
     }
 
     const claims = tokens.claims();
     const subject = claims?.sub;
     if (!subject) {
-      throw new UnauthorizedException('Google не вернул идентификатор');
+      throw unauthorized('error.sso.no_subject');
     }
 
     // Непроверенную почту принимать нельзя: у Google она означает, что
     // владение адресом не подтверждено, а мы по адресу связываем учетные
     // записи, заведенные обычным способом.
     if ((claims as any).email_verified === false) {
-      throw new UnauthorizedException('Адрес электронной почты не подтвержден');
+      throw unauthorized('error.sso.email_not_verified');
     }
 
     const email = (claims as any)?.email as string | undefined;
     if (!email) {
-      throw new UnauthorizedException(
-        'Google не вернул адрес электронной почты',
-      );
+      throw unauthorized('error.sso.no_email');
     }
 
     const user = await this.ssoIdentity.resolveUser({

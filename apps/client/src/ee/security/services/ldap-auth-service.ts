@@ -16,7 +16,7 @@ export async function ldapLogin(data: ILdapLogin): Promise<ILoginResponse> {
 
   const response = await api.post<ILoginResponse>(
     `/sso/ldap/${data.providerId}/login`,
-    requestData
+    requestData,
   );
 
   return response.data;

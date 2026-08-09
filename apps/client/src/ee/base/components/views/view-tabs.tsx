@@ -119,13 +119,10 @@ export function ViewTabs({
     [orderedViews, pageId, updateViewMutation],
   );
 
-  const handleRenameStart = useCallback(
-    (view: IBaseView) => {
-      setEditingViewId(view.id);
-      setEditingName(view.name);
-    },
-    [],
-  );
+  const handleRenameStart = useCallback((view: IBaseView) => {
+    setEditingViewId(view.id);
+    setEditingName(view.name);
+  }, []);
 
   const handleRenameCommit = useCallback(() => {
     if (!editingViewId) return;
@@ -188,9 +185,7 @@ export function ViewTabs({
           getViewShareUrl={getViewShareUrl}
         />
       ))}
-      {canAddView && base && (
-        <ViewCreateMenu base={base} pageId={pageId} />
-      )}
+      {canAddView && base && <ViewCreateMenu base={base} pageId={pageId} />}
     </Group>
   );
 }
@@ -251,8 +246,7 @@ function ViewTab({
       dropTargetForElements({
         element: el,
         canDrop: ({ source }) =>
-          source.data.type === VIEW_DRAG_TYPE &&
-          source.data.viewId !== view.id,
+          source.data.type === VIEW_DRAG_TYPE && source.data.viewId !== view.id,
         getData: ({ input, element }) =>
           attachClosestEdge(
             { viewId: view.id },
@@ -364,53 +358,53 @@ function ViewTab({
             </Group>
           </UnstyledButton>
         </Popover.Target>
-      <Popover.Dropdown p={4}>
-        <Stack gap={0}>
-          {editable && (
-            <UnstyledButton
-              className={cellClasses.menuItem}
-              onClick={() => {
-                setMenuOpened(false);
-                onRenameStart();
-              }}
-            >
-              <Group gap={8} wrap="nowrap">
-                <IconPencil size={14} />
-                <Text size="sm">{t("Rename")}</Text>
-              </Group>
-            </UnstyledButton>
-          )}
-          {getViewShareUrl && (
-            <UnstyledButton
-              className={cellClasses.menuItem}
-              onClick={handleCopyLink}
-            >
-              <Group gap={8} wrap="nowrap">
-                <IconLink size={14} />
-                <Text size="sm">{t("Copy link to view")}</Text>
-              </Group>
-            </UnstyledButton>
-          )}
-          {editable && canDelete && (
-            <>
-              <Divider my={4} />
+        <Popover.Dropdown p={4}>
+          <Stack gap={0}>
+            {editable && (
               <UnstyledButton
                 className={cellClasses.menuItem}
                 onClick={() => {
                   setMenuOpened(false);
-                  onDelete();
+                  onRenameStart();
                 }}
-                style={{ color: "var(--mantine-color-red-6)" }}
               >
                 <Group gap={8} wrap="nowrap">
-                  <IconTrash size={14} />
-                  <Text size="sm">{t("Delete view")}</Text>
+                  <IconPencil size={14} />
+                  <Text size="sm">{t("Rename")}</Text>
                 </Group>
               </UnstyledButton>
-            </>
-          )}
-        </Stack>
-      </Popover.Dropdown>
+            )}
+            {getViewShareUrl && (
+              <UnstyledButton
+                className={cellClasses.menuItem}
+                onClick={handleCopyLink}
+              >
+                <Group gap={8} wrap="nowrap">
+                  <IconLink size={14} />
+                  <Text size="sm">{t("Copy link to view")}</Text>
+                </Group>
+              </UnstyledButton>
+            )}
+            {editable && canDelete && (
+              <>
+                <Divider my={4} />
+                <UnstyledButton
+                  className={cellClasses.menuItem}
+                  onClick={() => {
+                    setMenuOpened(false);
+                    onDelete();
+                  }}
+                  style={{ color: "var(--mantine-color-red-6)" }}
+                >
+                  <Group gap={8} wrap="nowrap">
+                    <IconTrash size={14} />
+                    <Text size="sm">{t("Delete view")}</Text>
+                  </Group>
+                </UnstyledButton>
+              </>
+            )}
+          </Stack>
+        </Popover.Dropdown>
       </Popover>
       {closestEdge && <BaseDropEdgeIndicator edge={closestEdge} />}
     </div>

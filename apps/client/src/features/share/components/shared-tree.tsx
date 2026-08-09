@@ -46,10 +46,7 @@ export default function SharedTree({ sharedPageTree }: SharedTreeProps) {
   }, [sharedPageTree?.pageTree]);
 
   const openIds = useMemo(
-    () =>
-      new Set(
-        Object.keys(openTreeNodes).filter((k) => openTreeNodes[k]),
-      ),
+    () => new Set(Object.keys(openTreeNodes).filter((k) => openTreeNodes[k])),
     [openTreeNodes],
   );
 
@@ -151,13 +148,7 @@ function SharedTreeRow({
       <div style={{ marginRight: "4px" }}>
         <EmojiPicker
           onEmojiSelect={() => {}}
-          icon={
-            node.icon ? (
-              node.icon
-            ) : (
-              <IconFileDescription size="18" />
-            )
-          }
+          icon={node.icon ? node.icon : <IconFileDescription size="18" />}
           readOnly={true}
           removeEmojiAction={() => {}}
           actionIconProps={{ tabIndex: -1 }}

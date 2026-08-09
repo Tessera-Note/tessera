@@ -42,9 +42,11 @@ type RowCacheContext = {
 
 // An empty group filter is the draft-layer's "no predicates" marker (see use-view-draft.ts).
 // Strip it at the query boundary to keep request payloads clean and cache keys stable.
-export function normalizeFilter(filter: FilterNode | undefined): FilterNode | undefined {
+export function normalizeFilter(
+  filter: FilterNode | undefined,
+): FilterNode | undefined {
   if (!filter) return undefined;
-  if ('children' in filter && filter.children.length === 0) return undefined;
+  if ("children" in filter && filter.children.length === 0) return undefined;
   return filter;
 }
 
@@ -67,7 +69,6 @@ export function baseRowsQueryKey(
     sorts?.length ? sorts : undefined,
   ] as const;
 }
-
 
 export function findRowInInfinite(
   data: InfiniteData<IBaseRowsPage> | undefined,
@@ -187,9 +188,9 @@ export function useUpdateRowMutation() {
         queryKey: ["base-rows", variables.pageId],
       });
 
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
+      const snapshots = queryClient.getQueriesData<InfiniteData<IBaseRowsPage>>(
+        { queryKey: ["base-rows", variables.pageId] },
+      );
 
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
@@ -218,9 +219,7 @@ export function useUpdateRowMutation() {
       queryClient.setQueryData<IBaseRow>(
         ["base-row", variables.pageId, variables.rowId],
         (old) =>
-          old
-            ? { ...old, cells: { ...old.cells, ...variables.cells } }
-            : old,
+          old ? { ...old, cells: { ...old.cells, ...variables.cells } } : old,
       );
 
       return { snapshots };
@@ -250,7 +249,11 @@ export function useUpdateRowMutation() {
               ...page,
               items: page.items.map((row) =>
                 row.id === updatedRow.id
-                  ? { ...row, ...updatedRow, cells: { ...row.cells, ...updatedRow.cells } }
+                  ? {
+                      ...row,
+                      ...updatedRow,
+                      cells: { ...row.cells, ...updatedRow.cells },
+                    }
                   : row,
               ),
             })),
@@ -261,7 +264,11 @@ export function useUpdateRowMutation() {
         ["base-row", updatedRow.pageId, updatedRow.id],
         (old) =>
           old
-            ? { ...old, ...updatedRow, cells: { ...old.cells, ...updatedRow.cells } }
+            ? {
+                ...old,
+                ...updatedRow,
+                cells: { ...old.cells, ...updatedRow.cells },
+              }
             : old,
       );
 
@@ -289,9 +296,9 @@ export function useDeleteRowMutation() {
         queryKey: ["base-rows", variables.pageId],
       });
 
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
+      const snapshots = queryClient.getQueriesData<InfiniteData<IBaseRowsPage>>(
+        { queryKey: ["base-rows", variables.pageId] },
+      );
 
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
@@ -332,9 +339,9 @@ export function useDeleteRowsMutation() {
         queryKey: ["base-rows", variables.pageId],
       });
 
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
+      const snapshots = queryClient.getQueriesData<InfiniteData<IBaseRowsPage>>(
+        { queryKey: ["base-rows", variables.pageId] },
+      );
 
       const removeSet = new Set(variables.rowIds);
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
@@ -367,9 +374,6 @@ export function useDeleteRowsMutation() {
   });
 }
 
-
-
-
 export function useReorderRowMutation() {
   const { t } = useTranslation();
   return useMutation<void, Error, ReorderRowInput, RowCacheContext>({
@@ -379,9 +383,9 @@ export function useReorderRowMutation() {
         queryKey: ["base-rows", variables.pageId],
       });
 
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
+      const snapshots = queryClient.getQueriesData<InfiniteData<IBaseRowsPage>>(
+        { queryKey: ["base-rows", variables.pageId] },
+      );
 
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
@@ -434,8 +438,20 @@ type KanbanMoveCardContext = {
 
 export function useKanbanMoveCardMutation() {
   const { t } = useTranslation();
-  return useMutation<IBaseRow, Error, KanbanMoveCardInput, KanbanMoveCardContext>({
-    mutationFn: ({ pageId, rowId, columnChanged, groupByPropertyId, destChoiceValue, position }) =>
+  return useMutation<
+    IBaseRow,
+    Error,
+    KanbanMoveCardInput,
+    KanbanMoveCardContext
+  >({
+    mutationFn: ({
+      pageId,
+      rowId,
+      columnChanged,
+      groupByPropertyId,
+      destChoiceValue,
+      position,
+    }) =>
       updateRow({
         pageId,
         rowId,
@@ -444,31 +460,45 @@ export function useKanbanMoveCardMutation() {
         requestId: newRequestId(),
       }),
     onMutate: async (variables) => {
-      const { pageId, rowId, sourceColumnFilter, destColumnFilter, columnChanged, groupByPropertyId, destChoiceValue, position } = variables;
+      const {
+        pageId,
+        rowId,
+        sourceColumnFilter,
+        destColumnFilter,
+        columnChanged,
+        groupByPropertyId,
+        destChoiceValue,
+        position,
+      } = variables;
 
       await queryClient.cancelQueries({ queryKey: ["base-rows", pageId] });
 
       const sourceKey = baseRowsQueryKey(pageId, sourceColumnFilter, undefined);
       const destKey = baseRowsQueryKey(pageId, destColumnFilter, undefined);
 
-      const sourceSnapshot = queryClient.getQueryData<InfiniteData<IBaseRowsPage>>(sourceKey);
-      const destSnapshot = queryClient.getQueryData<InfiniteData<IBaseRowsPage>>(destKey);
+      const sourceSnapshot =
+        queryClient.getQueryData<InfiniteData<IBaseRowsPage>>(sourceKey);
+      const destSnapshot =
+        queryClient.getQueryData<InfiniteData<IBaseRowsPage>>(destKey);
       const snapshots: KanbanMoveCardContext["snapshots"] = [
         [sourceKey, sourceSnapshot],
         [destKey, destSnapshot],
       ];
 
       if (columnChanged) {
-        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(sourceKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((r) => r.id !== rowId),
-            })),
-          };
-        });
+        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(
+          sourceKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.filter((r) => r.id !== rowId),
+              })),
+            };
+          },
+        );
 
         const movingRow = findRowInInfinite(sourceSnapshot, rowId);
         if (movingRow) {
@@ -477,33 +507,38 @@ export function useKanbanMoveCardMutation() {
             cells: { ...movingRow.cells, [groupByPropertyId]: destChoiceValue },
             position,
           };
-          queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
+          queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(
+            destKey,
+            (old) => {
+              if (!old) return old;
+              const lastPageIndex = old.pages.length - 1;
+              return {
+                ...old,
+                pages: old.pages.map((page, index) =>
+                  index === lastPageIndex
+                    ? { ...page, items: [...page.items, moved] }
+                    : page,
+                ),
+              };
+            },
+          );
+        }
+      } else {
+        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(
+          destKey,
+          (old) => {
             if (!old) return old;
-            const lastPageIndex = old.pages.length - 1;
             return {
               ...old,
-              pages: old.pages.map((page, index) =>
-                index === lastPageIndex
-                  ? { ...page, items: [...page.items, moved] }
-                  : page,
-              ),
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map((r) =>
+                  r.id === rowId ? { ...r, position } : r,
+                ),
+              })),
             };
-          });
-        }
-
-      } else {
-        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((r) =>
-                r.id === rowId ? { ...r, position } : r,
-              ),
-            })),
-          };
-        });
+          },
+        );
       }
 
       return { snapshots };
@@ -536,7 +571,10 @@ export function useKanbanCreateCardMutation() {
     mutationFn: ({ pageId, groupByPropertyId, columnKey, position }) =>
       createRow({
         pageId,
-        cells: columnKey === NO_VALUE_CHOICE_ID ? {} : { [groupByPropertyId]: columnKey },
+        cells:
+          columnKey === NO_VALUE_CHOICE_ID
+            ? {}
+            : { [groupByPropertyId]: columnKey },
         position,
         requestId: newRequestId(),
       }),

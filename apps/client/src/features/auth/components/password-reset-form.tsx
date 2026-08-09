@@ -40,32 +40,32 @@ export function PasswordResetForm({ resetToken }: PasswordResetFormProps) {
 
   return (
     <AuthLayout>
-    <Container size={420} className={classes.container}>
-      <Box p="xl" className={classes.containerBox}>
-        <Title order={2} ta="center" fw={500} mb="md">
-          {t("Password reset")}
-        </Title>
+      <Container size={420} className={classes.container}>
+        <Box p="xl" className={classes.containerBox}>
+          <Title order={2} ta="center" fw={500} mb="md">
+            {t("Password reset")}
+          </Title>
 
-        <form onSubmit={form.onSubmit(onSubmit)}>
-          <PasswordInput
-            label={t("New password")}
-            placeholder={t("Your new password")}
-            variant="filled"
-            mt="md"
-            visibilityToggleButtonProps={{
-              "aria-label": t("Toggle password visibility"),
-              "aria-hidden": false,
-              tabIndex: 0,
-            }}
-            {...form.getInputProps("newPassword")}
-          />
+          <form onSubmit={form.onSubmit(onSubmit)}>
+            <PasswordInput
+              label={t("New password")}
+              placeholder={t("Your new password")}
+              variant="filled"
+              mt="md"
+              visibilityToggleButtonProps={{
+                "aria-label": t("Toggle password visibility"),
+                "aria-hidden": false,
+                tabIndex: 0,
+              }}
+              {...form.getInputProps("newPassword")}
+            />
 
-          <Button type="submit" fullWidth mt="xl" loading={isLoading}>
-            {t("Set password")}
-          </Button>
-        </form>
-      </Box>
-    </Container>
+            <Button type="submit" fullWidth mt="xl" loading={isLoading}>
+              {t("Set password")}
+            </Button>
+          </form>
+        </Box>
+      </Container>
     </AuthLayout>
   );
 }

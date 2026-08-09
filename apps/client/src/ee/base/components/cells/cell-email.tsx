@@ -15,7 +15,14 @@ type CellEmailProps = {
 const toDraft = (value: unknown) => (typeof value === "string" ? value : "");
 const parse = (draft: string) => draft || null;
 
-export function CellEmail({ value, property, rowId, isEditing, onCommit, onCancel }: CellEmailProps) {
+export function CellEmail({
+  value,
+  property,
+  rowId,
+  isEditing,
+  onCommit,
+  onCancel,
+}: CellEmailProps) {
   const { draft, setDraft, inputRef, handleKeyDown, handleBlur } =
     useEditableTextCell({
       value,
@@ -48,7 +55,13 @@ export function CellEmail({ value, property, rowId, isEditing, onCommit, onCance
     return <span className={cellClasses.emptyValue} />;
   }
   return (
-    <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
+    <Tooltip
+      label={displayValue}
+      multiline
+      withinPortal
+      openDelay={400}
+      maw={420}
+    >
       <a
         className={cellClasses.emailLink}
         href={`mailto:${displayValue}`}

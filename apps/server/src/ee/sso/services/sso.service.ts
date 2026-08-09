@@ -15,10 +15,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
-import {
-  AuditEvent,
-  AuditResource,
-} from '../../../common/events/audit-events';
+import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { encryptSecret } from '../../ai/ai-secret.util';
 import WorkspaceAbilityFactory from '../../../core/casl/abilities/workspace-ability.factory';
 import {
@@ -28,6 +25,7 @@ import {
 import { CreateSsoProviderDto, UpdateSsoProviderDto } from '../dto/sso.dto';
 import { FilterParser } from 'ldapts';
 import { buildLdapUserFilter } from '../ldap.util';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 /**
  * Поля, обязательные для каждого типа провайдера.
@@ -168,7 +166,7 @@ export class SsoService {
       .executeTakeFirst();
 
     if (!provider) {
-      throw new NotFoundException('Провайдер входа не найден');
+      throw notFound('error.sso.provider_not_found');
     }
 
     return this.toPublic(provider);
@@ -188,9 +186,7 @@ export class SsoService {
     // бессмысленны: вызов StartTLS на уже зашифрованном соединении
     // отвергается самим каталогом.
     if (url.toLowerCase().startsWith('ldaps://') && data.ldapTlsEnabled) {
-      throw new BadRequestException(
-        'Адрес ldaps уже шифрует соединение, отдельное включение StartTLS недопустимо',
-      );
+      throw badRequest('error.sso.ldaps_starttls_conflict');
     }
 
     // Шаблон фильтра проверяется подстановкой безопасной заглушки: сломанный
@@ -200,9 +196,7 @@ export class SsoService {
       try {
         FilterParser.parseString(buildLdapUserFilter(filter, 'проверка'));
       } catch {
-        throw new BadRequestException(
-          'Фильтр поиска записан неверно и не разбирается',
-        );
+        throw badRequest('error.sso.filter_invalid');
       }
     }
   }
@@ -211,14 +205,15 @@ export class SsoService {
   private assertRequiredFields(type: string, data: Record<string, any>): void {
     const required = REQUIRED_BY_TYPE[type];
     if (!required) {
-      throw new BadRequestException('Неизвестный тип провайдера входа');
+      throw badRequest('error.sso.provider_type_unknown');
     }
 
     const missing = required.filter((field) => !data[field]);
     if (missing.length > 0) {
-      throw new BadRequestException(
-        `Для типа ${type} обязательны поля: ${missing.join(', ')}`,
-      );
+      throw badRequest('error.sso.provider_fields_required', {
+        type,
+        fields: missing.join(', '),
+      });
     }
   }
 
@@ -304,7 +299,7 @@ export class SsoService {
       .executeTakeFirst();
 
     if (!existing) {
-      throw new NotFoundException('Провайдер входа не найден');
+      throw notFound('error.sso.provider_not_found');
     }
 
     const { providerId, ...rest } = dto;
@@ -362,7 +357,7 @@ export class SsoService {
       .executeTakeFirst();
 
     if (Number(result?.numUpdatedRows ?? 0) === 0) {
-      throw new NotFoundException('Провайдер входа не найден');
+      throw notFound('error.sso.provider_not_found');
     }
 
     this.logger.log(`Провайдер входа ${providerId} удален`);
@@ -399,7 +394,7 @@ export class SsoService {
 
     const target = await this.userRepo.findById(targetUserId, workspace.id);
     if (!target) {
-      throw new BadRequestException('Пользователь не найден');
+      throw badRequest('error.sso.user_not_found');
     }
 
     const result = await this.db
@@ -412,9 +407,7 @@ export class SsoService {
 
     const unlinked = Number(result?.numUpdatedRows ?? 0);
     if (unlinked === 0) {
-      throw new BadRequestException(
-        'У этого пользователя нет связей с провайдерами входа',
-      );
+      throw badRequest('error.sso.user_has_no_links');
     }
 
     // Событие отдельное, а не общее «изменен пользователь»: снятие чужой

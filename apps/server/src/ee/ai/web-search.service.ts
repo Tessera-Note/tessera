@@ -253,7 +253,6 @@ export class WebSearchService {
     };
   }
 
-
   private async fetchJson(url: string, init: RequestInit): Promise<any> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

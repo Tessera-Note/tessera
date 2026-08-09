@@ -15,9 +15,8 @@ if (!document.getElementById("root")) {
   document.body.appendChild(root);
 }
 
-const { getDescriptor, PROPERTY_PICKER_ORDER } = await import(
-  "./property-type.registry"
-);
+const { getDescriptor, PROPERTY_PICKER_ORDER } =
+  await import("./property-type.registry");
 
 /**
  * Типы, которые может прислать сервер.

@@ -27,36 +27,45 @@ export const useEditorScroll = ({
     }
   }, [initialScrollTo]);
 
-  const handleScrollTo = useCallback(async (editor: Editor, _scrollTo: string | null = null, tryCount: number = 0) => {
-    await waitForState(() => canScroll());
-    return new Promise((resolve) => {
-      const MAX_TRY_COUNT = 10;
-      if (tryCount >= MAX_TRY_COUNT) {
-        resolve(false);
-        return;
-      }
+  const handleScrollTo = useCallback(
+    async (
+      editor: Editor,
+      _scrollTo: string | null = null,
+      tryCount: number = 0,
+    ) => {
+      await waitForState(() => canScroll());
+      return new Promise((resolve) => {
+        const MAX_TRY_COUNT = 10;
+        if (tryCount >= MAX_TRY_COUNT) {
+          resolve(false);
+          return;
+        }
 
-      const targetId = _scrollTo || scrollTo;
-      if (!targetId) {
-        resolve(false);
-        return;
-      }
+        const targetId = _scrollTo || scrollTo;
+        if (!targetId) {
+          resolve(false);
+          return;
+        }
 
-      if (editor.isDestroyed) {
-        resolve(false);
-        return;
-      }
-      const dom = editor.view.dom.querySelector(`[id="${targetId}"], [data-id="${targetId}"]`);
-      if (dom) {
-        dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        resolve(true);
-      } else {
-        setTimeout(async () => {
-          resolve(await handleScrollTo(editor, targetId, tryCount + 1));
-        }, 200);
-      }
-    });
-  }, [scrollTo, canScroll]);
+        if (editor.isDestroyed) {
+          resolve(false);
+          return;
+        }
+        const dom = editor.view.dom.querySelector(
+          `[id="${targetId}"], [data-id="${targetId}"]`,
+        );
+        if (dom) {
+          dom.scrollIntoView({ behavior: "smooth", block: "start" });
+          resolve(true);
+        } else {
+          setTimeout(async () => {
+            resolve(await handleScrollTo(editor, targetId, tryCount + 1));
+          }, 200);
+        }
+      });
+    },
+    [scrollTo, canScroll],
+  );
 
   return { scrollTo, handleScrollTo };
 };

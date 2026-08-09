@@ -22,14 +22,22 @@ export default function BasePage() {
     <Container
       fluid
       p="md"
-      style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}
+      style={{
+        height: "calc(100vh - 60px)",
+        display: "flex",
+        flexDirection: "column",
+      }}
     >
       {base && (
         <Title order={3} mb="xs">
-          {base.icon ? `${base.icon} ` : ""}{base.name}
+          {base.icon ? `${base.icon} ` : ""}
+          {base.name}
         </Title>
       )}
-      <BaseView pageId={pageId} editable={hasBases && (base?.permissions?.canEdit ?? false)} />
+      <BaseView
+        pageId={pageId}
+        editable={hasBases && (base?.permissions?.canEdit ?? false)}
+      />
     </Container>
   );
 }

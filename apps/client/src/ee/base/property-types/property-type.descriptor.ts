@@ -1,11 +1,11 @@
-import type React from 'react';
-import type { IconLetterT } from '@tabler/icons-react';
+import type React from "react";
+import type { IconLetterT } from "@tabler/icons-react";
 import type {
   BasePropertyType,
   IBaseProperty,
   IBaseRow,
   TypeOptions,
-} from '@/ee/base/types/base.types';
+} from "@/ee/base/types/base.types";
 
 export type CellComponentProps = {
   value: unknown;
@@ -21,12 +21,12 @@ export type CellComponentProps = {
 };
 
 export type FilterInputKind =
-  | 'choices'
-  | 'number'
-  | 'boolean'
-  | 'text'
-  | 'person'
-  | 'date';
+  | "choices"
+  | "number"
+  | "boolean"
+  | "text"
+  | "person"
+  | "date";
 
 export type ClientPropertyTypeDescriptor = {
   type: BasePropertyType;

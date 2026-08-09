@@ -70,16 +70,16 @@ export function CellStatus({
     const result: CategoryGroup[] = [];
     for (const key of ["todo", "inProgress", "complete"]) {
       if (grouped[key]?.length) {
-        result.push({ label: categoryLabels[key] ?? key, choices: grouped[key] });
+        result.push({
+          label: categoryLabels[key] ?? key,
+          choices: grouped[key],
+        });
       }
     }
     return result;
   }, [choices, search]);
 
-  const flatChoices = useMemo(
-    () => groups.flatMap((g) => g.choices),
-    [groups],
-  );
+  const flatChoices = useMemo(() => groups.flatMap((g) => g.choices), [groups]);
   const choiceIdxMap = useMemo(() => {
     const m = new Map<string, number>();
     flatChoices.forEach((c, i) => m.set(c.id, i));
@@ -167,7 +167,8 @@ export function CellStatus({
                       className={clsx(
                         cellClasses.selectOption,
                         isSelected && cellClasses.selectOptionActive,
-                        idx === activeIndex && cellClasses.selectOptionKeyboardActive,
+                        idx === activeIndex &&
+                          cellClasses.selectOptionKeyboardActive,
                       )}
                       onMouseEnter={() => setActiveIndex(idx)}
                       onClick={() => handleSelect(choice)}
