@@ -65,6 +65,16 @@ export default function GroupList() {
                           <AutoTooltipText fz="sm" fw={500} lineClamp={1}>
                             {group.name}
                           </AutoTooltipText>
+                          {/*
+                            Состав такой группы ведет каталог, а менять и
+                            удалять ее изнутри нельзя: без отметки
+                            администратор узнавал об этом только по отказу.
+                          */}
+                          {group.isExternal && (
+                            <Text fz="xs" c="dimmed">
+                              {t("Managed by the directory")}
+                            </Text>
+                          )}
                           <Text fz="xs" c="dimmed" lineClamp={2}>
                             {group.description}
                           </Text>

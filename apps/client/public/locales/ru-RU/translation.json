@@ -1826,5 +1826,9 @@
   "Sync groups": "Синхронизировать группы",
   "Membership in workspace groups whose name matches a group from the provider. Groups are matched by name and never created.": "Состав групп рабочего пространства, чье имя совпадает с группой у поставщика. Сопоставление по имени, новые группы не создаются.",
   "Group claim": "Утверждение с группами",
-  "Name of the claim that carries group names. Leave empty for the usual one.": "Имя утверждения, в котором приходят названия групп. Пусто означает обычное."
+  "Name of the claim that carries group names. Leave empty for the usual one.": "Имя утверждения, в котором приходят названия групп. Пусто означает обычное.",
+  "Direct access kept after directory removal": "Прямой доступ сохранился после исключения каталогом",
+  "error.group.you_cannot_change_an_external_group": "Эту группу ведет каталог, здесь ее менять нельзя",
+  "error.group.you_cannot_delete_an_external_group": "Эту группу ведет каталог, здесь ее удалять нельзя",
+  "Managed by the directory": "Ведется каталогом"
 }

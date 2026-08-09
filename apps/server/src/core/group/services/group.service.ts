@@ -119,6 +119,13 @@ export class GroupService {
       throw badRequest('error.group.you_cannot_update_a_default_group');
     }
 
+    // Группу ведет каталог: переименование или правка здесь разошлись бы с
+    // ним, а следующий цикл синхронизации завел бы ее заново под прежним
+    // именем и с новым идентификатором, то есть в списке оказались бы две.
+    if (group.isExternal) {
+      throw badRequest('error.group.you_cannot_change_an_external_group');
+    }
+
     const groupBefore = { name: group.name, description: group.description };
 
     if (updateGroupDto.name) {
@@ -177,6 +184,13 @@ export class GroupService {
     const group = await this.findAndValidateGroup(groupId, workspaceId);
     if (group.isDefault) {
       throw badRequest('error.group.you_cannot_delete_a_default_group');
+    }
+
+    // Удалить группу каталога изнутри нельзя по той же причине: следующий
+    // цикл заведет ее заново, а доступы, которые она давала, к этому моменту
+    // уже снимутся каскадом.
+    if (group.isExternal) {
+      throw badRequest('error.group.you_cannot_delete_an_external_group');
     }
 
     const [userIds, spaceIds] = await Promise.all([

@@ -52,6 +52,9 @@ export const auditEventLabels: Record<string, string> = {
   "group.deleted": "Deleted group",
   "group.member_added": "Added group member",
   "group.member_removed": "Removed group member",
+  // Каталог исключил человека из группы, а прямой доступ у него остался:
+  // каталог считает доступ отозванным, а он действует.
+  "group.direct_access_retained": "Direct access kept after directory removal",
 
   "comment.deleted": "Deleted comment",
 

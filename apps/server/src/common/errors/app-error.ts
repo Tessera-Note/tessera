@@ -401,6 +401,10 @@ export const ErrorMessage = {
     'File too large. Exceeds the {{limit}} import limit',
   'error.integrations.import_extension_unsupported':
     'Invalid import file extension. Supported: {{supported}}.',
+  'error.group.you_cannot_change_an_external_group':
+    'This group is managed by the directory and cannot be changed here',
+  'error.group.you_cannot_delete_an_external_group':
+    'This group is managed by the directory and cannot be deleted here',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorMessage;

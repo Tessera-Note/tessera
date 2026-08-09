@@ -423,7 +423,7 @@ export class ScimGroupService {
     }
 
     const membersChanged = values.members
-      ? await this.syncMembers(row, values.members, workspace)
+      ? await this.syncMembers(row, values.members, workspace, token)
       : false;
 
     // Событие пишется после применения и только при реальном изменении.
@@ -452,6 +452,7 @@ export class ScimGroupService {
     row: GroupRow,
     desired: string[],
     workspace: Workspace,
+    token: ScimTokenContext | null = null,
   ): Promise<boolean> {
     const current = await this.scimGroupRepo.membersOf([row.id], workspace.id);
     const currentIds = new Set(current.map((member) => member.userId));
@@ -478,7 +479,7 @@ export class ScimGroupService {
         workspace.id,
       );
 
-      await this.warnAboutRetainedAccess(userId, row);
+      await this.warnAboutRetainedAccess(userId, row, workspace, token);
     }
 
     return toAdd.length > 0 || toRemove.length > 0;
@@ -492,11 +493,15 @@ export class ScimGroupService {
    * прямой, если групповая была выше. Трогать прямые записи отсюда нельзя:
    * их выдал администратор вручную, каталог о них не знает и никогда их не
    * выдавал. Но и молча оставлять расхождение нельзя, поэтому оно попадает
-   * в лог с перечнем пространств.
+   * и в журнал сервера, и в журнал аудита: лог читают при разборе
+   * происшествия, а журнал аудита смотрят, когда выясняют, кто и когда
+   * получил доступ.
    */
   private async warnAboutRetainedAccess(
     userId: string,
     row: GroupRow,
+    workspace: Workspace,
+    token: ScimTokenContext | null,
   ): Promise<void> {
     const spaceIds = await this.scimGroupRepo.spacesWithDirectAccess(
       userId,
@@ -509,6 +514,14 @@ export class ScimGroupService {
       `Участник ${userId} исключен каталогом из группы ${row.id}, но сохранил ` +
         `прямой доступ к пространствам: ${spaceIds.join(', ')}. ` +
         'Прямые доступы выданы вручную и каталогом не управляются.',
+    );
+
+    this.audit(
+      AuditEvent.GROUP_DIRECT_ACCESS_RETAINED,
+      row.id,
+      workspace,
+      token,
+      { userId, spaceIds },
     );
   }
 

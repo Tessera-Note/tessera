@@ -46,6 +46,11 @@ export const AuditEvent = {
   GROUP_DELETED: 'group.deleted',
   GROUP_MEMBER_ADDED: 'group.member_added',
   GROUP_MEMBER_REMOVED: 'group.member_removed',
+  /**
+   * Каталог исключил человека из группы, а прямой доступ к пространствам у
+   * него остался. Каталог считает доступ отозванным, а он действует.
+   */
+  GROUP_DIRECT_ACCESS_RETAINED: 'group.direct_access_retained',
 
   // Comment
   COMMENT_CREATED: 'comment.created',
