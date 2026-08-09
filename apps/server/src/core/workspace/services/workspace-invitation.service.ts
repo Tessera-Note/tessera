@@ -45,6 +45,10 @@ import {
   getWorkspaceDefaultPageEditMode,
   isAdminActingOnOwner,
 } from '../workspace.util';
+import {
+  DEFAULT_MAIL_LOCALE,
+  mailText,
+} from '../../../integrations/transactional/mail-text';
 
 @Injectable()
 export class WorkspaceInvitationService {
@@ -322,13 +326,21 @@ export class WorkspaceInvitationService {
 
     if (invitedByUser) {
       const emailTemplate = InvitationAcceptedEmail({
+        locale: invitedByUser.locale ?? DEFAULT_MAIL_LOCALE,
         invitedUserName: newUser.name,
         invitedUserEmail: newUser.email,
       });
 
       await this.mailService.sendToQueue({
         to: invitedByUser.email,
-        subject: `${newUser.name} accepted your invitation to Tessera`,
+        // Приглашавший это существующий участник, его язык известен.
+        subject: mailText(
+          invitedByUser.locale,
+          'mail.subject.invitation_accepted',
+          {
+            name: newUser.name,
+          },
+        ),
         template: emailTemplate,
       });
     }
@@ -474,13 +486,18 @@ export class WorkspaceInvitationService {
       hostname,
     });
 
+    // У приглашенного учетной записи еще нет, а значит нет и языка. Письмо
+    // уходит по-английски, как запасная локаль клиента.
     const emailTemplate = InvitationEmail({
       inviteLink,
+      locale: DEFAULT_MAIL_LOCALE,
     });
 
     await this.mailService.sendToQueue({
       to: inviteeEmail,
-      subject: `${invitedByName} invited you to Tessera`,
+      subject: mailText(DEFAULT_MAIL_LOCALE, 'mail.subject.invitation', {
+        actor: invitedByName,
+      }),
       template: emailTemplate,
     });
   }

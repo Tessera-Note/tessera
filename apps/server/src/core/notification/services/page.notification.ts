@@ -21,6 +21,7 @@ import { PageUpdateDigestEmail } from '@tessera/transactional/emails/page-update
 import { PermissionGrantedEmail } from '@tessera/transactional/emails/permission-granted-email';
 import { getPageTitle } from '../../../common/helpers';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
+import { mailText } from '../../../integrations/transactional/mail-text';
 
 const PAGE_UPDATE_COOLDOWN_HOURS = 7;
 const DIGEST_DELAY_MS = 12 * 60 * 60 * 1000; // 12 hours
@@ -117,13 +118,21 @@ export class PageNotificationService {
       if (!notification) continue;
 
       const pageUrl = `${basePageUrl}`;
-      const subject = `${actor.name} mentioned you on ${pageTitle}`;
-
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        subject,
-        PageMentionEmail({ actorName: actor.name, pageTitle, pageUrl }),
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.page_mention', {
+            actor: actor.name,
+            page: pageTitle,
+          }),
+          template: PageMentionEmail({
+            actorName: actor.name,
+            pageTitle,
+            pageUrl,
+            locale,
+          }),
+        }),
         NotificationType.PAGE_USER_MENTION,
       );
     }
@@ -160,17 +169,22 @@ export class PageNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `${actor.name} gave you ${accessLabel} access to ${pageTitle}`;
-
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        subject,
-        PermissionGrantedEmail({
-          actorName: actor.name,
-          pageTitle,
-          pageUrl: basePageUrl,
-          accessLabel,
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.permission_granted', {
+            actor: actor.name,
+            access: accessLabel,
+            page: pageTitle,
+          }),
+          template: PermissionGrantedEmail({
+            actorName: actor.name,
+            pageTitle,
+            pageUrl: basePageUrl,
+            accessLabel,
+            locale,
+          }),
         }),
         NotificationType.PAGE_PERMISSION_GRANTED,
       );
@@ -242,13 +256,19 @@ export class PageNotificationService {
         await this.notificationService.queueEmail(
           userId,
           notification.id,
-          `${actor.name} updated ${pageTitle}`,
-          PageUpdateEmail({
-            userName: eligibleUsers.get(userId) ?? '',
-            actorName: actor.name,
-            pageTitle,
-            pageUrl: basePageUrl,
-            spaceName,
+          (locale) => ({
+            subject: mailText(locale, 'mail.subject.page_update', {
+              actor: actor.name,
+              page: pageTitle,
+            }),
+            template: PageUpdateEmail({
+              userName: eligibleUsers.get(userId) ?? '',
+              actorName: actor.name,
+              pageTitle,
+              pageUrl: basePageUrl,
+              spaceName,
+              locale,
+            }),
           }),
           NotificationType.PAGE_UPDATED,
         );
@@ -399,11 +419,16 @@ export class PageNotificationService {
     await this.notificationService.queueEmail(
       userId,
       notificationIds[0],
-      `Your digest: ${pageUpdates.length} page ${pageUpdates.length === 1 ? 'update' : 'updates'}`,
-      PageUpdateDigestEmail({
-        userName: user.name,
-        pageUpdates,
-        totalUpdates: pageUpdates.length,
+      (locale) => ({
+        subject: mailText(locale, 'mail.subject.digest', {
+          count: pageUpdates.length,
+        }),
+        template: PageUpdateDigestEmail({
+          locale,
+          userName: user.name,
+          pageUpdates,
+          totalUpdates: pageUpdates.length,
+        }),
       }),
       NotificationType.PAGE_UPDATED,
     );

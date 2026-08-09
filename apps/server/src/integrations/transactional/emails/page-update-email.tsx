@@ -1,7 +1,8 @@
-import { Link, Section, Text } from 'react-email';
+import { Section, Text } from 'react-email';
 import * as React from 'react';
-import { content, link, paragraph } from '../css/styles';
+import { content, paragraph } from '../css/styles';
 import { EmailButton, Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   userName: string;
@@ -9,6 +10,7 @@ interface Props {
   pageTitle: string;
   pageUrl: string;
   spaceName: string;
+  locale?: string;
 }
 
 export const PageUpdateEmail = ({
@@ -17,20 +19,23 @@ export const PageUpdateEmail = ({
   pageTitle,
   pageUrl,
   spaceName,
+  locale,
 }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting name={userName} />
+        <Greeting name={userName} locale={locale} />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> updated{' '}
-          <Link href={pageUrl} style={link}>
-            <strong>{pageTitle}</strong>
-          </Link>{' '}
-          in <strong>{spaceName}</strong>.
+          {mailText(locale, 'mail.page_update.body', {
+            actor: actorName,
+            page: pageTitle,
+            space: spaceName,
+          })}
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Open page</EmailButton>
+      <EmailButton href={pageUrl}>
+        {mailText(locale, 'mail.action.open_page')}
+      </EmailButton>
     </MailBody>
   );
 };

@@ -2,26 +2,29 @@ import { Section, Text } from 'react-email';
 import * as React from 'react';
 import { content, paragraph, paragraphMuted } from '../css/styles';
 import { EmailButton, Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   username: string;
   resetLink: string;
+  locale?: string;
 }
 
-export const ForgotPasswordEmail = ({ username, resetLink }: Props) => {
+export const ForgotPasswordEmail = ({ username, resetLink, locale }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting name={username} />
+        <Greeting name={username} locale={locale} />
         <Text style={paragraph}>
-          We received a request to reset your password.
+          {mailText(locale, 'mail.forgot_password.body')}
         </Text>
       </Section>
-      <EmailButton href={resetLink}>Set a new password</EmailButton>
+      <EmailButton href={resetLink}>
+        {mailText(locale, 'mail.action.set_password')}
+      </EmailButton>
       <Section style={content}>
         <Text style={paragraphMuted}>
-          The link is valid for 30 minutes. If you did not request it, ignore
-          this email.
+          {mailText(locale, 'mail.forgot_password.note')}
         </Text>
       </Section>
     </MailBody>

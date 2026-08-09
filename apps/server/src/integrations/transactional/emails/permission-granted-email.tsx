@@ -2,12 +2,14 @@ import { Section, Text } from 'react-email';
 import * as React from 'react';
 import { content, paragraph } from '../css/styles';
 import { EmailButton, Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   actorName: string;
   pageTitle: string;
   pageUrl: string;
   accessLabel: string;
+  locale?: string;
 }
 
 export const PermissionGrantedEmail = ({
@@ -15,17 +17,23 @@ export const PermissionGrantedEmail = ({
   pageTitle,
   pageUrl,
   accessLabel,
+  locale,
 }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting />
+        <Greeting locale={locale} />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> gave you {accessLabel} access to{' '}
-          <strong>{pageTitle}</strong>.
+          {mailText(locale, 'mail.permission_granted.body', {
+            actor: actorName,
+            page: pageTitle,
+            access: accessLabel,
+          })}
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Open page</EmailButton>
+      <EmailButton href={pageUrl}>
+        {mailText(locale, 'mail.action.open_page')}
+      </EmailButton>
     </MailBody>
   );
 };

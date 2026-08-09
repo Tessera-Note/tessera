@@ -14,6 +14,7 @@ import { CommentMentionEmail } from '@tessera/transactional/emails/comment-menti
 import { CommentCreateEmail } from '@tessera/transactional/emails/comment-created-email';
 import { CommentResolvedEmail } from '@tessera/transactional/emails/comment-resolved-email';
 import { getPageTitle } from '../../../common/helpers';
+import { mailText } from '../../../integrations/transactional/mail-text';
 
 @Injectable()
 export class CommentNotificationService {
@@ -68,10 +69,9 @@ export class CommentNotificationService {
       );
 
     const usersWithPageAccess =
-      await this.pagePermissionRepo.getUserIdsWithPageAccess(
-        pageId,
-        [...usersWithSpaceAccess],
-      );
+      await this.pagePermissionRepo.getUserIdsWithPageAccess(pageId, [
+        ...usersWithSpaceAccess,
+      ]);
     const usersWithAccess = new Set(usersWithPageAccess);
 
     for (const userId of mentionedUserIds) {
@@ -91,8 +91,17 @@ export class CommentNotificationService {
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        `${actor.name} mentioned you in a comment`,
-        CommentMentionEmail({ actorName: actor.name, pageTitle, pageUrl }),
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.comment_mention', {
+            actor: actor.name,
+          }),
+          template: CommentMentionEmail({
+            actorName: actor.name,
+            pageTitle,
+            pageUrl,
+            locale,
+          }),
+        }),
         NotificationType.COMMENT_USER_MENTION,
       );
 
@@ -117,8 +126,18 @@ export class CommentNotificationService {
       await this.notificationService.queueEmail(
         recipientId,
         notification.id,
-        `${actor.name} commented on ${pageTitle}`,
-        CommentCreateEmail({ actorName: actor.name, pageTitle, pageUrl }),
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.comment_created', {
+            actor: actor.name,
+            page: pageTitle,
+          }),
+          template: CommentCreateEmail({
+            actorName: actor.name,
+            pageTitle,
+            pageUrl,
+            locale,
+          }),
+        }),
         NotificationType.COMMENT_CREATED,
       );
     }
@@ -160,10 +179,9 @@ export class CommentNotificationService {
     }
 
     const hasPageAccess =
-      await this.pagePermissionRepo.getUserIdsWithPageAccess(
-        pageId,
-        [commentCreatorId],
-      );
+      await this.pagePermissionRepo.getUserIdsWithPageAccess(pageId, [
+        commentCreatorId,
+      ]);
     if (hasPageAccess.length === 0) return;
 
     const notification = await this.notificationService.create({
@@ -177,13 +195,21 @@ export class CommentNotificationService {
     });
     if (!notification) return;
 
-    const subject = `${actor.name} resolved a comment on ${pageTitle}`;
-
     await this.notificationService.queueEmail(
       commentCreatorId,
       notification.id,
-      subject,
-      CommentResolvedEmail({ actorName: actor.name, pageTitle, pageUrl }),
+      (locale) => ({
+        subject: mailText(locale, 'mail.subject.comment_resolved', {
+          actor: actor.name,
+          page: pageTitle,
+        }),
+        template: CommentResolvedEmail({
+          actorName: actor.name,
+          pageTitle,
+          pageUrl,
+          locale,
+        }),
+      }),
       NotificationType.COMMENT_RESOLVED,
     );
   }

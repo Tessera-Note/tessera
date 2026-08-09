@@ -40,6 +40,10 @@ import {
   verifyTotp,
 } from '../mfa.util';
 import { badRequest, unauthorized } from '../../../common/errors/app-error';
+import {
+  DEFAULT_MAIL_LOCALE,
+  mailText,
+} from '../../../integrations/transactional/mail-text';
 
 /**
  * Остаток резервных кодов, ниже которого пользователя стоит предупредить.
@@ -376,13 +380,16 @@ export class MfaService {
 
     // Владелец учетной записи узнает о сбросе сам, а не обнаруживает
     // пропажу фактора при следующем входе.
+    const locale = target.locale ?? DEFAULT_MAIL_LOCALE;
+
     try {
       await this.mailService.sendToQueue({
         to: target.email,
-        subject: 'Two-factor authentication was reset',
+        subject: mailText(locale, 'mail.subject.mfa_reset'),
         template: MfaResetEmail({
           username: target.name,
           workspaceName: workspace.name,
+          locale,
         }),
       });
     } catch (err) {

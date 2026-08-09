@@ -2,6 +2,7 @@ import { Link, Section, Text } from 'react-email';
 import * as React from 'react';
 import { brand, content, link, paragraph } from '../css/styles';
 import { Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface PageUpdate {
   title: string;
@@ -13,23 +14,21 @@ interface Props {
   userName: string;
   pageUpdates: PageUpdate[];
   totalUpdates: number;
+  locale?: string;
 }
 
 export const PageUpdateDigestEmail = ({
   userName,
   pageUpdates,
   totalUpdates,
+  locale,
 }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting name={userName} />
+        <Greeting name={userName} locale={locale} />
         <Text style={paragraph}>
-          There {totalUpdates === 1 ? 'has' : 'have'} been{' '}
-          <strong>
-            {totalUpdates} update{totalUpdates === 1 ? '' : 's'}
-          </strong>{' '}
-          since the last digest.
+          {mailText(locale, 'mail.digest.body', { count: totalUpdates })}
         </Text>
 
         {pageUpdates.map((page, i) => (
@@ -41,7 +40,9 @@ export const PageUpdateDigestEmail = ({
             </Text>
             {page.updatedBy.length > 0 && (
               <Text style={updatedByText}>
-                Edited by {page.updatedBy.join(', ')}
+                {mailText(locale, 'mail.digest.edited_by', {
+                  names: page.updatedBy.join(', '),
+                })}
               </Text>
             )}
           </Section>

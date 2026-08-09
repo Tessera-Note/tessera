@@ -19,19 +19,21 @@ import {
   Text,
 } from 'react-email';
 import * as React from 'react';
+import { mailText } from '../mail-text';
 
 interface MailBodyProps {
+  locale?: string;
   children: React.ReactNode;
 }
 
-export function MailBody({ children }: MailBodyProps) {
+export function MailBody({ children, locale }: MailBodyProps) {
   return (
     <Html>
       <Head />
       <Body style={main}>
         <MailHeader />
         <Container style={container}>{children}</Container>
-        <MailFooter />
+        <MailFooter locale={locale} />
       </Body>
     </Html>
   );
@@ -108,7 +110,7 @@ export function EmailButton({ href, children }: EmailButtonProps) {
   );
 }
 
-export function MailFooter() {
+export function MailFooter({ locale }: { locale?: string }) {
   return (
     <Section style={footer}>
       <Row>
@@ -120,14 +122,20 @@ export function MailFooter() {
             fontSize: '12px',
           }}
         >
-          Tessera · your team knowledge base
+          {mailText(locale, 'mail.footer')}
         </Text>
       </Row>
     </Section>
   );
 }
 
-export function Greeting({ name }: { name?: string }) {
+export function Greeting({ name, locale }: { name?: string; locale?: string }) {
   const first = name?.trim().split(' ')[0];
-  return <Text style={paragraph}>{first ? `Hi, ${first}` : 'Hi'}</Text>;
+  return (
+    <Text style={paragraph}>
+      {first
+        ? mailText(locale, 'mail.greeting_named', { name: first })
+        : mailText(locale, 'mail.greeting')}
+    </Text>
+  );
 }

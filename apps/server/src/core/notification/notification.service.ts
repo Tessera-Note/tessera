@@ -6,8 +6,13 @@ import { InsertableNotification } from '@tessera/db/types/entity.types';
 import { PaginationOptions } from '@tessera/db/pagination/pagination-options';
 import { WsGateway } from '../../ws/ws.gateway';
 import { MailService } from '../../integrations/mail/mail.service';
-import { NotificationTab, NotificationType, NotificationTypeToSettingKey } from './notification.constants';
+import {
+  NotificationTab,
+  NotificationType,
+  NotificationTypeToSettingKey,
+} from './notification.constants';
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
+import { DEFAULT_MAIL_LOCALE } from '../../integrations/transactional/mail-text';
 
 @Injectable()
 export class NotificationService {
@@ -52,9 +57,7 @@ export class NotificationService {
       type,
     );
 
-    const pageIds = result.items
-      .map((n: any) => n.pageId)
-      .filter(Boolean);
+    const pageIds = result.items.map((n: any) => n.pageId).filter(Boolean);
 
     if (pageIds.length > 0) {
       const accessiblePageIds =
@@ -88,17 +91,23 @@ export class NotificationService {
     return this.notificationRepo.markAllAsRead(userId);
   }
 
+  /**
+   * Поставить письмо в очередь на языке получателя.
+   *
+   * Тема и шаблон собираются здесь, а не у вызывающего: язык получателя
+   * известен только после чтения его записи, а вызывающий рассылает письмо
+   * сразу нескольким людям с разными языками.
+   */
   async queueEmail(
     userId: string,
     notificationId: string,
-    subject: string,
-    template: any,
+    build: (locale: string) => { subject: string; template: any },
     type?: NotificationType,
   ) {
     try {
       const user = await this.db
         .selectFrom('users')
-        .select(['email', 'settings'])
+        .select(['email', 'settings', 'locale'])
         .where('id', '=', userId)
         .where('deletedAt', 'is', null)
         .where('deactivatedAt', 'is', null)
@@ -113,6 +122,8 @@ export class NotificationService {
           if (settings?.notifications?.[settingKey] === false) return;
         }
       }
+
+      const { subject, template } = build(user.locale ?? DEFAULT_MAIL_LOCALE);
 
       await this.mailService.sendToQueue({
         to: user.email,

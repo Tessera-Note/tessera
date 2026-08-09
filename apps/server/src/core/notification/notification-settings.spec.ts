@@ -18,7 +18,11 @@ function build(settings: any) {
   const chain: any = {
     select: () => chain,
     where: () => chain,
-    executeTakeFirst: async () => ({ email: 'u@example.com', settings }),
+    executeTakeFirst: async () => ({
+      email: 'u@example.com',
+      settings,
+      locale: 'ru-RU',
+    }),
   };
 
   const mailService: any = { sendToQueue: jest.fn(async () => {}) };
@@ -67,8 +71,7 @@ describe('Настройки уведомлений', () => {
     await service.queueEmail(
       'u-1',
       'n-1',
-      'тема',
-      null,
+      () => ({ subject: 'тема', template: null }),
       NotificationType.PAGE_APPROVAL_REQUESTED,
     );
 
@@ -82,8 +85,7 @@ describe('Настройки уведомлений', () => {
     await service.queueEmail(
       'u-1',
       'n-1',
-      'тема',
-      null,
+      () => ({ subject: 'тема', template: null }),
       NotificationType.PAGE_APPROVAL_REQUESTED,
     );
 
@@ -104,9 +106,34 @@ describe('Настройки уведомлений', () => {
       notifications: { 'page.verificationUpdates': false },
     });
 
-    await service.queueEmail('u-1', 'n-1', 'тема', null, type);
+    await service.queueEmail(
+      'u-1',
+      'n-1',
+      () => ({ subject: 'тема', template: null }),
+      type,
+    );
 
     expect(mailService.sendToQueue).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Тема и шаблон собираются внутри постановки, а не у вызывающего: язык
+   * известен только после чтения записи получателя, а один вызывающий
+   * рассылает письмо нескольким людям с разными языками.
+   */
+  it('письмо собирается на языке получателя', async () => {
+    const { service, mailService } = build({});
+    const seen: string[] = [];
+
+    await service.queueEmail('u-1', 'n-1', (locale) => {
+      seen.push(locale);
+      return { subject: `тема ${locale}`, template: null };
+    });
+
+    expect(seen).toEqual(['ru-RU']);
+    expect(mailService.sendToQueue).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'тема ru-RU' }),
+    );
   });
 
   /** Просьба об утверждении требует действия, поэтому мутится отдельно. */
@@ -118,8 +145,7 @@ describe('Настройки уведомлений', () => {
     await service.queueEmail(
       'u-1',
       'n-1',
-      'тема',
-      null,
+      () => ({ subject: 'тема', template: null }),
       NotificationType.PAGE_APPROVAL_REQUESTED,
     );
 

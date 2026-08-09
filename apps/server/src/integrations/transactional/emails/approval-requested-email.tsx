@@ -2,12 +2,14 @@ import { Section, Text } from 'react-email';
 import * as React from 'react';
 import { content, paragraph } from '../css/styles';
 import { EmailButton, Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   actorName: string;
   pageTitle: string;
   spaceName: string;
   pageUrl: string;
+  locale?: string;
 }
 
 export const ApprovalRequestedEmail = ({
@@ -15,17 +17,23 @@ export const ApprovalRequestedEmail = ({
   pageTitle,
   spaceName,
   pageUrl,
+  locale,
 }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting />
+        <Greeting locale={locale} />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> submitted <strong>{pageTitle}</strong> in{' '}
-          <strong>{spaceName}</strong> for your approval.
+          {mailText(locale, 'mail.approval_requested.body', {
+            actor: actorName,
+            page: pageTitle,
+            space: spaceName,
+          })}
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Review page</EmailButton>
+      <EmailButton href={pageUrl}>
+        {mailText(locale, 'mail.action.review_page')}
+      </EmailButton>
     </MailBody>
   );
 };

@@ -31,13 +31,8 @@ export class PageUpdateEmailRateLimiter {
 
   async popDigest(userId: string): Promise<string[]> {
     const key = DIGEST_PREFIX + userId;
-    const [ids] = await this.redis
-      .multi()
-      .lrange(key, 0, -1)
-      .del(key)
-      .exec();
+    const [ids] = await this.redis.multi().lrange(key, 0, -1).del(key).exec();
 
     return (ids?.[1] as string[]) ?? [];
   }
-
 }

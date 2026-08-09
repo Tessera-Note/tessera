@@ -2,6 +2,7 @@ import { Section, Text } from 'react-email';
 import * as React from 'react';
 import { content, paragraph } from '../css/styles';
 import { EmailButton, Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   actorName: string;
@@ -9,6 +10,7 @@ interface Props {
   spaceName: string;
   pageUrl: string;
   comment?: string;
+  locale?: string;
 }
 
 export const ApprovalRejectedEmail = ({
@@ -17,14 +19,18 @@ export const ApprovalRejectedEmail = ({
   spaceName,
   pageUrl,
   comment,
+  locale,
 }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting />
+        <Greeting locale={locale} />
         <Text style={paragraph}>
-          <strong>{actorName}</strong> sent <strong>{pageTitle}</strong> in{' '}
-          <strong>{spaceName}</strong> back for revision.
+          {mailText(locale, 'mail.approval_rejected.body', {
+            actor: actorName,
+            page: pageTitle,
+            space: spaceName,
+          })}
         </Text>
         {comment && (
           <Text style={{ ...paragraph, fontStyle: 'italic' }}>
@@ -32,7 +38,9 @@ export const ApprovalRejectedEmail = ({
           </Text>
         )}
       </Section>
-      <EmailButton href={pageUrl}>Open page</EmailButton>
+      <EmailButton href={pageUrl}>
+        {mailText(locale, 'mail.action.open_page')}
+      </EmailButton>
     </MailBody>
   );
 };

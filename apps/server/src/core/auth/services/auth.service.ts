@@ -39,6 +39,10 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
+import {
+  DEFAULT_MAIL_LOCALE,
+  mailText,
+} from '../../../integrations/transactional/mail-text';
 
 @Injectable()
 export class AuthService {
@@ -161,10 +165,11 @@ export class AuthService {
       resourceId: userId,
     });
 
-    const emailTemplate = ChangePasswordEmail({ username: user.name });
+    const locale = user.locale ?? DEFAULT_MAIL_LOCALE;
+    const emailTemplate = ChangePasswordEmail({ username: user.name, locale });
     await this.mailService.sendToQueue({
       to: user.email,
-      subject: 'Your password has been changed',
+      subject: mailText(locale, 'mail.subject.password_changed'),
       template: emailTemplate,
     });
   }
@@ -205,14 +210,16 @@ export class AuthService {
 
     const resetLink = `${this.domainService.getUrl(workspace.hostname)}/password-reset?token=${token}`;
 
+    const locale = user.locale ?? DEFAULT_MAIL_LOCALE;
     const emailTemplate = ForgotPasswordEmail({
+      locale,
       username: user.name,
       resetLink: resetLink,
     });
 
     await this.mailService.sendToQueue({
       to: user.email,
-      subject: 'Reset your password',
+      subject: mailText(locale, 'mail.subject.password_reset'),
       template: emailTemplate,
     });
   }
@@ -270,10 +277,11 @@ export class AuthService {
       resourceId: user.id,
     });
 
-    const emailTemplate = ChangePasswordEmail({ username: user.name });
+    const locale = user.locale ?? DEFAULT_MAIL_LOCALE;
+    const emailTemplate = ChangePasswordEmail({ username: user.name, locale });
     await this.mailService.sendToQueue({
       to: user.email,
-      subject: 'Your password has been changed',
+      subject: mailText(locale, 'mail.subject.password_changed'),
       template: emailTemplate,
     });
 

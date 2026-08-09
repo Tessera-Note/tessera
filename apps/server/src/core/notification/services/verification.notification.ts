@@ -17,6 +17,7 @@ import { ApprovalRejectedEmail } from '@tessera/transactional/emails/approval-re
 import { getPageTitle } from '../../../common/helpers';
 import { SpaceMemberRepo } from '@tessera/db/repos/space/space-member.repo';
 import { PagePermissionRepo } from '@tessera/db/repos/page/page-permission.repo';
+import { mailText } from '../../../integrations/transactional/mail-text';
 
 @Injectable()
 export class VerificationNotificationService {
@@ -118,19 +119,22 @@ export class VerificationNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `"${pageTitle}" needs to be verified again`;
-
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        subject,
-        VerificationExpiringEmail({
-          pageTitle,
-          spaceName,
-          pageUrl: basePageUrl,
-          expiresAt: new Date(verification.expiresAt).toLocaleDateString(
-            'en-US',
-          ),
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.verification_expiring', {
+            page: pageTitle,
+          }),
+          template: VerificationExpiringEmail({
+            pageTitle,
+            spaceName,
+            pageUrl: basePageUrl,
+            expiresAt: new Date(verification.expiresAt).toLocaleDateString(
+              locale,
+            ),
+            locale,
+          }),
         }),
         NotificationType.PAGE_VERIFICATION_EXPIRING,
       );
@@ -196,16 +200,19 @@ export class VerificationNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `Verification of "${pageTitle}" has expired`;
-
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        subject,
-        VerificationExpiredEmail({
-          pageTitle,
-          spaceName,
-          pageUrl: basePageUrl,
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.verification_expired', {
+            page: pageTitle,
+          }),
+          template: VerificationExpiredEmail({
+            pageTitle,
+            spaceName,
+            pageUrl: basePageUrl,
+            locale,
+          }),
         }),
         NotificationType.PAGE_VERIFICATION_EXPIRED,
       );
@@ -266,17 +273,20 @@ export class VerificationNotificationService {
       });
       if (!notification) continue;
 
-      const subject = `"${pageTitle}" is waiting for your approval`;
-
       await this.notificationService.queueEmail(
         userId,
         notification.id,
-        subject,
-        ApprovalRequestedEmail({
-          actorName,
-          pageTitle,
-          spaceName,
-          pageUrl: basePageUrl,
+        (locale) => ({
+          subject: mailText(locale, 'mail.subject.approval_requested', {
+            page: pageTitle,
+          }),
+          template: ApprovalRequestedEmail({
+            actorName,
+            pageTitle,
+            spaceName,
+            pageUrl: basePageUrl,
+            locale,
+          }),
         }),
         NotificationType.PAGE_APPROVAL_REQUESTED,
       );
@@ -314,18 +324,21 @@ export class VerificationNotificationService {
     // Единственный получатель: без него уведомлять некого.
     if (!notification) return;
 
-    const subject = `"${pageTitle}" was sent back for revision`;
-
     await this.notificationService.queueEmail(
       requestedById,
       notification.id,
-      subject,
-      ApprovalRejectedEmail({
-        actorName,
-        pageTitle,
-        spaceName,
-        pageUrl: basePageUrl,
-        comment,
+      (locale) => ({
+        subject: mailText(locale, 'mail.subject.approval_rejected', {
+          page: pageTitle,
+        }),
+        template: ApprovalRejectedEmail({
+          actorName,
+          pageTitle,
+          spaceName,
+          pageUrl: basePageUrl,
+          comment,
+          locale,
+        }),
       }),
       NotificationType.PAGE_APPROVAL_REJECTED,
     );

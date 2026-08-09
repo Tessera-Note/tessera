@@ -2,25 +2,35 @@ import { Section, Text } from 'react-email';
 import * as React from 'react';
 import { content, paragraph } from '../css/styles';
 import { EmailButton, Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   pageTitle: string;
   spaceName: string;
   pageUrl: string;
+  locale?: string;
 }
 
-export const VerificationExpiredEmail = ({ pageTitle, spaceName, pageUrl }: Props) => {
+export const VerificationExpiredEmail = ({
+  pageTitle,
+  spaceName,
+  pageUrl,
+  locale,
+}: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting />
+        <Greeting locale={locale} />
         <Text style={paragraph}>
-          Verification of <strong>{pageTitle}</strong> in{' '}
-          <strong>{spaceName}</strong> has expired. Verify the page again to
-          confirm it is still correct.
+          {mailText(locale, 'mail.verification_expired.body', {
+            page: pageTitle,
+            space: spaceName,
+          })}
         </Text>
       </Section>
-      <EmailButton href={pageUrl}>Verify page</EmailButton>
+      <EmailButton href={pageUrl}>
+        {mailText(locale, 'mail.action.verify_page')}
+      </EmailButton>
     </MailBody>
   );
 };

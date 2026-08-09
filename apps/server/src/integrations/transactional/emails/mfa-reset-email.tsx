@@ -2,10 +2,12 @@ import { Section, Text } from 'react-email';
 import * as React from 'react';
 import { content, paragraph, paragraphMuted } from '../css/styles';
 import { Greeting, MailBody } from '../partials/partials';
+import { mailText } from '../mail-text';
 
 interface Props {
   username?: string;
   workspaceName?: string;
+  locale?: string;
 }
 
 /**
@@ -16,21 +18,19 @@ interface Props {
  * входе. Ссылок и кнопок в письме нет намеренно, чтобы его нельзя было
  * использовать как приманку.
  */
-export const MfaResetEmail = ({ username, workspaceName }: Props) => {
+export const MfaResetEmail = ({ username, workspaceName, locale }: Props) => {
   return (
-    <MailBody>
+    <MailBody locale={locale}>
       <Section style={content}>
-        <Greeting name={username} />
+        <Greeting name={username} locale={locale} />
         <Text style={paragraph}>
-          An administrator reset two-factor authentication for your account
-          {workspaceName ? ` in ${workspaceName}` : ''}. A second factor is no
-          longer required to sign in.
+          {mailText(locale, 'mail.mfa_reset.body', {
+            scope: workspaceName ? ` (${workspaceName})` : '',
+          })}
         </Text>
-        <Text style={paragraph}>
-          Set two-factor authentication up again in your profile settings.
-        </Text>
+        <Text style={paragraph}>{mailText(locale, 'mail.mfa_reset.next')}</Text>
         <Text style={paragraphMuted}>
-          If you did not ask for this, contact an administrator right away.
+          {mailText(locale, 'mail.mfa_reset.warning')}
         </Text>
       </Section>
     </MailBody>
