@@ -209,7 +209,10 @@ export class ImportAttachmentService {
         const dir = path.posix.dirname(relPath);
         const aliasKey = `${dir}/${attachment.fileName}`;
         if (!attachmentCandidates.has(aliasKey)) {
-          attachmentCandidates.set(aliasKey, attachmentCandidates.get(relPath)!);
+          attachmentCandidates.set(
+            aliasKey,
+            attachmentCandidates.get(relPath)!,
+          );
           attachmentNameByRelPath.set(aliasKey, attachment.fileName);
         }
       }
@@ -377,9 +380,7 @@ export class ImportAttachmentService {
 
       const { attachmentId, apiFilePath } = processFile(relPath);
 
-      $aud
-        .attr('src', apiFilePath)
-        .attr('data-attachment-id', attachmentId);
+      $aud.attr('src', apiFilePath).attr('data-attachment-id', attachmentId);
 
       unwrapFromParagraph($, $aud);
     }
@@ -450,7 +451,15 @@ export class ImportAttachmentService {
       const { attachmentId, apiFilePath, abs } = processFile(relPath);
       const ext = path.extname(relPath).toLowerCase();
 
-      const audioExtensions = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.webm', '.flac', '.aac']);
+      const audioExtensions = new Set([
+        '.mp3',
+        '.wav',
+        '.ogg',
+        '.m4a',
+        '.webm',
+        '.flac',
+        '.aac',
+      ]);
 
       if (ext === '.pdf') {
         const $pdf = $('<div>')
@@ -945,9 +954,13 @@ export class ImportAttachmentService {
           })
           .execute();
 
-        // Queue PDF and DOCX files for indexing
-        const supportedExtensions = ['.pdf', '.docx'];
-        if (supportedExtensions.includes(ext.toLowerCase())) {
+        // Задача ставится на любое вложение, как и при обычной загрузке:
+        // решение о поддержке типа принимает AttachmentEeService, в одном
+        // месте. Прежний список перечислял `.pdf` и `.docx`, то есть ровно те
+        // типы, которые извлекатель не разбирает, а импортированные `.md`,
+        // `.txt` и `.json` в очередь не попадали вовсе и навсегда оставались
+        // в состоянии «не обработано».
+        {
           try {
             await this.attachmentQueue.add(
               QueueJob.ATTACHMENT_INDEX_CONTENT,
