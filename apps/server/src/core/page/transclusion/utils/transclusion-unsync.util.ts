@@ -41,7 +41,10 @@ export function rewriteAttachmentsForUnsync(
           idMap.set(oldId, newId);
         }
         node.attrs.attachmentId = newId;
-        if (typeof node.attrs.src === 'string' && node.attrs.src.includes(oldId)) {
+        if (
+          typeof node.attrs.src === 'string' &&
+          node.attrs.src.includes(oldId)
+        ) {
           node.attrs.src = node.attrs.src.split(oldId).join(newId);
         }
       }

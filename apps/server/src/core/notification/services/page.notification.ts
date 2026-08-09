@@ -169,20 +169,22 @@ export class PageNotificationService {
       });
       if (!notification) continue;
 
+      const accessLabel = this.accessLabelFor(role);
+
       await this.notificationService.queueEmail(
         userId,
         notification.id,
         (locale) => ({
           subject: mailText(locale, 'mail.subject.permission_granted', {
             actor: actor.name,
-            access: accessLabel,
+            access: accessLabel(locale),
             page: pageTitle,
           }),
           template: PermissionGrantedEmail({
             actorName: actor.name,
             pageTitle,
             pageUrl: basePageUrl,
-            accessLabel,
+            accessLabel: accessLabel(locale),
             locale,
           }),
         }),
@@ -432,6 +434,20 @@ export class PageNotificationService {
       }),
       NotificationType.PAGE_UPDATED,
     );
+  }
+
+  /**
+   * Подпись уровня доступа на языке письма.
+   *
+   * Раньше это был английский литерал, подставляемый в переведенную фразу, и
+   * в русском письме выходило «открыл вам доступ на edit».
+   */
+  private accessLabelFor(role: string) {
+    return (locale: string) =>
+      mailText(
+        locale,
+        role === 'writer' ? 'mail.access.writer' : 'mail.access.reader',
+      );
   }
 
   private async getPageContext(

@@ -24,7 +24,9 @@ describe('collectTransclusionsFromPmJson', () => {
         {
           type: 'transclusionSource',
           attrs: { id: 'abc123' },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body' }] }],
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Body' }] },
+          ],
         },
       ],
     };
@@ -33,7 +35,9 @@ describe('collectTransclusionsFromPmJson', () => {
     expect(got[0].transclusionId).toBe('abc123');
     expect(got[0].content).toEqual({
       type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body' }] }],
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Body' }] },
+      ],
     });
   });
 
@@ -41,7 +45,11 @@ describe('collectTransclusionsFromPmJson', () => {
     const doc = {
       type: 'doc',
       content: [
-        { type: 'transclusionSource', attrs: {}, content: [{ type: 'paragraph' }] },
+        {
+          type: 'transclusionSource',
+          attrs: {},
+          content: [{ type: 'paragraph' }],
+        },
       ],
     };
     expect(collectTransclusionsFromPmJson(doc)).toEqual([]);
@@ -51,8 +59,16 @@ describe('collectTransclusionsFromPmJson', () => {
     const doc = {
       type: 'doc',
       content: [
-        { type: 'transclusionSource', attrs: { id: 'a' }, content: [{ type: 'paragraph' }] },
-        { type: 'transclusionSource', attrs: { id: 'b' }, content: [{ type: 'paragraph' }] },
+        {
+          type: 'transclusionSource',
+          attrs: { id: 'a' },
+          content: [{ type: 'paragraph' }],
+        },
+        {
+          type: 'transclusionSource',
+          attrs: { id: 'b' },
+          content: [{ type: 'paragraph' }],
+        },
       ],
     };
     const got = collectTransclusionsFromPmJson(doc);
@@ -87,14 +103,18 @@ describe('collectTransclusionsFromPmJson', () => {
         {
           type: 'column',
           content: [
-            { type: 'transclusionSource', attrs: { id: 'inCol' }, content: [{ type: 'paragraph' }] },
+            {
+              type: 'transclusionSource',
+              attrs: { id: 'inCol' },
+              content: [{ type: 'paragraph' }],
+            },
           ],
         },
       ],
     };
-    expect(collectTransclusionsFromPmJson(doc).map((e) => e.transclusionId)).toEqual([
-      'inCol',
-    ]);
+    expect(
+      collectTransclusionsFromPmJson(doc).map((e) => e.transclusionId),
+    ).toEqual(['inCol']);
   });
 
   it('uses the last id when duplicate ids appear (later wins, deterministic)', () => {
@@ -104,12 +124,16 @@ describe('collectTransclusionsFromPmJson', () => {
         {
           type: 'transclusionSource',
           attrs: { id: 'dup' },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'first' }] }],
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'first' }] },
+          ],
         },
         {
           type: 'transclusionSource',
           attrs: { id: 'dup' },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'second' }] }],
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'second' }] },
+          ],
         },
       ],
     };
@@ -117,7 +141,9 @@ describe('collectTransclusionsFromPmJson', () => {
     expect(got).toHaveLength(1);
     expect(got[0].content).toEqual({
       type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'second' }] }],
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'second' }] },
+      ],
     });
   });
 });
@@ -131,9 +157,7 @@ describe('collectReferencesFromPmJson', () => {
   it('returns [] for a doc with no transclusionReference nodes', () => {
     const doc = {
       type: 'doc',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'hi' }] },
-      ],
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hi' }] }],
     };
     expect(collectReferencesFromPmJson(doc)).toEqual([]);
   });

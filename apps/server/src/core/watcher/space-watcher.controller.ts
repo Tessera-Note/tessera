@@ -64,7 +64,11 @@ export class SpaceWatcherController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const space = await this.loadSpaceAndAuthorize(dto.spaceId, user, workspace);
+    const space = await this.loadSpaceAndAuthorize(
+      dto.spaceId,
+      user,
+      workspace,
+    );
 
     await this.watcherService.watchSpace(user.id, space.id, workspace.id);
 
@@ -78,7 +82,11 @@ export class SpaceWatcherController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const space = await this.loadSpaceAndAuthorize(dto.spaceId, user, workspace);
+    const space = await this.loadSpaceAndAuthorize(
+      dto.spaceId,
+      user,
+      workspace,
+    );
 
     await this.watcherService.unwatchSpace(user.id, space.id);
 
@@ -92,7 +100,11 @@ export class SpaceWatcherController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const space = await this.loadSpaceAndAuthorize(dto.spaceId, user, workspace);
+    const space = await this.loadSpaceAndAuthorize(
+      dto.spaceId,
+      user,
+      workspace,
+    );
 
     const watching = await this.watcherService.isWatchingSpace(
       user.id,

@@ -55,9 +55,7 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
         if (job.name === QueueJob.ATTACHMENT_INDEX_CONTENT) {
           await attachmentEeService.indexAttachment(job.data.attachmentId);
         } else if (job.name === QueueJob.ATTACHMENT_INDEXING) {
-          await attachmentEeService.indexAttachments(
-            job.data.workspaceId,
-          );
+          await attachmentEeService.indexAttachments(job.data.workspaceId);
         }
       }
     } catch (err) {

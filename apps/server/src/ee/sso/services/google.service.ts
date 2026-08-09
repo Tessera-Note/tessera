@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { WorkspaceRepo } from '@tessera/db/repos/workspace/workspace.repo';
 import { UserRepo } from '@tessera/db/repos/user/user.repo';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';

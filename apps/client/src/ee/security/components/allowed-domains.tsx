@@ -9,6 +9,7 @@ import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { updateWorkspace } from "@/features/workspace/services/workspace-service.ts";
 import { IWorkspace } from "@/features/workspace/types/workspace.types.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 const formSchema = z.object({
   emailDomains: z.array(z.string()),
@@ -41,7 +42,7 @@ export default function AllowedDomains() {
       });
     } catch (err) {
       notifications.show({
-        message: err.response.data.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

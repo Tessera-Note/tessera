@@ -1,4 +1,11 @@
-import { IsIn, IsJSON, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsIn,
+  IsJSON,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { z } from 'zod';
 
 const yjsIdSchema = z.object({

@@ -50,7 +50,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
-import { notFound } from '../../../common/errors/app-error';
+import { badRequest, notFound } from '../../../common/errors/app-error';
 
 @Injectable()
 export class WorkspaceService {
@@ -276,7 +276,7 @@ export class WorkspaceService {
           .executeTakeFirst();
 
         if (!workspace) {
-          throw new BadRequestException('Workspace not found');
+          throw badRequest('error.workspace.not_found');
         }
 
         await trx

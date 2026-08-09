@@ -31,10 +31,7 @@ export class TransclusionController {
 
   @HttpCode(HttpStatus.OK)
   @Post('references')
-  async references(
-    @Body() dto: ReferencesDto,
-    @AuthUser() user: User,
-  ) {
+  async references(@Body() dto: ReferencesDto, @AuthUser() user: User) {
     return this.transclusionService.listReferences({
       sourcePageId: dto.sourcePageId,
       transclusionId: dto.transclusionId,

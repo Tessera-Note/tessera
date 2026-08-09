@@ -101,7 +101,7 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
       notifications.show({ message: t("Page duplicated successfully") });
     } catch (err: any) {
       notifications.show({
-        message: getApiErrorMessage(err, "An error occurred"),
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

@@ -92,7 +92,7 @@ export default function useAuth() {
     } catch (err) {
       setIsLoading(false);
       notifications.show({
-        message: err.response?.data.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
@@ -131,7 +131,7 @@ export default function useAuth() {
     } catch (err) {
       setIsLoading(false);
       notifications.show({
-        message: err.response?.data.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
@@ -160,7 +160,7 @@ export default function useAuth() {
     } catch (err) {
       setIsLoading(false);
       notifications.show({
-        message: err.response?.data.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }
@@ -183,7 +183,7 @@ export default function useAuth() {
     } catch (err) {
       setIsLoading(false);
       notifications.show({
-        message: err.response?.data.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
 
@@ -200,7 +200,7 @@ export default function useAuth() {
     } catch (err) {
       setIsLoading(false);
       notifications.show({
-        message: err.response?.data.message,
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

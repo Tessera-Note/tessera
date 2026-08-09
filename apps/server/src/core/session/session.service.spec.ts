@@ -25,10 +25,9 @@ describe('SessionService', () => {
 
   it('disconnects only the sessions returned by the revoke operation', async () => {
     const userSessionRepo = {
-      revokeAllExceptCurrent: jest.fn().mockResolvedValue([
-        'session-a',
-        'session-b',
-      ]),
+      revokeAllExceptCurrent: jest
+        .fn()
+        .mockResolvedValue(['session-a', 'session-b']),
     };
     const wsService = {
       disconnectSessions: jest.fn().mockResolvedValue(undefined),

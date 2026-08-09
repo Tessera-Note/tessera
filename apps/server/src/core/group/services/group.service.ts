@@ -183,7 +183,6 @@ export class GroupService {
       this.spaceMemberRepo.getSpaceIdsByGroupId(groupId),
     ]);
 
-
     // TODO: use queue instead
     await executeTx(this.db, async (trx) => {
       // Удаление группы уносит каскадом ее гранты на пространства. Если

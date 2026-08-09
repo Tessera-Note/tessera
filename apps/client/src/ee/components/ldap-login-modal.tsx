@@ -70,7 +70,7 @@ export function LdapLoginModal({
       }
     } catch (err: any) {
       setIsLoading(false);
-      const errorMessage = getApiErrorMessage(err, "Authentication failed");
+      const errorMessage = getApiErrorMessage(err, t("Authentication failed"));
       setError(errorMessage);
 
       notifications.show({

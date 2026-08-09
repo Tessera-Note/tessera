@@ -1621,5 +1621,7 @@
   "This account no longer exists.": "Этой учетной записи больше нет.",
   "This account is deactivated.": "Учетная запись отключена.",
   "error.auth.email_not_verified": "Подтвердите адрес электронной почты. Ссылка для подтверждения отправлена вам письмом.",
-  "error.workspace.not_found": "Рабочее пространство не найдено"
+  "error.workspace.not_found": "Рабочее пространство не найдено",
+  "An error occurred": "Произошла ошибка",
+  "Authentication failed": "Вход не выполнен"
 }

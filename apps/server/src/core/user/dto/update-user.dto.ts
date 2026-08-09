@@ -4,6 +4,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -27,6 +28,9 @@ export class UpdateUserDto extends PartialType(
 
   @IsOptional()
   @IsString()
+  // Язык уходит в форматирование дат письма, и произвольная строка там дает
+  // RangeError: письмо просто не уйдет, а отказ погасит обработчик очереди.
+  @Matches(/^[a-z]{2}(-[A-Z]{2})?$/)
   locale: string;
 
   @IsOptional()

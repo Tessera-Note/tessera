@@ -1603,5 +1603,7 @@
   "This account no longer exists.": "This account no longer exists.",
   "This account is deactivated.": "This account is deactivated.",
   "error.auth.email_not_verified": "Please verify your email address. Check your inbox for the verification link.",
-  "error.workspace.not_found": "Workspace not found"
+  "error.workspace.not_found": "Workspace not found",
+  "An error occurred": "An error occurred",
+  "Authentication failed": "Authentication failed"
 }

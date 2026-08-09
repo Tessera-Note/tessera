@@ -88,20 +88,22 @@ export class SearchService {
         return { items: [] };
       }
 
-      const isRestricted =
-        await this.pagePermissionRepo.hasRestrictedAncestor(share.pageId);
+      const isRestricted = await this.pagePermissionRepo.hasRestrictedAncestor(
+        share.pageId,
+      );
       if (isRestricted) {
         return { items: [] };
       }
 
       const pageIdsToSearch = [];
       if (share.includeSubPages) {
-        const pageList = await this.pageRepo.getPageAndDescendantsExcludingRestricted(
-          share.pageId,
-          {
-            includeContent: false,
-          },
-        );
+        const pageList =
+          await this.pageRepo.getPageAndDescendantsExcludingRestricted(
+            share.pageId,
+            {
+              includeContent: false,
+            },
+          );
 
         pageIdsToSearch.push(...pageList.map((page) => page.id));
       } else {
@@ -121,7 +123,10 @@ export class SearchService {
 
     if (opts.userId) {
       queryResults = queryResults.where(
-        this.pagePermissionRepo.userCanAccessPagePredicate(opts.userId, 'pages.id'),
+        this.pagePermissionRepo.userCanAccessPagePredicate(
+          opts.userId,
+          'pages.id',
+        ),
       );
     }
 
@@ -217,7 +222,10 @@ export class SearchService {
         pageSearch = pageSearch
           .where('spaceId', 'in', userSpaceIds)
           .where(
-            this.pagePermissionRepo.userCanAccessPagePredicate(userId, 'pages.id'),
+            this.pagePermissionRepo.userCanAccessPagePredicate(
+              userId,
+              'pages.id',
+            ),
           );
 
         if (suggestion?.spaceId) {

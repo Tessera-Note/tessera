@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { User, Workspace } from '@tessera/db/types/entity.types';
 import { ScimTokenRepo } from '@tessera/db/repos/scim-token/scim-token.repo';
 import { PaginationOptions } from '@tessera/db/pagination/pagination-options';

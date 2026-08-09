@@ -8,6 +8,7 @@ import { queryClient } from "@/main.tsx";
 import { SpaceSelect } from "@/features/space/components/sidebar/space-select.tsx";
 import { useNavigate } from "react-router-dom";
 import { buildPageUrl } from "@/features/page/page.utils.ts";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 interface CopyPageModalProps {
   pageId: string;
@@ -54,7 +55,7 @@ export default function CopyPageModal({
       setTargetSpace(null);
     } catch (err) {
       notifications.show({
-        message: err.response?.data.message || "An error occurred",
+        message: getApiErrorMessage(err),
         color: "red",
       });
     }

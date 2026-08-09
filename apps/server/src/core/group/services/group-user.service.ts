@@ -138,7 +138,6 @@ export class GroupUserService {
 
     const spaceIds = await this.spaceMemberRepo.getSpaceIdsByGroupId(groupId);
 
-
     // TODO: use queue instead
     await executeTx(this.db, async (trx) => {
       // Тот же инвариант, что у удаления группы и у снятия участника

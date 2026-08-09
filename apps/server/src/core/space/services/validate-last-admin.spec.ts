@@ -26,15 +26,17 @@ describe('SpaceMemberService.validateLastAdmin', () => {
   it('пространство без администраторов не проходит проверку', async () => {
     const { service } = build(0, 0);
 
-    await expect(service.validateLastAdmin('space-1', undefined, TRX)).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.validateLastAdmin('space-1', undefined, TRX),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('один администратор проверку проходит', async () => {
     const { service } = build(1, 1);
 
-    await expect(service.validateLastAdmin('space-1', undefined, TRX)).resolves.toBeUndefined();
+    await expect(
+      service.validateLastAdmin('space-1', undefined, TRX),
+    ).resolves.toBeUndefined();
   });
 
   it('снятие последнего администратора отбивается', async () => {

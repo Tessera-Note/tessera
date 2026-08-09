@@ -16,7 +16,9 @@ function build(remainingAdmins: number, currentAdmins = 1) {
     })),
     delete: jest.fn(async () => {}),
   };
-  const groupUserRepo: any = { getUserIdsByGroupId: jest.fn(async () => ['u-1']) };
+  const groupUserRepo: any = {
+    getUserIdsByGroupId: jest.fn(async () => ['u-1']),
+  };
   const spaceMemberRepo: any = {
     getSpaceIdsByGroupId: jest.fn(async () => ['space-1']),
     adminUserCountBySpaceId: jest.fn(async (_spaceId: string, opts?: any) =>
@@ -25,8 +27,12 @@ function build(remainingAdmins: number, currentAdmins = 1) {
     lockSpaceForAdminCheck: jest.fn(async () => {}),
     invalidateSpaceRoles: jest.fn(async () => {}),
   };
-  const watcherRepo: any = { deleteByUsersWithoutSpaceAccess: jest.fn(async () => {}) };
-  const favoriteRepo: any = { deleteByUsersWithoutSpaceAccess: jest.fn(async () => {}) };
+  const watcherRepo: any = {
+    deleteByUsersWithoutSpaceAccess: jest.fn(async () => {}),
+  };
+  const favoriteRepo: any = {
+    deleteByUsersWithoutSpaceAccess: jest.fn(async () => {}),
+  };
   const db: any = { transaction: () => ({ execute: (cb: any) => cb(db) }) };
   const auditService: any = { log: jest.fn() };
   const wsService: any = { syncSpaceMembership: jest.fn(async () => {}) };

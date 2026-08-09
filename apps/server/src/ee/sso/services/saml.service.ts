@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { SAML, ValidateInResponseTo } from '@node-saml/passport-saml';
 import { Workspace } from '@tessera/db/types/entity.types';

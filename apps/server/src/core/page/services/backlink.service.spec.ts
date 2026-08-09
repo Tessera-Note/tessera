@@ -40,8 +40,7 @@ describe('BacklinkService.countByPageId', () => {
       dir === 'incoming' ? ['a', 'b', 'c'] : ['x', 'y'],
     );
     permissionRepo.filterAccessiblePageIds.mockImplementation(
-      async ({ pageIds }) =>
-        pageIds.filter((id) => id !== 'b' && id !== 'y'),
+      async ({ pageIds }) => pageIds.filter((id) => id !== 'b' && id !== 'y'),
     );
 
     const result = await service.countByPageId(pageId, userId);
@@ -131,7 +130,9 @@ describe('BacklinkService.findByPageId', () => {
       },
     } as any);
 
-    await service.findByPageId(pageId, 'incoming', userId, { limit: 20 } as any);
+    await service.findByPageId(pageId, 'incoming', userId, {
+      limit: 20,
+    } as any);
 
     expect(backlinkRepo.findPagesByIdsPaginated).toHaveBeenCalledWith(
       ['a'],
@@ -152,7 +153,9 @@ describe('BacklinkService.findByPageId', () => {
       },
     } as any);
 
-    await service.findByPageId(pageId, 'incoming', userId, { limit: 20 } as any);
+    await service.findByPageId(pageId, 'incoming', userId, {
+      limit: 20,
+    } as any);
 
     expect(backlinkRepo.findPagesByIdsPaginated).toHaveBeenCalledWith(
       [],

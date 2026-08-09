@@ -17,7 +17,10 @@
  * подстановками.
  */
 
-const EN: Record<string, string> = {
+const EN = {
+  'mail.access.writer': 'edit',
+  'mail.access.reader': 'read',
+
   'mail.subject.invitation': '{{actor}} invited you to Tessera',
   'mail.subject.invitation_accepted':
     '{{name}} accepted your invitation to Tessera',
@@ -88,9 +91,12 @@ const EN: Record<string, string> = {
     'You received this email because someone on the team invited you.',
   'mail.invitation_accepted.body':
     '{{name}} ({{email}}) accepted your invitation and is now part of the workspace.',
-};
+} as const;
 
 const RU: Record<string, string> = {
+  'mail.access.writer': 'правку',
+  'mail.access.reader': 'чтение',
+
   'mail.subject.invitation': '{{actor}} приглашает вас в Tessera',
   'mail.subject.invitation_accepted':
     '{{name}} принял ваше приглашение в Tessera',
@@ -164,6 +170,9 @@ const RU: Record<string, string> = {
 };
 
 const UK: Record<string, string> = {
+  'mail.access.writer': 'правку',
+  'mail.access.reader': 'читання',
+
   'mail.subject.invitation': '{{actor}} запрошує вас до Tessera',
   'mail.subject.invitation_accepted':
     '{{name}} прийняв ваше запрошення до Tessera',

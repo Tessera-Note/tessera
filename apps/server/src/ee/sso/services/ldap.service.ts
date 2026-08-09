@@ -1,10 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  ServiceUnavailableException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Client } from 'ldapts';
 import { Workspace } from '@tessera/db/types/entity.types';
 import { UserRepo } from '@tessera/db/repos/user/user.repo';

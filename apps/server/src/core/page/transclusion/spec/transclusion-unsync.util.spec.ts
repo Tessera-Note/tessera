@@ -4,10 +4,10 @@ import {
 } from '../utils/transclusion-unsync.util';
 
 describe('rewriteAttachmentsForUnsync', () => {
-  const fixedIds = (() => {
+  const fixedIds = () => {
     let i = 0;
     return () => `new-${++i}`;
-  });
+  };
 
   it('returns content unchanged when no attachment nodes are present', () => {
     const content = {
@@ -70,9 +70,9 @@ describe('rewriteAttachmentsForUnsync', () => {
     };
     const r = rewriteAttachmentsForUnsync(content, fixedIds());
     expect(r.copies).toHaveLength(types.length);
-    expect((r.content as any).content.map((n: any) => n.attrs.attachmentId)).toEqual(
-      Array.from({ length: types.length }, (_, i) => `new-${i + 1}`),
-    );
+    expect(
+      (r.content as any).content.map((n: any) => n.attrs.attachmentId),
+    ).toEqual(Array.from({ length: types.length }, (_, i) => `new-${i + 1}`));
   });
 
   it('reuses one new id per old attachmentId across nodes (dedupe)', () => {

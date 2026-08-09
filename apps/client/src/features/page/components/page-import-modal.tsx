@@ -223,7 +223,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           message: t(
             "Something went wrong while importing pages: {{reason}}.",
             {
-              reason: err.response?.data.message,
+              reason: getApiErrorMessage(err),
             },
           ),
           icon: <IconX size={18} />,

@@ -1621,5 +1621,7 @@
   "This account no longer exists.": "Цього облікового запису більше немає.",
   "This account is deactivated.": "Обліковий запис вимкнено.",
   "error.auth.email_not_verified": "Підтвердьте адресу електронної пошти. Посилання для підтвердження надіслано вам листом.",
-  "error.workspace.not_found": "Робочий простір не знайдено"
+  "error.workspace.not_found": "Робочий простір не знайдено",
+  "An error occurred": "Сталася помилка",
+  "Authentication failed": "Вхід не виконано"
 }

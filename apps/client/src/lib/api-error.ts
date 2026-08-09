@@ -13,10 +13,7 @@ import i18n from "@/i18n";
  * вариант вызывающего. Средняя ступень нужна для отказов, у которых кода еще
  * нет: их сообщение понятнее общего «произошла ошибка».
  */
-export function getApiErrorMessage(
-  error: unknown,
-  fallback = "An error occurred",
-): string {
+export function getApiErrorMessage(error: unknown, fallback?: string): string {
   if (isAxiosError(error)) {
     const data = error.response?.data as
       | { code?: string; params?: Record<string, unknown>; message?: unknown }
@@ -38,7 +35,9 @@ export function getApiErrorMessage(
       return message;
     }
   }
-  return fallback;
+  // Запасной вариант тоже переводится: он показывается человеку так же, как
+  // и все остальное.
+  return fallback ?? i18n.t("An error occurred");
 }
 
 /**
