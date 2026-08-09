@@ -85,10 +85,6 @@ export interface IVerificationExpiredNotificationJob {
   verificationId: string;
 }
 
-export interface IVerificationReconcileJob {
-  // no payload
-}
-
 export interface IPageVerifiedNotificationJob {
   pageId: string;
   spaceId: string;
