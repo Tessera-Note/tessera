@@ -23,6 +23,7 @@ import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
 import { needsWebSearch } from '../ai/freshness.util';
 import { buildSearchPlan } from '../ai/search-plan.util';
+import { AgentImageService } from './agent-image.service';
 import { languageForRequest } from '../ai/request-language.util';
 import { buildImageQuery, needsImages } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
@@ -61,6 +62,7 @@ export class AiChatService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly providerFactory: AiProviderFactory,
+    private readonly agentImageService: AgentImageService,
     private readonly pageService: PageService,
     private readonly pageRepo: PageRepo,
     private readonly pageAccessService: PageAccessService,
@@ -701,9 +703,21 @@ export class AiChatService {
       }
 
       try {
+        // Картинки переносятся во вложения до записи: внешний адрес в теле
+        // страницы отправлял бы браузер читателя на чужой сервер.
+        const content = await this.agentImageService.localizeImages(
+          command.content,
+          {
+            pageId: page.page.id,
+            spaceId: page.page.spaceId,
+            workspaceId,
+            userId: user.id,
+          },
+        );
+
         await this.pageService.updatePageContent(
           page.page.id,
-          command.content,
+          content,
           (command.operation || 'append') as ContentOperation,
           'markdown',
           user,
@@ -950,9 +964,19 @@ export class AiChatService {
       } as any);
 
       if (typeof command?.content === 'string' && command.content.trim()) {
+        const content = await this.agentImageService.localizeImages(
+          command.content,
+          {
+            pageId: page.id,
+            spaceId,
+            workspaceId,
+            userId: user.id,
+          },
+        );
+
         await this.pageService.updatePageContent(
           page.id,
-          command.content,
+          content,
           'replace' as ContentOperation,
           'markdown',
           user,

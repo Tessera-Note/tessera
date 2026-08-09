@@ -63,6 +63,9 @@ function build(overrides: {
   const service = new AiChatService(
     {} as any,
     {} as any,
+    // AgentImageService: перенос картинок разбора команд правки не касается,
+    // содержимое отдается как есть.
+    { localizeImages: async (markdown: string) => markdown } as any,
     mocks.pageService as any,
     mocks.pageRepo as any,
     mocks.pageAccessService as any,
@@ -266,6 +269,8 @@ describe('AiChatService.textSearchPages permission filtering', () => {
     const service = new AiChatService(
       db as any,
       {} as any,
+      // AgentImageService: поиск по вики его не касается.
+      {} as any,
       {} as any,
       {} as any,
       {} as any,
@@ -420,6 +425,8 @@ describe('AiChatService.sendMessage mentioned-page authorization', () => {
     const service = new AiChatService(
       db as any,
       providerFactory as any,
+      // AgentImageService: этому пути перенос картинок не нужен.
+      {} as any,
       {} as any, // pageService
       {} as any, // pageRepo
       pageAccessService as any,

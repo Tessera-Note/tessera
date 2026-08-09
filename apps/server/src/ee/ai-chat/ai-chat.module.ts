@@ -5,10 +5,18 @@ import { AiModule } from '../ai/ai.module';
 import { PageModule } from '../../core/page/page.module';
 import { PageAccessModule } from '../../core/page/page-access/page-access.module';
 import { EmbeddingModule } from '../embedding/embedding.module';
+import { StorageModule } from '../../integrations/storage/storage.module';
+import { AgentImageService } from './agent-image.service';
 
 @Module({
-  imports: [AiModule, PageModule, PageAccessModule, EmbeddingModule],
+  imports: [
+    AiModule,
+    PageModule,
+    PageAccessModule,
+    EmbeddingModule,
+    StorageModule,
+  ],
   controllers: [AiChatController],
-  providers: [AiChatService],
+  providers: [AiChatService, AgentImageService],
 })
 export class AiChatModule {}
