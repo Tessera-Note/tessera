@@ -26,6 +26,9 @@ export interface IUser {
   notificationCommentUserMention: boolean; // used for update
   notificationCommentCreated: boolean; // used for update
   notificationCommentResolved: boolean; // used for update
+  notificationPagePermissionGranted: boolean; // used for update
+  notificationPageApprovalRequested: boolean; // used for update
+  notificationPageVerificationUpdates: boolean; // used for update
   hasGeneratedPassword?: boolean;
 }
 
@@ -46,6 +49,9 @@ export interface IUserSettings {
     "comment.userMention"?: boolean;
     "comment.created"?: boolean;
     "comment.resolved"?: boolean;
+    "page.permissionGranted"?: boolean;
+    "page.approvalRequested"?: boolean;
+    "page.verificationUpdates"?: boolean;
   };
 }
 

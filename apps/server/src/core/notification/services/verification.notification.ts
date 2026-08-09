@@ -132,6 +132,7 @@ export class VerificationNotificationService {
             'en-US',
           ),
         }),
+        NotificationType.PAGE_VERIFICATION_EXPIRING,
       );
     }
   }
@@ -206,6 +207,7 @@ export class VerificationNotificationService {
           spaceName,
           pageUrl: basePageUrl,
         }),
+        NotificationType.PAGE_VERIFICATION_EXPIRED,
       );
     }
   }
@@ -276,6 +278,7 @@ export class VerificationNotificationService {
           spaceName,
           pageUrl: basePageUrl,
         }),
+        NotificationType.PAGE_APPROVAL_REQUESTED,
       );
     }
   }
@@ -324,6 +327,7 @@ export class VerificationNotificationService {
         pageUrl: basePageUrl,
         comment,
       }),
+      NotificationType.PAGE_APPROVAL_REJECTED,
     );
   }
 
@@ -357,6 +361,10 @@ export class VerificationNotificationService {
     if (!page || !space) return null;
 
     const basePageUrl = `${appUrl}/s/${space.slug}/p/${page.slugId}`;
-    return { pageTitle: getPageTitle(page.title), spaceName: space.name ?? space.slug, basePageUrl };
+    return {
+      pageTitle: getPageTitle(page.title),
+      spaceName: space.name ?? space.slug,
+      basePageUrl,
+    };
   }
 }

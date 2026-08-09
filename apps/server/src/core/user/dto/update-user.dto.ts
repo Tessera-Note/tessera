@@ -55,4 +55,16 @@ export class UpdateUserDto extends PartialType(
   @IsOptional()
   @IsBoolean()
   notificationCommentResolved: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  notificationPagePermissionGranted: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  notificationPageApprovalRequested: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  notificationPageVerificationUpdates: boolean;
 }

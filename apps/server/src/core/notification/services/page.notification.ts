@@ -172,6 +172,7 @@ export class PageNotificationService {
           pageUrl: basePageUrl,
           accessLabel,
         }),
+        NotificationType.PAGE_PERMISSION_GRANTED,
       );
     }
   }
@@ -370,13 +371,14 @@ export class PageNotificationService {
     const pages = spaceFilteredPages.filter((p) => accessiblePageIds.has(p.id));
     if (pages.length === 0) return;
 
-    const actors = actorIds.length > 0
-      ? await this.db
-          .selectFrom('users')
-          .select(['id', 'name'])
-          .where('id', 'in', actorIds)
-          .execute()
-      : [];
+    const actors =
+      actorIds.length > 0
+        ? await this.db
+            .selectFrom('users')
+            .select(['id', 'name'])
+            .where('id', 'in', actorIds)
+            .execute()
+        : [];
 
     const actorMap = new Map(actors.map((a) => [a.id, a.name]));
     const pageActors = new Map<string, Set<string>>();

@@ -1562,5 +1562,11 @@
   "e.g acme.com": "наприклад, acme.com",
   "{{count}} results found": "Знайдено результатів: {{count}}",
   "{{name}} category": "Категорія {{name}}",
-  "{{name}}, {{n}} of {{total}}": "{{name}}, {{n}} з {{total}}"
+  "{{name}}, {{n}} of {{total}}": "{{name}}, {{n}} з {{total}}",
+  "Page access": "Доступ до сторінки",
+  "Get notified when someone gives you access to a page.": "Сповіщати, коли хтось надає вам доступ до сторінки.",
+  "Approval requests": "Прохання про затвердження",
+  "Get notified when a page is submitted for your approval.": "Сповіщати, коли сторінку надсилають вам на затвердження.",
+  "Verification updates": "Перебіг перевірки сторінок",
+  "Get notified when a page you verify is approved, sent back or due for re-verification.": "Сповіщати, коли сторінку, яку ви перевіряєте, підтвердили, повернули на доопрацювання або час перевірити знову."
 }

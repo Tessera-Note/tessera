@@ -75,6 +75,9 @@ export class UserService {
       notificationCommentUserMention: 'comment.userMention',
       notificationCommentCreated: 'comment.created',
       notificationCommentResolved: 'comment.resolved',
+      notificationPagePermissionGranted: 'page.permissionGranted',
+      notificationPageApprovalRequested: 'page.approvalRequested',
+      notificationPageVerificationUpdates: 'page.verificationUpdates',
     };
 
     for (const [dtoField, settingKey] of Object.entries(notificationSettings)) {

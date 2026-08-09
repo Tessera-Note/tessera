@@ -18,15 +18,35 @@ export type NotificationType =
 export type NotificationSettingKey =
   | 'page.updated'
   | 'page.userMention'
+  | 'page.permissionGranted'
+  | 'page.approvalRequested'
+  | 'page.verificationUpdates'
   | 'comment.userMention'
   | 'comment.created'
   | 'comment.resolved';
 
+/**
+ * Соответствие вида уведомления выключателю в настройках.
+ *
+ * Выключателей меньше, чем видов, и это осознанно: человек различает не виды,
+ * а поводы. Просьба об утверждении требует действия и мутится отдельно, потому
+ * что молчать о ней дороже всего. Подтверждение, отказ и оба срока это исходы
+ * и сроки одного и того же процесса проверки, их различать в настройках незачем.
+ *
+ * Вид без выключателя письмом не управляется вовсе: `queueEmail` без типа
+ * настройку не спрашивает, и отказаться от такого письма нельзя.
+ */
 export const NotificationTypeToSettingKey: Partial<
   Record<NotificationType, NotificationSettingKey>
 > = {
   [NotificationType.PAGE_UPDATED]: 'page.updated',
   [NotificationType.PAGE_USER_MENTION]: 'page.userMention',
+  [NotificationType.PAGE_PERMISSION_GRANTED]: 'page.permissionGranted',
+  [NotificationType.PAGE_APPROVAL_REQUESTED]: 'page.approvalRequested',
+  [NotificationType.PAGE_APPROVAL_REJECTED]: 'page.verificationUpdates',
+  [NotificationType.PAGE_VERIFIED]: 'page.verificationUpdates',
+  [NotificationType.PAGE_VERIFICATION_EXPIRING]: 'page.verificationUpdates',
+  [NotificationType.PAGE_VERIFICATION_EXPIRED]: 'page.verificationUpdates',
   [NotificationType.COMMENT_USER_MENTION]: 'comment.userMention',
   [NotificationType.COMMENT_CREATED]: 'comment.created',
   [NotificationType.COMMENT_RESOLVED]: 'comment.resolved',

@@ -1544,5 +1544,11 @@
   "{{count}} Columns_one": "{{count}} Column",
   "{{count}} Columns_other": "{{count}} Columns",
   "Pages in trash will be permanently deleted after {{count}} days._one": "Pages in trash will be permanently deleted after {{count}} day.",
-  "Pages in trash will be permanently deleted after {{count}} days._other": "Pages in trash will be permanently deleted after {{count}} days."
+  "Pages in trash will be permanently deleted after {{count}} days._other": "Pages in trash will be permanently deleted after {{count}} days.",
+  "Page access": "Page access",
+  "Get notified when someone gives you access to a page.": "Get notified when someone gives you access to a page.",
+  "Approval requests": "Approval requests",
+  "Get notified when a page is submitted for your approval.": "Get notified when a page is submitted for your approval.",
+  "Verification updates": "Verification updates",
+  "Get notified when a page you verify is approved, sent back or due for re-verification.": "Get notified when a page you verify is approved, sent back or due for re-verification."
 }

@@ -1562,5 +1562,11 @@
   "e.g acme.com": "например, acme.com",
   "{{count}} results found": "Найдено результатов: {{count}}",
   "{{name}} category": "Категория {{name}}",
-  "{{name}}, {{n}} of {{total}}": "{{name}}, {{n}} из {{total}}"
+  "{{name}}, {{n}} of {{total}}": "{{name}}, {{n}} из {{total}}",
+  "Page access": "Доступ к странице",
+  "Get notified when someone gives you access to a page.": "Уведомлять, когда кто-то дает вам доступ к странице.",
+  "Approval requests": "Просьбы об утверждении",
+  "Get notified when a page is submitted for your approval.": "Уведомлять, когда страницу отправляют вам на утверждение.",
+  "Verification updates": "Ход проверки страниц",
+  "Get notified when a page you verify is approved, sent back or due for re-verification.": "Уведомлять, когда страницу, которую вы проверяете, подтвердили, вернули на доработку или пора перепроверить."
 }

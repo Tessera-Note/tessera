@@ -50,6 +50,25 @@ const notificationItems: {
     label: "Resolved comments",
     description: "Get notified when your comment is resolved.",
   },
+  {
+    key: "page.permissionGranted",
+    dtoField: "notificationPagePermissionGranted",
+    label: "Page access",
+    description: "Get notified when someone gives you access to a page.",
+  },
+  {
+    key: "page.approvalRequested",
+    dtoField: "notificationPageApprovalRequested",
+    label: "Approval requests",
+    description: "Get notified when a page is submitted for your approval.",
+  },
+  {
+    key: "page.verificationUpdates",
+    dtoField: "notificationPageVerificationUpdates",
+    label: "Verification updates",
+    description:
+      "Get notified when a page you verify is approved, sent back or due for re-verification.",
+  },
 ];
 
 function NotificationToggle({
