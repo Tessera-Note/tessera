@@ -49,6 +49,14 @@ const FOOTER_HTML = `<!doctype html>
 </html>`;
 
 /** Pages pulled into one document when subpages are included. */
+/**
+ * Предел страниц в одной выгрузке.
+ *
+ * Обрыв на пределе молчаливым быть не должен: человек, выгрузивший
+ * пространство из ста пятидесяти страниц, получает файл из ста и считает его
+ * полным. Сейчас достижение предела попадает только в журнал сервера, до
+ * человека оно не доходит. Незакрытое, см. `docs/future-roadmap.md`.
+ */
 const MAX_PAGES_PER_EXPORT = 100;
 /** How long a generated PDF is kept before the cleanup job removes it. */
 const RETENTION_HOURS = 24;
@@ -226,6 +234,7 @@ export class PdfExportService {
   ): Promise<string[]> {
     const ordered: string[] = [root.id];
     const queue: string[] = [root.id];
+    let truncated = false;
 
     while (queue.length > 0 && ordered.length < MAX_PAGES_PER_EXPORT) {
       const parentId = queue.shift();
@@ -240,7 +249,10 @@ export class PdfExportService {
         .execute();
 
       for (const child of children) {
-        if (ordered.length >= MAX_PAGES_PER_EXPORT) break;
+        if (ordered.length >= MAX_PAGES_PER_EXPORT) {
+          truncated = true;
+          break;
+        }
 
         try {
           await this.pageAccessService.validateCanView(child as Page, user);
@@ -253,6 +265,15 @@ export class PdfExportService {
         ordered.push(child.id);
         queue.unshift(child.id);
       }
+    }
+
+    if (truncated) {
+      // Молчаливый обрыв недопустим: человек получает усеченную выгрузку с
+      // видом полной. Пока это только след в журнале: до самого человека
+      // сообщение не доходит, и это записано в отложенное как незакрытое.
+      this.logger.warn(
+        `Выгрузка ${root.id} оборвана на пределе ${MAX_PAGES_PER_EXPORT} страниц`,
+      );
     }
 
     return ordered;
