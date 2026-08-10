@@ -61,8 +61,6 @@ export class SsoGroupSyncService {
     // Отсутствие означает, что поток входа групп не присылает вовсе, и
     // трактовать это как «нигде не числится» нельзя: включенный переключатель
     // у такого провайдера снял бы человека со всех внешних групп.
-    if (!Array.isArray(opts.groupNames)) return;
-
     const groupNames = opts.groupNames;
     if (!Array.isArray(groupNames)) return;
 

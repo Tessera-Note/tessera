@@ -38,11 +38,8 @@ export enum QueueJob {
   PAGE_RESTORED = 'page-restored',
   PAGE_DELETED = 'page-deleted',
 
-  SPACE_CREATED = 'space-created',
-  SPACE_UPDATED = 'space-updated',
   SPACE_DELETED = 'space-deleted',
 
-  WORKSPACE_CREATED = 'workspace-created',
   WORKSPACE_DELETED = 'workspace-deleted',
   WORKSPACE_CREATE_EMBEDDINGS = 'workspace-create-embeddings',
   WORKSPACE_DELETE_EMBEDDINGS = 'workspace-delete-embeddings',
