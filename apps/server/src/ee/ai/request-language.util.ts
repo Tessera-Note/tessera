@@ -19,7 +19,14 @@ import { languageFromLocale } from './ai-language.util';
  * повторении: одна украинская буква посреди русской фразы это опечатка, а не
  * язык.
  *
- * Ничья, отсутствие признаков и смешанный текст отдают решение локали.
+ * Ничья, отсутствие признаков и смешанный текст отдают решение разговору, а
+ * локали только если и разговор молчит. Замерено на живом случае: «а можешь их
+ * все перенести в 1 папку» не содержит ни одного слова из списков, и при
+ * украинской локали интерфейса ответ приходил украинским, хотя весь разговор до
+ * него шел по-русски. У разговора есть язык, и короткая реплика его наследует.
+ *
+ * Из списка украинских слов убраны «та», «до» и «у»: они точно так же
+ * употребляются в русском, и как признак украинского были ложными.
  */
 
 /** Частые слова, встречающиеся только в русском. */
@@ -97,10 +104,7 @@ const UKRAINIAN_WORDS = new Set([
   'поточних',
   'нього',
   'неї',
-  'та',
   'як',
-  'до',
-  'у',
 ]);
 
 /** Буквы, которых нет в русском алфавите. */
@@ -124,13 +128,9 @@ function count(text: string, pattern: RegExp): number {
   return (text.match(pattern) ?? []).length;
 }
 
-export function languageForRequest(
-  message: string,
-  locale: string | null | undefined,
-): string {
-  const fallback = languageFromLocale(locale);
-
-  if (!message || !CYRILLIC.test(message)) return fallback;
+/** Решение по одному сообщению: язык либо `null`, если признаков нет. */
+function languageOf(message: string): string | null {
+  if (!message || !CYRILLIC.test(message)) return null;
 
   const words = message
     .toLowerCase()
@@ -144,7 +144,27 @@ export function languageForRequest(
   if (count(message, RUSSIAN_LETTERS) >= MIN_LETTERS) russian += 1;
   if (count(message, UKRAINIAN_LETTERS) >= MIN_LETTERS) ukrainian += 1;
 
-  if (russian === ukrainian) return fallback;
+  if (russian === ukrainian) return null;
 
   return russian > ukrainian ? 'Russian' : 'Ukrainian';
+}
+
+/**
+ * `priorMessages` это прежние реплики человека в этом разговоре, новее в
+ * конце. Решают они только когда у нынешней реплики признаков нет.
+ */
+export function languageForRequest(
+  message: string,
+  locale: string | null | undefined,
+  priorMessages: string[] = [],
+): string {
+  const direct = languageOf(message);
+  if (direct) return direct;
+
+  for (let i = priorMessages.length - 1; i >= 0; i -= 1) {
+    const earlier = languageOf(priorMessages[i]);
+    if (earlier) return earlier;
+  }
+
+  return languageFromLocale(locale);
 }
