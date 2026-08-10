@@ -150,3 +150,84 @@ describe('AGENT_TOOL_POLICY', () => {
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * Необратимое действие агент не выполняет сам: он записывает намерение, а
+ * исполняется оно только после явного согласия человека.
+ */
+describe('buildMcpAgentTools, режим плана', () => {
+  it('необратимый шаг записывается, а не выполняется', async () => {
+    const run = jest.fn();
+    const plan: any[] = [];
+    const tools: any = buildMcpAgentTools({
+      mcp: bridge(['delete_page'], run),
+      user: USER,
+      workspace: WORKSPACE,
+      allow: ['read', 'write', 'destructive'],
+      plan,
+    });
+
+    const answer = await tools.delete_page.execute({ pageId: 'p-1' });
+
+    expect(run).not.toHaveBeenCalled();
+    expect(plan).toEqual([{ tool: 'delete_page', args: { pageId: 'p-1' } }]);
+    expect(answer).toMatchObject({ status: 'planned' });
+  });
+
+  /** Обратимые действия план не задерживает: спрашивать о них незачем. */
+  it('обратимый шаг выполняется и в режиме плана', async () => {
+    const run = jest.fn(async () => ({ ok: true }));
+    const plan: any[] = [];
+    const tools: any = buildMcpAgentTools({
+      mcp: bridge(['add_page_labels'], run),
+      user: USER,
+      workspace: WORKSPACE,
+      allow: ['read', 'write', 'destructive'],
+      plan,
+    });
+
+    await tools.add_page_labels.execute({ pageId: 'p-1' });
+
+    expect(run).toHaveBeenCalled();
+    expect(plan).toEqual([]);
+  });
+
+  /**
+   * Исполнение подтвержденного плана идет тем же путем, без `plan`: иначе
+   * согласие человека снова превратилось бы в запись намерения.
+   */
+  it('без плана необратимый шаг выполняется', async () => {
+    const run = jest.fn(async () => ({ ok: true }));
+    const tools: any = buildMcpAgentTools({
+      mcp: bridge(['delete_page'], run),
+      user: USER,
+      workspace: WORKSPACE,
+      allow: ['destructive'],
+    });
+
+    await tools.delete_page.execute({ pageId: 'p-1' });
+
+    expect(run).toHaveBeenCalledWith(
+      'delete_page',
+      { pageId: 'p-1' },
+      USER,
+      WORKSPACE,
+    );
+  });
+
+  it('несколько шагов копятся в порядке вызова', async () => {
+    const plan: any[] = [];
+    const tools: any = buildMcpAgentTools({
+      mcp: bridge(['move_page', 'delete_page']),
+      user: USER,
+      workspace: WORKSPACE,
+      allow: ['destructive'],
+      plan,
+    });
+
+    await tools.move_page.execute({ pageId: 'p-1' });
+    await tools.delete_page.execute({ pageId: 'p-2' });
+
+    expect(plan.map((step) => step.tool)).toEqual(['move_page', 'delete_page']);
+  });
+});

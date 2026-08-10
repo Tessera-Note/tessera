@@ -91,19 +91,38 @@ interface McpBridge {
   ): Promise<unknown>;
 }
 
+/** Шаг плана: что агент собирается сделать, если человек согласится. */
+export interface PlannedStep {
+  tool: string;
+  args: unknown;
+}
+
 /**
  * Собрать инструменты чата из определений MCP.
  *
- * `allow` перечисляет допустимые степени риска. Пока подтверждения плана нет,
- * вызывающий передает `['read', 'write']`, и необратимые инструменты агенту не
- * видны: инструмент, который агент видит, но не может выполнить, хуже
- * отсутствующего, он тратит шаг и заканчивается отказом.
+ * `allow` перечисляет допустимые степени риска. Необратимые инструменты либо не
+ * отдаются вовсе, либо отдаются вместе с `plan` и тогда не выполняются, а
+ * записываются. Отдать необратимый инструмент без того и другого значило бы
+ * дать агенту удалять без спроса.
  */
 export function buildMcpAgentTools(opts: {
   mcp: McpBridge;
   user: User;
   workspace: Workspace;
   allow: ToolRisk[];
+  /**
+   * Куда складывать необратимые шаги вместо выполнения.
+   *
+   * Передан — необратимый инструмент ничего не делает, он записывает
+   * намерение и отвечает агенту, что шаг занесен в план. Тогда агент может
+   * продолжать рассуждение и набрать весь план за один ход мысли, а человек
+   * увидит его целиком, а не по одному действию.
+   *
+   * Не передан — необратимые инструменты выполняются как обычные. Это режим
+   * для вызывающего, который уже получил согласие: подтверждение исполняет
+   * записанный план тем же путем.
+   */
+  plan?: PlannedStep[];
   onError?: (name: string, err: unknown) => void;
 }): Record<string, unknown> {
   const allowed = new Set(opts.allow);
@@ -119,6 +138,14 @@ export function buildMcpAgentTools(opts: {
       // завести второе описание того же входа, и они разошлись бы.
       inputSchema: jsonSchema(definition.inputSchema as any),
       execute: async (args: unknown) => {
+        if (risk === 'destructive' && opts.plan) {
+          opts.plan.push({ tool: definition.name, args });
+          return {
+            status: 'planned',
+            note: 'Recorded in the plan. It runs only after the user confirms.',
+          };
+        }
+
         try {
           return await opts.mcp.runAgentTool(
             definition.name,
