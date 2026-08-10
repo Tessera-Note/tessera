@@ -283,6 +283,14 @@ export class PdfExportService {
         fileTask.id,
       );
 
+      // Данные отрисовки проверяются до передачи в браузер. Страница отрисовки
+      // при отказе помечает себя готовой и показывает текст ошибки, чтобы
+      // выгрузка не висела до таймаута, но сам браузер отдает такую страницу
+      // обычным PDF: файл сохранялся, а задача помечалась успешной, и человек
+      // получал «готовую» выгрузку с текстом отказа внутри. Проверка здесь
+      // делает отказ отказом.
+      await this.getRenderData(token);
+
       const pdf = await this.renderPdf(fileTask.pageId, token);
 
       await this.storageService.upload(fileTask.filePath, pdf);
