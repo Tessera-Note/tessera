@@ -111,9 +111,7 @@ export async function getInvitationById(data: {
   return req.data;
 }
 
-export async function createWorkspace(
-  data: ISetupWorkspace,
-): Promise<{
+export async function createWorkspace(data: ISetupWorkspace): Promise<{
   workspace: IWorkspace;
   exchangeToken?: string;
   requiresEmailVerification?: boolean;

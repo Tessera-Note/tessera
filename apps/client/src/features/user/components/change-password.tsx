@@ -7,6 +7,7 @@ import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
 import { changePassword } from "@/features/auth/services/auth-service.ts";
 import { notifications } from "@mantine/notifications";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { useTranslation } from "react-i18next";
 
 export default function ChangePassword() {
@@ -77,7 +78,9 @@ function ChangePasswordForm({ onClose }: ChangePasswordFormProps) {
       onClose();
     } catch (err) {
       notifications.show({
-        message: `Error: ${err.response.data.message}`,
+        // Разбор ошибки переводит отказ по коду и только потом откатывается к
+        // тексту сервера, поэтому обращения к полям ответа здесь больше нет.
+        message: t("Error: {{reason}}", { reason: getApiErrorMessage(err) }),
         color: "red",
       });
     }

@@ -79,8 +79,9 @@ export default function ExportModal({
       onClose();
     } catch (err) {
       notifications.show({
-        message:
-          "Export failed: " + (getApiErrorMessage(err, err?.message) ?? ""),
+        message: t("Export failed: {{reason}}", {
+          reason: getApiErrorMessage(err, err?.message) ?? "",
+        }),
         color: "red",
       });
       console.error("export error", err);

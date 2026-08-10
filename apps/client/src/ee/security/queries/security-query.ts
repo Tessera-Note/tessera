@@ -11,6 +11,7 @@ import {
   getSsoProviders,
   updateSsoProvider,
 } from "@/ee/security/services/security-service.ts";
+import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import { IPagination } from "@/lib/types.ts";
@@ -75,12 +76,13 @@ export function useCreateSsoProviderMutation() {
 }
 
 export function useUpdateSsoProviderMutation() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   return useMutation<any, Error, Partial<IAuthProvider>>({
     mutationFn: (data: Partial<IAuthProvider>) => updateSsoProvider(data),
     onSuccess: (data, variables) => {
-      notifications.show({ message: "Updated successfully" });
+      notifications.show({ message: t("Updated successfully") });
       showAppUrlMismatch(data);
       queryClient.invalidateQueries({
         queryKey: ["sso-providers"],
@@ -94,12 +96,13 @@ export function useUpdateSsoProviderMutation() {
 }
 
 export function useDeleteSsoProviderMutation() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (providerId: string) => deleteSsoProvider({ providerId }),
     onSuccess: (data, variables) => {
-      notifications.show({ message: "Deleted successfully" });
+      notifications.show({ message: t("Deleted successfully") });
 
       queryClient.invalidateQueries({
         queryKey: ["sso-providers"],

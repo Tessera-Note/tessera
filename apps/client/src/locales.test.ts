@@ -154,6 +154,42 @@ describe("словари i18next", () => {
    * ключа означает, что человек увидит английский запасной текст с сервера,
    * причем молча: ни сборка, ни линт этого не заметят.
    */
+  /**
+   * Проверка «каждый ключ из кода заведен в источнике» смотрит только внутрь
+   * `t(...)`, поэтому строка, до `t(...)` не дошедшая, ей не видна вовсе.
+   * Девять уведомлений так и жили: пользователю показывался английский текст,
+   * ключа для него не существовало, и ни одна проверка на это не жаловалась.
+   *
+   * Всплывающее уведомление это заведомо пользовательский текст, других
+   * вариантов у него нет.
+   */
+  it("текст уведомления не задается строкой мимо перевода", () => {
+    const srcDir = path.resolve(__dirname);
+    const offenders: string[] = [];
+    const literal = /notifications\.show\(\s*\{[^}]*?\bmessage:\s*["'`]/g;
+
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (
+          /\.tsx?$/.test(entry.name) &&
+          !entry.name.endsWith(".d.ts")
+        ) {
+          const text = fs.readFileSync(full, "utf8");
+          for (const match of text.matchAll(literal)) {
+            const line = text.slice(0, match.index).split("\n").length;
+            offenders.push(`${path.relative(srcDir, full)}:${line}`);
+          }
+        }
+      }
+    };
+    walk(srcDir);
+
+    expect(offenders).toEqual([]);
+  });
+
   it("каждый код отказа сервера заведен в источнике", () => {
     const catalogue = fs.readFileSync(
       path.resolve(__dirname, "../../server/src/common/errors/app-error.ts"),
