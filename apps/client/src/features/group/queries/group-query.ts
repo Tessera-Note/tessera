@@ -188,7 +188,9 @@ export function useAttachGroupDirectoryMutation() {
   >({
     mutationFn: (data) => attachGroupDirectory(data),
     onSuccess: (_data, variables) => {
-      notifications.show({ message: t("Group is now managed by the directory") });
+      notifications.show({
+        message: t("Group is now managed by the directory"),
+      });
       queryClient.invalidateQueries({ queryKey: ["group", variables.groupId] });
       queryClient.invalidateQueries({ queryKey: ["groups"] });
     },

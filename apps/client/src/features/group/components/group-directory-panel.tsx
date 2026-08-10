@@ -78,11 +78,18 @@ export default function GroupDirectoryPanel({ group }: Props) {
     return (
       <Card withBorder radius="md" mt="md" padding="md">
         <Title order={5}>{t("Managed by the directory")}</Title>
+        {/*
+          Разделитель «метка: значение» лежит внутри строки перевода: не во
+          всех языках он нейтрален, а склеенный в разметке он переводу
+          недоступен.
+        */}
         <Text size="sm" c="dimmed" mt="xs">
-          {t("Provider")}: {boundProvider?.name ?? t("Unknown provider")}
+          {t("Provider: {{name}}", {
+            name: boundProvider?.name ?? t("Unknown provider"),
+          })}
         </Text>
         <Text size="sm" c="dimmed">
-          {t("Directory key")}: {group.directoryKey}
+          {t("Directory key: {{key}}", { key: group.directoryKey })}
         </Text>
 
         <Group mt="md">
