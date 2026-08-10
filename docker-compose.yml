@@ -33,6 +33,53 @@ services:
       # Аварийный вход по паролю при включенном принуждении SSO. Нужен ровно
       # тогда, когда провайдер сломан, поэтому обязан доходить до контейнера.
       SSO_EMERGENCY_PASSWORD_LOGIN: ${SSO_EMERGENCY_PASSWORD_LOGIN:-false}
+
+      # Ниже переменные, которые приложение читает, а контейнер до этой правки
+      # не получал: задать их файлом окружения было невозможно, значение молча
+      # оставалось пустым.
+      #
+      # У пяти из них есть умолчание в коде, и оно продублировано здесь
+      # намеренно. `ConfigService.get(ключ, умолчание)` отдает умолчание только
+      # при отсутствии переменной, а пустая строка это заданное значение и
+      # умолчание перебивает. Передать их пустыми означало бы сломать то, что
+      # сейчас работает без настройки.
+      MAIL_DRIVER: ${MAIL_DRIVER:-log}
+      PORT: ${PORT:-3000}
+      SEARCH_DRIVER: ${SEARCH_DRIVER:-database}
+      EVENT_STORE_DRIVER: ${EVENT_STORE_DRIVER:-postgres}
+      CLOUD: ${CLOUD:-false}
+
+      # Остальные умолчания в коде не имеют либо читаются через `||` и `??`,
+      # где пустая строка равносильна отсутствию.
+      HOST: ${HOST:-}
+      DEBUG_MODE: ${DEBUG_MODE:-}
+      DEBUG_DB: ${DEBUG_DB:-}
+      LOG_HTTP: ${LOG_HTTP:-}
+      SUBDOMAIN_HOST: ${SUBDOMAIN_HOST:-}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL:-}
+
+      # Число обратных прокси перед приложением. По нему считаются пороги
+      # частоты запросов и пишется адрес в журнал аудита.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+
+      # Совместное редактирование.
+      COLLAB_URL: ${COLLAB_URL:-}
+      COLLAB_PORT: ${COLLAB_PORT:-}
+      COLLAB_SHOW_STATS: ${COLLAB_SHOW_STATS:-}
+
+      # Провайдер модели ИИ. Ключи можно задать и через интерфейс, они лежат в
+      # базе зашифрованными, но код читает и окружение, и до этой правки
+      # настроить их переменными было нельзя.
+      AI_DRIVER: ${AI_DRIVER:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
+      AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      AI_EMBEDDING_DIMENSION: ${AI_EMBEDDING_DIMENSION:-}
+      AI_EMBEDDING_SUPPORTS_MRL: ${AI_EMBEDDING_SUPPORTS_MRL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_URL: ${OPENAI_API_URL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-}
     ports:
       - "3000:3000"
     restart: unless-stopped
