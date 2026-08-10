@@ -28,7 +28,7 @@ Variables:
 - `DRAWIO_PORT=8081`
 
 
-Antes do primeiro deploy, crie um registro DNS A para `wiki.cledson.com.br` apontando para `167.86.117.142` e libere as portas TCP 80, 443 e 22 no firewall da VPS. O nginx publica o app em loopback e o Certbot configura HTTPS após o DNS estar propagado.
+До первого развертывания завести запись DNS типа A для `wiki.cledson.com.br`, указывающую на `167.86.117.142`, и открыть в межсетевом экране VPS порты TCP 80, 443 и 22. Nginx публикует приложение на петлевом интерфейсе, Certbot настраивает HTTPS после того, как DNS разойдется.
 
 ## Rede de segurança do deploy
 
