@@ -167,6 +167,62 @@ describe('область действия именованных счетчик�
     },
   );
 
+  /**
+   * Маршрут без аутентификации ограничен только адресом, и порог у него должен
+   * остаться хоть один.
+   *
+   * Ограничитель проверяет все объявленные счетчики, кроме пропущенных, поэтому
+   * порог держится не упоминанием имени, а отсутствием пропуска. Приписать имя
+   * в список пропусков это одна строка, и публичный маршрут молча лишается
+   * ограничения. Так устроен `pdf-export/render`, где счетчик отрисовки
+   * работает именно потому, что не пропущен.
+   */
+  it('публичный маршрут сохраняет хотя бы один счетчик', () => {
+    const naked: string[] = [];
+
+    const files = execSync(
+      `grep -rl "@Controller" ${SERVER_SRC} --include=*.controller.ts`,
+      { encoding: 'utf-8' },
+    )
+      .split('\n')
+      .filter(Boolean);
+
+    for (const file of files) {
+      for (const controller of controllerClasses(file)) {
+        for (const handlerName of routeHandlers(controller)) {
+          if (!hasThrottlerGuard(controller, handlerName)) continue;
+
+          const isPublic =
+            Reflect.getMetadata(
+              'isPublic',
+              controller.prototype[handlerName],
+            ) === true || Reflect.getMetadata('isPublic', controller) === true;
+          if (!isPublic) continue;
+
+          const active = THROTTLERS.filter(
+            (throttler) =>
+              Reflect.getMetadata(
+                `${THROTTLER_SKIP}${throttler.name}`,
+                controller.prototype[handlerName],
+              ) !== true &&
+              Reflect.getMetadata(
+                `${THROTTLER_SKIP}${throttler.name}`,
+                controller,
+              ) !== true,
+          );
+
+          if (active.length === 0) {
+            naked.push(
+              `${relative(SERVER_SRC, file)} ${controller.name}.${handlerName}`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(naked).toEqual([]);
+  });
+
   it('маршруты без глобального лимита закрыты ограничителем', () => {
     const unguarded: string[] = [];
 
