@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getBillingTrialDays, isCloud } from "@/lib/config.ts";
 import APP_ROUTE from "@/lib/app-route.ts";
@@ -7,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import useTrial from "@/ee/hooks/use-trial.tsx";
 
 export const useTrialEndAction = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const { isAdmin } = useUserRole();
@@ -18,9 +20,14 @@ export const useTrialEndAction = () => {
         notifications.show({
           position: "top-right",
           color: "red",
-          title: `Your ${getBillingTrialDays()}-day trial has ended`,
-          message:
+          // Подстановка средствами языка не оставляет переводу ни ключа, ни
+          // места для числа: оно идет через сам словарь.
+          title: t("Your {{days}}-day trial has ended", {
+            days: getBillingTrialDays(),
+          }),
+          message: t(
             "Please upgrade to a paid plan or contact your workspace admin.",
+          ),
           autoClose: false,
         });
 

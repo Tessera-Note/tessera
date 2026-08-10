@@ -166,7 +166,10 @@ describe("словари i18next", () => {
   it("текст уведомления не задается строкой мимо перевода", () => {
     const srcDir = path.resolve(__dirname);
     const offenders: string[] = [];
-    const literal = /notifications\.show\(\s*\{[^}]*?\bmessage:\s*["'`]/g;
+    // Класс не должен обрываться на `}` от подстановки в шаблонной строке,
+    // стоящей раньше поля: именно так пряталось единственное нарушение.
+    const literal =
+      /notifications\.show\(\s*\{(?:[^{}]|\{[^{}]*\})*?\bmessage:\s*["'`]/g;
 
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -209,7 +212,7 @@ describe("словари i18next", () => {
     // Перенос строки внутри литерала невозможен, иначе выражение
     // склеивает половину файла в один «ключ».
     const literal =
-      /\b(?:message|label|title|description):\s*\n?\s*"((?:\\.|[^"\n])*)"/g;
+      /\b(?:message|error|label|title|description):\s*\n?\s*"((?:\\.|[^"\n])*)"/g;
 
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -232,7 +235,31 @@ describe("словари i18next", () => {
         }
       }
     };
-    walk(srcDir);
+    // Тот же текст zod принимает и позиционным аргументом проверки.
+    const positional =
+      /\.(?:min|max|length|regex|email|url|refine|nonempty)\([^)"]*"((?:\\.|[^"\n])*)"\s*\)/g;
+
+    const walkPositional = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walkPositional(full);
+        } else if (
+          /\.tsx?$/.test(entry.name) &&
+          !entry.name.endsWith(".d.ts") &&
+          !/\.(test|spec)\.tsx?$/.test(entry.name)
+        ) {
+          const text = fs.readFileSync(full, "utf8");
+          for (const match of text.matchAll(positional)) {
+            const key = match[1].replace(/\\"/g, '"');
+            if (key.length > 0 && !(key in source)) {
+              missing.push(`${path.relative(srcDir, full)}: ${key}`);
+            }
+          }
+        }
+      }
+    };
+    walkPositional(srcDir);
 
     expect(missing).toEqual([]);
   });
