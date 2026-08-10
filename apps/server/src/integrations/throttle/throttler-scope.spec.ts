@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { join, relative } from 'path';
 import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { THROTTLERS } from './throttle.module';
 
 /**
@@ -85,18 +86,25 @@ function routeHandlers(controller: new (...args: any[]) => any): string[] {
  * Ограничитель разрешает пропуск по каждому имени отдельно: метаданные
  * обработчика перекрывают метаданные класса, а при их отсутствии берется класс.
  */
+function isSkipped(
+  controller: new (...args: any[]) => any,
+  handlerName: string,
+  name: string,
+): boolean {
+  const onHandler = Reflect.getMetadata(
+    `${THROTTLER_SKIP}${name}`,
+    controller.prototype[handlerName],
+  );
+  if (onHandler !== undefined) return onHandler === true;
+
+  return Reflect.getMetadata(`${THROTTLER_SKIP}${name}`, controller) === true;
+}
+
 function boundThrottlers(
   controller: new (...args: any[]) => any,
   handlerName: string,
 ): string[] {
-  const handler = controller.prototype[handlerName];
-
-  return tight.filter((name) => {
-    const onHandler = Reflect.getMetadata(`${THROTTLER_SKIP}${name}`, handler);
-    if (onHandler !== undefined) return onHandler !== true;
-
-    return Reflect.getMetadata(`${THROTTLER_SKIP}${name}`, controller) !== true;
-  });
+  return tight.filter((name) => !isSkipped(controller, handlerName, name));
 }
 
 /** Действует ли на маршруте хоть какой-нибудь ограничитель частоты. */
@@ -179,6 +187,7 @@ describe('область действия именованных счетчик�
    */
   it('публичный маршрут сохраняет хотя бы один счетчик', () => {
     const naked: string[] = [];
+    let publicGuarded = 0;
 
     const files = execSync(
       `grep -rl "@Controller" ${SERVER_SRC} --include=*.controller.ts`,
@@ -192,23 +201,23 @@ describe('область действия именованных счетчик�
         for (const handlerName of routeHandlers(controller)) {
           if (!hasThrottlerGuard(controller, handlerName)) continue;
 
+          // Ключ берется константой, а не строкой: переименование иначе
+          // сделало бы проверку немой, все маршруты прочитались бы
+          // непубличными, и она позеленела бы на пустом множестве.
           const isPublic =
             Reflect.getMetadata(
-              'isPublic',
+              IS_PUBLIC_KEY,
               controller.prototype[handlerName],
-            ) === true || Reflect.getMetadata('isPublic', controller) === true;
+            ) === true ||
+            Reflect.getMetadata(IS_PUBLIC_KEY, controller) === true;
           if (!isPublic) continue;
 
+          publicGuarded += 1;
+
+          // Пропуски разрешаются так же, как в `boundThrottlers` выше и как в
+          // самом ограничителе: обработчик перекрывает класс.
           const active = THROTTLERS.filter(
-            (throttler) =>
-              Reflect.getMetadata(
-                `${THROTTLER_SKIP}${throttler.name}`,
-                controller.prototype[handlerName],
-              ) !== true &&
-              Reflect.getMetadata(
-                `${THROTTLER_SKIP}${throttler.name}`,
-                controller,
-              ) !== true,
+            (throttler) => !isSkipped(controller, handlerName, throttler.name),
           );
 
           if (active.length === 0) {
@@ -221,6 +230,10 @@ describe('область действия именованных счетчик�
     }
 
     expect(naked).toEqual([]);
+    // Проверка не должна зеленеть на пустом множестве: публичные маршруты под
+    // ограничителем в этом коде есть, и если их вдруг ноль, значит обход
+    // перестал их находить.
+    expect(publicGuarded).toBeGreaterThan(0);
   });
 
   it('маршруты без глобального лимита закрыты ограничителем', () => {
