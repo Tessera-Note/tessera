@@ -13,7 +13,7 @@ import { currentUserAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useDisclosure } from "@mantine/hooks";
 import * as React from "react";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { useTranslation } from "react-i18next";
 
 export default function ChangeEmail() {
@@ -66,7 +66,7 @@ function ChangeEmailForm() {
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       password: "",
       email: "",

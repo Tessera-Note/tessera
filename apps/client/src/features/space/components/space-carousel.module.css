@@ -14,13 +14,16 @@
 }
 
 .cardSection {
-  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  background: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-6)
+  );
 }
 
 .title {
   font-family:
-          Greycliff CF,
-          var(--mantine-font-family);
+    Greycliff CF,
+    var(--mantine-font-family);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;

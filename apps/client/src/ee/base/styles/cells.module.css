@@ -128,7 +128,10 @@
 .personChip {
   padding-left: 2px;
   gap: 4px;
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
 }
 
 .personChipName {
@@ -177,7 +180,10 @@
   gap: 4px;
   padding: 2px 4px 2px 2px;
   border-radius: 3px;
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
   font-size: var(--mantine-font-size-xs);
   white-space: nowrap;
   max-width: 160px;
@@ -205,7 +211,10 @@
 }
 
 .personTagRemove:hover {
-  background-color: light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-4)
+  );
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-0));
 }
 
@@ -227,7 +236,10 @@
 
 .personDropdownDivider {
   height: 1px;
-  background-color: light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-4)
+  );
 }
 
 .personDropdownHint {
@@ -282,7 +294,10 @@
   padding: 1px 6px;
   border-radius: var(--mantine-radius-sm);
   font-size: 11px;
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   white-space: nowrap;
   max-width: 120px;
@@ -306,19 +321,31 @@
 }
 
 .selectOption:hover {
-  background-color: light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-4)
+  );
 }
 
 .selectOptionActive {
-  background-color: light-dark(var(--mantine-color-blue-0), var(--mantine-color-blue-9));
+  background-color: light-dark(
+    var(--mantine-color-blue-0),
+    var(--mantine-color-blue-9)
+  );
 }
 
 .selectOptionKeyboardActive {
-  background-color: light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-4)
+  );
 }
 
 .selectOptionActive.selectOptionKeyboardActive {
-  background-color: light-dark(var(--mantine-color-blue-1), var(--mantine-color-blue-8));
+  background-color: light-dark(
+    var(--mantine-color-blue-1),
+    var(--mantine-color-blue-8)
+  );
 }
 
 .selectCategoryLabel {
@@ -344,7 +371,10 @@
 }
 
 .menuItem:hover {
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-5)
+  );
 }
 
 .addOptionRow {
@@ -355,12 +385,16 @@
   cursor: pointer;
   border-radius: var(--mantine-radius-sm);
   transition: background-color 100ms ease;
-  border-top: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
   margin-top: 4px;
 }
 
 .addOptionRow:hover {
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-5)
+  );
 }
 
 .addOptionLabel {
@@ -378,14 +412,20 @@
   border-radius: var(--mantine-radius-sm);
   font-size: var(--mantine-font-size-xs);
   color: light-dark(var(--mantine-color-dark-4), var(--mantine-color-dark-1));
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
   text-decoration: none;
   max-width: 100%;
   overflow: hidden;
 }
 
 .pagePill:hover {
-  background-color: light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-4)
+  );
 }
 
 .pagePillIcon {

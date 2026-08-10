@@ -11,7 +11,8 @@
       border: 1px solid
         light-dark(var(--mantine-color-gray-3), var(--mantine-color-gray-7));
 
-      [data-type="detailsSummary"] {}
+      [data-type="detailsSummary"] {
+      }
     }
 
     [data-type="detailsButton"] {
@@ -56,11 +57,15 @@
     }
   }
 
-  [data-type="details"] > [data-type="detailsContainer"] > [data-type="detailsContent"]{
+  [data-type="details"]
+    > [data-type="detailsContainer"]
+    > [data-type="detailsContent"] {
     display: none;
   }
 
-  [data-type="details"][open] > [data-type="detailsContainer"] > [data-type="detailsContent"]{
+  [data-type="details"][open]
+    > [data-type="detailsContainer"]
+    > [data-type="detailsContent"] {
     display: block;
   }
 
@@ -68,15 +73,19 @@
     align-items: start;
   }
 
-  [data-type="details"][open] > [data-type="detailsButton"] .ProseMirror-icon{
+  [data-type="details"][open] > [data-type="detailsButton"] .ProseMirror-icon {
     transform: rotateZ(90deg);
   }
-  
-  [data-type="details"]:has(.search-result) > [data-type="detailsContainer"] > [data-type="detailsContent"]{
+
+  [data-type="details"]:has(.search-result)
+    > [data-type="detailsContainer"]
+    > [data-type="detailsContent"] {
     display: block;
   }
 
-  [data-type="details"]:has(.search-result) > [data-type="detailsButton"] .ProseMirror-icon{
+  [data-type="details"]:has(.search-result)
+    > [data-type="detailsButton"]
+    .ProseMirror-icon {
     transform: rotateZ(90deg);
   }
 }

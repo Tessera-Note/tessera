@@ -1,7 +1,7 @@
 import React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { Box, Button, Group, Stack, Switch, TextInput } from "@mantine/core";
 import classes from "@/ee/security/components/sso.module.css";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
@@ -30,7 +30,7 @@ export function SsoGoogleForm({ provider, onClose }: SsoFormProps) {
       isEnabled: provider.isEnabled,
       allowSignup: provider.allowSignup,
     },
-    validate: zod4Resolver(ssoSchema),
+    validate: i18nZodResolver(ssoSchema),
   });
 
   const handleSubmit = async (values: SSOFormValues) => {

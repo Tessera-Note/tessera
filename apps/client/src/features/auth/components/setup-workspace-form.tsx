@@ -1,7 +1,7 @@
 import * as React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import {
   Container,
   Title,
@@ -39,7 +39,7 @@ export function SetupWorkspaceForm() {
   // useRedirectIfAuthenticated();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       workspaceName: "",
       name: "",

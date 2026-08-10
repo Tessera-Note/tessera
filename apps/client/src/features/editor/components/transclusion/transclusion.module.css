@@ -56,11 +56,11 @@
    so the synced block sits flush with surrounding paragraphs (whose own
    margins already provide the right rhythm). */
 :global(.react-renderer.node-transclusionSource):has(
-    .transclusionWrap[data-editable="false"]
-  ),
+  .transclusionWrap[data-editable="false"]
+),
 :global(.react-renderer.node-transclusionReference):has(
-    .includeWrap[data-editable="false"]
-  ) {
+  .includeWrap[data-editable="false"]
+) {
   margin-top: 0;
   margin-bottom: 0;
 }

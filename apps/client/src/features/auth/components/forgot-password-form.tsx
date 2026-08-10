@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import useAuth from "@/features/auth/hooks/use-auth";
 import { Box, Button, Container, Text, TextInput, Title } from "@mantine/core";
 import classes from "./auth.module.css";
@@ -21,7 +21,7 @@ export function ForgotPasswordForm() {
   useRedirectIfAuthenticated();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       email: "",
     },

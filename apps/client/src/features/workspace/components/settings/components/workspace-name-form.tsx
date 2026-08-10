@@ -6,7 +6,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { IWorkspace } from "@/features/workspace/types/workspace.types.ts";
 import { TextInput, Button } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { notifications } from "@mantine/notifications";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,7 @@ export default function WorkspaceNameForm() {
   const { isAdmin } = useUserRole();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: workspace?.name,
     },

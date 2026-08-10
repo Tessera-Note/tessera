@@ -46,7 +46,7 @@
     pointer-events: none;
   }
 
-  &[data-direction='horizontal'] {
+  &[data-direction="horizontal"] {
     rotate: 90deg;
   }
 }

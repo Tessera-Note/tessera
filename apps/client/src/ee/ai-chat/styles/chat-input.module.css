@@ -4,7 +4,10 @@
   border: 1px solid
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
   border-radius: 16px;
-  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
   box-shadow: light-dark(
     0 2px 40px 4px rgba(0, 0, 0, 0.07),
     0 2px 40px 4px rgba(0, 0, 0, 0.5)
@@ -28,14 +31,21 @@
 .inputWrapperFlat {
   position: relative;
   overflow: hidden;
-  border: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
   border-radius: 12px;
-  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
   box-shadow: none;
   transition: border-color 150ms;
 
   &:focus-within {
-    border-color: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+    border-color: light-dark(
+      var(--mantine-color-gray-3),
+      var(--mantine-color-dark-4)
+    );
   }
 }
 
@@ -59,7 +69,10 @@
   gap: 5px;
   padding: 4px 8px;
   border-radius: 8px;
-  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  background: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-6)
+  );
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   font-size: var(--mantine-font-size-xs);
   max-width: 200px;
@@ -141,8 +154,13 @@
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: background-color 150ms, opacity 150ms;
-  background: light-dark(var(--mantine-color-dark-9), var(--mantine-color-gray-0));
+  transition:
+    background-color 150ms,
+    opacity 150ms;
+  background: light-dark(
+    var(--mantine-color-dark-9),
+    var(--mantine-color-gray-0)
+  );
   color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-9));
 
   &:disabled {
@@ -180,15 +198,21 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   background: none;
   cursor: pointer;
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
-  transition: color 150ms, background-color 150ms;
+  transition:
+    color 150ms,
+    background-color 150ms;
 
   @mixin hover {
     color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
-    background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+    background: light-dark(
+      var(--mantine-color-gray-0),
+      var(--mantine-color-dark-6)
+    );
   }
 }
 
@@ -207,7 +231,10 @@
   transition: background-color 150ms;
 
   @mixin hover {
-    background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+    background: light-dark(
+      var(--mantine-color-gray-0),
+      var(--mantine-color-dark-6)
+    );
   }
 
   &:disabled {
@@ -230,13 +257,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   cursor: pointer;
   transition: background-color 150ms;
-  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-6));
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-6)
+  );
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
 
   @mixin hover {
-    background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+    background: light-dark(
+      var(--mantine-color-gray-1),
+      var(--mantine-color-dark-5)
+    );
   }
 }

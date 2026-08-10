@@ -74,8 +74,8 @@ export function WorkspaceInviteForm({ onClose }: Props) {
             .filter((role) => role.value !== UserRole.OWNER)
             .map((role) => ({
               ...role,
-              label: t(`${role.label}`),
-              description: t(`${role.description}`),
+              label: t(role.label),
+              description: t(role.description),
             }))}
           defaultValue={UserRole.MEMBER}
           allowDeselect={false}

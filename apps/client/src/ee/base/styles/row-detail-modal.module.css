@@ -2,7 +2,10 @@
   display: flex;
   flex-direction: column;
   max-height: min(86vh, 820px);
-  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  background-color: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
 }
 
 .topBar {
@@ -30,11 +33,16 @@
   background: transparent;
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   cursor: pointer;
-  transition: background-color 100ms ease, color 100ms ease;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease;
 }
 
 .iconButton:hover {
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
   color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
 }
 
@@ -72,14 +80,15 @@
 }
 
 .titleInput:hover:not(:focus) {
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-6)
+  );
 }
 
 .titleInput:focus-visible {
-  box-shadow: 0 0 0 2px light-dark(
-    rgba(34, 139, 230, 0.35),
-    rgba(34, 139, 230, 0.45)
-  );
+  box-shadow: 0 0 0 2px
+    light-dark(rgba(34, 139, 230, 0.35), rgba(34, 139, 230, 0.45));
 }
 
 .titleInput::placeholder {
@@ -110,7 +119,10 @@
   width: 2.5px;
   height: 2.5px;
   border-radius: 50%;
-  background-color: light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3));
+  background-color: light-dark(
+    var(--mantine-color-gray-4),
+    var(--mantine-color-dark-3)
+  );
   flex-shrink: 0;
 }
 
@@ -158,13 +170,18 @@
   padding-right: 6px;
   border-radius: 7px;
   cursor: pointer;
-  transition: background-color 100ms ease, color 100ms ease;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease;
 }
 
 .propertyLabelButton:hover,
 .propertyLabelButton:focus-visible,
 .propertyLabelButton.propertyLabelActive {
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-6)
+  );
   color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-dark-0));
 }
 
@@ -210,8 +227,14 @@
      grid's .cell base so cell components render identically here. */
   font-size: var(--mantine-font-size-sm);
   line-height: 22px;
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
-  transition: background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease;
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-6)
+  );
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease,
+    box-shadow 100ms ease;
 }
 
 .fieldShellTop {
@@ -228,18 +251,25 @@
 
 .fieldShellText:hover,
 .fieldShellPointer:hover {
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
 }
 
 .fieldShell:focus-within,
 .fieldShellActive,
 .fieldShellActive:hover {
-  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
-  border-color: light-dark(var(--mantine-color-blue-5), var(--mantine-color-blue-5));
-  box-shadow: 0 0 0 3px light-dark(
-    rgba(34, 139, 230, 0.12),
-    rgba(34, 139, 230, 0.22)
+  background-color: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
   );
+  border-color: light-dark(
+    var(--mantine-color-blue-5),
+    var(--mantine-color-blue-5)
+  );
+  box-shadow: 0 0 0 3px
+    light-dark(rgba(34, 139, 230, 0.12), rgba(34, 139, 230, 0.22));
 }
 
 .fieldShellLocked {
@@ -329,7 +359,9 @@
   border-radius: 5px;
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   opacity: 0;
-  transition: opacity 100ms ease, color 100ms ease;
+  transition:
+    opacity 100ms ease,
+    color 100ms ease;
 }
 
 .fieldShell:hover .fieldTrailing,
@@ -339,7 +371,10 @@
 
 .fieldTrailing:hover {
   color: light-dark(var(--mantine-color-blue-6), var(--mantine-color-blue-4));
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
 }
 
 /* "Add property" rendered as the ghost next row of the ledger. */
@@ -357,12 +392,17 @@
   font-size: 13.5px;
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   cursor: pointer;
-  transition: background-color 100ms ease, color 100ms ease;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease;
 }
 
 .addPropertyRow:hover,
 .addPropertyRow:focus-visible {
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-6)
+  );
   color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-dark-0));
 }
 
@@ -377,7 +417,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 36px 16px;
-  border-top: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
   font-size: 12px;
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   flex-shrink: 0;
@@ -399,7 +440,8 @@
 }
 
 @keyframes savingPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
     box-shadow: 0 0 0 0 rgba(250, 176, 5, 0.45);
   }
@@ -425,7 +467,10 @@
   width: 1px;
   height: 12px;
   margin: 0 2px;
-  background-color: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-gray-3),
+    var(--mantine-color-dark-4)
+  );
 }
 
 .kbd {
@@ -436,12 +481,17 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 4px;
-  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
-  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-6));
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  background-color: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-6)
+  );
   font-family:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 500;
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
-  box-shadow: 0 1px 0 light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  box-shadow: 0 1px 0
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
 }

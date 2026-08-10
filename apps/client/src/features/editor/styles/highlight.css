@@ -74,104 +74,76 @@
   }
 }
 
-
 /* Color selector trigger button styles */
 .color-selector-trigger[data-text-color="#2563EB"] {
-    color: #2563EB !important;
+  color: #2563eb !important;
 }
 
 .color-selector-trigger[data-text-color="#008A00"] {
-    color: #008A00 !important;
+  color: #008a00 !important;
 }
 
 .color-selector-trigger[data-text-color="#9333EA"] {
-    color: #9333EA !important;
+  color: #9333ea !important;
 }
 
 .color-selector-trigger[data-text-color="#E00000"] {
-    color: #E00000 !important;
+  color: #e00000 !important;
 }
 
 .color-selector-trigger[data-text-color="#EAB308"] {
-    color: #EAB308 !important;
+  color: #eab308 !important;
 }
 
 .color-selector-trigger[data-text-color="#FFA500"] {
-    color: #FFA500 !important;
+  color: #ffa500 !important;
 }
 
 .color-selector-trigger[data-text-color="#BA4081"] {
-    color: #BA4081 !important;
+  color: #ba4081 !important;
 }
 
 .color-selector-trigger[data-text-color="#A8A29E"] {
-    color: #A8A29E !important;
+  color: #a8a29e !important;
 }
 
 .color-selector-trigger[data-text-color="#92400E"] {
-    color: #92400E !important;
+  color: #92400e !important;
 }
 
 /* Highlight background colors with light-dark support - solid colors for trigger button */
 .color-selector-trigger[data-highlight-color="#98d8f2"] {
-    background-color: light-dark(
-            rgb(224 242 254),
-            rgb(30 64 175)
-    ) !important;
+  background-color: light-dark(rgb(224 242 254), rgb(30 64 175)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#7edb6c"] {
-    background-color: light-dark(
-            rgb(220 252 231),
-            rgb(21 128 61)
-    ) !important;
+  background-color: light-dark(rgb(220 252 231), rgb(21 128 61)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#e0d6ed"] {
-    background-color: light-dark(
-            rgb(243 232 255),
-            rgb(107 33 168)
-    ) !important;
+  background-color: light-dark(rgb(243 232 255), rgb(107 33 168)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#ffc6c2"] {
-    background-color: light-dark(
-            rgb(255 228 230),
-            rgb(185 28 28)
-    ) !important;
+  background-color: light-dark(rgb(255 228 230), rgb(185 28 28)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#faf594"] {
-    background-color: light-dark(
-            rgb(254 249 195),
-            rgb(161 98 7)
-    ) !important;
+  background-color: light-dark(rgb(254 249 195), rgb(161 98 7)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#f5c8a9"] {
-    background-color: light-dark(
-            rgb(251 236 221),
-            rgb(194 65 12)
-    ) !important;
+  background-color: light-dark(rgb(251 236 221), rgb(194 65 12)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#f5cfe0"] {
-    background-color: light-dark(
-            rgb(252 241 246),
-            rgb(157 23 77)
-    ) !important;
+  background-color: light-dark(rgb(252 241 246), rgb(157 23 77)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#dfdfd7"] {
-    background-color: light-dark(
-            rgb(238 238 235),
-            rgb(115 115 115)
-    ) !important;
+  background-color: light-dark(rgb(238 238 235), rgb(115 115 115)) !important;
 }
 
 .color-selector-trigger[data-highlight-color="#d7c4b7"] {
-    background-color: light-dark(
-            rgb(215 196 183),
-            rgb(120 53 15)
-    ) !important;
+  background-color: light-dark(rgb(215 196 183), rgb(120 53 15)) !important;
 }

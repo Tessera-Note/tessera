@@ -1,6 +1,6 @@
 import { Modal, TextInput, Button, Group, Divider } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { z } from "zod/v4";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -31,7 +31,7 @@ export default function CreatePersonalSpaceModal({ opened, onClose }: Props) {
     (currentUser?.user?.name ?? "").trim().split(/\s+/)[0] || "";
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: firstName ? t("{{name}}'s space", { name: firstName }) : "",
     },

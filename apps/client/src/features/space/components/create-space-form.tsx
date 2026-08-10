@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect } from "react";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { z } from "zod/v4";
 import { useNavigate } from "react-router-dom";
 import { useCreateSpaceMutation } from "@/features/space/queries/space-query.ts";
@@ -38,7 +38,7 @@ export function CreateSpaceForm() {
   const navigate = useNavigate();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     validateInputOnChange: ["slug"],
     initialValues: {
       name: "",

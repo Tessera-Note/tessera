@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { Modal, TextInput, Button, Group, Stack, Select } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { z } from "zod/v4";
 import { useTranslation } from "react-i18next";
 import { useCreateApiKeyMutation } from "@/ee/api-key/queries/api-key-query";
@@ -36,7 +36,7 @@ export function CreateApiKeyModal({
   const createApiKeyMutation = useCreateApiKeyMutation();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: "",
       expiresAt: "",

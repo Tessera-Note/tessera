@@ -108,7 +108,14 @@ export default function ExportModal({
       <Modal.Overlay />
       <Modal.Content style={{ overflow: "hidden" }}>
         <Modal.Header py={0}>
-          <Modal.Title fw={500}>{t(`Export ${type}`)}</Modal.Title>
+          {/*
+            Ключ собирался подстановкой, поэтому извлечению ключей он не виден:
+            проверка словарей ищет литералы внутри t(...), а переменную
+            прочитать не может. Оба варианта записаны явно.
+          */}
+          <Modal.Title fw={500}>
+            {type === "space" ? t("Export space") : t("Export page")}
+          </Modal.Title>
           <Modal.CloseButton aria-label={t("Close")} />
         </Modal.Header>
         <Modal.Body>

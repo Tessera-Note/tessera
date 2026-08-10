@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import * as React from "react";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { getSubdomainHost } from "@/lib/config.ts";
@@ -68,7 +68,7 @@ function ChangeHostnameForm({ onClose }: ChangeHostnameFormProps) {
   const [currentUser, setCurrentUser] = useAtom(currentUserAtom);
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       hostname: currentUser?.workspace?.hostname,
     },

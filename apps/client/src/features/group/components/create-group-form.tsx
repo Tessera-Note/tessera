@@ -6,7 +6,7 @@ import { z } from "zod/v4";
 import { useNavigate } from "react-router-dom";
 import { MultiUserSelect } from "@/features/group/components/multi-user-select.tsx";
 import { useTranslation } from "react-i18next";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -22,7 +22,7 @@ export function CreateGroupForm() {
   const navigate = useNavigate();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: "",
       description: "",

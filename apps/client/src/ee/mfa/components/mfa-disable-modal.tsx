@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 import { IconShieldOff, IconAlertTriangle } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { useMutation } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
@@ -42,7 +42,7 @@ export function MfaDisableModal({
       });
 
   const form = useForm({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       confirmPassword: "",
     },

@@ -36,7 +36,7 @@ import { useMutation } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { setupMfa, enableMfa } from "@/ee/mfa";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { z } from "zod/v4";
 import { getApiErrorMessage } from "@/lib/api-error";
 
@@ -71,7 +71,7 @@ export function MfaSetupModal({
   const [manualEntryOpen, setManualEntryOpen] = useState(false);
 
   const form = useForm({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       verificationCode: "",
     },

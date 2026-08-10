@@ -9,10 +9,7 @@
   cursor: pointer;
   font: inherit;
   font-size: var(--mantine-font-size-xs);
-  color: light-dark(
-    var(--mantine-color-gray-7),
-    var(--mantine-color-dark-1)
-  );
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   transition: background 120ms ease;
   user-select: none;
 }
@@ -25,18 +22,12 @@
 }
 
 .triggerIcon {
-  color: light-dark(
-    var(--mantine-color-gray-5),
-    var(--mantine-color-dark-2)
-  );
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-2));
   display: inline-flex;
 }
 
 .triggerChev {
-  color: light-dark(
-    var(--mantine-color-gray-5),
-    var(--mantine-color-dark-2)
-  );
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-2));
   display: inline-flex;
   margin-left: 2px;
 }
@@ -55,29 +46,20 @@
   );
   border-bottom: 1px solid
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
-  color: light-dark(
-    var(--mantine-color-gray-7),
-    var(--mantine-color-dark-1)
-  );
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   font-size: var(--mantine-font-size-xs);
   line-height: 1.5;
 }
 
 .bannerIcon {
-  color: light-dark(
-    var(--mantine-color-gray-6),
-    var(--mantine-color-dark-2)
-  );
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   flex: none;
   display: inline-flex;
   margin-top: 1px;
 }
 
 .bannerLink {
-  color: light-dark(
-    var(--mantine-color-gray-9),
-    var(--mantine-color-dark-0)
-  );
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
@@ -95,10 +77,7 @@
 .sectionLabel {
   font-size: var(--mantine-font-size-xs);
   font-weight: 500;
-  color: light-dark(
-    var(--mantine-color-gray-6),
-    var(--mantine-color-dark-2)
-  );
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   margin: 0 0 6px;
   padding: 0 4px;
 }
@@ -116,10 +95,7 @@
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
-  color: light-dark(
-    var(--mantine-color-gray-9),
-    var(--mantine-color-dark-0)
-  );
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
   font-size: var(--mantine-font-size-sm);
   text-decoration: none;
   transition: background 100ms ease;
@@ -133,10 +109,7 @@
 }
 
 .rowIcon {
-  color: light-dark(
-    var(--mantine-color-gray-5),
-    var(--mantine-color-dark-2)
-  );
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-2));
   flex: none;
   display: inline-flex;
 }
@@ -169,10 +142,7 @@
     var(--mantine-color-gray-1),
     var(--mantine-color-dark-5)
   );
-  color: light-dark(
-    var(--mantine-color-gray-7),
-    var(--mantine-color-dark-1)
-  );
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   text-transform: uppercase;
   flex: none;
 }
@@ -182,19 +152,13 @@
     var(--mantine-color-blue-0),
     var(--mantine-color-blue-9)
   );
-  color: light-dark(
-    var(--mantine-color-blue-7),
-    var(--mantine-color-blue-2)
-  );
+  color: light-dark(var(--mantine-color-blue-7), var(--mantine-color-blue-2));
 }
 
 .empty {
   padding: 18px 14px;
   text-align: center;
-  color: light-dark(
-    var(--mantine-color-gray-6),
-    var(--mantine-color-dark-2)
-  );
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   font-size: var(--mantine-font-size-xs);
 }
 

@@ -164,14 +164,17 @@
     &:last-child {
       margin-bottom: 0;
     }
-
   }
 
-  .react-renderer.node-callout div[style*="white-space: inherit;"] > :first-child {
+  .react-renderer.node-callout
+    div[style*="white-space: inherit;"]
+    > :first-child {
     margin-top: 0;
   }
 
-  .react-renderer.node-callout div[style*="white-space: inherit;"] > :last-child {
+  .react-renderer.node-callout
+    div[style*="white-space: inherit;"]
+    > :last-child {
     margin-bottom: 0;
   }
 
@@ -231,7 +234,6 @@
     margin-left: auto;
     margin-right: auto;
   }
-
 }
 
 .ProseMirror > h1,
@@ -240,11 +242,9 @@
 .ProseMirror > h4,
 .ProseMirror > h5,
 .ProseMirror > h6 {
-
   > .link-btn {
     cursor: pointer;
     position: relative;
-
   }
 
   > .link-btn > .link-btn-content {

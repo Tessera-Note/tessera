@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import {
   Container,
   Title,
@@ -24,7 +24,7 @@ import { findWorkspacesByEmail } from "@/ee/cloud/service/cloud-service.ts";
 import { AuthLayout } from "@/features/auth/components/auth-layout.tsx";
 
 const formSchema = z.object({
-  hostname: z.string().min(1, { message: "subdomain is required" }),
+  hostname: z.string().min(1, { message: "Subdomain is required" }),
 });
 
 const findWorkspaceSchema = z.object({
@@ -39,14 +39,14 @@ export function CloudLoginForm() {
   const { data: joinedWorkspaces } = useJoinedWorkspacesQuery();
 
   const form = useForm<any>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       hostname: "",
     },
   });
 
   const findForm = useForm<any>({
-    validate: zod4Resolver(findWorkspaceSchema),
+    validate: i18nZodResolver(findWorkspaceSchema),
     initialValues: {
       email: "",
     },

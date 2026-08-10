@@ -11,7 +11,7 @@ import {
   Box,
   Stack,
 } from "@mantine/core";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { useParams, useSearchParams } from "react-router-dom";
 import useAuth from "@/features/auth/hooks/use-auth";
 import classes from "@/features/auth/components/auth.module.css";
@@ -40,7 +40,7 @@ export function InviteSignUpForm() {
   useRedirectIfAuthenticated();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: "",
       password: "",

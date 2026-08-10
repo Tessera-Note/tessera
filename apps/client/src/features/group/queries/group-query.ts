@@ -107,6 +107,12 @@ export function useDeleteGroupMutation() {
     onSuccess: (data, variables) => {
       notifications.show({ message: t("Group deleted successfully") });
       queryClient.refetchQueries({ queryKey: ["groups"] });
+      // Карточку группы заполняет и список (`useGetGroupsQuery` раскладывает
+      // элементы по ключам `group`), поэтому обновления одного списка мало:
+      // без снятия карточка удаленной группы остается в кеше и открывается по
+      // прямому адресу как живая.
+      queryClient.removeQueries({ queryKey: ["group", variables] });
+      queryClient.removeQueries({ queryKey: ["groupMembers", variables] });
     },
     onError: (error) => {
       const errorMessage = error["response"]?.data?.message;

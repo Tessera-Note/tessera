@@ -12,7 +12,10 @@
   max-width: 75%;
   padding: 10px 16px;
   border-radius: 18px;
-  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  background: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-6)
+  );
   color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
   font-size: 15px;
   line-height: 1.6;
@@ -21,8 +24,12 @@
 }
 
 [data-aside-chat] .userBubble {
-  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
-  border: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
 }
 
 .userBubble p {
@@ -42,7 +49,10 @@
   gap: 4px;
   padding: 2px 8px;
   border-radius: 6px;
-  background: light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  background: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-5)
+  );
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-2));
   font-size: var(--mantine-font-size-xs);
   max-width: 180px;
@@ -102,7 +112,10 @@
 }
 
 .messageContent pre {
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7));
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-7)
+  );
   padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
   border-radius: var(--mantine-radius-md);
   overflow-x: auto;
@@ -111,7 +124,10 @@
 }
 
 .messageContent code {
-  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-6)
+  );
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.88em;
@@ -123,7 +139,8 @@
 }
 
 .messageContent blockquote {
-  border-left: 3px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-left: 3px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   padding-left: var(--mantine-spacing-md);
   margin: 0.75em 0;
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-2));
@@ -166,7 +183,8 @@
 
 .messageContent hr {
   border: none;
-  border-top: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
   margin: 1em 0;
 }
 
@@ -233,7 +251,10 @@
   margin-left: 18px;
   padding: 6px 10px;
   border-radius: var(--mantine-radius-sm);
-  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7));
+  background: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-7)
+  );
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   font-size: 11px;
   line-height: 1.5;
@@ -273,7 +294,10 @@
   display: inline-block;
   width: 2px;
   height: 1em;
-  background: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-0));
+  background: light-dark(
+    var(--mantine-color-gray-7),
+    var(--mantine-color-dark-0)
+  );
   animation: blink 1s step-end infinite;
   vertical-align: text-bottom;
   margin-left: 1px;

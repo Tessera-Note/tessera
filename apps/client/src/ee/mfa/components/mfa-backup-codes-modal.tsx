@@ -23,7 +23,7 @@ import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { regenerateBackupCodes } from "@/ee/mfa";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { z } from "zod/v4";
 import useCurrentUser from "@/features/user/hooks/use-current-user";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -52,7 +52,7 @@ export function MfaBackupCodesModal({
       });
 
   const form = useForm({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       confirmPassword: "",
     },

@@ -8,7 +8,7 @@ import { useForm } from "@mantine/form";
 import { z } from "zod/v4";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { IGroup } from "@/features/group/types/group.types.ts";
 
 const formSchema = z.object({
@@ -42,7 +42,7 @@ export function EditGroupForm({
   }, [isSuccess]);
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: group?.name,
       description: group?.description,

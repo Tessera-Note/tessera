@@ -14,7 +14,7 @@ import {
 import { IconEdit } from "@tabler/icons-react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import i18n from "i18next";
@@ -46,7 +46,7 @@ export default function EmbedView(props: NodeViewProps) {
     initialValues: {
       url: "",
     },
-    validate: zod4Resolver(schema),
+    validate: i18nZodResolver(schema),
   });
 
   const handleResize = useCallback(

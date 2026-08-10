@@ -1,4 +1,4 @@
-.findDialog{
+.findDialog {
   @media print {
     display: none;
   }

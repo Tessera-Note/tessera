@@ -12,7 +12,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { IconDeviceMobile, IconLock } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { notifications } from "@mantine/notifications";
@@ -45,7 +45,7 @@ export function MfaChallenge() {
   const [useBackupCode, setUseBackupCode] = useState(false);
 
   const form = useForm<MfaChallengeFormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       code: "",
     },

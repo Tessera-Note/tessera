@@ -1,6 +1,6 @@
 import { Modal, TextInput, Button, Group, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { z } from "zod/v4";
 import { useTranslation } from "react-i18next";
 import { useCreateScimTokenMutation } from "@/ee/scim/queries/scim-token-query";
@@ -26,7 +26,7 @@ export function CreateScimTokenModal({
   const createMutation = useCreateScimTokenMutation();
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: { name: "" },
   });
 

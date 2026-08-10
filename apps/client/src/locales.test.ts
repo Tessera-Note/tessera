@@ -190,6 +190,43 @@ describe("словари i18next", () => {
     expect(offenders).toEqual([]);
   });
 
+  /**
+   * Сообщения, объявленные полем `message` в схемах проверки форм и в
+   * справочниках предупреждений, до `t(...)` не доходят: схема живет на уровне
+   * модуля, где хука перевода нет, а справочник отдает строку, которую
+   * переводит уже потребитель. Ключом служит сама фраза, поэтому она обязана
+   * быть в источнике, иначе перевода не будет ни на одном языке.
+   */
+  it("сообщение схемы или справочника заведено в источнике", () => {
+    const srcDir = path.resolve(__dirname);
+    const source = readLocale("en-US");
+    const missing: string[] = [];
+    const literal = /\bmessage:\s*\n?\s*"((?:\\.|[^"])*)"/g;
+
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (
+          /\.tsx?$/.test(entry.name) &&
+          !entry.name.endsWith(".d.ts")
+        ) {
+          const text = fs.readFileSync(full, "utf8");
+          for (const match of text.matchAll(literal)) {
+            const key = match[1].replace(/\\"/g, '"');
+            if (!(key in source)) {
+              missing.push(`${path.relative(srcDir, full)}: ${key}`);
+            }
+          }
+        }
+      }
+    };
+    walk(srcDir);
+
+    expect(missing).toEqual([]);
+  });
+
   it("каждый код отказа сервера заведен в источнике", () => {
     const catalogue = fs.readFileSync(
       path.resolve(__dirname, "../../server/src/common/errors/app-error.ts"),

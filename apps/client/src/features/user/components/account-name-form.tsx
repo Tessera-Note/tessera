@@ -1,7 +1,7 @@
 import { useAtom } from "jotai";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import { userAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { updateUser } from "@/features/user/services/user-service.ts";
 import { IUser } from "@/features/user/types/user.types.ts";
@@ -22,7 +22,7 @@ export default function AccountNameForm() {
   const [user, setUser] = useAtom(userAtom);
 
   const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
+    validate: i18nZodResolver(formSchema),
     initialValues: {
       name: user?.name,
     },

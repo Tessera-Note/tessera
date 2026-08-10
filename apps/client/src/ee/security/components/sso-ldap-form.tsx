@@ -1,7 +1,7 @@
 import React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
+import { i18nZodResolver } from "@/lib/zod-i18n";
 import {
   Box,
   Button,
@@ -61,7 +61,7 @@ export function SsoLDAPForm({ provider, onClose }: SsoFormProps) {
       groupSync: provider.groupSync ?? false,
       groupClaimName: provider.groupClaimName || "",
     },
-    validate: zod4Resolver(ssoSchema),
+    validate: i18nZodResolver(ssoSchema),
   });
 
   const handleSubmit = async (values: SSOFormValues) => {
