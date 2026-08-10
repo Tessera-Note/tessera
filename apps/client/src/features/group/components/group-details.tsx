@@ -8,6 +8,7 @@ import EditGroupModal from "@/features/group/components/edit-group-modal.tsx";
 import GroupActionMenu from "@/features/group/components/group-action-menu.tsx";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { useTranslation } from "react-i18next";
+import GroupDirectoryPanel from "@/features/group/components/group-directory-panel.tsx";
 
 export default function GroupDetails() {
   const { groupId } = useParams();
@@ -31,6 +32,8 @@ export default function GroupDetails() {
               </>
             )}
           </Group>
+
+          {isAdmin && <GroupDirectoryPanel group={group} />}
         </div>
       )}
 

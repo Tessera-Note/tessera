@@ -15,7 +15,10 @@ import {
   getGroups,
   removeGroupMember,
   updateGroup,
+  attachGroupDirectory,
+  detachGroupDirectory,
 } from "@/features/group/services/group-service";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { notifications } from "@mantine/notifications";
 import { IPagination, QueryParams } from "@/lib/types.ts";
 import { IUser } from "@/features/user/types/user.types.ts";
@@ -163,6 +166,51 @@ export function useRemoveGroupMemberMutation() {
     onError: (error) => {
       const errorMessage = error["response"]?.data?.message;
       notifications.show({ message: errorMessage, color: "red" });
+    },
+  });
+}
+
+/**
+ * Привязка группы к каталогу и снятие привязки.
+ *
+ * Отказы здесь приходят кодом, поэтому текст берется через общий разбор
+ * ошибки: он переводит код словарем и только потом откатывается к сообщению
+ * сервера.
+ */
+export function useAttachGroupDirectoryMutation() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation<
+    IGroup,
+    Error,
+    { groupId: string; providerId: string; directoryKey?: string }
+  >({
+    mutationFn: (data) => attachGroupDirectory(data),
+    onSuccess: (_data, variables) => {
+      notifications.show({ message: t("Group is now managed by the directory") });
+      queryClient.invalidateQueries({ queryKey: ["group", variables.groupId] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
+    },
+    onError: (error) => {
+      notifications.show({ message: getApiErrorMessage(error), color: "red" });
+    },
+  });
+}
+
+export function useDetachGroupDirectoryMutation() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation<IGroup, Error, { groupId: string }>({
+    mutationFn: (data) => detachGroupDirectory(data),
+    onSuccess: (_data, variables) => {
+      notifications.show({ message: t("Group returned to manual management") });
+      queryClient.invalidateQueries({ queryKey: ["group", variables.groupId] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
+    },
+    onError: (error) => {
+      notifications.show({ message: getApiErrorMessage(error), color: "red" });
     },
   });
 }

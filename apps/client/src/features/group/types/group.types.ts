@@ -9,6 +9,10 @@ export interface IGroup {
    * ведет, менять и удалять группу изнутри нельзя.
    */
   directorySource?: string | null;
+  /** Провайдер SSO, ведущий группу. У источника scim пусто. */
+  directoryProviderId?: string | null;
+  /** Ключ группы на стороне каталога, по нему идет сопоставление. */
+  directoryKey?: string | null;
   creatorId: string | null;
   workspaceId: string;
   createdAt: Date;

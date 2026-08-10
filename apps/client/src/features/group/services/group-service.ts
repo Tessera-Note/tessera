@@ -50,3 +50,19 @@ export async function removeGroupMember(data: {
 }): Promise<void> {
   await api.post("/groups/members/remove", data);
 }
+
+export async function attachGroupDirectory(data: {
+  groupId: string;
+  providerId: string;
+  directoryKey?: string;
+}): Promise<IGroup> {
+  const req = await api.post<IGroup>("/groups/attach-directory", data);
+  return req.data;
+}
+
+export async function detachGroupDirectory(data: {
+  groupId: string;
+}): Promise<IGroup> {
+  const req = await api.post<IGroup>("/groups/detach-directory", data);
+  return req.data;
+}
