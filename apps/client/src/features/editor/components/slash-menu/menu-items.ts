@@ -853,12 +853,12 @@ export const getSuggestionItems = ({
         fuzzyMatch(search, translatedTitle) ||
         item.description.toLowerCase().includes(search) ||
         translatedDescription.toLowerCase().includes(search) ||
+        // Поисковые слова это ключи совпадения, а не текст интерфейса: их сто
+        // тридцать восемь, в словаре есть два, и перевод остальных возвращал
+        // сам ключ. Русский и украинский поиск работает по переведенным
+        // заголовку и описанию выше, а слова остаются как есть.
         (item.searchTerms &&
-          item.searchTerms.some(
-            (term: string) =>
-              term.includes(search) ||
-              i18n.t(term).toLowerCase().includes(search),
-          ))
+          item.searchTerms.some((term: string) => term.includes(search)))
       );
     });
 
