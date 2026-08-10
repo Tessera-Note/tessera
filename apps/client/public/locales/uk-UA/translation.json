@@ -570,6 +570,7 @@
   "Export failed: {{reason}}": "Не вдалося вивантажити: {{reason}}",
   "Export page": "Експорт сторінки",
   "Export space": "Експорт простору",
+  "Export stopped at the {{limit}} page limit. The rest were left out.": "Вивантаження обірвано на межі в {{limit}} сторінок. Решта не увійшла.",
   "Export successful": "Експорт виконано успішно",
   "Export {{type}}": "Експорт {{type}}",
   "Exported page": "Сторінку вивантажено",

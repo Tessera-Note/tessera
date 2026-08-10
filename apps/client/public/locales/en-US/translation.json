@@ -568,6 +568,7 @@
   "Export failed: {{reason}}": "Export failed: {{reason}}",
   "Export page": "Export page",
   "Export space": "Export space",
+  "Export stopped at the {{limit}} page limit. The rest were left out.": "Export stopped at the {{limit}} page limit. The rest were left out.",
   "Export successful": "Export successful",
   "Export {{type}}": "Export {{type}}",
   "Exported page": "Exported page",

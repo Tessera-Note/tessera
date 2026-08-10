@@ -570,6 +570,7 @@
   "Export failed: {{reason}}": "Не удалось выгрузить: {{reason}}",
   "Export page": "Экспорт страницы",
   "Export space": "Экспорт пространства",
+  "Export stopped at the {{limit}} page limit. The rest were left out.": "Выгрузка оборвана на пределе в {{limit}} страниц. Остальные не вошли.",
   "Export successful": "Экспорт выполнен успешно",
   "Export {{type}}": "Экспорт {{type}}",
   "Exported page": "Страница выгружена",

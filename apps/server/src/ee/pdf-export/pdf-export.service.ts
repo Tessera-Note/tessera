@@ -53,9 +53,10 @@ const FOOTER_HTML = `<!doctype html>
  * Предел страниц в одной выгрузке.
  *
  * Обрыв на пределе молчаливым быть не должен: человек, выгрузивший
- * пространство из ста пятидесяти страниц, получает файл из ста и считает его
- * полным. Сейчас достижение предела попадает только в журнал сервера, до
- * человека оно не доходит. Незакрытое, см. `docs/future-roadmap.md`.
+ * пространство из ста пятидесяти страниц, получил бы файл из ста и счел его
+ * полным. Достижение предела записывается в журнал сервера и в метаданные
+ * файловой задачи, откуда его показывает интерфейс. Отметка в списке выгрузок
+ * видна до открытия файла, в отличие от заметки внутри самого PDF.
  */
 const MAX_PAGES_PER_EXPORT = 100;
 /** How long a generated PDF is kept before the cleanup job removes it. */
@@ -124,9 +125,10 @@ export class PdfExportService {
     // is still in context. The renderer runs later with only a token, so it must
     // not be the thing deciding what may be read — a restricted subpage would
     // otherwise be printed for someone who cannot open it.
-    const pageIds = includeChildren
+    const collected = includeChildren
       ? await this.collectViewablePageIds(page, user)
-      : [page.id];
+      : { pageIds: [page.id], truncated: false };
+    const pageIds = collected.pageIds;
 
     const fileTaskId = uuid7();
     const title = page.title || 'untitled';
@@ -153,7 +155,14 @@ export class PdfExportService {
         // string parameter into the jsonb column as a JSON *string*, so reads
         // come back as text. A ::jsonb cast does not help — the value is
         // already a JSON string by then.
-        metadata: { includeChildren, pageIds } as any,
+        // Обрыв на пределе едет в метаданных задачи: интерфейс показывает его
+        // в списке выгрузок, то есть человек узнает об усечении до открытия
+        // файла, а не после.
+        metadata: {
+          includeChildren,
+          pageIds,
+          ...(collected.truncated ? { truncatedAt: MAX_PAGES_PER_EXPORT } : {}),
+        } as any,
       })
       .execute();
 
@@ -231,7 +240,7 @@ export class PdfExportService {
   private async collectViewablePageIds(
     root: Page,
     user: User,
-  ): Promise<string[]> {
+  ): Promise<{ pageIds: string[]; truncated: boolean }> {
     const ordered: string[] = [root.id];
     const queue: string[] = [root.id];
     let truncated = false;
@@ -268,15 +277,12 @@ export class PdfExportService {
     }
 
     if (truncated) {
-      // Молчаливый обрыв недопустим: человек получает усеченную выгрузку с
-      // видом полной. Пока это только след в журнале: до самого человека
-      // сообщение не доходит, и это записано в отложенное как незакрытое.
       this.logger.warn(
         `Выгрузка ${root.id} оборвана на пределе ${MAX_PAGES_PER_EXPORT} страниц`,
       );
     }
 
-    return ordered;
+    return { pageIds: ordered, truncated };
   }
 
   /* ------------------------------------------------------------ generation */

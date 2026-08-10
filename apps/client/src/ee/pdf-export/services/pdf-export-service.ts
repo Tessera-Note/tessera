@@ -1,3 +1,5 @@
+import { notifications } from "@mantine/notifications";
+import i18n from "@/i18n";
 import { saveAs } from "file-saver";
 import api from "@/lib/api-client.ts";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
@@ -62,6 +64,19 @@ export async function exportPageToPdf(data: {
     const task = await getFileTaskById(fileTaskId);
 
     if (task.status === "success") {
+      const truncatedAt = task.metadata?.truncatedAt;
+      if (truncatedAt) {
+        // Обрыв на пределе называется до открытия файла: иначе человек считает
+        // усечённую выгрузку полной и узнаёт об этом в лучшем случае потом.
+        notifications.show({
+          color: "orange",
+          message: i18n.t(
+            "Export stopped at the {{limit}} page limit. The rest were left out.",
+            { limit: truncatedAt },
+          ),
+          autoClose: false,
+        });
+      }
       await downloadPagePdf(fileTaskId, task.fileName);
       return;
     }
