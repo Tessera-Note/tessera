@@ -26,7 +26,11 @@ import { forbidden } from '../../common/errors/app-error';
 export class McpController {
   constructor(private readonly mcpService: McpService) {}
 
+  // Ответ статический, но маршрут публичный, а глобального лимита на этот
+  // префикс нет. Счетчик ведется по адресу: пользователя здесь нет.
   @Get()
+  @SkipThrottle({ [AUTH_THROTTLER]: true, [EXPORT_THROTTLER]: true })
+  @UseGuards(UserThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   async getInfo() {
     return {

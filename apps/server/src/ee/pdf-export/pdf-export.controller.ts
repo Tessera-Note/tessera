@@ -52,7 +52,13 @@ export class PdfExportController {
    * Called by the headless browser, which has no session — the render token is
    * the credential, and it only unlocks the one page it was minted for.
    */
+  // Маршрут публичный и принимает токен отрисовки, то есть перебор токена
+  // ничем не ограничен. Глобального лимита на этот префикс нет, ограничитель
+  // ставится маршруту. Пользователя здесь нет, и счетчик ведется по адресу:
+  // `UserThrottlerGuard` в этом случае откатывается к базовому определению.
   @Public()
+  @SkipThrottle({ [AUTH_THROTTLER]: true, [AI_CHAT_THROTTLER]: true })
+  @UseGuards(UserThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @Post('render')
   async render(@Body() dto: PdfRenderDto) {
@@ -61,7 +67,8 @@ export class PdfExportController {
     return this.pdfExportService.getRenderData(dto.token);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @SkipThrottle({ [AUTH_THROTTLER]: true, [AI_CHAT_THROTTLER]: true })
+  @UseGuards(JwtAuthGuard, UserThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @Post('download')
   async download(

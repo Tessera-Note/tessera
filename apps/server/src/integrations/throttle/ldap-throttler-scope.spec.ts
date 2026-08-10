@@ -5,6 +5,7 @@ const THROTTLER_LIMIT = 'THROTTLER:LIMIT';
 const THROTTLER_TTL = 'THROTTLER:TTL';
 import { LdapController } from '../../ee/sso/ldap.controller';
 import { LDAP_LOGIN_THROTTLER } from './throttler-names';
+import { THROTTLERS } from './throttle.module';
 
 /**
  * Любой `ThrottlerGuard` проверяет все объявленные счетчики, кроме явно
@@ -31,17 +32,20 @@ describe('порог входа через каталог задан на мар
     expect(ttl).toBe(300_000);
   });
 
-  // Свободное значение в общей настройке безопаснее списка исключений на
-  // каждом контроллере: следующий контроллер не обязан помнить про чужой
-  // счетчик.
-  it('в общей настройке порог свободный', async () => {
-    const source = (await import('fs')).readFileSync(
-      `${__dirname}/throttle.module.ts`,
-      'utf-8',
+  /**
+   * Свободное значение в общей настройке безопаснее списка исключений на
+   * каждом контроллере: следующий контроллер не обязан помнить про чужой
+   * счетчик.
+   *
+   * Значение берется настоящей константой, а не разбором текста модуля: разбор
+   * подтверждает написание, а не то, с чем поднимется приложение.
+   */
+  it('в общей настройке порог свободный', () => {
+    const declared = THROTTLERS.find(
+      (throttler) => throttler.name === LDAP_LOGIN_THROTTLER,
     );
 
-    expect(source).toContain(
-      `{ name: LDAP_LOGIN_THROTTLER, ttl: 300_000, limit: 1_000_000 }`,
-    );
+    expect(declared).toBeDefined();
+    expect(declared.limit).toBeGreaterThan(1000);
   });
 });

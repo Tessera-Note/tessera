@@ -8,7 +8,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { generateText } from 'ai';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UserThrottlerGuard } from '../../integrations/throttle/user-throttler.guard';
+import {
+  AUTH_THROTTLER,
+  EXPORT_THROTTLER,
+} from '../../integrations/throttle/throttler-names';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { User, Workspace } from '@tessera/db/types/entity.types';
@@ -30,7 +36,11 @@ import {
   QueueName,
 } from '../../integrations/queue/constants/queue.constants';
 
-@UseGuards(JwtAuthGuard)
+// Глобального лимита на префикс `/ai` нет, поэтому ограничитель ставится
+// здесь. Особенно это нужно маршруту проверки настроек: он ходит к провайдеру
+// модели наружу, то есть тратит чужую квоту и деньги владельца.
+@SkipThrottle({ [AUTH_THROTTLER]: true, [EXPORT_THROTTLER]: true })
+@UseGuards(JwtAuthGuard, UserThrottlerGuard)
 @Controller('ai/settings')
 export class AiSettingsController {
   constructor(
