@@ -17,13 +17,44 @@ import { EnvironmentService } from './integrations/environment/environment.servi
 import { resolveFrameHeader } from './common/helpers';
 import { notFound } from './common/errors/app-error';
 
+/**
+ * Сколько обратных прокси стоит перед приложением.
+ *
+ * Читается напрямую из окружения, а не из `EnvironmentService`: адаптер
+ * создается до того, как поднимется контейнер зависимостей.
+ */
+function trustProxyHops(): number {
+  const raw = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '', 10);
+
+  // Ноль означал бы «не доверять никому», и тогда за прокси все запросы
+  // пришли бы с одного адреса. Это допустимый выбор, поэтому ноль пропускается,
+  // а отбрасывается только мусор и отрицательные значения.
+  return Number.isInteger(raw) && raw >= 0 ? raw : 1;
+}
+
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
       // Rich pages and templates can contain large tables, code blocks and diagrams.
       bodyLimit: 10 * 1024 * 1024,
-      trustProxy: true,
+      // Число доверенных переходов, а не `true`.
+      //
+      // При `true` Fastify доверяет всей цепочке `X-Forwarded-For` и берет
+      // самое левое значение, то есть присланное клиентом. Замерено: заголовок
+      // `203.0.113.99, 10.0.0.7`, где правое значение приписал прокси, при
+      // `true` дает `req.ip = 203.0.113.99`, при одном переходе `10.0.0.7`.
+      //
+      // По `req.ip` считаются пороги частоты и пишется адрес в журнал аудита,
+      // поэтому доверие всей цепочке означало и обход лимита подстановкой
+      // заголовка, и подделку адреса в журнале. На публичном маршруте отрисовки
+      // PDF адрес вообще единственная идентичность.
+      //
+      // Единица потому, что перед приложением стоит ровно один обратный прокси
+      // и он приписывает реальный адрес (`$proxy_add_x_forwarded_for` в
+      // `deploy/nginx`). Развертыванию с дополнительным прокси впереди,
+      // например с CDN, число задается переменной `TRUST_PROXY_HOPS`.
+      trustProxy: trustProxyHops(),
       routerOptions: {
         maxParamLength: 1000,
         ignoreTrailingSlash: true,
