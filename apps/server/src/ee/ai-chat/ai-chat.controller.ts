@@ -1,3 +1,4 @@
+import { badRequest } from '../../common/errors/app-error';
 import { ResolvePlanDto } from './dto/resolve-plan.dto';
 import {
   Body,
@@ -142,21 +143,21 @@ export class AiChatController {
     }
   }
 
+  /**
+   * Вложения в чате ИИ не поддерживаются.
+   *
+   * Маршрут возвращал пустое вложение с видом успеха: интерфейс показывал
+   * файл прикрепленным, а к модели не уходило ничего и нигде ничего не
+   * сохранялось. Молчаливая потеря файла хуже отказа, поэтому здесь отказ.
+   *
+   * Маршрут не убран, потому что его вызывает поле ввода чата: убрать его
+   * значило бы отдать клиенту 404 без объяснения. Когда вложения будут
+   * сделаны по-настоящему, отказ заменится реализацией.
+   */
   @HttpCode(HttpStatus.OK)
   @Post('upload')
-  async uploadFile(
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
-    // Stub - file upload for AI chat context requires additional integration
-    // with the attachment storage system
-    return {
-      id: null,
-      fileName: '',
-      fileExt: '',
-      fileSize: 0,
-      mimeType: '',
-    };
+  async uploadFile() {
+    throw badRequest('error.ai_chat.attachments_not_supported');
   }
 
   /**

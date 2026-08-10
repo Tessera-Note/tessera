@@ -1703,6 +1703,7 @@
   "error.ai.select_a_provider_first": "Select a provider first.",
   "error.ai.unknown_driver": "Unknown AI driver: {{driver}}",
   "error.ai_chat.access_denied": "Access denied",
+  "error.ai_chat.attachments_not_supported": "Attachments in the AI chat are not supported yet",
   "error.ai_chat.chat_not_found": "Chat not found",
   "error.ai_chat.no_pending_plan": "This message has no plan waiting for a decision",
   "error.ai_chat.plan_already_resolved": "A decision on this plan has already been made",

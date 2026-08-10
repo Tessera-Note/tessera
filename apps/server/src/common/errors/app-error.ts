@@ -411,6 +411,8 @@ export const ErrorMessage = {
     'This message has no plan waiting for a decision',
   'error.ai_chat.plan_already_resolved':
     'A decision on this plan has already been made',
+  'error.ai_chat.attachments_not_supported':
+    'Attachments in the AI chat are not supported yet',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorMessage;

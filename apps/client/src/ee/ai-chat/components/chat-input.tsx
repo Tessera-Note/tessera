@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from "@/lib/api-error";
 import { useCallback, useId, useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -183,8 +184,14 @@ export default function ChatInput({
               a.id === tempId ? { ...uploaded, uploading: false } : a,
             ),
           );
-        } catch {
+        } catch (err) {
+          // Отказ показывается человеку. Прежде он молча съедался, и файл
+          // просто исчезал из списка без объяснения.
           setPendingAttachments((prev) => prev.filter((a) => a.id !== tempId));
+          notifications.show({
+            message: getApiErrorMessage(err),
+            color: "red",
+          });
         }
       }
 

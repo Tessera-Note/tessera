@@ -1711,6 +1711,7 @@
   "error.ai.select_a_provider_first": "Спочатку виберіть постачальника",
   "error.ai.unknown_driver": "Невідомий постачальник ШІ: {{driver}}",
   "error.ai_chat.access_denied": "Доступ закрито",
+  "error.ai_chat.attachments_not_supported": "Вкладення в чаті ШІ поки не підтримуються",
   "error.ai_chat.chat_not_found": "Розмову не знайдено",
   "error.ai_chat.no_pending_plan": "У цього повідомлення немає плану, що очікує рішення",
   "error.ai_chat.plan_already_resolved": "Рішення щодо цього плану вже ухвалено",

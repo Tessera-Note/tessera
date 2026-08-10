@@ -1711,6 +1711,7 @@
   "error.ai.select_a_provider_first": "Сначала выберите поставщика",
   "error.ai.unknown_driver": "Неизвестный поставщик ИИ: {{driver}}",
   "error.ai_chat.access_denied": "Доступ закрыт",
+  "error.ai_chat.attachments_not_supported": "Вложения в чате ИИ пока не поддерживаются",
   "error.ai_chat.chat_not_found": "Разговор не найден",
   "error.ai_chat.no_pending_plan": "У этого сообщения нет плана, ожидающего решения",
   "error.ai_chat.plan_already_resolved": "Решение по этому плану уже принято",
