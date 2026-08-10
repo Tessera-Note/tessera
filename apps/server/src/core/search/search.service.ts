@@ -1,3 +1,4 @@
+import { SEARCH_CONFIG } from '@tessera/db/utils';
 import { Injectable } from '@nestjs/common';
 import { SearchDTO, SearchSuggestionDTO } from './dto/search.dto';
 import { SearchResponseDto } from './dto/search-response.dto';
@@ -47,17 +48,17 @@ export class SearchService {
         'creatorId',
         'createdAt',
         'updatedAt',
-        sql<number>`ts_rank(tsv, to_tsquery('english', f_unaccent(${searchQuery})))`.as(
+        sql<number>`ts_rank(tsv, to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${searchQuery})))`.as(
           'rank',
         ),
-        sql<string>`ts_headline('english', text_content, to_tsquery('english', f_unaccent(${searchQuery})),'MinWords=9, MaxWords=10, MaxFragments=3')`.as(
+        sql<string>`ts_headline(${sql.raw(SEARCH_CONFIG)}, text_content, to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${searchQuery})),'MinWords=9, MaxWords=10, MaxFragments=3')`.as(
           'highlight',
         ),
       ])
       .where(
         'tsv',
         '@@',
-        sql<string>`to_tsquery('english', f_unaccent(${searchQuery}))`,
+        sql<string>`to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${searchQuery}))`,
       )
       .$if(Boolean(searchParams.creatorId), (qb) =>
         qb.where('creatorId', '=', searchParams.creatorId),

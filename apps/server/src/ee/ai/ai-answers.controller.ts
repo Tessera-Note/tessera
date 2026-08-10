@@ -1,3 +1,4 @@
+import { SEARCH_CONFIG } from '@tessera/db/utils';
 import { Body, Controller, Post, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -94,7 +95,7 @@ export class AiAnswersController {
         )
         .where('deletedAt', 'is', null)
         .where(
-          sql<boolean>`tsv @@ to_tsquery('english', f_unaccent(${searchTerms}))`,
+          sql<boolean>`tsv @@ to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${searchTerms}))`,
         )
         .limit(5);
 

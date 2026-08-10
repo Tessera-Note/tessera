@@ -1,3 +1,4 @@
+import { SEARCH_CONFIG } from '@tessera/db/utils';
 import {
   Injectable,
   BadRequestException,
@@ -230,7 +231,7 @@ export class AiChatService {
       .where('aiChats.deletedAt', 'is', null)
       .where('aiChatMessages.deletedAt', 'is', null)
       .where(
-        sql<boolean>`ai_chat_messages.tsv @@ to_tsquery('english', ${tsQuery})`,
+        sql<boolean>`ai_chat_messages.tsv @@ to_tsquery(${sql.raw(SEARCH_CONFIG)}, ${tsQuery})`,
       )
       .groupBy([
         'aiChats.id',
@@ -821,9 +822,11 @@ export class AiChatService {
       .where('workspaceId', '=', workspaceId)
       .where('spaceId', 'in', spaceIds)
       .where('deletedAt', 'is', null)
-      .where(sql<boolean>`tsv @@ to_tsquery('english', f_unaccent(${terms}))`)
+      .where(
+        sql<boolean>`tsv @@ to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${terms}))`,
+      )
       .orderBy(
-        sql`ts_rank(tsv, to_tsquery('english', f_unaccent(${terms})))`,
+        sql`ts_rank(tsv, to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${terms})))`,
         'desc',
       )
       .limit(RETRIEVAL_LIMIT + exclude.size)

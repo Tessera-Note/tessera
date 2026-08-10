@@ -1,3 +1,4 @@
+import { SEARCH_CONFIG } from '@tessera/db/utils';
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@tessera/db/types/kysely.types';
@@ -39,12 +40,12 @@ export class SearchAttachmentsService {
         'attachments.creatorId',
         'attachments.createdAt',
         'attachments.updatedAt',
-        sql<string>`ts_rank(attachments.tsv, plainto_tsquery('english', ${cleanQuery}))`.as(
+        sql<string>`ts_rank(attachments.tsv, plainto_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${cleanQuery})))`.as(
           'rank',
         ),
         // Raw sql bypasses the camelCase plugin, so the column must be
         // written exactly as it exists in Postgres.
-        sql<string>`ts_headline('english', coalesce(attachments.text_content, ''), plainto_tsquery('english', ${cleanQuery}), 'MaxWords=35, MinWords=15, StartSel=<mark>, StopSel=</mark>')`.as(
+        sql<string>`ts_headline(${sql.raw(SEARCH_CONFIG)}, coalesce(attachments.text_content, ''), plainto_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${cleanQuery})), 'MaxWords=35, MinWords=15, StartSel=<mark>, StopSel=</mark>')`.as(
           'highlight',
         ),
         'spaces.id as spaceId',
@@ -63,8 +64,10 @@ export class SearchAttachmentsService {
         this.spaceMemberRepo.getUserSpaceIdsQuery(userId),
       )
       .where('attachments.deletedAt', 'is', null)
+      // Вектор вложения строится по f_unaccent, поэтому и запрос обязан идти
+      // через него: иначе «café» не находит проиндексированное «cafe».
       .where(
-        sql<boolean>`attachments.tsv @@ plainto_tsquery('english', ${cleanQuery})`,
+        sql<boolean>`attachments.tsv @@ plainto_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${cleanQuery}))`,
       );
 
     if (spaceId) {
@@ -73,7 +76,7 @@ export class SearchAttachmentsService {
 
     const items = await baseQuery
       .orderBy(
-        sql`ts_rank(attachments.tsv, plainto_tsquery('english', ${cleanQuery})) desc`,
+        sql`ts_rank(attachments.tsv, plainto_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${cleanQuery}))) desc`,
       )
       .limit(20)
       .execute();
