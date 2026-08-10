@@ -153,7 +153,7 @@ TypeScript у сервера `strict: true`, но с послаблениями 
 
 | Группа | Переменные |
 |---|---|
-| приложение | `APP_URL`, `APP_NAME`, `APP_SECRET`, `PORT`, `NODE_ENV`, `JWT_TOKEN_EXPIRES_IN`, `DEBUG_MODE`, `DEBUG_DB`, `LOG_HTTP` |
+| приложение | `APP_URL`, `APP_NAME`, `APP_SECRET`, `PORT`, `NODE_ENV`, `JWT_TOKEN_EXPIRES_IN`, `DEBUG_MODE`, `DEBUG_DB`, `LOG_HTTP`, `TRUST_PROXY_HOPS` |
 | база и очереди | `DATABASE_URL`, `DATABASE_MAX_POOL`, `REDIS_URL`, `POSTGRES_PASSWORD` (только для compose) |
 | хранилище | `STORAGE_DRIVER`, `AWS_S3_*`, `AZURE_STORAGE_*`, `FILE_UPLOAD_SIZE_LIMIT`, `FILE_IMPORT_SIZE_LIMIT` |
 | почта | `MAIL_DRIVER`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, `SMTP_*`, `POSTMARK_TOKEN` |
@@ -163,6 +163,8 @@ TypeScript у сервера `strict: true`, но с послаблениями 
 | облако и биллинг | `CLOUD`, `SUBDOMAIN_HOST`, `BILLING_TRIAL_DAYS`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | внутренние сервисы | `HUB_INTERNAL_URL`, `HUB_URL`, `HUB_POSTGRES_PASSWORD`, `HUB_SUPPORT_EMAIL`, `HUB_SEED_RELEASE_VERSION`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET`, `MINIO_REGION` |
 | прочее | `COLLAB_URL`, `COLLAB_DISABLE_REDIS`, `DRAWIO_URL`, `IFRAME_EMBED_ALLOWED`, `IFRAME_ALLOWED_ORIGINS`, `DISABLE_TELEMETRY`, `POSTHOG_HOST`, `POSTHOG_KEY`, `CLICKHOUSE_URL`, `TYPESENSE_API_KEY` |
+
+`TRUST_PROXY_HOPS` это число обратных прокси перед приложением, по умолчанию 1. От него зависит, какой адрес считается адресом клиента: он идет в пороги частоты и в журнал аудита. Значение `true` (доверять всей цепочке `X-Forwarded-For`) намеренно недоступно: оно позволяет подставить адрес заголовком.
 
 Клиент видит только те значения, которые перечислены в блоке `define` внутри `apps/client/vite.config.ts` (в dev) либо инжектируются в `index.html` модулем `StaticModule` (в продакшене), и читает их через `apps/client/src/lib/config.ts`. Добавление новой клиентской переменной требует правки трех мест: `.env.example`, `vite.config.ts`, `config.ts`.
 
