@@ -9,6 +9,7 @@ import {
   AI_CHAT_THROTTLER,
   EXPORT_THROTTLER,
   LDAP_LOGIN_THROTTLER,
+  PDF_RENDER_THROTTLER,
 } from './throttler-names';
 import Redis from 'ioredis';
 
@@ -38,6 +39,7 @@ export const THROTTLERS = [
   // контроллере: следующий контроллер не обязан помнить про чужой
   // счетчик.
   { name: LDAP_LOGIN_THROTTLER, ttl: 300_000, limit: 1_000_000 },
+  { name: PDF_RENDER_THROTTLER, ttl: 60_000, limit: 5_000 },
 ];
 
 @Module({

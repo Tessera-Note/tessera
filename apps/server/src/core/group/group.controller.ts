@@ -61,7 +61,15 @@ export class GroupController {
     if (ability.cannot(WorkspaceCaslAction.Read, WorkspaceCaslSubject.Group)) {
       throw new ForbiddenException();
     }
-    return this.groupService.getGroupInfo(groupIdDto.groupId, workspace.id);
+    // Ключ каталога отдается только тому, кто вправе управлять группами:
+    // читать группы может любой участник, а ключ это устройство каталога
+    // организации.
+    return this.groupService.getGroupInfo(groupIdDto.groupId, workspace.id, {
+      includeDirectoryBinding: ability.can(
+        WorkspaceCaslAction.Manage,
+        WorkspaceCaslSubject.Group,
+      ),
+    });
   }
 
   @HttpCode(HttpStatus.OK)

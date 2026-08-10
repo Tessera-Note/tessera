@@ -14,6 +14,7 @@ import { UserThrottlerGuard } from '../../integrations/throttle/user-throttler.g
 import {
   AUTH_THROTTLER,
   AI_CHAT_THROTTLER,
+  EXPORT_THROTTLER,
 } from '../../integrations/throttle/throttler-names';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
@@ -57,7 +58,13 @@ export class PdfExportController {
   // ставится маршруту. Пользователя здесь нет, и счетчик ведется по адресу:
   // `UserThrottlerGuard` в этом случае откатывается к базовому определению.
   @Public()
-  @SkipThrottle({ [AUTH_THROTTLER]: true, [AI_CHAT_THROTTLER]: true })
+  @SkipThrottle({
+    [AUTH_THROTTLER]: true,
+    [AI_CHAT_THROTTLER]: true,
+    // Счетчик выгрузки здесь не годится: он рассчитан на человека, а сюда
+    // приходит один Gotenberg за весь экземпляр. Работает собственный.
+    [EXPORT_THROTTLER]: true,
+  })
   @UseGuards(UserThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @Post('render')

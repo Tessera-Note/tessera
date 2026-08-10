@@ -200,3 +200,44 @@ describe('GroupService.detachFromDirectory', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+/**
+ * Ключ группы в каталоге это устройство каталога организации: различительные
+ * имена, идентификаторы объектов, значения утверждений. Читать группы вправе
+ * любой участник пространства, поэтому ключ отдается только тому, кто вправе
+ * группами управлять.
+ */
+describe('GroupService.getGroupInfo, выдача привязки', () => {
+  function withRepo() {
+    const service: GroupService = Object.create(GroupService.prototype);
+    const findById = jest.fn(async () => ({ id: 'g-1', name: 'Отдел кадров' }));
+    (service as any).groupRepo = { findById };
+    return { service, findById };
+  }
+
+  it('управляющему ключ запрашивается', async () => {
+    const { service, findById } = withRepo();
+
+    await service.getGroupInfo('g-1', 'ws-1', {
+      includeDirectoryBinding: true,
+    });
+
+    expect(findById).toHaveBeenCalledWith(
+      'g-1',
+      'ws-1',
+      expect.objectContaining({ includeDirectoryBinding: true }),
+    );
+  });
+
+  it('обычному участнику ключ не запрашивается', async () => {
+    const { service, findById } = withRepo();
+
+    await service.getGroupInfo('g-1', 'ws-1');
+
+    expect(findById).toHaveBeenCalledWith(
+      'g-1',
+      'ws-1',
+      expect.objectContaining({ includeDirectoryBinding: undefined }),
+    );
+  });
+});

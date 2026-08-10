@@ -43,9 +43,14 @@ export class GroupService {
     private readonly wsService: WsService,
   ) {}
 
-  async getGroupInfo(groupId: string, workspaceId: string): Promise<Group> {
+  async getGroupInfo(
+    groupId: string,
+    workspaceId: string,
+    opts?: { includeDirectoryBinding?: boolean },
+  ): Promise<Group> {
     const group = await this.groupRepo.findById(groupId, workspaceId, {
       includeMemberCount: true,
+      includeDirectoryBinding: opts?.includeDirectoryBinding,
     });
 
     if (!group) {

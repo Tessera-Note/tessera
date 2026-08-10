@@ -23,9 +23,10 @@ export class GroupRepo {
     'description',
     'isDefault',
     'isExternal',
+    // Только признак наличия каталога: он нужен списку групп, чтобы пометить
+    // такую группу и погасить действия. Сам ключ каталога и провайдер сюда не
+    // входят намеренно, см. `includeDirectoryBinding`.
     'directorySource',
-    'directoryProviderId',
-    'directoryKey',
     'creatorId',
     'workspaceId',
     'createdAt',
@@ -39,6 +40,15 @@ export class GroupRepo {
     opts?: {
       includeMemberCount?: boolean;
       includeScimExternalId?: boolean;
+      /**
+       * Ключ группы в каталоге и ее провайдер.
+       *
+       * Это внутреннее устройство каталога организации: различительные имена,
+       * идентификаторы объектов, значения утверждений. Читать группы вправе
+       * любой участник пространства, поэтому в общий набор полей они не входят
+       * и отдаются только тому, кто вправе группами управлять.
+       */
+      includeDirectoryBinding?: boolean;
       trx?: KyselyTransaction;
     },
   ): Promise<Group> {
@@ -48,6 +58,9 @@ export class GroupRepo {
       .select(this.baseFields)
       .$if(opts?.includeMemberCount, (qb) => qb.select(this.withMemberCount))
       .$if(opts?.includeScimExternalId, (qb) => qb.select('scimExternalId'))
+      .$if(opts?.includeDirectoryBinding, (qb) =>
+        qb.select(['directoryProviderId', 'directoryKey']),
+      )
       .where('id', '=', groupId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
