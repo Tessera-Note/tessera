@@ -243,6 +243,9 @@ describe('buildMcpAgentTools, режим плана', () => {
  */
 describe('исполнение подтвержденного плана', () => {
   function service(runs: Array<() => Promise<unknown>>) {
+    // Ленивая загрузка: статический импорт сервиса тянет за собой его модуль
+    // целиком, а проверке нужен только прототип.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { AiChatService } = require('./ai-chat.service');
     const svc = Object.create(AiChatService.prototype);
     const updates: any[] = [];

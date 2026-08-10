@@ -60,6 +60,9 @@ function guardedControllerFiles(): string[] {
 
 /** Классы контроллеров из файла: декораторы к этому моменту уже отработали. */
 function controllerClasses(file: string): Array<new (...args: any[]) => any> {
+  // Файл приходит обходом каталога, статическим импортом его не взять:
+  // проверка обязана охватить и тот контроллер, который появится завтра.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const loaded = require(file);
 
   return Object.values(loaded).filter(
