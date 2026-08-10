@@ -599,6 +599,17 @@ export class ExportService {
       offset += linkTextNode.nodeSize - node.nodeSize;
     };
 
+    /** Развернуть узел упоминания в обычный текст, без ссылки. */
+    const replaceMentionWithText = (node: Node, pos: number, title: string) => {
+      const textNode = editorState.schema.text(title || 'untitled');
+
+      const from = pos + offset;
+      const to = pos + offset + node.nodeSize;
+
+      transaction.replaceWith(from, to, textNode);
+      offset += textNode.nodeSize - node.nodeSize;
+    };
+
     // find and convert page mentions to links
     editorState.doc.descendants((node: Node, pos: number) => {
       // Check if the node is a page mention
@@ -615,8 +626,13 @@ export class ExportService {
             page.space.slug,
           );
         } else {
-          // if page is not found, default to  the node label and slugId
-          replaceMentionWithLink(node, pos, label, slugId, 'undefined');
+          // Цель не разрешилась: страница удалена либо недоступна тому, кто
+          // выгружает, и тогда она отфильтрована выше. Прежде на этом месте
+          // собирался адрес со slug пространства `undefined`, то есть
+          // заведомо битая ссылка, ведущая в никуда. Узел разворачивается в
+          // обычный текст: слова остаются на месте, а несуществующего адреса
+          // не появляется. То же решение принято для ссылок после импорта.
+          replaceMentionWithText(node, pos, label);
         }
       }
     });
