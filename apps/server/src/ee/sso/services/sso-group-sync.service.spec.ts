@@ -14,20 +14,52 @@ import {
  */
 function build(opts: {
   owned?: any[];
+  /** Группы, которые вернулись бы, потеряй выборка ограничение по провайдеру. */
+  foreign?: any[];
   membership?: any[];
   groupSync?: boolean;
 }) {
   const calls: any[] = [];
 
+  // Заглушка запоминает условия выборки и отдает строки только той выборке,
+  // которая действительно ограничена своим провайдером. Прежняя молча
+  // проглатывала любые условия, поэтому снятие фильтра владения проверку не
+  // роняло: она подтверждала обработку строк, а не то, какие строки берутся.
+  const queries: Array<{ table: string; where: any[][] }> = [];
+
   const db: any = {
     selectFrom: (table: string) => {
-      const rows =
-        table === 'groups' ? (opts.owned ?? []) : (opts.membership ?? []);
+      const call = { table, where: [] as any[][] };
+      queries.push(call);
+
       const chain: any = new Proxy(
         {},
         {
           get(_t, prop) {
-            if (prop === 'execute') return async () => rows;
+            if (prop === 'where') {
+              return (...args: any[]) => {
+                call.where.push(args);
+                return chain;
+              };
+            }
+            if (prop === 'execute') {
+              return async () => {
+                if (table !== 'groups') return opts.membership ?? [];
+
+                const scoped =
+                  call.where.some(
+                    (w) => w[0] === 'directorySource' && w[2] === 'sso',
+                  ) &&
+                  call.where.some(
+                    (w) => w[0] === 'directoryProviderId' && w[2] === 'p-1',
+                  );
+
+                // Не ограниченная владением выборка в бою вернула бы все группы
+                // пространства. Здесь она возвращает их же, и правило «чужого
+                // не трогаем» становится проверяемым.
+                return scoped ? (opts.owned ?? []) : (opts.foreign ?? []);
+              };
+            }
             return () => chain;
           },
         },
@@ -48,7 +80,9 @@ function build(opts: {
   };
 
   const service = new SsoGroupSyncService(db, groupUsers);
-  jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
+  const logged = jest
+    .spyOn((service as any).logger, 'error')
+    .mockImplementation(() => {});
   jest.spyOn((service as any).logger, 'debug').mockImplementation(() => {});
 
   const run = (groupNames?: string[]) =>
@@ -59,7 +93,7 @@ function build(opts: {
       groupNames,
     });
 
-  return { run, calls };
+  return { run, calls, queries, logged };
 }
 
 /** Привязанные к провайдеру группы: ключ каталога, а не имя. */
@@ -137,6 +171,51 @@ describe('SsoGroupSyncService', () => {
     await run(['CN=HR,OU=Groups,DC=example,DC=com']);
 
     expect(calls).toEqual([]);
+  });
+
+  /**
+   * Главная проверка правила владения. Если выборка потеряет ограничение по
+   * провайдеру, заглушка отдаст чужие группы, и синхронизация начнет ими
+   * распоряжаться. Прежняя редакция этого не ловила: заглушка проглатывала
+   * любые условия и всегда возвращала одни и те же строки.
+   */
+  it('без ограничения по провайдеру чужие группы не берутся', async () => {
+    const { run, calls, queries } = build({
+      owned: [],
+      foreign: [
+        { id: 'g-admins', directoryKey: 'Администраторы' },
+        { id: 'g-manual', directoryKey: 'Ручная группа' },
+      ],
+      membership: [{ groupId: 'g-manual' }],
+    });
+
+    await run(['Администраторы']);
+
+    expect(calls).toEqual([]);
+
+    const groupsQuery = queries.find((q) => q.table === 'groups');
+    expect(groupsQuery.where).toEqual(
+      expect.arrayContaining([
+        ['directorySource', '=', 'sso'],
+        ['directoryProviderId', '=', 'p-1'],
+      ]),
+    );
+  });
+
+  /** Отсутствие сведений не должно доходить до базы вовсе. */
+  it('без сведений о группах запросов в базу нет', async () => {
+    const { run, queries, logged } = build({
+      owned: OWNED,
+      membership: [{ groupId: 'g-dev' }],
+    });
+
+    await run(undefined);
+
+    expect(queries).toEqual([]);
+    // Отсутствие сведений это штатный случай, а не отказ. Без явной проверки
+    // вызов падает внутри на `undefined`, отказ гасится общим обработчиком, и
+    // снаружи это неотличимо от штатного выхода. Отличает только запись.
+    expect(logged).not.toHaveBeenCalled();
   });
 
   it('из своей группы человек снимается, когда каталог его не числит', async () => {
