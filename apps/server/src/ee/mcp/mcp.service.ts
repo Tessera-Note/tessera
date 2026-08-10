@@ -240,6 +240,29 @@ export class McpService {
     return LATEST_PROTOCOL_VERSION;
   }
 
+  /**
+   * Определения инструментов для моста в чат ИИ.
+   *
+   * Чат работает теми же инструментами, что и MCP: они уже проходят проверку
+   * прав и пишут в журнал аудита, и заводить рядом второй набор значило бы
+   * держать две модели доступа вместо одной. Наружу отдается только список и
+   * исполнение, разрешительный список и классификация по обратимости живут на
+   * стороне чата.
+   */
+  listAgentTools() {
+    return this.getToolsList();
+  }
+
+  /** Исполнить инструмент от имени человека. Права и журнал внутри. */
+  async runAgentTool(
+    name: string,
+    args: any,
+    user: User,
+    workspace: Workspace,
+  ) {
+    return this.callTool(name, args, user, workspace);
+  }
+
   private getToolsList() {
     return [
       ...this.getPageToolsList(),
