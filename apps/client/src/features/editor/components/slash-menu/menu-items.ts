@@ -187,8 +187,7 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).run();
 
-        // @ts-ignore
-        const pageId = editor.storage?.pageId;
+        const pageId = pageIdOf(editor);
         if (!pageId) return;
 
         // upload image
@@ -220,8 +219,7 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).run();
 
-        // @ts-ignore
-        const pageId = editor.storage?.pageId;
+        const pageId = pageIdOf(editor);
         if (!pageId) return;
 
         // upload video
@@ -261,8 +259,7 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).run();
 
-        // @ts-ignore
-        const pageId = editor.storage?.pageId;
+        const pageId = pageIdOf(editor);
         if (!pageId) return;
 
         // upload audio
@@ -294,8 +291,7 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).run();
 
-        // @ts-ignore
-        const pageId = editor.storage?.pageId;
+        const pageId = pageIdOf(editor);
         if (!pageId) return;
 
         const input = document.createElement("input");
@@ -325,8 +321,7 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).run();
 
-        // @ts-ignore
-        const pageId = editor.storage?.pageId;
+        const pageId = pageIdOf(editor);
         if (!pageId) return;
 
         // upload file
@@ -822,6 +817,20 @@ const CommandGroups: SlashMenuGroupedItemsType = {
     },
   ],
 };
+
+/**
+ * Идентификатор страницы из хранилища редактора.
+ *
+ * `Editor.storage` типизирован набором известных расширений, а `pageId` кладет
+ * туда обвязка страницы, поэтому обращение к нему требует приведения. Прежде
+ * на каждом из пяти мест стояло голое подавление проверки типов, ничего не
+ * объяснявшее. Приведение теперь одно и с причиной.
+ */
+function pageIdOf(editor: { storage?: unknown }): string | undefined {
+  const storage = editor.storage as Record<string, unknown> | undefined;
+  const value = storage?.pageId;
+  return typeof value === "string" ? value : undefined;
+}
 
 export const getSuggestionItems = ({
   query,

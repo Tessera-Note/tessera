@@ -8,7 +8,6 @@ export enum QueueName {
   HISTORY_QUEUE = '{history-queue}',
   NOTIFICATION_QUEUE = '{notification-queue}',
   AUDIT_QUEUE = '{audit-queue}',
-  BASE_QUEUE = '{base-queue}',
 }
 
 export enum QueueJob {
