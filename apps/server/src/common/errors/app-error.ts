@@ -407,6 +407,10 @@ export const ErrorMessage = {
     'This group is managed by the directory and cannot be deleted here',
   'error.group.this_group_is_not_managed_by_a_directory':
     'This group is not managed by a directory',
+  'error.ai_chat.no_pending_plan':
+    'This message has no plan waiting for a decision',
+  'error.ai_chat.plan_already_resolved':
+    'A decision on this plan has already been made',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorMessage;

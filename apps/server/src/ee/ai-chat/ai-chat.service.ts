@@ -25,7 +25,7 @@ import { WebSearchService } from '../ai/web-search.service';
 import { AgentImageService } from './agent-image.service';
 import { languageForRequest } from '../ai/request-language.util';
 import { McpService } from '../mcp/mcp.service';
-import { buildMcpAgentTools } from './mcp-agent-tools';
+import { PlannedStep, buildMcpAgentTools } from './mcp-agent-tools';
 import { buildImageQuery } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import { editRefusalNotice } from '../ai/ai-language.util';
@@ -530,13 +530,18 @@ export class AiChatService {
       .where('id', '=', workspaceId)
       .executeTakeFirst();
 
+    const plan: PlannedStep[] = [];
+
     const allTools = {
       ...tools,
       ...buildMcpAgentTools({
         mcp: this.mcpService,
         user,
         workspace: workspace as any,
-        allow: ['read', 'write'],
+        // Необратимые отдаются, но не выполняются: `plan` превращает их в
+        // запись намерения, а исполняет ее подтверждение человека.
+        allow: ['read', 'write', 'destructive'],
+        plan,
         onError: (name, err) =>
           this.logger.warn(
             `Инструмент ${name} отказал: ${
@@ -649,6 +654,10 @@ export class AiChatService {
         // Pass the array itself: JSON.stringify would be stored as a JSON
         // *string* by postgres-js, and the client expects an array here.
         toolCalls: toolCalls as any,
+        // Необратимые шаги ждут согласия человека. Хранятся на сообщении, а не
+        // в памяти процесса: подтвердить можно и после перезагрузки страницы,
+        // и с другого устройства.
+        metadata: plan.length > 0 ? ({ pendingPlan: plan } as any) : null,
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
@@ -1080,6 +1089,136 @@ export class AiChatService {
     );
 
     return checked.filter((page) => page !== null) as T[];
+  }
+
+  /**
+   * Решение человека по плану необратимых действий.
+   *
+   * План живет на сообщении, поэтому переживает и завершение хода, и уход со
+   * страницы: вернувшись через час, человек видит тот же план и подтверждает
+   * его. Решение принимается один раз, повторное обращение отвергается: план,
+   * который можно подтвердить дважды, удалил бы страницу дважды.
+   *
+   * Отклонение это такое же явное действие, как подтверждение. Молчаливого
+   * устаревания нет: план либо исполнен, либо отклонен человеком, и в обоих
+   * случаях это записано.
+   *
+   * Расхождение состояния. Между составлением плана и согласием мир мог
+   * измениться: страницу удалил кто-то другой, перенесли, переименовали.
+   * Исполнение идет по порядку и останавливается на первом же отказе, а не
+   * пропускает шаг и идет дальше. Причина: человек соглашался с планом
+   * целиком, а не с каждым шагом отдельно, и продолжение после расхождения
+   * сделало бы то, чего он не одобрял. В плане «перенести А под Б, затем
+   * удалить Б» пропуск первого шага и исполнение второго потеряли бы А.
+   * Выполненные шаги остаются выполненными, они записаны в ответе.
+   */
+  async resolvePlan(
+    messageId: string,
+    decision: 'confirm' | 'reject',
+    user: User,
+    workspaceId: string,
+  ) {
+    const message = await this.db
+      .selectFrom('aiChatMessages')
+      .selectAll()
+      .where('id', '=', messageId)
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!message) {
+      throw notFound('error.ai_chat.chat_not_found');
+    }
+
+    const chat = await this.db
+      .selectFrom('aiChats')
+      .select(['creatorId'])
+      .where('id', '=', message.chatId)
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
+
+    // Разговор принадлежит человеку, и решение по его плану принимает он же.
+    if (!chat || chat.creatorId !== user.id) {
+      throw forbidden('error.ai_chat.access_denied');
+    }
+
+    const metadata = (message.metadata ?? {}) as Record<string, unknown>;
+    const steps = metadata.pendingPlan as PlannedStep[] | undefined;
+
+    if (metadata.planStatus) {
+      throw badRequest('error.ai_chat.plan_already_resolved');
+    }
+
+    if (!steps || steps.length === 0) {
+      throw badRequest('error.ai_chat.no_pending_plan');
+    }
+
+    if (decision === 'reject') {
+      await this.storePlanOutcome(messageId, steps, 'rejected', []);
+      return { status: 'rejected', steps: steps.length };
+    }
+
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .selectAll()
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    const results: Array<{ tool: string; ok: boolean; error?: string }> = [];
+    let failed = false;
+
+    for (const step of steps) {
+      if (failed) break;
+
+      try {
+        await this.mcpService.runAgentTool(
+          step.tool,
+          step.args,
+          user,
+          workspace as any,
+        );
+        results.push({ tool: step.tool, ok: true });
+      } catch (err) {
+        failed = true;
+        results.push({
+          tool: step.tool,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    await this.storePlanOutcome(
+      messageId,
+      steps,
+      failed ? 'failed' : 'applied',
+      results,
+    );
+
+    return {
+      status: failed ? 'failed' : 'applied',
+      results,
+    };
+  }
+
+  /** Решение записывается на сообщение, и план перестает быть ожидающим. */
+  private async storePlanOutcome(
+    messageId: string,
+    steps: PlannedStep[],
+    status: 'applied' | 'rejected' | 'failed',
+    results: unknown[],
+  ) {
+    await this.db
+      .updateTable('aiChatMessages')
+      .set({
+        metadata: {
+          plan: steps,
+          planStatus: status,
+          planResults: results,
+        } as any,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', messageId)
+      .execute();
   }
 
   private buildSystemPrompt(

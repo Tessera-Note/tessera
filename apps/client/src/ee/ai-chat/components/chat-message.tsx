@@ -13,6 +13,7 @@ import {
 import { markdownToHtml } from "@tessera/editor-ext";
 import { CopyButton } from "@/components/common/copy-button";
 import type { AiChatMessage, AiChatToolCall } from "../types/ai-chat.types";
+import ChatPlanConfirm from "@/ee/ai-chat/components/chat-plan-confirm";
 import ChatToolGroup from "./chat-tool-group";
 import { stripEditCommands } from "../utils/strip-edit-commands";
 import classes from "../styles/chat-message.module.css";
@@ -138,6 +139,19 @@ export default function ChatMessage({
         {toolCalls && toolCalls.length > 0 && (
           <ChatToolGroup toolCalls={toolCalls} isStreaming={isStreaming} />
         )}
+
+        {/*
+          План необратимых действий ждет решения человека. Он хранится на
+          сообщении, поэтому виден и после перезагрузки страницы.
+        */}
+        {!isStreaming &&
+          Array.isArray((message.metadata as any)?.pendingPlan) &&
+          (message.metadata as any).pendingPlan.length > 0 && (
+            <ChatPlanConfirm
+              messageId={message.id}
+              steps={(message.metadata as any).pendingPlan}
+            />
+          )}
         {assistantContent && (
           <div
             onClick={handleContentClick}

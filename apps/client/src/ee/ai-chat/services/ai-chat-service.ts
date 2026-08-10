@@ -142,3 +142,15 @@ export function sendChatMessage(
 
   return abortController;
 }
+
+/** Решение человека по плану необратимых действий агента. */
+export async function resolveChatPlan(data: {
+  messageId: string;
+  decision: "confirm" | "reject";
+}): Promise<{
+  status: "applied" | "rejected" | "failed";
+  results?: Array<{ tool: string; ok: boolean; error?: string }>;
+}> {
+  const req = await api.post("/ai/chats/resolve-plan", data);
+  return req.data;
+}

@@ -231,3 +231,96 @@ describe('buildMcpAgentTools, режим плана', () => {
     expect(plan.map((step) => step.tool)).toEqual(['move_page', 'delete_page']);
   });
 });
+
+/**
+ * Решение по плану принимается один раз и переживает уход человека: план
+ * хранится на сообщении, а не в памяти процесса.
+ *
+ * Расхождение состояния между составлением и согласием разрешается остановкой
+ * на первом отказе. Человек соглашался с планом целиком, и продолжение после
+ * расхождения сделало бы то, чего он не одобрял: в плане «перенести А под Б,
+ * затем удалить Б» пропуск первого шага и исполнение второго потеряли бы А.
+ */
+describe('исполнение подтвержденного плана', () => {
+  function service(runs: Array<() => Promise<unknown>>) {
+    const { AiChatService } = require('./ai-chat.service');
+    const svc = Object.create(AiChatService.prototype);
+    const updates: any[] = [];
+
+    const chain = (row: any): any => ({
+      selectAll: () => chain(row),
+      select: () => chain(row),
+      set: (v: any) => {
+        updates.push(v);
+        return chain(row);
+      },
+      where: () => chain(row),
+      execute: async () => [],
+      executeTakeFirst: async () => row,
+    });
+
+    const rows = [
+      { id: 'm-1', chatId: 'c-1', metadata: { pendingPlan: PLAN } },
+      { creatorId: 'u-1' },
+      { id: 'ws-1' },
+    ];
+    let i = 0;
+
+    svc.db = {
+      selectFrom: () => chain(rows[i++]),
+      updateTable: () => chain(undefined),
+    };
+
+    let call = 0;
+    svc.mcpService = {
+      runAgentTool: jest.fn(async () => {
+        const next = runs[call++];
+        return next ? next() : undefined;
+      }),
+    };
+
+    return { svc, updates };
+  }
+
+  const PLAN = [
+    { tool: 'move_page', args: { pageId: 'a' } },
+    { tool: 'delete_page', args: { pageId: 'b' } },
+  ];
+
+  it('исправный план исполняется целиком', async () => {
+    const { svc, updates } = service([async () => ({}), async () => ({})]);
+
+    const out = await svc.resolvePlan('m-1', 'confirm', { id: 'u-1' }, 'ws-1');
+
+    expect(out.status).toBe('applied');
+    expect(out.results).toHaveLength(2);
+    expect(updates[0].metadata.planStatus).toBe('applied');
+  });
+
+  it('отказ шага останавливает план, следующий не исполняется', async () => {
+    const { svc } = service([
+      async () => {
+        throw new Error('Page not found');
+      },
+      async () => ({}),
+    ]);
+
+    const out = await svc.resolvePlan('m-1', 'confirm', { id: 'u-1' }, 'ws-1');
+
+    expect(out.status).toBe('failed');
+    expect(out.results).toEqual([
+      { tool: 'move_page', ok: false, error: 'Page not found' },
+    ]);
+    expect(svc.mcpService.runAgentTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('отклонение ничего не исполняет и записывается', async () => {
+    const { svc, updates } = service([]);
+
+    const out = await svc.resolvePlan('m-1', 'reject', { id: 'u-1' }, 'ws-1');
+
+    expect(out.status).toBe('rejected');
+    expect(svc.mcpService.runAgentTool).not.toHaveBeenCalled();
+    expect(updates[0].metadata.planStatus).toBe('rejected');
+  });
+});

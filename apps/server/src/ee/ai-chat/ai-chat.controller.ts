@@ -1,3 +1,4 @@
+import { ResolvePlanDto } from './dto/resolve-plan.dto';
 import {
   Body,
   Controller,
@@ -156,5 +157,27 @@ export class AiChatController {
       fileSize: 0,
       mimeType: '',
     };
+  }
+
+  /**
+   * Решение человека по плану необратимых действий.
+   *
+   * Отклонение это такое же явное действие, как подтверждение: молчаливого
+   * устаревания плана нет, он либо исполнен, либо отклонен, и то и другое
+   * записано на сообщении.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('resolve-plan')
+  async resolvePlan(
+    @Body() dto: ResolvePlanDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    return this.aiChatService.resolvePlan(
+      dto.messageId,
+      dto.decision,
+      user,
+      workspace.id,
+    );
   }
 }
