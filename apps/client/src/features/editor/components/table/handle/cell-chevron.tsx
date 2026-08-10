@@ -83,7 +83,11 @@ export const CellChevron = React.memo(function CellChevron({
         const $inside = editor.state.doc.resolve(cellPos + 1);
         const sel = TextSelection.near($inside, 1);
         editor.view.dispatch(editor.state.tr.setSelection(sel));
-      } catch {}
+      } catch {
+        // Позиция внутри ячейки может не разрешиться на разметке, которую
+        // таблица считает пустой. Курсор тогда просто не ставится: показывать
+        // человеку нечего, и падать на этом нельзя.
+      }
     }
     editor.commands.freezeHandles();
   }, [editor, cellPos]);

@@ -1,3 +1,5 @@
+import { notifications } from "@mantine/notifications";
+import { getApiErrorMessage } from "@/lib/api-error";
 import {
   currentUserAtom,
   userAtom,
@@ -24,7 +26,9 @@ export default function AccountAvatar() {
         setUser({ ...currentUser.user, avatarUrl: avatar.fileName });
       }
     } catch (err) {
-      // skip
+      // Отказ показывается человеку. Прежде он глушился, и человек видел
+      // только исчезнувший индикатор: аватар не менялся без объяснения.
+      notifications.show({ message: getApiErrorMessage(err), color: "red" });
     } finally {
       setIsLoading(false);
     }
@@ -38,7 +42,9 @@ export default function AccountAvatar() {
         setUser({ ...currentUser.user, avatarUrl: null });
       }
     } catch (err) {
-      // skip
+      // Отказ показывается человеку. Прежде он глушился, и человек видел
+      // только исчезнувший индикатор: аватар не менялся без объяснения.
+      notifications.show({ message: getApiErrorMessage(err), color: "red" });
     } finally {
       setIsLoading(false);
     }

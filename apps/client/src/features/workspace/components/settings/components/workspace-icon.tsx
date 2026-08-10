@@ -1,3 +1,5 @@
+import { notifications } from "@mantine/notifications";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { useState } from "react";
 import { useAtom } from "jotai";
 import { Text } from "@mantine/core";
@@ -25,7 +27,9 @@ export default function WorkspaceIcon() {
         setWorkspace({ ...workspace, logo: result.fileName });
       }
     } catch (error) {
-      //
+      // Отказ показывается человеку, а не глушится: значок не менялся без
+      // объяснения, и это неотличимо от «не нажалось».
+      notifications.show({ message: getApiErrorMessage(error), color: "red" });
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +43,9 @@ export default function WorkspaceIcon() {
         setWorkspace({ ...workspace, logo: null });
       }
     } catch (error) {
-      //
+      // Отказ показывается человеку, а не глушится: значок не менялся без
+      // объяснения, и это неотличимо от «не нажалось».
+      notifications.show({ message: getApiErrorMessage(error), color: "red" });
     } finally {
       setIsLoading(false);
     }
