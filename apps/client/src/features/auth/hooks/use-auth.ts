@@ -168,8 +168,25 @@ export default function useAuth() {
 
   const handleLogout = async () => {
     setCurrentUser(RESET);
-    await logout();
-    window.location.replace(`${APP_ROUTE.AUTH.LOGIN}?logout=1`);
+
+    // Отзыв сессии на сервере может не пройти. Прежде отказ оставлял человека
+    // на странице с очищенным локальным состоянием и живой сессией: выглядело
+    // как выход, а сессия продолжала действовать, и человек об этом не знал.
+    //
+    // Переход выполняется в любом случае, но об отказе говорится: локально мы
+    // вышли, а на сервере, возможно, нет, и это разные вещи.
+    try {
+      await logout();
+    } catch (err) {
+      notifications.show({
+        message: t(
+          "Signed out here, but the server session may still be active",
+        ),
+        color: "red",
+      });
+    } finally {
+      window.location.replace(`${APP_ROUTE.AUTH.LOGIN}?logout=1`);
+    }
   };
 
   const handleForgotPassword = async (data: IForgotPassword) => {

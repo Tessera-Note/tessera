@@ -1363,6 +1363,7 @@
   "Sign-in provider link removed_one": "Снята {{count}} связь с поставщиком входа",
   "Sign-in provider link removed_other": "Снято {{count}} связи с поставщиками входа",
   "Sign-in through the identity provider did not complete. Contact your workspace administrator.": "Вход через поставщика учетных записей не завершился. Обратитесь к администратору рабочего пространства.",
+  "Signed out here, but the server session may still be active": "Выход выполнен здесь, но сессия на сервере может быть еще активна",
   "Single sign-on (SSO)": "Единый вход (SSO)",
   "Skip to main content": "Перейти к содержимому",
   "Slash commands": "Команды со слешем",

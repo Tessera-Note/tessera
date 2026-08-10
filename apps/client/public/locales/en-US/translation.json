@@ -1357,6 +1357,7 @@
   "Sign-in provider link removed_one": "Sign-in provider link removed",
   "Sign-in provider link removed_other": "{{count}} sign-in provider links removed",
   "Sign-in through the identity provider did not complete. Contact your workspace administrator.": "Sign-in through the identity provider did not complete. Contact your workspace administrator.",
+  "Signed out here, but the server session may still be active": "Signed out here, but the server session may still be active",
   "Single sign-on (SSO)": "Single sign-on (SSO)",
   "Skip to main content": "Skip to main content",
   "Slash commands": "Slash commands",
