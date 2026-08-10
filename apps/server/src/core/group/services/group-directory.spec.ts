@@ -23,7 +23,7 @@ function build(group: any, state: { groupSync?: boolean; scim?: boolean }) {
     selectFrom: (table: string) =>
       table === 'workspaces'
         ? chain({ isScimEnabled: state.scim ?? false })
-        : chain({ groupSync: state.groupSync ?? false }),
+        : chain({ id: 'p-1', groupSync: state.groupSync ?? false }),
   };
   (service as any).findAndValidateGroup = jest.fn(async () => group);
   (service as any).groupRepo = {
@@ -121,6 +121,54 @@ describe('GroupService, замок каталога', () => {
     await expect(
       service.deleteGroup('g-1', 'ws-1', { fromDirectory: true }),
     ).rejects.not.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('GroupService.attachToDirectory', () => {
+  it('привязка заводится с заданным ключом каталога', async () => {
+    const service = build(
+      { ...SSO_GROUP, directorySource: null, directoryProviderId: null },
+      {},
+    );
+
+    await service.attachToDirectory('g-1', 'ws-1', {
+      providerId: 'p-1',
+      directoryKey: 'CN=HR,OU=Groups',
+    });
+
+    expect((service as any).groupRepo.update).toHaveBeenCalledWith(
+      {
+        directorySource: 'sso',
+        directoryProviderId: 'p-1',
+        directoryKey: 'CN=HR,OU=Groups',
+      },
+      'g-1',
+      'ws-1',
+    );
+  });
+
+  /** Идентификатора у каталога нет: ключом становится имя, один раз. */
+  it('пустой ключ подменяется именем группы', async () => {
+    const service = build(
+      { ...SSO_GROUP, directorySource: null, directoryProviderId: null },
+      {},
+    );
+
+    await service.attachToDirectory('g-1', 'ws-1', { providerId: 'p-1' });
+
+    expect((service as any).groupRepo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ directoryKey: 'Отдел кадров' }),
+      'g-1',
+      'ws-1',
+    );
+  });
+
+  it('уже привязанную группу второй раз не привязать', async () => {
+    const service = build(SSO_GROUP, {});
+
+    await expect(
+      service.attachToDirectory('g-1', 'ws-1', { providerId: 'p-1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 

@@ -216,6 +216,70 @@ export class GroupService {
   }
 
   /**
+   * Отдать группу под управление провайдера SSO явным действием.
+   *
+   * Ключ каталога задает администратор: это то значение, которое провайдер
+   * присылает в утверждении о группах. У одного каталога это различительное
+   * имя, у другого идентификатор объекта, и отличить одно от другого
+   * программно нельзя, поэтому значение берется как есть.
+   *
+   * Пустой ключ означает, что идентификатора у каталога нет, и тогда за ключ
+   * принимается имя группы. Оно записывается один раз, при заведении привязки,
+   * и дальше сопоставление идет по записанному ключу: переименование группы в
+   * вики связь не рвет.
+   */
+  async attachToDirectory(
+    groupId: string,
+    workspaceId: string,
+    opts: { providerId: string; directoryKey?: string | null },
+  ): Promise<Group> {
+    const group = await this.findAndValidateGroup(groupId, workspaceId);
+
+    if (group.isDefault) {
+      throw badRequest('error.group.you_cannot_update_a_default_group');
+    }
+
+    if (group.directorySource) {
+      throw badRequest('error.group.you_cannot_change_an_external_group');
+    }
+
+    const provider = await this.db
+      .selectFrom('authProviders')
+      .select('id')
+      .where('id', '=', opts.providerId)
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!provider) {
+      throw notFound('error.workspace.sso_provider_required');
+    }
+
+    const key = (opts.directoryKey ?? '').trim() || group.name;
+
+    await this.groupRepo.update(
+      {
+        directorySource: 'sso',
+        directoryProviderId: provider.id,
+        directoryKey: key,
+      },
+      groupId,
+      workspaceId,
+    );
+
+    this.auditService.log({
+      event: AuditEvent.GROUP_UPDATED,
+      resourceType: AuditResource.GROUP,
+      resourceId: groupId,
+      changes: {
+        before: { directorySource: null },
+        after: { directorySource: 'sso', directoryKey: key },
+      },
+    });
+
+    return this.findAndValidateGroup(groupId, workspaceId);
+  }
+
+  /**
    * Вернуть группу под ручное управление явным действием администратора.
    *
    * Привязка снимается целиком, вместе с ключом каталога: следующий цикл

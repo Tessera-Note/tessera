@@ -12,6 +12,7 @@ import { CreateGroupDto } from './dto/create-group.dto';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { GroupUserService } from './services/group-user.service';
+import { AttachGroupDirectoryDto } from './dto/attach-group-directory.dto';
 import { GroupIdDto } from './dto/group-id.dto';
 import { PaginationOptions } from '@tessera/db/pagination/pagination-options';
 import { AddGroupUserDto } from './dto/add-group-user.dto';
@@ -181,6 +182,31 @@ export class GroupController {
    * но выключать ее ради одной группы неверно. Это действие снимает привязку
    * точечно, не трогая ни состав группы, ни остальные группы каталога.
    */
+  /**
+   * Отдать группу под управление провайдера SSO.
+   *
+   * Привязка заводится только так. Синхронизация ее не создает: вывод владения
+   * из совпадения имени захватывал бы группы, которых каталог не заводил.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('attach-directory')
+  attachToDirectory(
+    @Body() dto: AttachGroupDirectoryDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const ability = this.workspaceAbility.createForUser(user, workspace);
+    if (
+      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Group)
+    ) {
+      throw new ForbiddenException();
+    }
+    return this.groupService.attachToDirectory(dto.groupId, workspace.id, {
+      providerId: dto.providerId,
+      directoryKey: dto.directoryKey,
+    });
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post('detach-directory')
   detachFromDirectory(
