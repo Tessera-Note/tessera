@@ -614,7 +614,7 @@ export class ExportService {
     editorState.doc.descendants((node: Node, pos: number) => {
       // Check if the node is a page mention
       if (node.type.name === 'mention' && node.attrs.entityType === 'page') {
-        const { entityId: pageId, slugId, label } = node.attrs;
+        const { entityId: pageId, label } = node.attrs;
         const page = pageMap.get(pageId);
 
         if (page) {

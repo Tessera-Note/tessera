@@ -1,16 +1,34 @@
 import { execSync } from 'node:child_process';
+import {
+  DummyDriver,
+  Kysely,
+  PostgresAdapter,
+  PostgresIntrospector,
+  PostgresQueryCompiler,
+  sql,
+} from 'kysely';
 import { SEARCH_CONFIG } from '../../database/utils';
 
 /**
  * Поисковый вектор и поисковый запрос обязаны разбираться одной и той же
- * конфигурацией. Разойдясь, они перестают совпадать молча: ошибки нет, поиск
- * просто ничего не находит. Так и было до миграции 20260810T210000, где
- * векторы строились конфигурацией `english`, не приводящей кириллицу к
- * основе.
+ * конфигурацией. Разойдясь, они перестают совпадать молча.
  *
- * Проверка идет по исходникам, а не по базе: поднимать PostgreSQL ради нее
- * дороже, чем она стоит, а забывают именно про новое место в коде.
+ * Прежняя редакция этой проверки грепала исходники и потому пропустила
+ * поломку худшего рода: имя конфигурации подставлялось через `sql.raw`, то
+ * есть голым идентификатором. PostgreSQL читает такой идентификатор как имя
+ * колонки, и каждый полнотекстовый запрос падал с «column tessera_search does
+ * not exist». Греп по тексту этого не видит, поэтому запрос здесь
+ * компилируется по-настоящему.
  */
+const db = new Kysely<any>({
+  dialect: {
+    createAdapter: () => new PostgresAdapter(),
+    createDriver: () => new DummyDriver(),
+    createIntrospector: (kysely) => new PostgresIntrospector(kysely),
+    createQueryCompiler: () => new PostgresQueryCompiler(),
+  },
+});
+
 function grep(pattern: string, paths: string): string[] {
   try {
     return execSync(`grep -rn "${pattern}" ${paths} --include=*.ts || true`, {
@@ -25,6 +43,34 @@ function grep(pattern: string, paths: string): string[] {
 }
 
 describe('конфигурация текстового поиска', () => {
+  it('имя конфигурации уходит в SQL литералом, а не идентификатором', () => {
+    const compiled =
+      sql`select to_tsquery(${sql.lit(SEARCH_CONFIG)}, ${'x'})`.compile(db);
+
+    expect(compiled.sql).toContain(`to_tsquery('${SEARCH_CONFIG}'`);
+  });
+
+  /**
+   * Тот самый способ подстановки, который сломал поиск. Проверка держит
+   * разницу видимой: сама по себе она ничего не запрещает, но объясняет,
+   * почему запрет ниже не стилистический.
+   */
+  it('подстановка идентификатором дает другой SQL', () => {
+    const compiled =
+      sql`select to_tsquery(${sql.raw(SEARCH_CONFIG)}, ${'x'})`.compile(db);
+
+    expect(compiled.sql).toContain(`to_tsquery(${SEARCH_CONFIG},`);
+    expect(compiled.sql).not.toContain(`'${SEARCH_CONFIG}'`);
+  });
+
+  it('в рантайме конфигурация не подставляется идентификатором', () => {
+    const raw = grep('sql\\.raw(SEARCH_CONFIG)', 'src').filter(
+      (line) => !line.includes('search-config.spec.ts'),
+    );
+
+    expect(raw).toEqual([]);
+  });
+
   it('в рантайме не осталось запросов с прежней конфигурацией', () => {
     const stale = grep("'english'", 'src').filter(
       (line) =>

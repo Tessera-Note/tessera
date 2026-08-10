@@ -95,7 +95,7 @@ export class AiAnswersController {
         )
         .where('deletedAt', 'is', null)
         .where(
-          sql<boolean>`tsv @@ to_tsquery(${sql.raw(SEARCH_CONFIG)}, f_unaccent(${searchTerms}))`,
+          sql<boolean>`tsv @@ to_tsquery(${sql.lit(SEARCH_CONFIG)}, f_unaccent(${searchTerms}))`,
         )
         .limit(5);
 
