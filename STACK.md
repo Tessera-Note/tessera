@@ -139,6 +139,27 @@ TypeScript у сервера `strict: true`, но с послаблениями 
 
 Пакеты: `pnpm --filter @tessera/editor-ext build`, `pnpm --filter @tessera/base-formula build`, у base-formula есть `bench`.
 
+## Работа с базой из машины разработчика
+
+`tessera-db` это имя внутри сети compose, с хоста оно не разрешается. Чтобы
+применить миграции или прогнать кодогенерацию с машины, нужен адрес контейнера:
+
+```
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' tessera-tessera-db-1
+```
+
+и подстановка его вместо `tessera-db` в `DATABASE_URL` на время команды.
+
+**Dev-режим миграции не применяет.** `pnpm dev` их не прогоняет: приложение
+делает это только при `NODE_ENV=production`. После вытягивания новых миграций
+нужен `pnpm --filter server migration:up` вручную, иначе схема отстанет от кода
+и отказы будут выглядеть как ошибки в запросах.
+
+**Изолированной сборке сервера нужны собранные общие пакеты.** В чистом
+чекауте `pnpm --filter server build` упадёт без `packages/base-formula/dist` и
+`packages/editor-ext/dist`. Полный `pnpm build` порядок соблюдает сам.
+
+
 ## Переменные окружения
 
 Конфигурация читается из `.env` в корне репозитория. Отдельных `.env` по приложениям нет: Vite грузит корневой через `loadEnv` с путем на два уровня выше, сервер через `@nestjs/config`. Отправной точкой служит `.env.example`.
