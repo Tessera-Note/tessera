@@ -247,6 +247,8 @@ describe('исполнение подтвержденного плана', () =>
     const svc = Object.create(AiChatService.prototype);
     const updates: any[] = [];
 
+    // Захват плана идет условным обновлением с `returning`, поэтому заглушка
+    // отвечает строкой и на него: иначе захват считался бы неудачным.
     const chain = (row: any): any => ({
       selectAll: () => chain(row),
       select: () => chain(row),
@@ -255,6 +257,7 @@ describe('исполнение подтвержденного плана', () =>
         return chain(row);
       },
       where: () => chain(row),
+      returning: () => chain({ id: 'm-1' }),
       execute: async () => [],
       executeTakeFirst: async () => row,
     });
@@ -294,7 +297,7 @@ describe('исполнение подтвержденного плана', () =>
 
     expect(out.status).toBe('applied');
     expect(out.results).toHaveLength(2);
-    expect(updates[0].metadata.planStatus).toBe('applied');
+    expect(updates[updates.length - 1].metadata.planStatus).toBe('applied');
   });
 
   it('отказ шага останавливает план, следующий не исполняется', async () => {
@@ -321,7 +324,7 @@ describe('исполнение подтвержденного плана', () =>
 
     expect(out.status).toBe('rejected');
     expect(svc.mcpService.runAgentTool).not.toHaveBeenCalled();
-    expect(updates[0].metadata.planStatus).toBe('rejected');
+    expect(updates[updates.length - 1].metadata.planStatus).toBe('rejected');
   });
 });
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, List, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
@@ -30,6 +31,7 @@ export default function ChatPlanConfirm({ messageId, steps }: Props) {
   const { t } = useTranslation();
   const [pending, setPending] = useState<"confirm" | "reject" | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const decide = async (decision: "confirm" | "reject") => {
     setPending(decision);
@@ -46,6 +48,15 @@ export default function ChatPlanConfirm({ messageId, steps }: Props) {
           }),
         });
         return;
+      }
+
+      if (result.status === "applied") {
+        // План переносит и удаляет страницы, поэтому дерево, корзина и сам
+        // разговор устаревают. Без снятия человек видит удаленную страницу на
+        // месте и решает, что действие не выполнилось.
+        queryClient.invalidateQueries({ queryKey: ["pages"] });
+        queryClient.invalidateQueries({ queryKey: ["spaces"] });
+        queryClient.invalidateQueries({ queryKey: ["ai-chat"] });
       }
 
       notifications.show({

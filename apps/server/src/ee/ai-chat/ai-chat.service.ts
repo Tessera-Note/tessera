@@ -1148,12 +1148,28 @@ export class AiChatService {
     const metadata = (message.metadata ?? {}) as Record<string, unknown>;
     const steps = metadata.pendingPlan as PlannedStep[] | undefined;
 
-    if (metadata.planStatus) {
-      throw badRequest('error.ai_chat.plan_already_resolved');
-    }
-
     if (!steps || steps.length === 0) {
       throw badRequest('error.ai_chat.no_pending_plan');
+    }
+
+    // План захватывается одним условным обновлением, а не проверкой перед
+    // записью. Между чтением состояния и записью решения два одновременных
+    // подтверждения проходили бы оба, и необратимые шаги выполнились бы
+    // дважды. Условие в самом обновлении делает захват атомарным: второй
+    // запрос не находит строки и получает отказ.
+    const claimed = await this.db
+      .updateTable('aiChatMessages')
+      .set({
+        metadata: { ...metadata, planStatus: 'running' } as any,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', messageId)
+      .where(sql`metadata->>'planStatus'`, 'is', null)
+      .returning(['id'])
+      .executeTakeFirst();
+
+    if (!claimed) {
+      throw badRequest('error.ai_chat.plan_already_resolved');
     }
 
     if (decision === 'reject') {
