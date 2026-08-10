@@ -11,13 +11,18 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from litestar import Litestar
+from litestar.datastructures import State
 from litestar.di import Provide
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.auth import AuthController
+from tessera_api.api.guards import jwt_guard
 from tessera_api.api.health import HealthController
+from tessera_api.api.spaces import GroupController, SpaceController
 from tessera_api.config import Settings
 from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
+from tessera_api.services.tokens import TokenService
 
 
 def create_app(settings: Settings | None = None) -> Litestar:
@@ -29,6 +34,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
     resolved = settings or Settings.from_env()
     database = Database(resolved.database_url, echo=resolved.debug)
     cache = Cache(resolved.redis_url)
+    tokens = TokenService(resolved.app_secret)
 
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:
@@ -51,16 +57,31 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_settings() -> Settings:
         return resolved
 
+    async def provide_tokens() -> TokenService:
+        return tokens
+
     return Litestar(
-        route_handlers=[HealthController],
+        route_handlers=[
+            HealthController,
+            AuthController,
+            SpaceController,
+            GroupController,
+        ],
+        # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
+        # порядок, где закрывают по одному маршруту, забывается на первом же
+        # новом.
+        guards=[jwt_guard],
         # Имя зависимости обязано совпадать с именем параметра обработчика:
         # Litestar связывает их по имени, а не по типу.
         dependencies={
             "db_session": Provide(provide_session),
             "cache": Provide(provide_cache),
             "settings": Provide(provide_settings),
+            "tokens": Provide(provide_tokens),
         },
         lifespan=[lifespan],
+        # Разбор токена нужен охране, а она зависимостей не получает.
+        state=State({"tokens": tokens}),
         debug=resolved.debug,
     )
 

@@ -11,13 +11,16 @@ from litestar import Controller, get
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.guards import PUBLIC
 from tessera_api.infrastructure.cache import Cache
 
 
 class HealthController(Controller):
     path = "/api/health"
 
-    @get()
+    # Готовность проверяет оркестратор, у которого токена нет и быть не может.
+    # Закрытая проверка готовности означает, что контейнер вечно нездоров.
+    @get(opt={PUBLIC: True})
     async def health(self, db_session: AsyncSession, cache: Cache) -> dict:
         database_up = await self._check(lambda: db_session.execute(text("select 1")))
         redis_up = await self._check(cache.ping)

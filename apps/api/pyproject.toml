@@ -9,6 +9,8 @@ dependencies = [
     "asyncpg==0.31.0",
     "redis==6.4.0",
     "msgspec==0.19.0",
+    "pyjwt==2.12.1",
+    "bcrypt==5.0.0",
 ]
 
 [dependency-groups]
