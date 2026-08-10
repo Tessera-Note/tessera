@@ -77,6 +77,7 @@ function build(overrides: {
     {} as any,
     mocks.environmentService as any,
     {} as any,
+    { listAgentTools: () => [], runAgentTool: jest.fn() } as any,
   );
 
   return { service, mocks };
@@ -287,6 +288,7 @@ describe('AiChatService.textSearchPages permission filtering', () => {
       {} as any,
       { getAppName: jest.fn() } as any,
       pagePermissionRepo as any,
+      { listAgentTools: () => [], runAgentTool: jest.fn() } as any,
     );
 
     return { service, pagePermissionRepo, query };
@@ -396,6 +398,9 @@ describe('AiChatService.sendMessage mentioned-page authorization', () => {
         { role: 'assistant', content: 'previous reply' },
       ]), // conversation history
       makeQuery(opts.mentionedPages), // mentioned pages lookup
+      // Рабочее пространство: его контекст нужен инструментам MCP, которые
+      // чат берет мостом.
+      makeQuery({ id: WORKSPACE_ID }),
     ];
 
     const insertIntoQueue = [
@@ -447,7 +452,8 @@ describe('AiChatService.sendMessage mentioned-page authorization', () => {
       { isConfigured: jest.fn().mockResolvedValue(false) } as any,
       {} as any, // embeddingService (unreached: no space membership)
       environmentService as any,
-      {} as any, // pagePermissionRepo (unreached: retrieval short-circuits)
+      {} as any, // pagePermissionRepo (unreached: retrieval short-circuits),
+      { listAgentTools: () => [], runAgentTool: jest.fn() } as any,
     );
 
     return { service, db };

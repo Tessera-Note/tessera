@@ -24,6 +24,8 @@ import { normalizePageReference } from './page-reference.util';
 import { WebSearchService } from '../ai/web-search.service';
 import { AgentImageService } from './agent-image.service';
 import { languageForRequest } from '../ai/request-language.util';
+import { McpService } from '../mcp/mcp.service';
+import { buildMcpAgentTools } from './mcp-agent-tools';
 import { buildImageQuery } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import { editRefusalNotice } from '../ai/ai-language.util';
@@ -70,6 +72,7 @@ export class AiChatService {
     private readonly embeddingService: EmbeddingService,
     private readonly environmentService: EnvironmentService,
     private readonly pagePermissionRepo: PagePermissionRepo,
+    private readonly mcpService: McpService,
   ) {}
 
   async createChat(userId: string, workspaceId: string) {
@@ -518,11 +521,36 @@ export class AiChatService {
       },
     });
 
+    // Инструменты MCP добавляются к собственным. Необратимые пока не
+    // передаются: показа плана и подтверждения еще нет, а инструмент, который
+    // агент видит и выполнить не может, тратит шаг и заканчивается отказом.
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .selectAll()
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    const allTools = {
+      ...tools,
+      ...buildMcpAgentTools({
+        mcp: this.mcpService,
+        user,
+        workspace: workspace as any,
+        allow: ['read', 'write'],
+        onError: (name, err) =>
+          this.logger.warn(
+            `Инструмент ${name} отказал: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+      }),
+    };
+
     const result = streamText({
       model: await this.providerFactory.getChatModel(workspaceId),
       system: systemPrompt,
       messages,
-      tools,
+      tools: allTools,
       // Без этого модель останавливается на первом же вызове инструмента и
       // ответа не пишет: результат к ней уже не возвращается.
       stopWhen: stepCountIs(AGENT_MAX_STEPS),
@@ -1080,6 +1108,13 @@ export class AiChatService {
       'that you cannot search the internet from this chat, and never hand ' +
       'back an empty template with placeholders when the answer requires ' +
       'fresh data you were given.\n' +
+      // Папок в этой вики нет как сущности: иерархия это страницы с
+      // родительской страницей. Называть родителя папкой значит обещать
+      // поведение, которого нет, поэтому агент говорит как есть.
+      'This wiki has no folders. The hierarchy is pages nested under other ' +
+      'pages, so a "folder" is just a page with child pages. Say "page with ' +
+      'nested pages", never "folder", and when asked to create a folder, ' +
+      'create a page and move the others under it.\n' +
       // Замечено на живом сценарии: на просьбу про «текущий прокат» агент сам
       // выбрал рынок одной страны, потому что источник в выдаче оказался
       // региональным, и подал это как условие задачи.
