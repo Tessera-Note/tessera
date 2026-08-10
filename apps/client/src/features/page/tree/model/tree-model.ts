@@ -14,6 +14,27 @@ function findInternal<T extends object>(
   return null;
 }
 
+/**
+ * Map a level, keeping the original array when nothing on it changed.
+ *
+ * `Array.prototype.map` always allocates, so a plain `nodes.map(...)` made the
+ * `next !== n.children` checks below always true: patching one node recreated
+ * the node objects of every other branch, and React re-rendered the whole tree
+ * for a single rename.
+ */
+function mapLevel<T extends object>(
+  nodes: TreeNode<T>[],
+  visit: (node: TreeNode<T>) => TreeNode<T>,
+): TreeNode<T>[] {
+  let changed = false;
+  const next = nodes.map((node) => {
+    const mapped = visit(node);
+    if (mapped !== node) changed = true;
+    return mapped;
+  });
+  return changed ? next : nodes;
+}
+
 export const treeModel = {
   find<T extends object>(tree: TreeNode<T>[], id: string): TreeNode<T> | null {
     return findInternal(tree, id)?.node ?? null;
@@ -81,7 +102,7 @@ export const treeModel = {
     }
     let touched = false;
     const walk = (nodes: TreeNode<T>[]): TreeNode<T>[] =>
-      nodes.map((n) => {
+      mapLevel(nodes, (n) => {
         if (n.id === parentId) {
           touched = true;
           const kids = n.children ?? [];
@@ -104,14 +125,12 @@ export const treeModel = {
   remove<T extends object>(tree: TreeNode<T>[], id: string): TreeNode<T>[] {
     let touched = false;
     const walk = (nodes: TreeNode<T>[]): TreeNode<T>[] => {
-      const filtered = nodes.filter((n) => {
-        if (n.id === id) {
-          touched = true;
-          return false;
-        }
-        return true;
-      });
-      return filtered.map((n) => {
+      const kept = nodes.filter((n) => n.id !== id);
+      if (kept.length !== nodes.length) touched = true;
+      // `filter` тоже всегда выделяет новый массив: уровень, с которого ничего
+      // не убрали, обязан остаться прежним объектом.
+      const filtered = kept.length === nodes.length ? nodes : kept;
+      return mapLevel(filtered, (n) => {
         if (n.children) {
           const next = walk(n.children);
           if (next !== n.children) return { ...n, children: next };
@@ -133,7 +152,7 @@ export const treeModel = {
   ): TreeNode<T>[] {
     let touched = false;
     const walk = (nodes: TreeNode<T>[]): TreeNode<T>[] =>
-      nodes.map((n) => {
+      mapLevel(nodes, (n) => {
         if (n.id === id) {
           touched = true;
           return { ...n, ...patch };
@@ -155,7 +174,7 @@ export const treeModel = {
   ): TreeNode<T>[] {
     let touched = false;
     const walk = (nodes: TreeNode<T>[]): TreeNode<T>[] =>
-      nodes.map((n) => {
+      mapLevel(nodes, (n) => {
         if (n.id === parentId) {
           const existing = n.children ?? [];
           // Dedup against existing ids — auto-expand + manual toggle can race
