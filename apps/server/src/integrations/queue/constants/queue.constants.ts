@@ -27,20 +27,8 @@ export enum QueueJob {
   STRIPE_SEATS_SYNC = 'sync-stripe-seats',
   TRIAL_ENDED = 'trial-ended',
   WELCOME_EMAIL = 'welcome-email',
-  FIRST_PAYMENT_EMAIL = 'first-payment-email',
 
   IMPORT_TASK = 'import-task',
-  EXPORT_TASK = 'export-task',
-
-  SEARCH_INDEX_PAGE = 'search-index-page',
-  SEARCH_INDEX_PAGES = 'search-index-pages',
-  SEARCH_INDEX_COMMENT = 'search-index-comment',
-  SEARCH_INDEX_COMMENTS = 'search-index-comments',
-  SEARCH_INDEX_ATTACHMENT = 'search-index-attachment',
-  SEARCH_INDEX_ATTACHMENTS = 'search-index-attachments',
-  SEARCH_REMOVE_PAGE = 'search-remove-page',
-  SEARCH_REMOVE_ASSET = 'search-remove-attachment',
-  SEARCH_REMOVE_FACE = 'search-remove-comment',
 
   PAGE_CREATED = 'page-created',
   PAGE_CONTENT_UPDATED = 'page-content-updated',
@@ -55,13 +43,9 @@ export enum QueueJob {
   SPACE_DELETED = 'space-deleted',
 
   WORKSPACE_CREATED = 'workspace-created',
-  WORKSPACE_SPACE_UPDATED = 'workspace-updated',
   WORKSPACE_DELETED = 'workspace-deleted',
   WORKSPACE_CREATE_EMBEDDINGS = 'workspace-create-embeddings',
   WORKSPACE_DELETE_EMBEDDINGS = 'workspace-delete-embeddings',
-
-  GENERATE_PAGE_EMBEDDINGS = 'generate-page-embeddings',
-  DELETE_PAGE_EMBEDDINGS = 'delete-page-embeddings',
 
   PAGE_HISTORY = 'page-history',
 
@@ -81,8 +65,4 @@ export enum QueueJob {
 
   PDF_EXPORT_TASK = 'pdf-export-task',
   PDF_EXPORT_CLEANUP = 'pdf-export-cleanup',
-
-  BASE_TYPE_CONVERSION = 'base-type-conversion',
-  BASE_CELL_GC = 'base-cell-gc',
-  BASE_FORMULA_RECOMPUTE = 'base-formula-recompute',
 }
