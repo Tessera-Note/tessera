@@ -324,3 +324,19 @@ describe('исполнение подтвержденного плана', () =>
     expect(updates[0].metadata.planStatus).toBe('rejected');
   });
 });
+
+/**
+ * План лежит в столбце JSON. Исполнение обязано опираться на разрешительный
+ * список, а не на то, что в этом столбце оказалось.
+ */
+describe('исполнение сверяет имя инструмента заново', () => {
+  it('инструмент вне списка не исполняется', () => {
+    expect(AGENT_TOOL_POLICY['reindex_embeddings']).toBeUndefined();
+    expect(AGENT_TOOL_POLICY['delete_base']).toBeUndefined();
+  });
+
+  it('обратимый инструмент в плане не место', () => {
+    expect(AGENT_TOOL_POLICY['add_page_labels']).not.toBe('destructive');
+    expect(AGENT_TOOL_POLICY['list_pages']).not.toBe('destructive');
+  });
+});

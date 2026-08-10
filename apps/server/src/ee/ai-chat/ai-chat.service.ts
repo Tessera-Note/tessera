@@ -25,7 +25,11 @@ import { WebSearchService } from '../ai/web-search.service';
 import { AgentImageService } from './agent-image.service';
 import { languageForRequest } from '../ai/request-language.util';
 import { McpService } from '../mcp/mcp.service';
-import { PlannedStep, buildMcpAgentTools } from './mcp-agent-tools';
+import {
+  AGENT_TOOL_POLICY,
+  PlannedStep,
+  buildMcpAgentTools,
+} from './mcp-agent-tools';
 import { buildImageQuery } from '../ai/image-request.util';
 import { buildHistoryRecap } from './history-recap.util';
 import { editRefusalNotice } from '../ai/ai-language.util';
@@ -1153,7 +1157,7 @@ export class AiChatService {
     }
 
     if (decision === 'reject') {
-      await this.storePlanOutcome(messageId, steps, 'rejected', []);
+      await this.storePlanOutcome(messageId, steps, 'rejected', [], metadata);
       return { status: 'rejected', steps: steps.length };
     }
 
@@ -1170,6 +1174,13 @@ export class AiChatService {
       if (failed) break;
 
       try {
+        // Имя инструмента проверяется заново, а не принимается из записи.
+        // План лежит в столбце JSON, и исполнение обязано опираться на
+        // разрешительный список, а не на то, что в этом столбце оказалось.
+        if (AGENT_TOOL_POLICY[step.tool] !== 'destructive') {
+          throw badRequest('error.ai_chat.no_pending_plan');
+        }
+
         await this.mcpService.runAgentTool(
           step.tool,
           step.args,
@@ -1192,6 +1203,7 @@ export class AiChatService {
       steps,
       failed ? 'failed' : 'applied',
       results,
+      metadata,
     );
 
     return {
@@ -1206,11 +1218,18 @@ export class AiChatService {
     steps: PlannedStep[],
     status: 'applied' | 'rejected' | 'failed',
     results: unknown[],
+    previous: Record<string, unknown> = {},
   ) {
+    // Прежние метаданные переносятся: столбец общий, и решение по плану не
+    // должно стирать то, что положил туда кто-то другой. `pendingPlan`
+    // снимается: план перестал быть ожидающим.
+    const { pendingPlan: _resolved, ...rest } = previous;
+
     await this.db
       .updateTable('aiChatMessages')
       .set({
         metadata: {
+          ...rest,
           plan: steps,
           planStatus: status,
           planResults: results,
