@@ -4,8 +4,11 @@ export interface IGroup {
   name: string;
   description: string | null;
   isDefault: boolean;
-  /** Группу ведет каталог: менять и удалять ее изнутри нельзя. */
-  isExternal?: boolean;
+  /**
+   * Какой каталог ведет группу: 'scim', 'sso' или ничего. Пока каталог ее
+   * ведет, менять и удалять группу изнутри нельзя.
+   */
+  directorySource?: string | null;
   creatorId: string | null;
   workspaceId: string;
   createdAt: Date;

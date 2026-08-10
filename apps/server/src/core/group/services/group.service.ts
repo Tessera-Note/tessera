@@ -119,10 +119,7 @@ export class GroupService {
       throw badRequest('error.group.you_cannot_update_a_default_group');
     }
 
-    // Группу ведет каталог: переименование или правка здесь разошлись бы с
-    // ним, а следующий цикл синхронизации завел бы ее заново под прежним
-    // именем и с новым идентификатором, то есть в списке оказались бы две.
-    if (group.isExternal) {
+    if (await this.isDirectoryLocked(group, workspaceId)) {
       throw badRequest('error.group.you_cannot_change_an_external_group');
     }
 
@@ -173,6 +170,91 @@ export class GroupService {
     return group;
   }
 
+  /**
+   * Действует ли на группе замок каталога прямо сейчас.
+   *
+   * Замок не хранится, а вычисляется от текущего состояния переключателя.
+   * Владелец просил снимать признак при выключении синхронизации, и вычисление
+   * дает это даром: выключил переключатель, группа снова под ручным
+   * управлением, включил обратно, привязка на месте. Хранить снятый замок
+   * записью значило бы терять привязки при каждом выключении, а восстановить
+   * их было бы нечем.
+   *
+   * Провайдер, удаленный из пространства, обнуляет `directory_provider_id`
+   * внешним ключом. Замка без провайдера нет: группа остается привязанной по
+   * источнику, но распоряжаться ею уже некому.
+   */
+  private async isDirectoryLocked(
+    group: {
+      directorySource?: string | null;
+      directoryProviderId?: string | null;
+    },
+    workspaceId: string,
+  ): Promise<boolean> {
+    if (group.directorySource === 'scim') {
+      const workspace = await this.db
+        .selectFrom('workspaces')
+        .select('isScimEnabled')
+        .where('id', '=', workspaceId)
+        .executeTakeFirst();
+
+      return Boolean(workspace?.isScimEnabled);
+    }
+
+    if (group.directorySource === 'sso' && group.directoryProviderId) {
+      const provider = await this.db
+        .selectFrom('authProviders')
+        .select('groupSync')
+        .where('id', '=', group.directoryProviderId)
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirst();
+
+      return Boolean(provider?.groupSync);
+    }
+
+    return false;
+  }
+
+  /**
+   * Вернуть группу под ручное управление явным действием администратора.
+   *
+   * Привязка снимается целиком, вместе с ключом каталога: следующий цикл
+   * синхронизации такую группу не увидит и состав в ней трогать не будет.
+   * Само членство сохраняется, снимается только управление им.
+   */
+  async detachFromDirectory(
+    groupId: string,
+    workspaceId: string,
+  ): Promise<Group> {
+    const group = await this.findAndValidateGroup(groupId, workspaceId);
+
+    if (!group.directorySource) {
+      throw badRequest('error.group.this_group_is_not_managed_by_a_directory');
+    }
+
+    await this.groupRepo.update(
+      {
+        directorySource: null,
+        directoryProviderId: null,
+        directoryKey: null,
+      },
+      groupId,
+      workspaceId,
+    );
+
+    this.auditService.log({
+      event: AuditEvent.GROUP_UPDATED,
+      resourceType: AuditResource.GROUP,
+      resourceId: groupId,
+      changes: {
+        before: { directorySource: group.directorySource },
+        after: { directorySource: null },
+      },
+    });
+
+    return this.findAndValidateGroup(groupId, workspaceId);
+  }
+
   async getWorkspaceGroups(
     workspaceId: string,
     paginationOptions: PaginationOptions,
@@ -197,7 +279,10 @@ export class GroupService {
       throw badRequest('error.group.you_cannot_delete_a_default_group');
     }
 
-    if (group.isExternal && !opts?.fromDirectory) {
+    if (
+      !opts?.fromDirectory &&
+      (await this.isDirectoryLocked(group, workspaceId))
+    ) {
       throw badRequest('error.group.you_cannot_delete_an_external_group');
     }
 

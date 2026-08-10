@@ -79,7 +79,7 @@ export default function GroupActionMenu(props: GroupActionMenuProps = {}) {
             <Menu.Dropdown>
               <Menu.Item
                 onClick={open}
-                disabled={group.isDefault || group.isExternal}
+                disabled={group.isDefault || Boolean(group.directorySource)}
               >
                 {t("Edit group")}
               </Menu.Item>
@@ -87,7 +87,7 @@ export default function GroupActionMenu(props: GroupActionMenuProps = {}) {
               <Menu.Item
                 c="red"
                 onClick={openDeleteModal}
-                disabled={group.isDefault || group.isExternal}
+                disabled={group.isDefault || Boolean(group.directorySource)}
                 leftSection={<IconTrash size={16} stroke={2} />}
               >
                 {t("Delete group")}

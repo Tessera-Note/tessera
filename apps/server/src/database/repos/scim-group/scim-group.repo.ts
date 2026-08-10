@@ -47,6 +47,7 @@ export class ScimGroupRepo {
         'description',
         'isDefault',
         'isExternal',
+        'directorySource',
         'scimExternalId',
         'createdAt',
         'updatedAt',

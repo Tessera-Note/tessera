@@ -70,7 +70,7 @@ export default function GroupList() {
                             удалять ее изнутри нельзя: без отметки
                             администратор узнавал об этом только по отказу.
                           */}
-                          {group.isExternal && (
+                          {group.directorySource && (
                             <Text fz="xs" c="dimmed">
                               {t("Managed by the directory")}
                             </Text>

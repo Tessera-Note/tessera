@@ -6,26 +6,31 @@ import { GroupUserService } from '../../../core/group/services/group-user.servic
 /**
  * Состав групп по данным поставщика входа.
  *
- * Колонка `auth_providers.group_sync` была заведена давно, но ни один поток
- * входа ее не читал: переключатель из форм убрали, чтобы сохраняемая
- * настройка не обещала поведения, которого нет.
+ * Включается переключателем `auth_providers.group_sync`, имя утверждения
+ * задает `auth_providers.group_claim_name`.
  *
- * Правило сопоставления. Группа поставщика находится по имени среди групп
- * рабочего пространства, регистр не важен. Новых групп синхронизация не
- * создает: имена в каталоге организации бывают служебными и многочисленными,
- * и заводить их все в вики значило бы засорить список групп по одному входу
- * одного человека. Администратор заводит нужные группы сам, и совпадение по
- * имени включает их в синхронизацию.
+ * ВЛАДЕНИЕ. Синхронизация распоряжается только теми группами, которые явно
+ * привязаны к этому провайдеру: `directory_source = 'sso'` и
+ * `directory_provider_id` равен его идентификатору. Привязку заводит
+ * администратор, синхронизация ее не создает и не снимает.
  *
- * Владение членством. Группа, хоть раз совпавшая по имени, помечается
- * внешней. С этого момента состав в ней ведет каталог: человека, которого
- * каталог больше не числит, синхронизация из такой группы убирает. Группы,
- * не совпавшие ни разу, остаются ручными, и их состав не трогается вовсе.
- * Без этого разделения синхронизация либо не могла бы убирать никого, либо
- * убирала бы людей из групп, которые администратор ведет руками.
+ * Прежде владение выводилось из совпадения имени группы с именем в
+ * утверждении, и это было неверно дважды. Во-первых, оно захватывало группу,
+ * которую каталог не заводил, а вместе с бэкфиллом миграции SCIM, пометившего
+ * внешними все неумолчальные группы, вычищало людей из групп, которые
+ * администратор ведет руками, вместе с доступами, которые те давали.
+ * Во-вторых, это был вектор повышения прав: заведя в каталоге группу с именем
+ * административной группы вики, в нее можно было попасть.
  *
- * Группа по умолчанию исключена всегда: в ней состоят все, и каталог не может
- * этого отменить.
+ * СОПОСТАВЛЕНИЕ идет по ключу каталога `directory_key`, а не по имени группы.
+ * Имя в вики администратор меняет свободно, и связь от этого не рвется.
+ * Регистр не учитывается: каталоги отдают различительные имена по-разному.
+ *
+ * Непривязанная группа не трогается вовсе: ни добавления, ни снятия. Молчаливо
+ * добавить человека в группу, которую каталог не ведет, значило бы выдать
+ * права, которых администратор не выдавал.
+ *
+ * Группа по умолчанию исключена всегда: в ней состоят все.
  */
 @Injectable()
 export class SsoGroupSyncService {
@@ -62,7 +67,12 @@ export class SsoGroupSyncService {
     if (!Array.isArray(groupNames)) return;
 
     try {
-      await this.apply({ ...opts, groupNames });
+      await this.apply({
+        userId: opts.userId,
+        workspaceId: opts.workspaceId,
+        providerId: opts.provider.id,
+        groupNames,
+      });
     } catch (err) {
       this.logger.error(
         `Синхронизация групп для ${opts.userId} не удалась: ${
@@ -75,6 +85,7 @@ export class SsoGroupSyncService {
   private async apply(opts: {
     userId: string;
     workspaceId: string;
+    providerId: string;
     groupNames: string[];
   }): Promise<void> {
     const wanted = new Set(
@@ -83,51 +94,40 @@ export class SsoGroupSyncService {
         .filter((name) => name.length > 0),
     );
 
-    const groups = await this.db
+    // Берутся только группы, привязанные к этому провайдеру. Прочие
+    // синхронизации не принадлежат, и знать о них ей незачем.
+    const owned = await this.db
       .selectFrom('groups')
-      .select(['id', 'name', 'isDefault', 'isExternal'])
+      .select(['id', 'directoryKey'])
       .where('workspaceId', '=', opts.workspaceId)
+      .where('isDefault', '=', false)
+      .where('deletedAt', 'is', null)
+      .where('directorySource', '=', 'sso')
+      .where('directoryProviderId', '=', opts.providerId)
       .execute();
 
-    const matched = groups.filter(
-      (group) => !group.isDefault && wanted.has(group.name.toLowerCase()),
+    if (owned.length === 0) return;
+
+    const matched = owned.filter(
+      (group) =>
+        group.directoryKey !== null &&
+        wanted.has(group.directoryKey.trim().toLowerCase()),
     );
 
-    // Совпадение по имени переводит группу под управление каталога. Отметка
-    // та же, что ставит SCIM: способ появления группы снаружи разный,
-    // а следствие одно, и второй отметки для него заводить незачем.
-    const toMark = matched.filter((group) => !group.isExternal);
-    if (toMark.length > 0) {
-      await this.db
-        .updateTable('groups')
-        .set({ isExternal: true, updatedAt: new Date() })
-        .where(
-          'id',
-          'in',
-          toMark.map((group) => group.id),
-        )
-        .execute();
-    }
+    const ownedIds = new Set(owned.map((group) => group.id));
+    const matchedIds = new Set(matched.map((group) => group.id));
 
     const current = await this.db
       .selectFrom('groupUsers')
-      .innerJoin('groups', 'groups.id', 'groupUsers.groupId')
-      .select([
-        'groupUsers.groupId as groupId',
-        'groups.isExternal as isExternal',
-      ])
-      .where('groupUsers.userId', '=', opts.userId)
-      .where('groups.workspaceId', '=', opts.workspaceId)
-      .where('groups.isDefault', '=', false)
+      .select('groupId')
+      .where('userId', '=', opts.userId)
+      .where('groupId', 'in', [...ownedIds])
       .execute();
 
     const currentIds = new Set(current.map((row) => row.groupId));
-    const matchedIds = new Set(matched.map((group) => group.id));
 
     const toAdd = matched.filter((group) => !currentIds.has(group.id));
-    const toRemove = current.filter(
-      (row) => row.isExternal && !matchedIds.has(row.groupId),
-    );
+    const toRemove = [...currentIds].filter((id) => !matchedIds.has(id));
 
     // Членство меняется только через сервис групп. Прямая запись в таблицу
     // сохранила бы человеку кеш ролей пространства, комнаты Socket.IO,
@@ -142,10 +142,10 @@ export class SsoGroupSyncService {
       );
     }
 
-    for (const row of toRemove) {
+    for (const groupId of toRemove) {
       await this.groupUsers.removeUserFromGroup(
         opts.userId,
-        row.groupId,
+        groupId,
         opts.workspaceId,
       );
     }

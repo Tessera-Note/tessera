@@ -405,6 +405,8 @@ export const ErrorMessage = {
     'This group is managed by the directory and cannot be changed here',
   'error.group.you_cannot_delete_an_external_group':
     'This group is managed by the directory and cannot be deleted here',
+  'error.group.this_group_is_not_managed_by_a_directory':
+    'This group is not managed by a directory',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorMessage;

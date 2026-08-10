@@ -173,4 +173,30 @@ export class GroupController {
     }
     return this.groupService.deleteGroup(groupIdDto.groupId, workspace.id);
   }
+
+  /**
+   * Вернуть группу под ручное управление.
+   *
+   * Замок каталога снимается сам, когда администратор выключает синхронизацию,
+   * но выключать ее ради одной группы неверно. Это действие снимает привязку
+   * точечно, не трогая ни состав группы, ни остальные группы каталога.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('detach-directory')
+  detachFromDirectory(
+    @Body() groupIdDto: GroupIdDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const ability = this.workspaceAbility.createForUser(user, workspace);
+    if (
+      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Group)
+    ) {
+      throw new ForbiddenException();
+    }
+    return this.groupService.detachFromDirectory(
+      groupIdDto.groupId,
+      workspace.id,
+    );
+  }
 }

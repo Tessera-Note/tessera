@@ -12,6 +12,7 @@ type Row = {
   description: string | null;
   isDefault: boolean;
   isExternal: boolean;
+  directorySource: string | null;
   scimExternalId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -24,6 +25,9 @@ function group(over: Partial<Row> = {}): Row {
     description: null,
     isDefault: false,
     isExternal: true,
+    // Владение выражает привязка, а не булев признак: группа, которую ведет
+    // провайдер SSO, каталогу SCIM не принадлежит.
+    directorySource: 'scim',
     scimExternalId: 'ext-1',
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-02T00:00:00Z'),
@@ -88,6 +92,7 @@ function build(
         description: values.description ?? null,
         isDefault: values.isDefault,
         isExternal: values.isExternal,
+        directorySource: values.directorySource ?? null,
         scimExternalId: values.scimExternalId ?? null,
       });
       groups.push(created);
@@ -447,7 +452,13 @@ describe('ScimGroupService, заведение', () => {
 describe('ScimGroupService, совпадение имени с ручной группой', () => {
   it('совпадение имени дает 409 и не создает вторую группу', async () => {
     const { service, groups, groupRepo } = build({
-      groups: [group({ scimExternalId: null, isExternal: false })],
+      groups: [
+        group({
+          scimExternalId: null,
+          isExternal: false,
+          directorySource: null,
+        }),
+      ],
     });
 
     const error = await service
@@ -466,7 +477,13 @@ describe('ScimGroupService, совпадение имени с ручной гр
 
   it('ручная группа не присваивается каталогу молча', async () => {
     const { service, groups } = build({
-      groups: [group({ scimExternalId: null, isExternal: false })],
+      groups: [
+        group({
+          scimExternalId: null,
+          isExternal: false,
+          directorySource: null,
+        }),
+      ],
     });
 
     await service
@@ -533,7 +550,13 @@ describe('ScimGroupService, границы полномочий каталога
     'ручную группу нельзя изменить через %s',
     async (_name, act) => {
       const { service, groups } = build({
-        groups: [group({ scimExternalId: null, isExternal: false })],
+        groups: [
+          group({
+            scimExternalId: null,
+            isExternal: false,
+            directorySource: null,
+          }),
+        ],
       });
 
       const error: any = await act(service).catch((e) => e);

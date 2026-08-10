@@ -4,57 +4,38 @@ import {
 } from './sso-group-sync.service';
 
 /**
- * Колонка `group_sync` была заведена давно, но ни один поток входа ее не
- * читал: знать, что синхронизировать надо, недостаточно, нужно знать, откуда
- * брать группы и чем владеет синхронизация.
+ * Синхронизация распоряжается только группами, явно привязанными к этому
+ * провайдеру, и сопоставляет их по ключу каталога, а не по имени.
  *
- * Проверяются оба правила. Сопоставление по имени, без создания новых групп.
- * И владение: группа, совпавшая по имени, переходит под управление каталога,
- * а ручная группа не трогается вовсе.
+ * Прежде владение выводилось из совпадения имени. Вместе с бэкфиллом миграции
+ * SCIM, пометившего внешними все неумолчальные группы в пространстве с
+ * включенной синхронизацией, это вычищало людей из групп, которые
+ * администратор ведет руками, вместе с доступами, которые те давали.
  */
 function build(opts: {
-  groups?: any[];
+  owned?: any[];
   membership?: any[];
   groupSync?: boolean;
 }) {
   const calls: any[] = [];
 
-  const selectChain = (table: string) => {
-    const rows =
-      table === 'groups' ? (opts.groups ?? []) : (opts.membership ?? []);
-    const chain: any = new Proxy(
-      {},
-      {
-        get(_t, prop) {
-          if (prop === 'execute') return async () => rows;
-          return () => chain;
-        },
-      },
-    );
-    return chain;
-  };
-
   const db: any = {
-    selectFrom: (table: string) => selectChain(table),
-    updateTable: (table: string) => {
-      const call: any = { op: 'update', table };
-      const chain: any = {
-        set: (values: any) => {
-          call.values = values;
-          return chain;
+    selectFrom: (table: string) => {
+      const rows =
+        table === 'groups' ? (opts.owned ?? []) : (opts.membership ?? []);
+      const chain: any = new Proxy(
+        {},
+        {
+          get(_t, prop) {
+            if (prop === 'execute') return async () => rows;
+            return () => chain;
+          },
         },
-        where: () => chain,
-        execute: async () => {
-          calls.push(call);
-          return [];
-        },
-      };
+      );
       return chain;
     },
   };
 
-  // Членство меняется только через сервис групп: он снимает кеш ролей,
-  // разводит комнаты Socket.IO, чистит избранное и пишет в журнал.
   const groupUsers: any = {
     addUsersToGroupBatch: jest.fn(
       async (userIds: string[], groupId: string) => {
@@ -78,25 +59,33 @@ function build(opts: {
       groupNames,
     });
 
-  return { run, calls, groupUsers };
+  return { run, calls };
 }
 
-const GROUPS = [
-  { id: 'g-hr', name: 'Отдел кадров', isDefault: false, isExternal: false },
-  { id: 'g-dev', name: 'Разработка', isDefault: false, isExternal: true },
-  { id: 'g-all', name: 'Everyone', isDefault: true, isExternal: false },
+/** Привязанные к провайдеру группы: ключ каталога, а не имя. */
+const OWNED = [
+  { id: 'g-hr', directoryKey: 'CN=HR,OU=Groups,DC=example,DC=com' },
+  { id: 'g-dev', directoryKey: 'CN=Dev,OU=Groups,DC=example,DC=com' },
 ];
 
 describe('SsoGroupSyncService', () => {
+  it('выключенная синхронизация в базу не ходит', async () => {
+    const { run, calls } = build({ owned: OWNED, groupSync: false });
+
+    await run(['CN=HR,OU=Groups,DC=example,DC=com']);
+
+    expect(calls).toEqual([]);
+  });
+
   /**
-   * Провайдер без нужной области видимости групп не присылает вовсе. Считать
-   * это за «нигде не состоит» значило бы вычистить человеку все группы
-   * каталога при первом же входе.
+   * Провайдер без нужной области видимости групп не присылает их вовсе.
+   * Считать это за «нигде не состоит» значило бы вычистить человеку все
+   * группы каталога.
    */
   it('отсутствие сведений о группах состава не меняет', async () => {
     const { run, calls } = build({
-      groups: GROUPS,
-      membership: [{ groupId: 'g-dev', isExternal: true }],
+      owned: OWNED,
+      membership: [{ groupId: 'g-dev' }],
     });
 
     await run(undefined);
@@ -104,117 +93,74 @@ describe('SsoGroupSyncService', () => {
     expect(calls).toEqual([]);
   });
 
-  it('пустой список снимает членство в группах каталога', async () => {
-    const { run, calls } = build({
-      groups: GROUPS,
-      membership: [{ groupId: 'g-dev', isExternal: true }],
-    });
+  it('совпавшая по ключу группа получает человека', async () => {
+    const { run, calls } = build({ owned: OWNED });
 
-    await run([]);
+    await run(['CN=HR,OU=Groups,DC=example,DC=com']);
 
-    expect(calls.find((c) => c.op === 'remove')).toMatchObject({
-      groupId: 'g-dev',
+    expect(calls.find((c) => c.op === 'add')).toMatchObject({
+      groupId: 'g-hr',
+      userIds: ['u-1'],
     });
   });
 
-  it('выключенная синхронизация в базу не ходит', async () => {
-    const { run, calls } = build({ groups: GROUPS, groupSync: false });
-
-    await run(['Отдел кадров']);
-
-    expect(calls).toEqual([]);
-  });
-
-  it('совпавшая по имени группа получает человека', async () => {
-    const { run, calls } = build({ groups: GROUPS });
-
-    await run(['Отдел кадров']);
-
-    const add = calls.find((c) => c.op === 'add');
-    expect(add).toMatchObject({ groupId: 'g-hr', userIds: ['u-1'] });
-  });
-
-  /** Регистр в каталоге и в вики совпадать не обязан. */
+  /** Регистр в каталоге и в привязке совпадать не обязан. */
   it('сопоставление не зависит от регистра', async () => {
-    const { run, calls } = build({ groups: GROUPS });
+    const { run, calls } = build({ owned: OWNED });
 
-    await run(['ОТДЕЛ КАДРОВ']);
+    await run(['cn=hr,ou=groups,dc=example,dc=com']);
 
     expect(calls.filter((c) => c.op === 'add')).toHaveLength(1);
   });
 
   /**
-   * Имена в каталоге организации бывают служебными и многочисленными:
-   * заводить их все в вики по одному входу одного человека значило бы
-   * засорить список групп.
+   * Имя группы в вики администратор меняет свободно, и связь от этого рваться
+   * не должна. Совпадение по имени владения больше не дает.
    */
-  it('несуществующая группа не создается', async () => {
-    const { run, calls } = build({ groups: GROUPS });
-
-    await run(['Отдел кадров', 'Совершенно новая группа']);
-
-    expect(calls.filter((c) => c.op === 'add')).toEqual([
-      { op: 'add', groupId: 'g-hr', userIds: ['u-1'] },
-    ]);
-  });
-
-  /** Совпадение по имени переводит группу под управление каталога. */
-  it('совпавшая группа помечается внешней', async () => {
-    const { run, calls } = build({ groups: GROUPS });
-
-    await run(['Отдел кадров']);
-
-    const update = calls.find((c) => c.op === 'update' && c.table === 'groups');
-    expect(update.values).toMatchObject({ isExternal: true });
-  });
-
-  it('уже внешняя группа повторно не помечается', async () => {
-    const { run, calls } = build({ groups: GROUPS });
-
-    await run(['Разработка']);
-
-    expect(calls.find((c) => c.op === 'update')).toBeUndefined();
-  });
-
-  /**
-   * Человека, которого каталог больше не числит, из внешней группы убирают:
-   * иначе снятый в каталоге доступ остается в вики навсегда.
-   */
-  it('из внешней группы человек снимается, когда каталог его не числит', async () => {
+  it('совпадение по имени группы владения не дает', async () => {
     const { run, calls } = build({
-      groups: GROUPS,
-      membership: [{ groupId: 'g-dev', isExternal: true }],
+      owned: [{ id: 'g-hr', directoryKey: 'CN=HR,OU=Groups' }],
     });
 
     await run(['Отдел кадров']);
+
+    expect(calls.filter((c) => c.op === 'add')).toEqual([]);
+  });
+
+  /**
+   * Группа, не привязанная к провайдеру, в выборку не попадает вовсе: ни
+   * добавления, ни снятия. Это и есть защита от захвата чужой группы.
+   */
+  it('непривязанных групп синхронизация не касается', async () => {
+    const { run, calls } = build({ owned: [] });
+
+    await run(['CN=HR,OU=Groups,DC=example,DC=com']);
+
+    expect(calls).toEqual([]);
+  });
+
+  it('из своей группы человек снимается, когда каталог его не числит', async () => {
+    const { run, calls } = build({
+      owned: OWNED,
+      membership: [{ groupId: 'g-dev' }],
+    });
+
+    await run(['CN=HR,OU=Groups,DC=example,DC=com']);
 
     expect(calls.find((c) => c.op === 'remove')).toMatchObject({
       groupId: 'g-dev',
     });
   });
 
-  /**
-   * Ручная группа синхронизации не принадлежит: убрать из нее человека
-   * значило бы отменить решение администратора, которое каталог не принимал.
-   */
-  it('из ручной группы человек не снимается', async () => {
+  it('пустой список снимает членство во всех своих группах', async () => {
     const { run, calls } = build({
-      groups: GROUPS,
-      membership: [{ groupId: 'g-manual', isExternal: false }],
+      owned: OWNED,
+      membership: [{ groupId: 'g-dev' }, { groupId: 'g-hr' }],
     });
 
     await run([]);
 
-    expect(calls.find((c) => c.op === 'remove')).toBeUndefined();
-  });
-
-  /** В группе по умолчанию состоят все, и каталог этого не отменяет. */
-  it('группа по умолчанию не участвует', async () => {
-    const { run, calls } = build({ groups: GROUPS });
-
-    await run(['Everyone']);
-
-    expect(calls.find((c) => c.op === 'add')).toBeUndefined();
+    expect(calls.filter((c) => c.op === 'remove')).toHaveLength(2);
   });
 
   /**
@@ -235,7 +181,7 @@ describe('SsoGroupSyncService', () => {
         userId: 'u-1',
         workspaceId: 'ws-1',
         provider: { id: 'p-1', groupSync: true },
-        groupNames: ['Отдел кадров'],
+        groupNames: ['CN=HR,OU=Groups'],
       }),
     ).resolves.toBeUndefined();
   });
@@ -258,20 +204,6 @@ describe('extractGroupNames', () => {
       'Аудит',
       'Разработка',
     ]);
-  });
-
-  /**
-   * Каталог отдает полное различительное имя, а в вики группа называется
-   * коротко. Сравнивать по полному значило бы требовать вписывать его в
-   * название группы.
-   */
-  it('из различительного имени LDAP берется общее имя', () => {
-    expect(
-      extractGroupNames(
-        { memberOf: ['CN=Отдел кадров,OU=Groups,DC=example,DC=com'] },
-        'memberOf',
-      ),
-    ).toEqual(['Отдел кадров']);
   });
 
   it('пустые значения отбрасываются', () => {
