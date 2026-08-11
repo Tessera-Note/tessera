@@ -87,6 +87,10 @@ class Workspace(Base, SoftDeleteMixin):
     # Требовать второй фактор со всех. Описан здесь потому, что на него
     # опирается вход: пропажа колонки обязана ронять сверку схемы.
     enforce_mfa: Mapped[bool | None] = mapped_column(Boolean)
+    # Синхронизация каталога включается одним переключателем. Описан здесь
+    # потому, что на него опирается охрана SCIM: выключенная синхронизация
+    # означает отказ независимо от предъявленного токена.
+    is_scim_enabled: Mapped[bool | None] = mapped_column(Boolean)
 
 
 class Space(Base, SoftDeleteMixin):
@@ -393,6 +397,26 @@ class Share(Base, SoftDeleteMixin):
     search_indexing: Mapped[bool] = mapped_column(Boolean)
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class ScimToken(Base, SoftDeleteMixin):
+    """Токен синхронизации каталога.
+
+    Хранится отпечатком, как и ключ API: наружу значение отдаётся один раз.
+    Последние четыре символа лежат отдельно — по ним администратор опознаёт
+    свой токен в списке, не видя самого токена.
+    """
+
+    __tablename__ = "scim_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    token_hash: Mapped[str] = mapped_column(String)
+    token_last_four: Mapped[str] = mapped_column(String)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_enabled: Mapped[bool] = mapped_column(Boolean)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
