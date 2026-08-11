@@ -18,6 +18,7 @@ from tessera_api.services.backlinks import (
     BacklinkService,
     extract_internal_link_slugs,
     extract_page_mentions,
+    extract_user_mentions,
     internal_page_segment,
     page_slug_id,
 )
@@ -131,6 +132,40 @@ class TestMentions:
     @pytest.mark.parametrize("content", [None, {}, [], "строка", {"type": "doc"}])
     def test_odd_content_yields_nothing(self, content) -> None:  # noqa: ANN001
         assert extract_page_mentions(content) == []
+
+
+class TestUserMentions:
+    """Упоминания людей.
+
+    Разбор общий с упоминаниями страниц, и вид сущности — единственное, что их
+    различает. Перепутать их значит либо завести обратную ссылку на человека,
+    либо уведомить страницу.
+    """
+
+    def test_user_mentions_are_collected(self) -> None:
+        first, second = uuid.uuid4(), uuid.uuid4()
+        content = _doc(
+            _mention(str(first), "user"),
+            _mention(str(second), "user"),
+        )
+        assert extract_user_mentions(content) == [first, second]
+
+    def test_page_mentions_are_not_user_mentions(self) -> None:
+        page_id, user_id = uuid.uuid4(), uuid.uuid4()
+        content = _doc(_mention(str(page_id), "page"), _mention(str(user_id), "user"))
+
+        assert extract_user_mentions(content) == [user_id]
+        assert extract_page_mentions(content) == [page_id]
+
+    def test_repeated_user_mention_counts_once(self) -> None:
+        one = uuid.uuid4()
+        content = _doc(_mention(str(one), "user"), _mention(str(one), "user"))
+        assert extract_user_mentions(content) == [one]
+
+    def test_broken_identifier_is_skipped(self) -> None:
+        good = uuid.uuid4()
+        content = _doc(_mention("не-uuid", "user"), _mention(str(good), "user"))
+        assert extract_user_mentions(content) == [good]
 
 
 class TestInternalLinks:
