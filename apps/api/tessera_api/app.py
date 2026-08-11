@@ -20,6 +20,7 @@ from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.invitations import InvitationController
+from tessera_api.api.notifications import NotificationController
 from tessera_api.api.page_permissions import PagePermissionController
 from tessera_api.api.pages import (
     CommentController,
@@ -130,6 +131,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             HistoryController,
             ShareController,
             TemplateController,
+            NotificationController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же

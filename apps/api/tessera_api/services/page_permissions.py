@@ -26,11 +26,13 @@ from tessera_api.domain.errors import bad_request, not_found
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import (
     Group,
+    GroupUser,
     Page,
     PageAccess,
     PagePermission,
     User,
 )
+from tessera_api.services.notifications import NotificationService
 from tessera_api.services.page_access import (
     ACCESS_RESTRICTED,
     PageAccessService,
@@ -228,8 +230,36 @@ class PagePermissionService:
                 )
             )
 
+        await self._notify_granted(page, targets, user_id)
         await self._session.commit()
         return len(targets)
+
+    async def _notify_granted(
+        self, page: Page, targets: list[PermissionTarget], actor_id: uuid.UUID
+    ) -> None:
+        """Сообщить тем, кому только что открыли страницу.
+
+        Права, выданные группе, разворачиваются в её состав: иначе выдача
+        группе не уведомляет никого, и человек узнаёт о доступе случайно.
+        """
+        people = [one.user_id for one in targets if one.user_id]
+
+        group_ids = [one.group_id for one in targets if one.group_id]
+        if group_ids:
+            members = (
+                (
+                    await self._session.execute(
+                        select(GroupUser.user_id).where(GroupUser.group_id.in_(group_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            people.extend(members)
+
+        await NotificationService(self._session).notify_permission_granted(
+            page=page, user_ids=people, actor_id=actor_id
+        )
 
     async def _writers_left_after(
         self, restriction_id: uuid.UUID, removed: list[PermissionTarget]

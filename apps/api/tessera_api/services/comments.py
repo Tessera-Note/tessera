@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import Comment, Page
+from tessera_api.services.backlinks import extract_user_mentions
+from tessera_api.services.notifications import NotificationService
 from tessera_api.services.page_access import PageAccessService
 
 
@@ -69,8 +71,19 @@ class CommentService:
                 space_id=page.space_id,
             )
         )
+        created = await self._session.get(Comment, comment_id)
+
+        # Уведомления заводятся в той же транзакции, что и комментарий: иначе
+        # отказ на середине оставляет либо уведомление о том, чего нет, либо
+        # комментарий, о котором никто не узнает.
+        await NotificationService(self._session).notify_comment(
+            page=page,
+            comment=created,
+            actor_id=user_id,
+            mentioned_user_ids=extract_user_mentions(content),
+        )
         await self._session.commit()
-        return await self._session.get(Comment, comment_id)
+        return created
 
     async def update(self, comment_id: uuid.UUID, user_id: uuid.UUID, content: dict) -> Comment:
         comment = await self._require(comment_id)

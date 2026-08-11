@@ -393,6 +393,48 @@ class Share(Base, SoftDeleteMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class Watcher(Base, CreatedMixin):
+    """Подписка на изменения страницы или пространства.
+
+    `muted_at` это отключённая подписка, а не удалённая: удалить её значило бы
+    подписать человека заново при первом же действии, а он от неё отказался.
+    """
+
+    __tablename__ = "watchers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    type: Mapped[str] = mapped_column(Text)
+    added_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    muted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Notification(Base, CreatedMixin):
+    """Уведомление в интерфейсе.
+
+    Отметки прочтения и отправки письма разные: письмо уходит один раз, а
+    прочтение случается позже и может не случиться вовсе.
+    """
+
+    __tablename__ = "notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    type: Mapped[str] = mapped_column(Text)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    comment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Template(Base, SoftDeleteMixin):
     """Шаблон страницы.
 

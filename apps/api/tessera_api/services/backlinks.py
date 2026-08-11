@@ -85,13 +85,18 @@ def extract_page_mentions(content: Any) -> list[uuid.UUID]:
     Берутся только упоминания страниц: упоминание человека связи между
     страницами не создаёт.
     """
+    return _mentions_of(content, "page")
+
+
+def _mentions_of(content: Any, entity_type: str) -> list[uuid.UUID]:
+    """Упоминания заданного вида, в порядке появления и без повторов."""
     found: list[uuid.UUID] = []
     seen: set[uuid.UUID] = set()
     for node in _walk(content):
         if node.get("type") != "mention":
             continue
         attrs = node.get("attrs") or {}
-        if attrs.get("entityType") != "page":
+        if attrs.get("entityType") != entity_type:
             continue
         raw = attrs.get("entityId")
         if not raw:
@@ -107,6 +112,16 @@ def extract_page_mentions(content: Any) -> list[uuid.UUID]:
             seen.add(entity_id)
             found.append(entity_id)
     return found
+
+
+def extract_user_mentions(content: Any) -> list[uuid.UUID]:
+    """Идентификаторы людей, упомянутых в содержимом.
+
+    Тот же обход, что и у упоминаний страниц, и отличается только видом
+    сущности. Держать их рядом стоит: узел один, и правка его разметки
+    затронет оба разбора.
+    """
+    return _mentions_of(content, "user")
 
 
 def extract_internal_link_slugs(content: Any) -> list[str]:
