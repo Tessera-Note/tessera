@@ -35,6 +35,13 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.workspace.invitation_not_found": "Invitation not found",
     "error.workspace.invalid_invitation_token": "This invitation link is not valid",
     "error.workspace.invitation_already_accepted": "This invitation has already been accepted",
+    "error.auth.invalid_or_expired_token": "This link is not valid or has expired",
+    "error.sso.provider_disabled": "This sign-in provider is turned off",
+    "error.sso.account_unavailable": "This account is unavailable",
+    "error.sso.identity_conflict": (
+        "This email is already linked to another account at the provider"
+    ),
+    "error.sso.signup_disabled": "This provider does not allow new accounts",
     "error.common.workspace_not_found": "Workspace not found",
     "error.common.user_not_found": "User not found",
     "error.space.space_not_found": "Space not found",

@@ -24,6 +24,7 @@ from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
 from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
+from tessera_api.infrastructure.mail import MailService, MailSettings
 from tessera_api.services.tokens import TokenService
 
 
@@ -37,6 +38,18 @@ def create_app(settings: Settings | None = None) -> Litestar:
     database = Database(resolved.database_url, echo=resolved.debug)
     cache = Cache(resolved.redis_url)
     tokens = TokenService(resolved.app_secret)
+    mail = MailService(
+        MailSettings(
+            driver=resolved.mail_driver,
+            from_address=resolved.mail_from_address,
+            from_name=resolved.mail_from_name,
+            host=resolved.smtp_host,
+            port=resolved.smtp_port,
+            username=resolved.smtp_username,
+            password=resolved.smtp_password,
+            secure=resolved.smtp_secure,
+        )
+    )
 
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:
@@ -62,6 +75,9 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_tokens() -> TokenService:
         return tokens
 
+    async def provide_mail() -> MailService:
+        return mail
+
     return Litestar(
         route_handlers=[
             HealthController,
@@ -82,6 +98,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "cache": Provide(provide_cache),
             "settings": Provide(provide_settings),
             "tokens": Provide(provide_tokens),
+            "mail": Provide(provide_mail),
         },
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.

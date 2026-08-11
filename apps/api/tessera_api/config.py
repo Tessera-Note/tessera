@@ -44,6 +44,14 @@ class Settings:
     host: str
     debug: bool
     trust_proxy_hops: int
+    mail_driver: str = "log"
+    mail_from_address: str = "noreply@tessera.local"
+    mail_from_name: str = "Tessera"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_secure: bool = False
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -65,4 +73,14 @@ class Settings:
             # адресу считаются пороги частоты и пишется журнал аудита, и
             # доверие цепочке позволяло подставить адрес заголовком.
             trust_proxy_hops=max(0, int(_env("TRUST_PROXY_HOPS", "1"))),
+            # Умолчание `log`, как в v1: развёртывание без почты обязано
+            # подниматься, а не падать на отсутствии SMTP.
+            mail_driver=_env("MAIL_DRIVER", "log"),
+            mail_from_address=_env("MAIL_FROM_ADDRESS", "noreply@tessera.local"),
+            mail_from_name=_env("MAIL_FROM_NAME", "Tessera"),
+            smtp_host=_env("SMTP_HOST") or None,
+            smtp_port=int(_env("SMTP_PORT", "587")),
+            smtp_username=_env("SMTP_USERNAME") or None,
+            smtp_password=_env("SMTP_PASSWORD") or None,
+            smtp_secure=_env("SMTP_SECURE", "false").lower() == "true",
         )

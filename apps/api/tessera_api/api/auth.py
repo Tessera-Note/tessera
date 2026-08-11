@@ -10,16 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.dto import (
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
+    PasswordResetRequest,
     SetupRequest,
     UserView,
+    VerifyTokenRequest,
     WorkspaceView,
 )
 from tessera_api.api.guards import AUTH_COOKIE, PUBLIC, Principal
+from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
+from tessera_api.infrastructure.mail import MailService
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService
+from tessera_api.services.password_reset import PasswordResetService
 from tessera_api.services.setup import SetupService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
@@ -191,6 +197,56 @@ class AuthController(Controller):
             principal.session_id,
         )
         return {"status": "ok"}
+
+    @post("/forgot-password", opt={PUBLIC: True})
+    async def forgot_password(
+        self,
+        data: ForgotPasswordRequest,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        mail: NamedDependency[MailService],
+    ) -> dict:
+        """Запросить ссылку сброса.
+
+        Ответ одинаков и для заведённого адреса, и для незаведённого: разные
+        ответы позволяют перебором узнать, кто здесь работает. Публичный по
+        необходимости: человек не помнит пароля, войти он не может.
+        """
+        workspace = await WorkspaceRepo(db_session).first()
+        if workspace is not None:
+            await PasswordResetService(db_session, UserRepo(db_session), mail).request(
+                data.email, workspace.id, settings.app_url
+            )
+        return {"status": "ok"}
+
+    @post("/password-reset", opt={PUBLIC: True})
+    async def password_reset(
+        self,
+        data: PasswordResetRequest,
+        db_session: NamedDependency[AsyncSession],
+        mail: NamedDependency[MailService],
+    ) -> dict:
+        workspace = await WorkspaceRepo(db_session).first()
+        if workspace is None:
+            raise not_found("error.common.workspace_not_found")
+
+        await PasswordResetService(db_session, UserRepo(db_session), mail).reset(
+            data.token, data.newPassword, workspace.id
+        )
+        return {"status": "ok"}
+
+    @post("/verify-token", opt={PUBLIC: True})
+    async def verify_token(
+        self,
+        data: VerifyTokenRequest,
+        db_session: NamedDependency[AsyncSession],
+        mail: NamedDependency[MailService],
+    ) -> dict:
+        """Годна ли ссылка. Экран смены пароля спрашивает это до ввода."""
+        valid = await PasswordResetService(db_session, UserRepo(db_session), mail).verify(
+            data.token
+        )
+        return {"valid": valid}
 
     @get("/me")
     async def me(self, request: Request, db_session: NamedDependency[AsyncSession]) -> dict:

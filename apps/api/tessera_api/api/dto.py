@@ -107,3 +107,16 @@ class InvitationView(msgspec.Struct):
     email: str | None
     role: str
     createdAt: datetime  # noqa: N815 — имя поля из v1
+
+
+class ForgotPasswordRequest(msgspec.Struct):
+    email: str
+
+
+class PasswordResetRequest(msgspec.Struct):
+    token: str
+    newPassword: str  # noqa: N815 — имя поля из v1
+
+
+class VerifyTokenRequest(msgspec.Struct):
+    token: str

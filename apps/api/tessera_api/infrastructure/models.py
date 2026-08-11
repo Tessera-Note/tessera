@@ -187,9 +187,52 @@ class WorkspaceInvitation(Base, TimestampMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class UserToken(Base, CreatedMixin):
+    """Одноразовый токен: сброс пароля, подтверждение почты.
+
+    Срок и признак использования здесь, а не в самом токене: токен, который
+    нельзя отозвать, действует до истечения срока даже после того, как им
+    воспользовались.
+    """
+
+    __tablename__ = "user_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    token: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AuthProvider(Base, SoftDeleteMixin):
+    """Провайдер входа: OIDC, SAML, LDAP, Google."""
+
+    __tablename__ = "auth_providers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(Text)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    is_enabled: Mapped[bool] = mapped_column(Boolean)
+    allow_signup: Mapped[bool] = mapped_column(Boolean)
+    group_sync: Mapped[bool] = mapped_column(Boolean)
+    group_claim_name: Mapped[str | None] = mapped_column(String)
+    oidc_issuer: Mapped[str | None] = mapped_column(String)
+    oidc_client_id: Mapped[str | None] = mapped_column(String)
+    oidc_client_secret: Mapped[str | None] = mapped_column(String)
+    saml_url: Mapped[str | None] = mapped_column(String)
+    saml_certificate: Mapped[str | None] = mapped_column(String)
+    ldap_url: Mapped[str | None] = mapped_column(String)
+    ldap_base_dn: Mapped[str | None] = mapped_column(String)
+
+
 __all__ = [
     "AuditLog",
     "AuthAccount",
+    "AuthProvider",
     "Base",
     "CreatedMixin",
     "SoftDeleteMixin",
@@ -198,6 +241,7 @@ __all__ = [
     "Space",
     "SpaceMember",
     "User",
+    "UserToken",
     "UserSession",
     "Workspace",
     "WorkspaceInvitation",

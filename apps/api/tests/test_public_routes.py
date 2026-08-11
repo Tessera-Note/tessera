@@ -34,6 +34,10 @@ EXPECTED_PUBLIC = {
     # значило бы требовать войти до того, как учётная запись заведена.
     # Учётными данными служит токен приглашения.
     "/api/workspace/invites/accept",
+    # Сброс пароля: человек не помнит пароля, войти он не может.
+    "/api/auth/forgot-password",
+    "/api/auth/password-reset",
+    "/api/auth/verify-token",
 }
 
 
