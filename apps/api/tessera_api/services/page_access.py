@@ -19,11 +19,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import SPACE_RANK, SpaceRole, can_write_space
-from tessera_api.infrastructure.models import GroupUser, Page, PageAccess, PagePermission
+from tessera_api.infrastructure.models import Page
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 
-#: Уровень доступа страницы. `open` означает «как у пространства».
-ACCESS_OPEN = "open"
+#: Уровень доступа, записываемый при ограничении страницы.
+#:
+#: Ограничение определяется **наличием** строки в `page_access`, а не значением
+#: этой колонки: так устроен v1, и так безопаснее — неизвестное значение
+#: закрывает страницу, а не открывает её. Значение пишется ради читаемости
+#: данных и совместимости, но ни одна проверка доступа на него не смотрит.
 ACCESS_RESTRICTED = "restricted"
 
 
@@ -41,8 +45,21 @@ class PageAccessService:
         self._session = session
         self._members = SpaceMemberRepo(session)
 
-    async def _restricted_ancestor(self, page: Page) -> PageAccess | None:
-        """Ближайший ограниченный предок, считая саму страницу.
+    async def _restriction_chain(
+        self, page: Page, user_id: uuid.UUID
+    ) -> list[tuple[uuid.UUID, list[str]]]:
+        """Ограниченные предки от ближайшего к дальнему и роли человека на них.
+
+        Возвращает по одной записи на каждого ограниченного предка, считая саму
+        страницу: идентификатор ограничения и роли, доставшиеся человеку прямо
+        либо через группу. Пустой список ролей означает, что на этом предке
+        прав нет.
+
+        Проверять надо **каждого** ограниченного предка, а не ближайшего.
+        Иначе страница внутри двух вложенных ограничений открывается тому, кому
+        дали право на внутреннем и не давали на внешнем: внешнее ограничение
+        обходится созданием подстраницы с собственным ограничением. Роль при
+        этом берётся с ближайшего — она описывает именно эту ветку.
 
         Обход вверх по дереву делает база: тянуть предков по одному значило бы
         столько запросов, сколько уровней вложенности, а дерево страниц бывает
@@ -60,41 +77,42 @@ class PageAccessService:
                 JOIN ancestors a ON p.id = a.parent_page_id
                 WHERE a.depth < 100
             )
-            SELECT pa.id
+            SELECT
+                pa.id AS access_id,
+                COALESCE(
+                    array_agg(pp.role) FILTER (WHERE pp.id IS NOT NULL),
+                    ARRAY[]::varchar[]
+                ) AS roles
             FROM ancestors a
             JOIN page_access pa ON pa.page_id = a.id
-            WHERE pa.access_level = :restricted
+            LEFT JOIN page_permissions pp
+                   ON pp.page_access_id = pa.id
+                  AND (
+                        pp.user_id = :user_id
+                     OR pp.group_id IN (
+                            SELECT gu.group_id
+                            FROM group_users gu
+                            WHERE gu.user_id = :user_id
+                        )
+                  )
+            GROUP BY a.depth, pa.id
             ORDER BY a.depth ASC
-            LIMIT 1
             """
         )
-        row = (
-            await self._session.execute(stmt, {"page_id": page.id, "restricted": ACCESS_RESTRICTED})
-        ).first()
-        if row is None:
-            return None
-        return await self._session.get(PageAccess, row[0])
+        rows = (
+            await self._session.execute(stmt, {"page_id": page.id, "user_id": user_id})
+        ).all()
+        return [(row.access_id, list(row.roles or [])) for row in rows]
 
-    async def _explicit_role(self, user_id: uuid.UUID, page_access_id: uuid.UUID) -> str | None:
-        """Роль, выданная человеку на ограниченной странице.
+    @staticmethod
+    def _strongest(roles: list[str]) -> str:
+        """Сильнейшая из ролей.
 
-        Считается и прямая, и доставшаяся через группу, берётся сильнейшая:
-        членство в группе с меньшими правами не должно урезать собственные.
+        Сильнейшая, а не первая: членство в группе с меньшими правами не должно
+        урезать собственные. Сравнение идёт по рангу, а не по алфавиту, — для
+        нынешних двух значений алфавит совпадает с рангом случайно, и третье
+        значение сломало бы такое сравнение молча.
         """
-        direct = (
-            select(PagePermission.role)
-            .where(PagePermission.page_access_id == page_access_id)
-            .where(PagePermission.user_id == user_id)
-        )
-        via_group = (
-            select(PagePermission.role)
-            .join(GroupUser, GroupUser.group_id == PagePermission.group_id)
-            .where(PagePermission.page_access_id == page_access_id)
-            .where(GroupUser.user_id == user_id)
-        )
-        roles = [row[0] for row in (await self._session.execute(direct.union(via_group))).all()]
-        if not roles:
-            return None
         return max(roles, key=lambda role: SPACE_RANK.get(role, 0))
 
     async def rights(self, page: Page, user_id: uuid.UUID) -> PageRights:
@@ -105,22 +123,24 @@ class PageAccessService:
             # незачем: права на страницу выдаются внутри пространства.
             return PageRights(can_view=False, can_edit=False, restricted=False)
 
-        restriction = await self._restricted_ancestor(page)
-        if restriction is None:
+        chain = await self._restriction_chain(page, user_id)
+        if not chain:
             return PageRights(
                 can_view=True,
                 can_edit=can_write_space(space_role),
                 restricted=False,
             )
 
-        explicit = await self._explicit_role(user_id, restriction.id)
-        if explicit is None:
-            # Ограничение действует: членства в пространстве недостаточно.
+        if any(not roles for _, roles in chain):
+            # Хотя бы на одном ограниченном предке прав нет. Членства в
+            # пространстве недостаточно, и права на ближайшем предке тоже:
+            # иначе внешнее ограничение обходилось бы внутренним.
             return PageRights(can_view=False, can_edit=False, restricted=True)
 
+        nearest = self._strongest(chain[0][1])
         return PageRights(
             can_view=True,
-            can_edit=SPACE_RANK.get(explicit, 0) >= SPACE_RANK[SpaceRole.WRITER],
+            can_edit=SPACE_RANK.get(nearest, 0) >= SPACE_RANK[SpaceRole.WRITER],
             restricted=True,
         )
 

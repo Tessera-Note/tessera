@@ -262,6 +262,108 @@ class TestRestriction:
             await PageAccessService(session).rights(world["child"], world["owner"].id)
         ).can_view is False
 
+    async def test_inner_permission_does_not_open_outer_restriction(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Право на внутреннем ограничении не открывает внешнее.
+
+        Обратный случай к предыдущему, и куда опаснее. Если считать только
+        ближайшего ограниченного предка, то внешнее ограничение обходится
+        созданием подстраницы со своим ограничением: тот, кому закрыт раздел,
+        выдаёт себе право на подстранице внутри него и получает доступ.
+
+        Проверять надо каждого ограниченного предка. Так устроен v1
+        (`bool_and(pp.id IS NOT NULL)` в `page-permission.repo.ts`), и первая
+        версия этого кода расходилась с ним именно здесь.
+        """
+        world = await _world(session, workspace, owner, space)
+
+        # Корень закрыт, у постороннего прав на нём нет.
+        outer_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=outer_id,
+                page_id=world["root"].id,
+                workspace_id=world["workspace"].id,
+                space_id=world["space"].id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=world["owner"].id,
+            )
+        )
+
+        # Раздел внутри него закрыт отдельно, и там право у постороннего есть.
+        inner_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=inner_id,
+                page_id=world["child"].id,
+                workspace_id=world["workspace"].id,
+                space_id=world["space"].id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=world["owner"].id,
+            )
+        )
+        await session.execute(
+            insert(PagePermission).values(
+                id=uuid.uuid4(),
+                page_access_id=inner_id,
+                user_id=world["outsider_id"],
+                role=SpaceRole.WRITER,
+                added_by_id=world["owner"].id,
+            )
+        )
+        await session.flush()
+
+        service = PageAccessService(session)
+        assert (await service.rights(world["child"], world["outsider_id"])).can_view is False
+        assert (await service.rights(world["grandchild"], world["outsider_id"])).can_view is False
+
+    async def test_permission_on_every_restricted_ancestor_opens_the_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Права на всех ограниченных предках открывают страницу.
+
+        Обратная сторона предыдущей проверки: правило «нужно право на каждом»
+        не должно закрывать страницу тому, у кого право есть везде. Роль при
+        этом берётся с ближайшего предка.
+        """
+        world = await _world(session, workspace, owner, space)
+
+        for page, role in (
+            (world["root"], SpaceRole.READER),
+            (world["child"], SpaceRole.WRITER),
+        ):
+            access_id = uuid.uuid4()
+            await session.execute(
+                insert(PageAccess).values(
+                    id=access_id,
+                    page_id=page.id,
+                    workspace_id=world["workspace"].id,
+                    space_id=world["space"].id,
+                    access_level=ACCESS_RESTRICTED,
+                    creator_id=world["owner"].id,
+                )
+            )
+            await session.execute(
+                insert(PagePermission).values(
+                    id=uuid.uuid4(),
+                    page_access_id=access_id,
+                    user_id=world["outsider_id"],
+                    role=role,
+                    added_by_id=world["owner"].id,
+                )
+            )
+        await session.flush()
+
+        rights = await PageAccessService(session).rights(
+            world["grandchild"], world["outsider_id"]
+        )
+        assert rights.can_view is True
+        assert rights.restricted is True
+        # Ближайший ограниченный предок — раздел, там роль writer. Роль с
+        # корня (reader) не должна перебивать её.
+        assert rights.can_edit is True
+
 
 class TestValidators:
     async def test_view_refusal_raises(
