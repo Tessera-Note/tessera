@@ -10,6 +10,7 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import PUBLIC, Principal
+from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.comments import CommentService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.labels import FavoriteService, LabelService
@@ -97,6 +98,22 @@ class PageController(Controller):
         page = await access.load_page(data.pageId, principal.workspace_id)
         rights = await access.validate_can_view(page, principal.user_id)
         return _page_view(page, rights)
+
+    @post("/backlinks")
+    async def backlinks(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Страницы, ссылающиеся на эту.
+
+        Выдача фильтруется по правам: обратная ссылка раскрывает название и
+        адрес источника, а источник может лежать в закрытой ветке.
+        """
+        principal: Principal = request.scope["principal"]
+        access = PageAccessService(db_session)
+
+        page = await access.load_page(data.pageId, principal.workspace_id)
+        await access.validate_can_view(page, principal.user_id)
+        return await BacklinkService(db_session).incoming(page, principal.user_id)
 
     @post("/create")
     async def create(

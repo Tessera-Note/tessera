@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden
 from tessera_api.infrastructure.models import Page
+from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import PageAccessService
 
@@ -103,8 +104,15 @@ class PageService:
                 workspace_id=workspace_id,
             )
         )
+
+        created = await self._session.get(Page, page_id)
+        # Пересчёт до фиксации и в той же транзакции: страница со связями,
+        # записанными отдельной транзакцией, при откате осталась бы со
+        # связями от несуществующего содержимого.
+        await BacklinkService(self._session).rebuild(created)
+
         await self._session.commit()
-        return await self._session.get(Page, page_id)
+        return created
 
     async def update(
         self,
@@ -136,8 +144,14 @@ class PageService:
             values["text_content"] = extract_text(content)
 
         await self._session.execute(update(Page).where(Page.id == page.id).values(**values))
+
+        updated = await self._session.get(Page, page.id)
+        if content is not None:
+            await self._session.refresh(updated)
+            await BacklinkService(self._session).rebuild(updated)
+
         await self._session.commit()
-        return await self._session.get(Page, page.id)
+        return updated
 
     async def children(
         self, parent_page_id: uuid.UUID | None, space_id: uuid.UUID, user_id: uuid.UUID
