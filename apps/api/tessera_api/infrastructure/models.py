@@ -252,6 +252,12 @@ class AuthProvider(Base, SoftDeleteMixin):
     saml_certificate: Mapped[str | None] = mapped_column(String)
     ldap_url: Mapped[str | None] = mapped_column(String)
     ldap_base_dn: Mapped[str | None] = mapped_column(String)
+    ldap_bind_dn: Mapped[str | None] = mapped_column(String)
+    ldap_bind_password: Mapped[str | None] = mapped_column(String)
+    ldap_user_search_filter: Mapped[str | None] = mapped_column(String)
+    ldap_user_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    ldap_tls_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    ldap_tls_ca_cert: Mapped[str | None] = mapped_column(Text)
 
 
 class Page(Base, SoftDeleteMixin):
