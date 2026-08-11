@@ -10,8 +10,8 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request
-from tessera_api.infrastructure.mail import MailService
 from tessera_api.infrastructure.models import User, UserSession, UserToken
+from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.repositories import UserRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.auth import hash_password
@@ -29,10 +29,10 @@ MIN_PASSWORD_LENGTH = 8
 
 
 class PasswordResetService:
-    def __init__(self, session: AsyncSession, users: UserRepo, mail: MailService) -> None:
+    def __init__(self, session: AsyncSession, users: UserRepo, queue: JobQueue) -> None:
         self._session = session
         self._users = users
-        self._mail = mail
+        self._queue = queue
         self._audit = AuditService(session)
 
     async def request(self, email: str, workspace_id: uuid.UUID, app_url: str) -> None:
@@ -70,7 +70,13 @@ class PasswordResetService:
         await self._session.commit()
 
         link = f"{app_url.rstrip('/')}/password-reset?token={token}"
-        self._mail.send(
+        # Письмо уходит заданием, а не прямо здесь. Соединение с почтовым
+        # сервером открывается с таймаутом в двадцать секунд, и внутри запроса
+        # это двадцать секунд ожидания у человека, который нажал «сбросить
+        # пароль». Отказ отправки при этом не теряется: он попадает в журнал
+        # исполнителя, и задание повторяется трижды.
+        await self._queue.enqueue(
+            JobName.SEND_EMAIL,
             to=user.email,
             subject="Сброс пароля",
             body=(

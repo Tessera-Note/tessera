@@ -37,7 +37,7 @@ from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
 from tessera_api.infrastructure.mail import MailService, MailSettings
 from tessera_api.infrastructure.queue import JobQueue
-from tessera_api.infrastructure.scheduler import Scheduler
+from tessera_api.infrastructure.scheduler import Scheduler, TaskResources
 from tessera_api.infrastructure.storage import Storage, create_storage
 from tessera_api.services.maintenance import PERIODIC_TASKS
 from tessera_api.services.tokens import TokenService
@@ -68,7 +68,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
 
     storage = create_storage(resolved)
     queue = JobQueue(resolved.redis_url)
-    scheduler = Scheduler(database, PERIODIC_TASKS)
+    scheduler = Scheduler(database, PERIODIC_TASKS, TaskResources(storage=storage))
 
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:

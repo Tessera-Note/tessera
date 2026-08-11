@@ -10,8 +10,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
-from tessera_api.infrastructure.mail import MailService, MailSettings
 from tessera_api.infrastructure.models import UserSession, UserToken
+from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.repositories import UserRepo
 from tessera_api.services.password_reset import PasswordResetService
 from tests.conftest import needs_database
@@ -19,15 +19,22 @@ from tests.conftest import needs_database
 pytestmark = needs_database
 
 
-class Recorder(MailService):
-    """Почта, запоминающая письма вместо отправки."""
+class Recorder(JobQueue):
+    """Очередь, запоминающая задания вместо постановки.
+
+    Подменяется именно очередь, а не почта: письмо теперь уходит заданием, и
+    проверять надо то, что уходит на самом деле. Подмена почты проверяла бы
+    путь, которым продукт больше не ходит.
+    """
 
     def __init__(self) -> None:
-        super().__init__(MailSettings(driver="log", from_address="x@y.z", from_name="t"))
+        super().__init__("redis://127.0.0.1:6379")
         self.sent: list[dict] = []
 
-    def send(self, *, to: str, subject: str, body: str) -> None:
-        self.sent.append({"to": to, "subject": subject, "body": body})
+    async def enqueue(self, name, *args, job_id=None, defer=None, **payload) -> bool:  # noqa: ANN001, ANN003
+        assert name == JobName.SEND_EMAIL
+        self.sent.append(payload)
+        return True
 
 
 async def _service(session: AsyncSession, workspace, owner):
@@ -36,8 +43,8 @@ async def _service(session: AsyncSession, workspace, owner):
     Живые записи приходят фикстурами: выборка без фильтра `deleted_at` и без
     порядка недетерминирована.
     """
-    mail = Recorder()
-    return PasswordResetService(session, UserRepo(session), mail), mail, owner, workspace
+    queue = Recorder()
+    return PasswordResetService(session, UserRepo(session), queue), queue, owner, workspace
 
 
 class TestRequest:

@@ -80,6 +80,10 @@ class Workspace(Base, SoftDeleteMixin):
     default_space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     status: Mapped[str | None] = mapped_column(String)
     plan: Mapped[str | None] = mapped_column(String)
+    # Через сколько дней страница из корзины удаляется насовсем. Описана
+    # здесь потому, что на неё опирается периодическая уборка: пропажа
+    # колонки обязана ронять сверку схемы, а не запрос уборки в рантайме.
+    trash_retention_days: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class Space(Base, SoftDeleteMixin):

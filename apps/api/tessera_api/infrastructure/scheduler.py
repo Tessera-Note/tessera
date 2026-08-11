@@ -28,6 +28,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.infrastructure.database import Database
+from tessera_api.infrastructure.storage import Storage
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,18 @@ INITIAL_DELAY = timedelta(seconds=60)
 
 
 @dataclass(frozen=True, slots=True)
+class TaskResources:
+    """Что доступно периодической задаче помимо базы.
+
+    Передаётся всем задачам одинаково, каждая берёт нужное. Отдельный набор
+    аргументов у каждой задачи означал бы, что планировщик знает про каждую из
+    них по отдельности.
+    """
+
+    storage: Storage
+
+
+@dataclass(frozen=True, slots=True)
 class PeriodicTask:
     """Одна периодическая задача.
 
@@ -53,10 +66,12 @@ class PeriodicTask:
     name: str
     interval: timedelta
     lock_key: int
-    run: Callable[[AsyncSession], Awaitable[int]]
+    run: Callable[[AsyncSession, TaskResources], Awaitable[int]]
 
 
-async def run_locked(session: AsyncSession, task: PeriodicTask) -> int | None:
+async def run_locked(
+    session: AsyncSession, task: PeriodicTask, resources: TaskResources
+) -> int | None:
     """Выполнить такт, если блокировка досталась этой реплике.
 
     Возвращает число обработанных записей, либо `None`, если такт пропущен:
@@ -70,7 +85,7 @@ async def run_locked(session: AsyncSession, task: PeriodicTask) -> int | None:
     ).scalar()
     if not locked:
         return None
-    return await task.run(session)
+    return await task.run(session, resources)
 
 
 class Scheduler:
@@ -80,11 +95,13 @@ class Scheduler:
         self,
         database: Database,
         tasks: list[PeriodicTask],
+        resources: TaskResources,
         *,
         initial_delay: timedelta = INITIAL_DELAY,
     ) -> None:
         self._database = database
         self._tasks = tasks
+        self._resources = resources
         self._initial_delay = initial_delay
         self._running: list[asyncio.Task[None]] = []
         # Отдельный признак, а не «список задач не пуст»: с пустым списком
@@ -100,7 +117,7 @@ class Scheduler:
         значило бы не взять её вовсе.
         """
         async with self._database.session() as session, session.begin():
-            return await run_locked(session, task)
+            return await run_locked(session, task, self._resources)
 
     async def _loop(self, task: PeriodicTask) -> None:
         await asyncio.sleep(self._initial_delay.total_seconds())

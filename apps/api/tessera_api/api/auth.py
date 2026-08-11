@@ -22,7 +22,7 @@ from tessera_api.api.dto import (
 from tessera_api.api.guards import AUTH_COOKIE, PUBLIC, Principal
 from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
-from tessera_api.infrastructure.mail import MailService
+from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService
 from tessera_api.services.password_reset import PasswordResetService
@@ -204,7 +204,7 @@ class AuthController(Controller):
         data: ForgotPasswordRequest,
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[Settings],
-        mail: NamedDependency[MailService],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         """Запросить ссылку сброса.
 
@@ -214,7 +214,7 @@ class AuthController(Controller):
         """
         workspace = await WorkspaceRepo(db_session).first()
         if workspace is not None:
-            await PasswordResetService(db_session, UserRepo(db_session), mail).request(
+            await PasswordResetService(db_session, UserRepo(db_session), queue).request(
                 data.email, workspace.id, settings.app_url
             )
         return {"status": "ok"}
@@ -224,13 +224,13 @@ class AuthController(Controller):
         self,
         data: PasswordResetRequest,
         db_session: NamedDependency[AsyncSession],
-        mail: NamedDependency[MailService],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         workspace = await WorkspaceRepo(db_session).first()
         if workspace is None:
             raise not_found("error.common.workspace_not_found")
 
-        await PasswordResetService(db_session, UserRepo(db_session), mail).reset(
+        await PasswordResetService(db_session, UserRepo(db_session), queue).reset(
             data.token, data.newPassword, workspace.id
         )
         return {"status": "ok"}
@@ -240,10 +240,10 @@ class AuthController(Controller):
         self,
         data: VerifyTokenRequest,
         db_session: NamedDependency[AsyncSession],
-        mail: NamedDependency[MailService],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         """Годна ли ссылка. Экран смены пароля спрашивает это до ввода."""
-        valid = await PasswordResetService(db_session, UserRepo(db_session), mail).verify(
+        valid = await PasswordResetService(db_session, UserRepo(db_session), queue).verify(
             data.token
         )
         return {"valid": valid}
