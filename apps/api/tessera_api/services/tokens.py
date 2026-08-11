@@ -37,6 +37,9 @@ class TokenType:
     #: он живёт в другом процессе, и токен доступа, попавший туда, дал бы этому
     #: процессу право ходить в основное приложение от имени человека.
     COLLAB = "collab"
+    #: Ключ API. Отдельный вид, потому что живёт он иначе: срок задаёт
+    #: заводивший, отзывается он записью в базе, а сессии у него нет вовсе.
+    API_KEY = "api_key"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +50,9 @@ class TokenPayload:
     workspace_id: uuid.UUID
     session_id: uuid.UUID | None
     token_type: str
+    #: Заполнено только у ключа API. По нему находится запись, которой ключ
+    #: отзывают: сам ключ нигде не хранится, отзыв возможен только так.
+    api_key_id: uuid.UUID | None = None
 
 
 class TokenService:
@@ -93,6 +99,36 @@ class TokenService:
             algorithm=ALGORITHM,
         )
 
+    def issue_api_key(
+        self,
+        *,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        api_key_id: uuid.UUID,
+        expires_at: datetime | None = None,
+    ) -> str:
+        """Выдать ключ API.
+
+        Ключ и есть токен: в базе от него остаётся только описание. Поэтому
+        отозвать его можно лишь через запись, и её идентификатор кладётся
+        внутрь.
+
+        Срок необязателен. Бессрочный ключ это осознанный выбор заводящего, и
+        подставлять ему срок молча нельзя — он перестанет работать в момент,
+        которого никто не ждал.
+        """
+        now = datetime.now(UTC)
+        claims: dict = {
+            "sub": str(user_id),
+            "workspaceId": str(workspace_id),
+            "apiKeyId": str(api_key_id),
+            "type": TokenType.API_KEY,
+            "iat": int(now.timestamp()),
+        }
+        if expires_at is not None:
+            claims["exp"] = int(expires_at.timestamp())
+        return jwt.encode(claims, self._secret, algorithm=ALGORITHM)
+
     def read(self, token: str, expected_type: str = TokenType.ACCESS) -> TokenPayload | None:
         """Разобрать токен.
 
@@ -111,11 +147,13 @@ class TokenService:
 
         try:
             session_raw = claims.get("sessionId")
+            api_key_raw = claims.get("apiKeyId")
             return TokenPayload(
                 user_id=uuid.UUID(claims["sub"]),
                 workspace_id=uuid.UUID(claims["workspaceId"]),
                 session_id=uuid.UUID(session_raw) if session_raw else None,
                 token_type=claims["type"],
+                api_key_id=uuid.UUID(api_key_raw) if api_key_raw else None,
             )
         except (KeyError, ValueError):
             # Токен подписан нами, но содержит не то, что мы кладём. Это не

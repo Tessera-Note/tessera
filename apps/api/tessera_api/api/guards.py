@@ -59,7 +59,14 @@ async def jwt_guard(connection: ASGIConnection, handler: BaseRouteHandler) -> No
     tokens = connection.app.state.tokens
     payload = tokens.read(token)
     if payload is None:
-        raise unauthorized("error.auth.session_expired")
+        # Не токен доступа — возможно, ключ API. Он приходит тем же
+        # заголовком, и различать их по внешнему виду нечем: вид записан
+        # внутри подписанной части.
+        principal = await _principal_from_api_key(connection, token)
+        if principal is None:
+            raise unauthorized("error.auth.session_expired")
+        connection.scope["principal"] = principal
+        return
 
     # Сессия проверяется здесь, а не только при выходе. Без этого отозванная
     # сессия работает до истечения срока токена, то есть выход ничего не
@@ -73,6 +80,29 @@ async def jwt_guard(connection: ASGIConnection, handler: BaseRouteHandler) -> No
         user_id=payload.user_id,
         workspace_id=payload.workspace_id,
         session_id=payload.session_id,
+    )
+
+
+async def _principal_from_api_key(connection: ASGIConnection, token: str) -> Principal | None:
+    """Разобрать ключ API.
+
+    Проверка идёт в базу на каждый запрос, и это не лишнее: значение ключа
+    нигде не хранится, а отзыв — это запись. Подпись удостоверяет лишь то, что
+    было верно в момент выдачи.
+    """
+    from tessera_api.services.api_keys import ApiKeyService
+
+    database = connection.app.state.database
+    async with database.session() as session:
+        found = await ApiKeyService(session, connection.app.state.tokens).authenticate(token)
+
+    if found is None:
+        return None
+    return Principal(
+        user_id=found.user.id,
+        workspace_id=found.workspace.id,
+        # Сессии у ключа нет: он живёт не входом человека, а записью в базе.
+        session_id=None,
     )
 
 

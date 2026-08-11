@@ -393,6 +393,24 @@ class Share(Base, SoftDeleteMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class ApiKey(Base, SoftDeleteMixin):
+    """Ключ API.
+
+    Сам ключ здесь не хранится: он подписанный токен, а запись это описание,
+    по которому его отзывают. Поэтому колонки под значение ключа нет и быть не
+    должно — хранить его негде и незачем.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str | None] = mapped_column(Text)
+    creator_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Watcher(Base, CreatedMixin):
     """Подписка на изменения страницы или пространства.
 

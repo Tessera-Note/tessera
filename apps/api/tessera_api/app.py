@@ -15,6 +15,7 @@ from litestar.datastructures import State
 from litestar.di import Provide
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.api_keys import ApiKeyController
 from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
@@ -132,6 +133,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             ShareController,
             TemplateController,
             NotificationController,
+            ApiKeyController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же
