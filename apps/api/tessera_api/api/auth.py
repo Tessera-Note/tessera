@@ -24,6 +24,7 @@ from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
+from tessera_api.infrastructure.throttle import AUTH_LIMIT, Throttle, client_ip
 from tessera_api.services.auth import AuthService
 from tessera_api.services.password_reset import PasswordResetService
 from tessera_api.services.setup import SetupService
@@ -39,6 +40,20 @@ def _user_view(user) -> UserView:
         role=user.role,
         locale=user.locale,
     )
+
+
+async def _limit(request: Request, throttle: Throttle, settings: Settings) -> None:
+    """Предел на открытых маршрутах входа.
+
+    Десять обращений в минуту с адреса, как в v1. Без него форма входа это
+    перебор паролей без ограничений, а восстановление пароля — рассылка писем
+    на любой адрес по требованию.
+
+    Общий счётчик на все шесть маршрутов намеренно: они ведут к одному и тому
+    же, и раздельные пределы означали бы, что исчерпавший один продолжает
+    перебирать через другой.
+    """
+    await throttle.check(client_ip(request, settings.trust_proxy_hops), AUTH_LIMIT)
 
 
 def _workspace_view(workspace) -> WorkspaceView:
@@ -60,7 +75,11 @@ class AuthController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         tokens: NamedDependency[TokenService],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
     ) -> Response[LoginResponse]:
+        await _limit(request, throttle, settings)
+
         workspaces = WorkspaceRepo(db_session)
         workspace = await workspaces.first()
         if workspace is None:
@@ -101,6 +120,8 @@ class AuthController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         tokens: NamedDependency[TokenService],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
     ) -> Response[LoginResponse]:
         """Настроить пустой экземпляр.
 
@@ -109,6 +130,8 @@ class AuthController(Controller):
         в аутентификации, а в том, что второй раз маршрут не срабатывает:
         настроенный экземпляр отвечает отказом.
         """
+        await _limit(request, throttle, settings)
+
         service = SetupService(db_session)
         workspace, user = await service.run(
             workspace_name=data.workspaceName,
@@ -143,13 +166,20 @@ class AuthController(Controller):
         return response
 
     @get("/setup-required", opt={PUBLIC: True})
-    async def setup_required(self, db_session: NamedDependency[AsyncSession]) -> dict:
+    async def setup_required(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> dict:
         """Нужна ли настройка.
 
         Экран настройки спрашивает это до входа, поэтому маршрут публичный.
         Отдаётся один признак и ничего больше: по составу ответа не должно быть
         видно ни имени пространства, ни числа заведённых людей.
         """
+        await _limit(request, throttle, settings)
         return {"setupRequired": not await SetupService(db_session).is_done()}
 
     @post("/logout")
@@ -202,9 +232,11 @@ class AuthController(Controller):
     async def forgot_password(
         self,
         data: ForgotPasswordRequest,
+        request: Request,
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[Settings],
         queue: NamedDependency[JobQueue],
+        throttle: NamedDependency[Throttle],
     ) -> dict:
         """Запросить ссылку сброса.
 
@@ -212,6 +244,8 @@ class AuthController(Controller):
         ответы позволяют перебором узнать, кто здесь работает. Публичный по
         необходимости: человек не помнит пароля, войти он не может.
         """
+        await _limit(request, throttle, settings)
+
         workspace = await WorkspaceRepo(db_session).first()
         if workspace is not None:
             await PasswordResetService(db_session, UserRepo(db_session), queue).request(
@@ -223,9 +257,14 @@ class AuthController(Controller):
     async def password_reset(
         self,
         data: PasswordResetRequest,
+        request: Request,
         db_session: NamedDependency[AsyncSession],
         queue: NamedDependency[JobQueue],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
     ) -> dict:
+        await _limit(request, throttle, settings)
+
         workspace = await WorkspaceRepo(db_session).first()
         if workspace is None:
             raise not_found("error.common.workspace_not_found")
@@ -239,10 +278,15 @@ class AuthController(Controller):
     async def verify_token(
         self,
         data: VerifyTokenRequest,
+        request: Request,
         db_session: NamedDependency[AsyncSession],
         queue: NamedDependency[JobQueue],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
     ) -> dict:
         """Годна ли ссылка. Экран смены пароля спрашивает это до ввода."""
+        await _limit(request, throttle, settings)
+
         valid = await PasswordResetService(db_session, UserRepo(db_session), queue).verify(
             data.token
         )

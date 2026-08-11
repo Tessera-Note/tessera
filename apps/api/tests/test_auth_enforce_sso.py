@@ -18,10 +18,13 @@ from litestar.di import Provide
 from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
 from tessera_api.api.workspace import WorkspaceController
+from tessera_api.config import Settings
 from tessera_api.domain.errors import AppError
 from tessera_api.infrastructure.models import AuthProvider, User, Workspace
+from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService, hash_password
 from tessera_api.services.tokens import TokenService
@@ -30,6 +33,33 @@ from tests.conftest import needs_database
 pytestmark = needs_database
 
 SECRET = "s" * 32
+
+
+def _settings_for_auth() -> Settings:
+    return Settings(
+        database_url="postgresql://tessera:x@127.0.0.1:5432/tessera",
+        redis_url="redis://127.0.0.1:6379",
+        app_secret=SECRET,
+        app_url="https://tessera.example",
+        port=3000,
+        host="0.0.0.0",
+        debug=False,
+        trust_proxy_hops=0,
+    )
+
+
+class _QueueDouble(JobQueue):
+    """Очередь, которая ничего не ставит.
+
+    Наследуется от настоящей: Litestar сверяет значение зависимости с
+    объявленным типом, и посторонний класс до обработчика не доходит.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("redis://127.0.0.1:6379")
+
+    async def enqueue(self, name, *args, job_id=None, defer=None, **payload) -> bool:  # noqa: ANN001, ANN003
+        return True
 
 
 def _auth(session: AsyncSession) -> AuthService:
@@ -181,3 +211,66 @@ class TestPublicWorkspace:
             response = await client.post("/api/workspace/public")
 
         assert secret not in response.text
+
+
+class TestPublicAuthRoutesAreLimited:
+    """Предел на открытых маршрутах входа.
+
+    Без него форма входа это перебор паролей без ограничений, а восстановление
+    пароля — рассылка писем на любой адрес по требованию. В v1 весь контроллер
+    входа стоит под счётчиком, и открытые маршруты v2 обязаны совпадать с ним:
+    маршрут без предела обесценивает предел на всех остальных.
+    """
+
+    async def test_every_public_route_consults_the_counter(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        from tests.test_sso_routes import ThrottleDouble
+
+        throttle = ThrottleDouble()
+
+        async def provide_session() -> AsyncSession:
+            return session
+
+        settings = _settings_for_auth()
+        app = Litestar(
+            route_handlers=[AuthController],
+            guards=[jwt_guard],
+            dependencies={
+                "db_session": Provide(provide_session),
+                "tokens": Provide(lambda: TokenService(SECRET), sync_to_thread=False),
+                "settings": Provide(lambda: settings, sync_to_thread=False),
+                "queue": Provide(lambda: _QueueDouble(), sync_to_thread=False),
+                "throttle": Provide(lambda: throttle, sync_to_thread=False),
+            },
+            state=State({"tokens": TokenService(SECRET)}),
+        )
+        client = AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver.local"
+        )
+
+        calls = [
+            ("post", "/api/auth/login", {"email": "a@b.c", "password": "x"}),
+            ("post", "/api/auth/setup", {
+                "workspaceName": "п", "name": "и", "email": "a@b.c", "password": "12345678"
+            }),
+            ("get", "/api/auth/setup-required", None),
+            ("post", "/api/auth/forgot-password", {"email": "a@b.c"}),
+            ("post", "/api/auth/password-reset", {"token": "t", "newPassword": "12345678"}),
+            ("post", "/api/auth/verify-token", {"token": "t"}),
+        ]
+
+        async with client:
+            for method, path, body in calls:
+                # Ответ здесь не важен: почти каждый из шести отвечает отказом
+                # на выдуманных данных. Важно, что счётчик спрошен до отказа.
+                if method == "get":
+                    await client.get(path)
+                else:
+                    await client.post(path, json=body)
+
+        assert len(throttle.calls) == len(calls), (
+            "маршрут без предела: "
+            f"спрошено {len(throttle.calls)} раз из {len(calls)}"
+        )
+        assert {limit.name for _, limit in throttle.calls} == {"auth"}
