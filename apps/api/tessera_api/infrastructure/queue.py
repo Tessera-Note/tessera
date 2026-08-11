@@ -121,8 +121,13 @@ class JobQueue:
         *args: Any,
         job_id: str | None = None,
         defer: timedelta | None = None,
+        **payload: Any,
     ) -> bool:
         """Поставить задание. Отвечает, поставлено ли оно.
+
+        Именованные аргументы уходят обработчику как есть: задания принимают
+        их именно так, и без `**payload` вызов вида `enqueue(name, to=...)`
+        отказывал бы `TypeError` уже в рантайме.
 
         `job_id` — защита от дублей: задание с уже занятым идентификатором не
         ставится второй раз. Так в v1, и это единственное, что удерживает
@@ -140,5 +145,6 @@ class JobQueue:
             *args,
             _job_id=job_id,
             _defer_by=defer,
+            **payload,
         )
         return job is not None
