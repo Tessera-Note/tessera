@@ -58,3 +58,26 @@ class LoginResponse(msgspec.Struct):
     user: UserView
     workspace: WorkspaceView
     expiresAt: datetime  # noqa: N815 — имя поля из v1
+
+
+class ChangePasswordRequest(msgspec.Struct):
+    oldPassword: str  # noqa: N815 — имя поля из v1
+    newPassword: str  # noqa: N815 — имя поля из v1
+
+
+class SetupRequest(msgspec.Struct):
+    """Первая учётная запись пустого экземпляра."""
+
+    workspaceName: str  # noqa: N815 — имя поля из v1
+    name: str
+    email: str
+    password: str
+
+
+class MemberView(msgspec.Struct):
+    id: uuid.UUID
+    name: str | None
+    email: str
+    role: str | None
+    avatarUrl: str | None  # noqa: N815 — имя поля из v1
+    deactivatedAt: datetime | None  # noqa: N815 — имя поля из v1

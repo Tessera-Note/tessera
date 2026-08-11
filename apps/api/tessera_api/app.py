@@ -19,6 +19,7 @@ from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.spaces import GroupController, SpaceController
+from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
 from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             AuthController,
             SpaceController,
             GroupController,
+            WorkspaceController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же
@@ -81,7 +83,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
         },
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.
-        state=State({"tokens": tokens}),
+        state=State({"tokens": tokens, "database": database}),
         debug=resolved.debug,
     )
 

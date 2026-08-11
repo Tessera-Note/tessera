@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from litestar import Controller, Request, get
+from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.dto import GroupView, SpaceView
@@ -15,7 +16,9 @@ class SpaceController(Controller):
     path = "/api/spaces"
 
     @get()
-    async def list_spaces(self, request: Request, db_session: AsyncSession) -> list[SpaceView]:
+    async def list_spaces(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[SpaceView]:
         """Пространства человека.
 
         Выдаются только те, где он состоит: прямо или через группу. Отдавать
@@ -40,7 +43,9 @@ class SpaceController(Controller):
         return views
 
     @get("/{slug:str}")
-    async def get_space(self, slug: str, request: Request, db_session: AsyncSession) -> SpaceView:
+    async def get_space(
+        self, slug: str, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> SpaceView:
         principal: Principal = request.scope["principal"]
 
         space = await SpaceRepo(db_session).by_slug(slug, principal.workspace_id)
@@ -67,7 +72,9 @@ class GroupController(Controller):
     path = "/api/groups"
 
     @get("/mine")
-    async def my_groups(self, request: Request, db_session: AsyncSession) -> list[GroupView]:
+    async def my_groups(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[GroupView]:
         principal: Principal = request.scope["principal"]
 
         groups = await GroupRepo(db_session).for_user(principal.user_id, principal.workspace_id)

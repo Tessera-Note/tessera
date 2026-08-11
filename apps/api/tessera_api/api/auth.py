@@ -5,11 +5,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from litestar import Controller, Request, Response, get, post
+from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.dto import LoginRequest, LoginResponse, UserView, WorkspaceView
+from tessera_api.api.dto import (
+    ChangePasswordRequest,
+    LoginRequest,
+    LoginResponse,
+    UserView,
+    WorkspaceView,
+)
 from tessera_api.api.guards import AUTH_COOKIE, PUBLIC, Principal
-from tessera_api.domain.errors import not_found, unauthorized
+from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
@@ -43,8 +50,8 @@ class AuthController(Controller):
         self,
         data: LoginRequest,
         request: Request,
-        db_session: AsyncSession,
-        tokens: TokenService,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
     ) -> Response[LoginResponse]:
         workspaces = WorkspaceRepo(db_session)
         workspace = await workspaces.first()
@@ -57,6 +64,7 @@ class AuthController(Controller):
             data.password,
             workspace.id,
             user_agent=request.headers.get("user-agent"),
+            ip=request.client.host if request.client else None,
         )
 
         body = LoginResponse(
@@ -82,8 +90,8 @@ class AuthController(Controller):
     async def logout(
         self,
         request: Request,
-        db_session: AsyncSession,
-        tokens: TokenService,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
     ) -> Response[dict]:
         principal: Principal = request.scope["principal"]
 
@@ -99,8 +107,33 @@ class AuthController(Controller):
         response.delete_cookie(AUTH_COOKIE, path="/")
         return response
 
+    @post("/change-password")
+    async def change_password(
+        self,
+        data: ChangePasswordRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+
+        # Длина проверяется до сверки старого пароля: отказ по короткому новому
+        # не должен зависеть от того, верен ли старый.
+        if len(data.newPassword) < 8:
+            raise bad_request("error.auth.password_too_short")
+
+        service = AuthService(db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens)
+        await service.change_password(
+            principal.user_id,
+            principal.workspace_id,
+            data.oldPassword,
+            data.newPassword,
+            principal.session_id,
+        )
+        return {"status": "ok"}
+
     @get("/me")
-    async def me(self, request: Request, db_session: AsyncSession) -> dict:
+    async def me(self, request: Request, db_session: NamedDependency[AsyncSession]) -> dict:
         principal: Principal = request.scope["principal"]
 
         user = await UserRepo(db_session).by_id(principal.user_id, principal.workspace_id)

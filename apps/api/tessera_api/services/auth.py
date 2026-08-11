@@ -9,9 +9,10 @@ import bcrypt
 from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.domain.errors import unauthorized
+from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.models import User, UserSession
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
+from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
 
@@ -42,6 +43,7 @@ class AuthService:
         self._users = users
         self._workspaces = workspaces
         self._tokens = tokens
+        self._audit = AuditService(session)
 
     async def login(
         self,
@@ -50,6 +52,7 @@ class AuthService:
         workspace_id: uuid.UUID,
         *,
         user_agent: str | None = None,
+        ip: str | None = None,
     ) -> tuple[str, User]:
         user = await self._users.by_email(email, workspace_id)
 
@@ -64,6 +67,14 @@ class AuthService:
         session_id = await self._open_session(user, workspace_id, user_agent)
         await self._session.execute(
             update(User).where(User.id == user.id).values(last_login_at=datetime.now(UTC))
+        )
+        await self._audit.log(
+            event=AuditEvent.USER_LOGGED_IN,
+            resource_type=AuditResource.USER,
+            resource_id=user.id,
+            user_id=user.id,
+            workspace_id=workspace_id,
+            ip=ip,
         )
         await self._session.commit()
 
@@ -92,6 +103,52 @@ class AuthService:
             )
         )
         return session_id
+
+    async def change_password(
+        self,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        old_password: str,
+        new_password: str,
+        current_session_id: uuid.UUID | None,
+    ) -> None:
+        """Сменить пароль.
+
+        Все прочие сессии отзываются: пароль меняют в том числе тогда, когда
+        подозревают, что им завладели, и оставить чужую сессию живой значит
+        не сделать ровно того, ради чего пароль меняли.
+        """
+        user = await self._users.by_id(user_id, workspace_id)
+        if user is None:
+            raise not_found("error.common.user_not_found")
+
+        if not _verify_password(old_password, user.password):
+            raise bad_request("error.auth.current_password_is_incorrect")
+
+        await self._session.execute(
+            update(User).where(User.id == user_id).values(password=hash_password(new_password))
+        )
+
+        revoke = (
+            update(UserSession)
+            .where(UserSession.user_id == user_id)
+            .where(UserSession.workspace_id == workspace_id)
+            .where(UserSession.revoked_at.is_(None))
+        )
+        if current_session_id is not None:
+            # Своя сессия остаётся: иначе человек, сменивший пароль, тут же
+            # выбрасывается и решает, что смена не прошла.
+            revoke = revoke.where(UserSession.id != current_session_id)
+        await self._session.execute(revoke.values(revoked_at=datetime.now(UTC)))
+
+        await self._audit.log(
+            event=AuditEvent.USER_PASSWORD_CHANGED,
+            resource_type=AuditResource.USER,
+            resource_id=user_id,
+            user_id=user_id,
+            workspace_id=workspace_id,
+        )
+        await self._session.commit()
 
     async def logout(self, session_id: uuid.UUID) -> None:
         """Отозвать сессию.

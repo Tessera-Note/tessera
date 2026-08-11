@@ -12,8 +12,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import ARRAY, Boolean, DateTime, String, Text, func
+from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -21,15 +21,31 @@ class Base(DeclarativeBase):
     """Общий предок моделей."""
 
 
-class TimestampMixin:
-    """Отметки времени, одинаковые во всех таблицах v1."""
+class CreatedMixin:
+    """Только отметка создания.
+
+    Набор отметок в таблицах v1 разный, и общая примесь на все таблицы
+    приписала бы колонки, которых в базе нет. Проверено сверкой моделей с
+    рабочей базой: `group_users`, `user_sessions`, `audit` и
+    `workspace_invitations` не имеют части этих колонок.
+    """
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TimestampMixin(CreatedMixin):
+    """Создание и изменение."""
+
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SoftDeleteMixin(TimestampMixin):
+    """Создание, изменение и мягкое удаление."""
+
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class User(Base, TimestampMixin):
+class User(Base, SoftDeleteMixin):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -50,7 +66,7 @@ class User(Base, TimestampMixin):
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class Workspace(Base, TimestampMixin):
+class Workspace(Base, SoftDeleteMixin):
     __tablename__ = "workspaces"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -65,7 +81,7 @@ class Workspace(Base, TimestampMixin):
     plan: Mapped[str | None] = mapped_column(String)
 
 
-class Space(Base, TimestampMixin):
+class Space(Base, SoftDeleteMixin):
     __tablename__ = "spaces"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -78,7 +94,7 @@ class Space(Base, TimestampMixin):
     settings: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
 
-class SpaceMember(Base, TimestampMixin):
+class SpaceMember(Base, SoftDeleteMixin):
     __tablename__ = "space_members"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -91,7 +107,7 @@ class SpaceMember(Base, TimestampMixin):
     added_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
-class Group(Base, TimestampMixin):
+class Group(Base, SoftDeleteMixin):
     __tablename__ = "groups"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -115,7 +131,7 @@ class GroupUser(Base, TimestampMixin):
     group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
-class UserSession(Base, TimestampMixin):
+class UserSession(Base, CreatedMixin):
     __tablename__ = "user_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -127,7 +143,7 @@ class UserSession(Base, TimestampMixin):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class AuthAccount(Base, TimestampMixin):
+class AuthAccount(Base, SoftDeleteMixin):
     __tablename__ = "auth_accounts"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -137,9 +153,45 @@ class AuthAccount(Base, TimestampMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class AuditLog(Base, CreatedMixin):
+    """Журнал аудита.
+
+    Таблица называется `audit`, а поля `actor_id` и `changes`: имена взяты из
+    снимка схемы. Догадка здесь дала бы модель, которая собирается и молча
+    пишет не туда.
+    """
+
+    __tablename__ = "audit"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    event: Mapped[str] = mapped_column(String)
+    resource_type: Mapped[str] = mapped_column(String)
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    changes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    ip_address: Mapped[str | None] = mapped_column(INET)
+
+
+class WorkspaceInvitation(Base, TimestampMixin):
+    __tablename__ = "workspace_invitations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    email: Mapped[str | None] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String)
+    token: Mapped[str] = mapped_column(String)
+    group_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
+    invited_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
 __all__ = [
+    "AuditLog",
     "AuthAccount",
     "Base",
+    "CreatedMixin",
+    "SoftDeleteMixin",
     "Group",
     "GroupUser",
     "Space",
@@ -147,4 +199,5 @@ __all__ = [
     "User",
     "UserSession",
     "Workspace",
+    "WorkspaceInvitation",
 ]
