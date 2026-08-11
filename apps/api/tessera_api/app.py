@@ -31,6 +31,7 @@ from tessera_api.api.pages import (
     ShareController,
 )
 from tessera_api.api.spaces import GroupController, SpaceController
+from tessera_api.api.templates import TemplateController
 from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
 from tessera_api.infrastructure.cache import Cache
@@ -128,6 +129,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             FavoriteController,
             HistoryController,
             ShareController,
+            TemplateController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же

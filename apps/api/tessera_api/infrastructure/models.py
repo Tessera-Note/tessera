@@ -393,6 +393,32 @@ class Share(Base, SoftDeleteMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class Template(Base, SoftDeleteMixin):
+    """Шаблон страницы.
+
+    Область видимости ровно одна и кодируется `space_id`: пусто — шаблон
+    рабочего пространства, иначе шаблон одного пространства. Промежуточных
+    состояний нет.
+
+    `ydoc` и `tsv` не описаны намеренно. Первое пишет только сервис
+    совместного редактирования и не читает никто (проверено по v1), второе
+    поддерживает триггер базы.
+    """
+
+    __tablename__ = "templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    title: Mapped[str | None] = mapped_column(String)
+    description: Mapped[str | None] = mapped_column(Text)
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    icon: Mapped[str | None] = mapped_column(String)
+    space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    last_updated_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    text_content: Mapped[str | None] = mapped_column(Text)
+
+
 class Backlink(Base, TimestampMixin):
     """Обратная ссылка: какая страница ссылается на какую."""
 
