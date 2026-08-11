@@ -24,6 +24,7 @@ from tessera_api.api.invitations import InvitationController
 from tessera_api.api.mfa import MfaController
 from tessera_api.api.notifications import NotificationController
 from tessera_api.api.page_permissions import PagePermissionController
+from tessera_api.api.page_verification import PageVerificationController
 from tessera_api.api.pages import (
     CommentController,
     FavoriteController,
@@ -125,6 +126,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             InvitationController,
             PageController,
             PagePermissionController,
+            PageVerificationController,
             FileController,
             ImageController,
             SearchController,

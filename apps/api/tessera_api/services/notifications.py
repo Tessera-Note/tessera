@@ -32,6 +32,11 @@ class NotificationType:
     PAGE_USER_MENTION = "page.user_mention"
     PAGE_PERMISSION_GRANTED = "page.permission_granted"
     PAGE_UPDATED = "page.updated"
+    PAGE_VERIFIED = "page.verified"
+    PAGE_APPROVAL_REQUESTED = "page.approval_requested"
+    PAGE_APPROVAL_REJECTED = "page.approval_rejected"
+    PAGE_VERIFICATION_EXPIRING = "page.verification_expiring"
+    PAGE_VERIFICATION_EXPIRED = "page.verification_expired"
 
 
 #: Виды, адресованные лично. Отделены от ленты обновлений: обращение к человеку
@@ -42,6 +47,13 @@ DIRECT_TYPES = (
     NotificationType.COMMENT_RESOLVED,
     NotificationType.PAGE_USER_MENTION,
     NotificationType.PAGE_PERMISSION_GRANTED,
+    # Проверка адресована конкретному человеку и ждёт от него действия,
+    # поэтому вкладка та же, что у упоминания, а не лента обновлений.
+    NotificationType.PAGE_VERIFIED,
+    NotificationType.PAGE_APPROVAL_REQUESTED,
+    NotificationType.PAGE_APPROVAL_REJECTED,
+    NotificationType.PAGE_VERIFICATION_EXPIRING,
+    NotificationType.PAGE_VERIFICATION_EXPIRED,
 )
 
 UPDATE_TYPES = (NotificationType.PAGE_UPDATED,)
@@ -259,6 +271,22 @@ class NotificationService:
         return await self._deliver(
             user_ids=user_ids,
             kind=NotificationType.PAGE_PERMISSION_GRANTED,
+            workspace_id=page.workspace_id,
+            actor_id=actor_id,
+            page=page,
+        )
+
+    async def notify_page_event(
+        self, *, page: Page, kind: str, user_ids: list[uuid.UUID], actor_id: uuid.UUID
+    ) -> int:
+        """Сообщить о событии страницы перечисленным людям.
+
+        Общий путь для событий проверки. Отсев по правам тот же, что у
+        остальных: уведомление несёт название страницы.
+        """
+        return await self._deliver(
+            user_ids=user_ids,
+            kind=kind,
             workspace_id=page.workspace_id,
             actor_id=actor_id,
             page=page,

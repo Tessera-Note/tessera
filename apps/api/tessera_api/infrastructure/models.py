@@ -410,6 +410,52 @@ class Share(Base, SoftDeleteMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class PageVerification(Base, TimestampMixin):
+    """Проверка страницы: настройка, состояние и срок.
+
+    Одна запись на страницу. Состояние и настройка живут вместе намеренно:
+    подтверждение пересчитывает срок от настройки записи, а не от того, что
+    прислал клиент.
+    """
+
+    __tablename__ = "page_verifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    type: Mapped[str] = mapped_column(String)
+    status: Mapped[str | None] = mapped_column(String)
+    mode: Mapped[str | None] = mapped_column(String)
+    period_amount: Mapped[int | None] = mapped_column(Integer)
+    period_unit: Mapped[str | None] = mapped_column(String)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    requested_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejected_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    rejection_comment: Mapped[str | None] = mapped_column(Text)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+class PageVerifier(Base, CreatedMixin):
+    """Кто может подтверждать страницу.
+
+    Право подтверждать берётся отсюда, а не из прав на страницу: иначе
+    настройка проверки позволяла бы подтвердить самому себе.
+    """
+
+    __tablename__ = "page_verifiers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_verification_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    is_primary: Mapped[bool] = mapped_column(Boolean)
+    added_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
 class ScimToken(Base, SoftDeleteMixin):
     """Токен синхронизации каталога.
 

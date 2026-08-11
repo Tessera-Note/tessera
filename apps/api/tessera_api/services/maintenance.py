@@ -25,6 +25,7 @@ from tessera_api.services.attachments import AttachmentService
 #: потому что блокировку держит неродственная задача v1.
 LOCK_SESSION_CLEANUP = 815_043_001
 LOCK_TRASH_CLEANUP = 815_043_002
+LOCK_VERIFICATION_PASS = 815_043_003
 
 #: Сколько живёт отозванная или истёкшая сессия до удаления. Запись нужна не
 #: ради входа, а ради разбора: по ней видно, откуда и когда заходили.
@@ -187,6 +188,30 @@ SESSION_CLEANUP = PeriodicTask(
     run=cleanup_sessions,
 )
 
+#: Как часто идёт проход по срокам проверок. Чаще суточного: до срока надо
+#: успеть предупредить, а окно предупреждения — неделя.
+VERIFICATION_PASS_INTERVAL = timedelta(hours=1)
+
+
+async def run_verification_passes(session: AsyncSession, resources: TaskResources) -> int:
+    """Перевести просроченные подтверждения и пометить близкие к сроку.
+
+    Оба прохода в одной задаче и в одном такте: они смотрят на одну колонку, и
+    разнесённые по разным тактам дают состояние, где запись уже истекла, но ещё
+    помечена как истекающая.
+    """
+    from tessera_api.services.page_verification import expire_overdue, mark_expiring
+
+    return await expire_overdue(session, resources) + await mark_expiring(session, resources)
+
+
+VERIFICATION_PASS = PeriodicTask(
+    name="verification-pass",
+    interval=VERIFICATION_PASS_INTERVAL,
+    lock_key=LOCK_VERIFICATION_PASS,
+    run=run_verification_passes,
+)
+
 #: Полный состав периодических задач. Планировщик получает этот список, а не
 #: собирает задачи сам: список видно целиком, и забытая в нём задача заметна.
-PERIODIC_TASKS = [SESSION_CLEANUP, TRASH_CLEANUP]
+PERIODIC_TASKS = [SESSION_CLEANUP, TRASH_CLEANUP, VERIFICATION_PASS]
