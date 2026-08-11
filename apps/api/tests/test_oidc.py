@@ -241,7 +241,7 @@ class TestRedirectUri:
         provider = _provider()
         service = _service(_transport(), app_url="https://tessera.example/")
         assert service.redirect_uri(provider) == (
-            f"https://tessera.example/api/sso/{provider.id}/callback"
+            f"https://tessera.example/api/sso/oidc/{provider.id}/callback"
         )
 
     async def test_the_same_address_goes_into_the_login_request(self) -> None:

@@ -61,6 +61,9 @@ class FlowState:
     code_verifier: str
     nonce: str
     redirect_uri: str
+    #: Куда вернуть человека после входа. Приходит из запроса на вход и потому
+    #: доверия не заслуживает: проверяется при использовании, а не здесь.
+    redirect: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +83,76 @@ class Discovery:
     jwks_uri: str
     userinfo_endpoint: str | None
     issuer: str
+
+
+class FlowCodec:
+    """Состояние потока в подписанной куке.
+
+    Кладётся рядом с `FlowState`, а не в общую службу токенов, по той же
+    причине, по какой `RelayCodec` лежит рядом с SAML: это часть протокола, а
+    не общий токен доступа. Разнесённые по разным файлам, они разойдутся в
+    сроках и проверках.
+
+    Подпись обязательна, потому что содержимое куки определяет исход проверок:
+    неподписанное состояние подменяется в браузере, и вместе с ним подменяются
+    и сверка `state`, и проверочное значение PKCE, и одноразовое значение — то
+    есть всё, ради чего они существуют.
+
+    Вид токена свой. Токен доступа, подставленный сюда, разобрался бы как
+    состояние потока, если бы вид не сверялся.
+    """
+
+    TOKEN_TYPE = "sso_flow"
+
+    def __init__(self, app_secret: str) -> None:
+        self._secret = app_secret
+
+    def sign(self, flow: FlowState) -> str:
+        now = datetime.now(UTC)
+        return jwt.encode(
+            {
+                "type": self.TOKEN_TYPE,
+                "providerId": str(flow.provider_id),
+                "state": flow.state,
+                "codeVerifier": flow.code_verifier,
+                "nonce": flow.nonce,
+                "redirectUri": flow.redirect_uri,
+                "redirect": flow.redirect,
+                "iat": int(now.timestamp()),
+                "exp": int((now + FLOW_TTL).timestamp()),
+            },
+            self._secret,
+            algorithm="HS256",
+        )
+
+    def read(self, raw: str | None) -> FlowState | None:
+        """Разобрать состояние. `None` на любой негодный вход.
+
+        Негодная кука это обычное состояние запроса: она протухает через десять
+        минут, и человек, отвлёкшийся на середине входа, получил бы вместо
+        предложения войти заново пятисотый ответ.
+        """
+        if not raw:
+            return None
+        try:
+            claims = jwt.decode(raw, self._secret, algorithms=["HS256"])
+        except jwt.PyJWTError:
+            return None
+
+        if claims.get("type") != self.TOKEN_TYPE:
+            return None
+
+        try:
+            return FlowState(
+                provider_id=uuid.UUID(claims["providerId"]),
+                state=claims["state"],
+                code_verifier=claims["codeVerifier"],
+                nonce=claims["nonce"],
+                redirect_uri=claims["redirectUri"],
+                redirect=claims.get("redirect"),
+            )
+        except (KeyError, ValueError, TypeError):
+            return None
 
 
 def _pkce_pair() -> tuple[str, str]:
@@ -147,9 +220,19 @@ class OidcService:
             raise bad_request("error.sso.discovery_incomplete") from error
 
     def redirect_uri(self, provider: AuthProvider) -> str:
-        return f"{self._app_url.rstrip('/')}/api/sso/{provider.id}/callback"
+        """Адрес возврата. Он же зарегистрирован у провайдера.
 
-    async def begin(self, provider: AuthProvider) -> tuple[str, FlowState]:
+        Путь совпадает с v1 побуквенно и менять его нельзя: значение
+        зарегистрировано в настройках провайдера у каждого, кто уже пользуется
+        входом, и провайдер сверяет его точным сравнением. Другой путь означал
+        бы отказ на каждом входе до тех пор, пока настройку не поправят руками
+        у всех провайдеров сразу.
+        """
+        return f"{self._app_url.rstrip('/')}/api/sso/oidc/{provider.id}/callback"
+
+    async def begin(
+        self, provider: AuthProvider, *, redirect: str | None = None
+    ) -> tuple[str, FlowState]:
         """Адрес провайдера и состояние, которое надо запомнить."""
         if not provider.is_enabled:
             raise unauthorized("error.sso.provider_disabled")
@@ -166,6 +249,7 @@ class OidcService:
             # без него годился бы токен, добытый в другом сеансе.
             nonce=secrets.token_urlsafe(16),
             redirect_uri=self.redirect_uri(provider),
+            redirect=redirect,
         )
 
         query = urlencode(

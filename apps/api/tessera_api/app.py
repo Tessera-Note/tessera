@@ -36,6 +36,7 @@ from tessera_api.api.pages import (
 )
 from tessera_api.api.scim import ScimController
 from tessera_api.api.spaces import GroupController, SpaceController
+from tessera_api.api.sso import SsoController
 from tessera_api.api.templates import TemplateController
 from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
@@ -45,6 +46,7 @@ from tessera_api.infrastructure.mail import MailService, MailSettings
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.scheduler import Scheduler, TaskResources
 from tessera_api.infrastructure.storage import Storage, create_storage
+from tessera_api.infrastructure.throttle import Throttle
 from tessera_api.services.maintenance import PERIODIC_TASKS
 from tessera_api.services.tokens import TokenService
 
@@ -73,6 +75,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
     )
 
     storage = create_storage(resolved)
+    throttle = Throttle(cache.client)
     queue = JobQueue(resolved.redis_url)
     scheduler = Scheduler(database, PERIODIC_TASKS, TaskResources(storage=storage))
 
@@ -116,6 +119,9 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_queue() -> JobQueue:
         return queue
 
+    async def provide_throttle() -> Throttle:
+        return throttle
+
     return Litestar(
         route_handlers=[
             HealthController,
@@ -140,6 +146,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             ApiKeyController,
             MfaController,
             ScimController,
+            SsoController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же
@@ -155,6 +162,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "mail": Provide(provide_mail),
             "storage": Provide(provide_storage),
             "queue": Provide(provide_queue),
+            "throttle": Provide(provide_throttle),
         },
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.

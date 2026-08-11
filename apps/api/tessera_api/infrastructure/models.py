@@ -98,6 +98,10 @@ class Workspace(Base, SoftDeleteMixin):
     # потому, что на него опирается охрана SCIM: выключенная синхронизация
     # означает отказ независимо от предъявленного токена.
     is_scim_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    # Требовать вход только через провайдера. Описан здесь потому, что на него
+    # опирается парольный вход: пропажа колонки обязана ронять сверку схемы, а
+    # не открывать вход паролем в пространстве, где его запретили.
+    enforce_sso: Mapped[bool | None] = mapped_column(Boolean)
 
 
 class Space(Base, SoftDeleteMixin):

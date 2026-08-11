@@ -14,9 +14,10 @@ from datetime import UTC, datetime
 
 from litestar.connection import ASGIConnection
 from litestar.handlers.base import BaseRouteHandler
+from sqlalchemy import select
 
 from tessera_api.domain.errors import unauthorized
-from tessera_api.infrastructure.models import UserSession
+from tessera_api.infrastructure.models import User, UserSession
 
 #: Ключ метаданных, которым маршрут объявляется публичным.
 PUBLIC = "public"
@@ -70,9 +71,11 @@ async def jwt_guard(connection: ASGIConnection, handler: BaseRouteHandler) -> No
 
     # Сессия проверяется здесь, а не только при выходе. Без этого отозванная
     # сессия работает до истечения срока токена, то есть выход ничего не
-    # отзывает: человек считает себя вышедшим, не будучи им.
+    # отзывает: человек считает себя вышедшим, не будучи им. Вместе с ней
+    # проверяется и состояние учётной записи — отключение тоже не трогает
+    # выданные токены.
     if payload.session_id is not None:
-        live = await _session_is_live(connection, payload.session_id)
+        live = await _session_is_live(connection, payload.session_id, payload.user_id)
         if not live:
             raise unauthorized("error.auth.session_expired")
 
@@ -106,8 +109,20 @@ async def _principal_from_api_key(connection: ASGIConnection, token: str) -> Pri
     )
 
 
-async def _session_is_live(connection: ASGIConnection, session_id: uuid.UUID) -> bool:
-    """Живёт ли сессия.
+async def _session_is_live(
+    connection: ASGIConnection, session_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    """Годится ли предъявленное прямо сейчас.
+
+    Проверяется и сессия, и состояние человека. Второе обязательно: отключение
+    и удаление учётной записи не трогают выданные токены, и без этой проверки
+    отключённый продолжает работать до истечения срока токена — а он тридцать
+    дней. Ключи API это уже проверяют, и расхождение между двумя способами
+    предъявить себя означало бы, что отключение работает для одного и не
+    работает для другого.
+
+    Одним запросом, а не двумя: обе записи нужны на каждом обращении, и второй
+    поход в базу удвоил бы стоимость самой частой проверки в приложении.
 
     Отдельный запрос на каждый вызов. Кеш здесь напрашивается, но он покупает
     окно, в котором отозванная сессия продолжает работать, а это ровно то, от
@@ -116,7 +131,23 @@ async def _session_is_live(connection: ASGIConnection, session_id: uuid.UUID) ->
     """
     database = connection.app.state.database
     async with database.session() as session:
-        found = await session.get(UserSession, session_id)
-        if found is None or found.revoked_at is not None:
-            return False
-        return found.expires_at > datetime.now(UTC)
+        row = (
+            await session.execute(
+                select(
+                    UserSession.revoked_at,
+                    UserSession.expires_at,
+                    User.deactivated_at,
+                    User.deleted_at,
+                )
+                .join(User, User.id == UserSession.user_id)
+                .where(UserSession.id == session_id)
+                .where(UserSession.user_id == user_id)
+            )
+        ).first()
+
+    if row is None:
+        return False
+    revoked_at, expires_at, deactivated_at, deleted_at = row
+    if revoked_at is not None or deactivated_at is not None or deleted_at is not None:
+        return False
+    return expires_at > datetime.now(UTC)

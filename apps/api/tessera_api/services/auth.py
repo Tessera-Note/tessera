@@ -54,6 +54,13 @@ class AuthService:
         user_agent: str | None = None,
         ip: str | None = None,
     ) -> tuple[str, User]:
+        # Принуждение к входу через провайдера проверяется до сверки пароля.
+        # После неё отказ различал бы верный пароль и неверный там, где пароль
+        # вообще не должен приниматься.
+        workspace = await self._workspaces.by_id(workspace_id)
+        if workspace is not None and workspace.enforce_sso:
+            raise bad_request("error.auth.this_workspace_has_enforced_sso_login")
+
         user = await self._users.by_email(email, workspace_id)
 
         # Один и тот же отказ на несуществующий адрес и на неверный пароль.
@@ -79,6 +86,40 @@ class AuthService:
         await self._session.commit()
 
         return self._tokens.issue_access(user.id, workspace_id, session_id), user
+
+    async def open_session_for(
+        self,
+        user: User,
+        workspace_id: uuid.UUID,
+        *,
+        user_agent: str | None = None,
+        ip: str | None = None,
+    ) -> str:
+        """Выдать сессию тому, чью личность подтвердил кто-то другой.
+
+        Для входа через провайдера: пароля здесь нет и сверять нечего, личность
+        подтверждена OIDC, SAML или каталогом. Всё остальное — сессия, журнал,
+        токен — обязано совпадать с парольным входом, иначе выход, отзыв и
+        аудит работают для одних вошедших и не работают для других.
+
+        Отметка последнего входа сюда не входит: её ставит сопоставление с
+        учётной записью, и второй раз она не нужна.
+
+        Автор события журнала передаётся явно. Маршрут открытый, и обычный
+        источник автора — разобранный токен запроса — на этом шаге ещё пуст:
+        событие ушло бы без автора.
+        """
+        session_id = await self._open_session(user, workspace_id, user_agent)
+        await self._audit.log(
+            event=AuditEvent.USER_LOGGED_IN,
+            resource_type=AuditResource.USER,
+            resource_id=user.id,
+            user_id=user.id,
+            workspace_id=workspace_id,
+            ip=ip,
+        )
+        await self._session.commit()
+        return self._tokens.issue_access(user.id, workspace_id, session_id)
 
     async def _open_session(
         self,
