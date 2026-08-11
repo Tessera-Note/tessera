@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from arq.worker import func
@@ -30,7 +31,12 @@ async def send_email(ctx: dict, *, to: str, subject: str, body: str) -> str:
     пароль».
     """
     mail: MailService = ctx["mail"]
-    mail.send(to=to, subject=subject, body=body)
+    # Отправка синхронная: `smtplib` в стандартной библиотеке другой не бывает,
+    # а соединение с почтовым сервером открывается с таймаутом в двадцать
+    # секунд. Вызванная напрямую, она на это время останавливает цикл событий
+    # исполнителя, и остальные задания стоят. То же решение принято для
+    # обращений к каталогу LDAP.
+    await asyncio.to_thread(mail.send, to=to, subject=subject, body=body)
     return to
 
 

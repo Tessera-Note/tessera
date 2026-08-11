@@ -211,3 +211,26 @@ class TestEnqueueSignature:
             if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):
                 continue
             assert name in double.parameters, f"подделка не принимает {name}"
+
+
+class TestBlockingCalls:
+    """Синхронный ввод-вывод не должен идти в цикле событий.
+
+    Исполнитель разбирает задания по одному циклу: синхронный вызов с
+    таймаутом в двадцать секунд останавливает на это время все остальные.
+    """
+
+    def test_mail_is_sent_off_the_loop(self) -> None:
+        import inspect
+
+        from tessera_api.jobs import send_email
+
+        assert "asyncio.to_thread" in inspect.getsource(send_email)
+
+    def test_directory_calls_are_off_the_loop(self) -> None:
+        import inspect
+
+        from tessera_api.services.ldap import LdapService
+
+        source = inspect.getsource(LdapService.login)
+        assert source.count("asyncio.to_thread") == 2
