@@ -51,6 +51,13 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.page.edit_denied": "You cannot edit this page",
     "error.page.title_required": "The page needs a title or content",
     "error.page.parent_in_other_space": "The parent page is in another space",
+    "error.comment.comment_not_found": "Comment not found",
+    "error.comment.content_required": "The comment is empty",
+    "error.comment.parent_on_other_page": "The parent comment is on another page",
+    "error.comment.not_yours": "You can only change your own comments",
+    "error.label.label_not_found": "Label not found",
+    "error.label.name_required": "The label needs a name",
+    "error.attachment.attachment_not_found": "Attachment not found",
 }
 
 

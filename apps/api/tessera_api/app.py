@@ -19,6 +19,13 @@ from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.invitations import InvitationController
+from tessera_api.api.pages import (
+    CommentController,
+    FavoriteController,
+    LabelController,
+    PageController,
+    SearchController,
+)
 from tessera_api.api.spaces import GroupController, SpaceController
 from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
@@ -86,6 +93,11 @@ def create_app(settings: Settings | None = None) -> Litestar:
             GroupController,
             WorkspaceController,
             InvitationController,
+            PageController,
+            SearchController,
+            CommentController,
+            LabelController,
+            FavoriteController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же
