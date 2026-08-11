@@ -34,6 +34,8 @@ from tessera_api.config import Settings
 from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
 from tessera_api.infrastructure.mail import MailService, MailSettings
+from tessera_api.infrastructure.scheduler import Scheduler
+from tessera_api.services.maintenance import PERIODIC_TASKS
 from tessera_api.services.tokens import TokenService
 
 
@@ -60,11 +62,18 @@ def create_app(settings: Settings | None = None) -> Litestar:
         )
     )
 
+    scheduler = Scheduler(database, PERIODIC_TASKS)
+
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:
+        scheduler.start()
         try:
             yield
         finally:
+            # Планировщик останавливается первым: снятая задача может держать
+            # открытую транзакцию, и закрытие пула до её завершения повисло бы
+            # на ней.
+            await scheduler.stop()
             # Закрытие обоих подключений на остановке. Пропущенное здесь
             # оставляет висящие соединения, и это видно только по счётчику на
             # стороне базы, то есть не видно.

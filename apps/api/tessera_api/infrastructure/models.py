@@ -142,6 +142,10 @@ class UserSession(Base, CreatedMixin):
     user_agent: Mapped[str | None] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Проставляется умолчанием базы. Описана здесь потому, что на неё опирается
+    # обрезка лишних сессий: пропажа колонки обязана ронять сверку схемы, а не
+    # запрос уборки в рантайме.
+    last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class AuthAccount(Base, SoftDeleteMixin):
