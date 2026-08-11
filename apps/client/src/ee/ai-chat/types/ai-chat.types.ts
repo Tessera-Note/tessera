@@ -34,7 +34,17 @@ export type AiChatStreamEvent =
       args: Record<string, unknown>;
     }
   | { type: "tool_result"; id: string; result: unknown }
-  | { type: "done"; messageId: string; usage?: Record<string, number> }
+  | {
+      type: "done";
+      messageId: string;
+      usage?: Record<string, number>;
+      /**
+       * Необратимые шаги, ожидающие подтверждения. Приходят здесь, а не
+       * запросом: сообщение ассистента собирается из потока, и в базу за
+       * метаданными клиент не возвращается.
+       */
+      pendingPlan?: Array<{ tool: string; args?: Record<string, unknown> }>;
+    }
   | { type: "error"; message: string; code?: string; retryable?: boolean };
 
 export type PageMention = {

@@ -683,7 +683,15 @@ export class AiChatService {
       .where('id', '=', chatId)
       .execute();
 
-    yield { type: 'done', messageId: assistantMsg.id };
+    // План уходит вместе с завершением потока. Клиент собирает сообщение
+    // ассистента из потока и в базу за ним не возвращается, поэтому план,
+    // лежащий в метаданных записи, до него не доходил: человек читал «шаг
+    // занесен в план», а кнопки подтверждения не появлялось.
+    yield {
+      type: 'done',
+      messageId: assistantMsg.id,
+      ...(plan.length > 0 ? { pendingPlan: plan } : {}),
+    };
   }
 
   /**

@@ -154,7 +154,19 @@ export function useChatStream(
                     toolCalls: currentToolCalls.length
                       ? currentToolCalls
                       : null,
-                    metadata: event.usage ? { tokenUsage: event.usage } : null,
+                    // План необратимых действий приходит в событии
+                    // завершения. Без него кнопка подтверждения не
+                    // появлялась: сообщение собирается здесь, а в базу за
+                    // метаданными клиент не возвращается.
+                    metadata:
+                      event.usage || event.pendingPlan
+                        ? {
+                            ...(event.usage ? { tokenUsage: event.usage } : {}),
+                            ...(event.pendingPlan
+                              ? { pendingPlan: event.pendingPlan }
+                              : {}),
+                          }
+                        : null,
                     createdAt: new Date().toISOString(),
                   };
 

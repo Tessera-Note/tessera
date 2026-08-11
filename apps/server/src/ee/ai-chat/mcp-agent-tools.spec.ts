@@ -346,3 +346,32 @@ describe('исполнение сверяет имя инструмента за
     expect(AGENT_TOOL_POLICY['list_pages']).not.toBe('destructive');
   });
 });
+
+/**
+ * План обязан дойти до клиента вместе с завершением потока.
+ *
+ * Сообщение ассистента собирается на клиенте из потока, и в базу за
+ * метаданными он не возвращается. Пока план ехал только в записи, человек
+ * читал «шаг занесен в план», а кнопки подтверждения не появлялось: агент
+ * отсылал к интерфейсу, которого нет. Ровно тот класс, что мы ловим весь день.
+ */
+describe('план доходит до клиента', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const source = require('fs').readFileSync(
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('path').join(__dirname, 'ai-chat.service.ts'),
+    'utf-8',
+  );
+
+  it('событие завершения несет план', () => {
+    const done = source.match(/yield \{\s*\n?\s*type: 'done'[\s\S]{0,200}?\};/);
+    expect(done).not.toBeNull();
+    expect(done[0]).toContain('pendingPlan');
+  });
+
+  it('план по-прежнему сохраняется на сообщении', () => {
+    // Одно не заменяет другого: поток нужен для показа сразу, запись для
+    // того, чтобы план пережил перезагрузку страницы.
+    expect(source).toContain('pendingPlan: plan');
+  });
+});
