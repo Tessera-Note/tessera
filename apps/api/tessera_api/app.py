@@ -33,6 +33,7 @@ from tessera_api.api.pages import (
     SearchController,
     ShareController,
 )
+from tessera_api.api.scim import ScimController
 from tessera_api.api.spaces import GroupController, SpaceController
 from tessera_api.api.templates import TemplateController
 from tessera_api.api.workspace import WorkspaceController
@@ -136,6 +137,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             NotificationController,
             ApiKeyController,
             MfaController,
+            ScimController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же
