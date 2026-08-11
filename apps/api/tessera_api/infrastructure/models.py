@@ -84,6 +84,9 @@ class Workspace(Base, SoftDeleteMixin):
     # здесь потому, что на неё опирается периодическая уборка: пропажа
     # колонки обязана ронять сверку схемы, а не запрос уборки в рантайме.
     trash_retention_days: Mapped[int | None] = mapped_column(BigInteger)
+    # Требовать второй фактор со всех. Описан здесь потому, что на него
+    # опирается вход: пропажа колонки обязана ронять сверку схемы.
+    enforce_mfa: Mapped[bool | None] = mapped_column(Boolean)
 
 
 class Space(Base, SoftDeleteMixin):
@@ -391,6 +394,25 @@ class Share(Base, SoftDeleteMixin):
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class UserMfa(Base, TimestampMixin):
+    """Второй фактор входа.
+
+    Секрет лежит зашифрованным, резервные коды — отпечатками. Разница
+    осознанная: секрет нужен приложению в открытом виде при каждой проверке,
+    а резервный код только сверяется.
+    """
+
+    __tablename__ = "user_mfa"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    method: Mapped[str] = mapped_column(String)
+    secret: Mapped[str | None] = mapped_column(Text)
+    is_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    backup_codes: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
 
 
 class ApiKey(Base, SoftDeleteMixin):

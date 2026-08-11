@@ -13,6 +13,7 @@ dependencies = [
     "bcrypt==5.0.0",
     "arq==0.25.0",
     "aiobotocore==3.9.0",
+    "cryptography==50.0.0",
 ]
 
 [dependency-groups]
