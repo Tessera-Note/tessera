@@ -65,6 +65,13 @@ class User(Base, SoftDeleteMixin):
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Связь записи с каталогом. Единственная: по ней провайдер узнаёт своего
+    # человека, и потеряв её, он заведёт его заново как нового сотрудника.
+    scim_external_id: Mapped[str | None] = mapped_column(Text)
+    # Пароль поставлен приложением, а не выбран человеком. У заведённых
+    # каталогом он случайный: вход им идёт через провайдера, а колонка пустого
+    # значения не допускает.
+    has_generated_password: Mapped[bool] = mapped_column(Boolean)
 
 
 class Workspace(Base, SoftDeleteMixin):
@@ -133,6 +140,9 @@ class Group(Base, SoftDeleteMixin):
     directory_source: Mapped[str | None] = mapped_column(String(10))
     directory_provider_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     directory_key: Mapped[str | None] = mapped_column(Text)
+    # Связь группы с каталогом и признак, что состав ведёт он, а не человек.
+    scim_external_id: Mapped[str | None] = mapped_column(Text)
+    is_external: Mapped[bool] = mapped_column(Boolean)
 
 
 class GroupUser(Base, TimestampMixin):
