@@ -47,6 +47,30 @@ def test_every_variable_reaches_the_container() -> None:
     assert not missing, f"приложение читает, compose не передаёт: {missing}"
 
 
+def test_project_name_is_explicit() -> None:
+    """Имя проекта задано, а не выведено из каталога.
+
+    По умолчанию compose берёт его из имени каталога, здесь это `api`. Под ним
+    идут префиксы томов и метка `com.docker.compose.project`, по которой на
+    машине с несколькими проектами отличают свои образы от чужих при уборке.
+    """
+    text = COMPOSE.read_text(encoding="utf-8")
+    assert re.search(r"^name:\s*tessera", text, re.M), "имя проекта не задано явно"
+
+
+def test_service_names_carry_the_project_prefix() -> None:
+    """Голых имён вроде `db` или `redis` быть не должно.
+
+    На машине с несколькими проектами такое имя означает, что второй проект не
+    поднимется, а `docker compose down` снесёт чужой контейнер.
+    """
+    text = COMPOSE.read_text(encoding="utf-8")
+    services = re.findall(r"^  ([a-z][a-z0-9-]*):$", text[text.index("services:") :], re.M)
+    assert services, "службы не разобрались"
+    bare = [s for s in services if not s.startswith("tessera-")]
+    assert not bare, f"службы без префикса проекта: {bare}"
+
+
 def test_secrets_are_required_not_defaulted() -> None:
     """У ключа и пароля базы нет умолчания.
 
