@@ -12,6 +12,7 @@ from tessera_api.api.dto import (
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
+    SetupRequest,
     UserView,
     WorkspaceView,
 )
@@ -19,6 +20,7 @@ from tessera_api.api.guards import AUTH_COOKIE, PUBLIC, Principal
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService
+from tessera_api.services.setup import SetupService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
 
@@ -85,6 +87,64 @@ class AuthController(Controller):
             path="/",
         )
         return response
+
+    @post("/setup", opt={PUBLIC: True})
+    async def setup(
+        self,
+        data: SetupRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+    ) -> Response[LoginResponse]:
+        """Настроить пустой экземпляр.
+
+        Публичный по необходимости: до него в базе нет никого, и требовать
+        токен значило бы требовать войти туда, куда войти ещё нельзя. Защита не
+        в аутентификации, а в том, что второй раз маршрут не срабатывает:
+        настроенный экземпляр отвечает отказом.
+        """
+        service = SetupService(db_session)
+        workspace, user = await service.run(
+            workspace_name=data.workspaceName,
+            name=data.name,
+            email=data.email,
+            password=data.password,
+        )
+
+        auth = AuthService(db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens)
+        token, user = await auth.login(
+            data.email,
+            data.password,
+            workspace.id,
+            user_agent=request.headers.get("user-agent"),
+            ip=request.client.host if request.client else None,
+        )
+
+        body = LoginResponse(
+            user=_user_view(user),
+            workspace=_workspace_view(workspace),
+            expiresAt=datetime.now(UTC) + DEFAULT_EXPIRES,
+        )
+        response = Response(body)
+        response.set_cookie(
+            AUTH_COOKIE,
+            token,
+            httponly=True,
+            samesite="lax",
+            max_age=int(DEFAULT_EXPIRES.total_seconds()),
+            path="/",
+        )
+        return response
+
+    @get("/setup-required", opt={PUBLIC: True})
+    async def setup_required(self, db_session: NamedDependency[AsyncSession]) -> dict:
+        """Нужна ли настройка.
+
+        Экран настройки спрашивает это до входа, поэтому маршрут публичный.
+        Отдаётся один признак и ничего больше: по составу ответа не должно быть
+        видно ни имени пространства, ни числа заведённых людей.
+        """
+        return {"setupRequired": not await SetupService(db_session).is_done()}
 
     @post("/logout")
     async def logout(

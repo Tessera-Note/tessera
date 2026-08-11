@@ -23,6 +23,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.auth.session_expired": "The session has expired, sign in again",
     "error.auth.current_password_is_incorrect": "Current password is incorrect",
     "error.auth.password_too_short": "Password must be at least 8 characters",
+    "error.auth.invalid_email": "Enter a valid email address",
     "error.workspace.setup_already_done": "This workspace is already set up",
     "error.workspace.owner_required": "Only the workspace owner can do this",
     "error.common.admin_required": "This action requires administrator rights",
