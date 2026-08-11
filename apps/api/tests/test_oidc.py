@@ -231,6 +231,26 @@ class TestBegin:
             await _service(_transport()).begin(_provider(oidc_client_id=None))
 
 
+class TestRedirectUri:
+    def test_address_is_built_from_the_application_url(self) -> None:
+        """Адрес возврата участвует в обмене кода.
+
+        Провайдер сверяет его с зарегистрированным, а обмен — с тем, что был в
+        запросе на вход. Расхождение любой из двух пар ломает вход целиком.
+        """
+        provider = _provider()
+        service = _service(_transport(), app_url="https://tessera.example/")
+        assert service.redirect_uri(provider) == (
+            f"https://tessera.example/api/sso/{provider.id}/callback"
+        )
+
+    async def test_the_same_address_goes_into_the_login_request(self) -> None:
+        provider = _provider()
+        service = _service(_transport())
+        _, flow = await service.begin(provider)
+        assert flow.redirect_uri == service.redirect_uri(provider)
+
+
 class TestComplete:
     async def _flow(self, service, provider, holder=None):  # noqa: ANN202
         _, flow = await service.begin(provider)
