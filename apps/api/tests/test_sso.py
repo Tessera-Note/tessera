@@ -16,8 +16,6 @@ from tessera_api.infrastructure.models import (
     AuthProvider,
     Group,
     GroupUser,
-    User,
-    Workspace,
 )
 from tessera_api.services.sso import SsoIdentityService, extract_group_names
 from tests.conftest import needs_database
@@ -65,10 +63,7 @@ class TestExtractGroupNames:
 pytestmark = needs_database
 
 
-async def _provider(session: AsyncSession, **flags) -> tuple[AuthProvider, Workspace]:
-    workspace = (
-        await session.execute(select(Workspace).where(Workspace.deleted_at.is_(None)))
-    ).scalars().first()
+async def _provider(session: AsyncSession, workspace, **flags) -> AuthProvider:
     provider_id = uuid.uuid4()
     await session.execute(
         insert(AuthProvider).values(
@@ -82,12 +77,14 @@ async def _provider(session: AsyncSession, **flags) -> tuple[AuthProvider, Works
         )
     )
     await session.flush()
-    return await session.get(AuthProvider, provider_id), workspace
+    return await session.get(AuthProvider, provider_id)
 
 
 class TestResolve:
-    async def test_disabled_provider_is_refused(self, session: AsyncSession) -> None:
-        provider, workspace = await _provider(session, is_enabled=False)
+    async def test_disabled_provider_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace, is_enabled=False)
 
         with pytest.raises(AppError) as failure:
             await SsoIdentityService(session).resolve(
@@ -99,8 +96,10 @@ class TestResolve:
             )
         assert "provider_disabled" in str(failure.value.extra)
 
-    async def test_signup_disabled_refuses_unknown_person(self, session: AsyncSession) -> None:
-        provider, workspace = await _provider(session, allow_signup=False)
+    async def test_signup_disabled_refuses_unknown_person(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace, allow_signup=False)
 
         with pytest.raises(AppError) as failure:
             await SsoIdentityService(session).resolve(
@@ -112,8 +111,10 @@ class TestResolve:
             )
         assert "signup_disabled" in str(failure.value.extra)
 
-    async def test_new_person_lands_in_default_group(self, session: AsyncSession) -> None:
-        provider, workspace = await _provider(session)
+    async def test_new_person_lands_in_default_group(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace)
         email = f"sso-{uuid.uuid4().hex[:8]}@example.com"
 
         user = await SsoIdentityService(session).resolve(
@@ -131,9 +132,7 @@ class TestResolve:
 
         default_group = (
             await session.execute(
-                select(Group.id)
-                .where(Group.workspace_id == workspace.id)
-                .where(Group.is_default)
+                select(Group.id).where(Group.workspace_id == workspace.id).where(Group.is_default)
             )
         ).scalar_one()
         member = (
@@ -145,32 +144,36 @@ class TestResolve:
         ).scalar_one_or_none()
         assert member is not None
 
-    async def test_same_subject_returns_same_person(self, session: AsyncSession) -> None:
-        provider, workspace = await _provider(session)
+    async def test_same_subject_returns_same_person(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace)
         subject = f"sub-{uuid.uuid4().hex[:8]}"
         email = f"sso-{uuid.uuid4().hex[:8]}@example.com"
         service = SsoIdentityService(session)
 
         first = await service.resolve(
-            provider=provider, subject=subject, email=email, name="Раз",
+            provider=provider,
+            subject=subject,
+            email=email,
+            name="Раз",
             workspace_id=workspace.id,
         )
         second = await service.resolve(
-            provider=provider, subject=subject, email=email, name="Два",
+            provider=provider,
+            subject=subject,
+            email=email,
+            name="Два",
             workspace_id=workspace.id,
         )
         assert first.id == second.id
 
-    async def test_email_match_binds_existing_person(self, session: AsyncSession) -> None:
+    async def test_email_match_binds_existing_person(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Заведённый обычным путём человек привязывается к провайдеру."""
-        provider, workspace = await _provider(session)
-        existing = (
-            await session.execute(
-                select(User)
-                .where(User.workspace_id == workspace.id)
-                .where(User.deleted_at.is_(None))
-            )
-        ).scalars().first()
+        provider = await _provider(session, workspace)
+        existing = owner
 
         resolved = await SsoIdentityService(session).resolve(
             provider=provider,
@@ -181,32 +184,34 @@ class TestResolve:
         )
         assert resolved.id == existing.id
 
-    async def test_second_subject_for_same_email_is_refused(self, session: AsyncSession) -> None:
+    async def test_second_subject_for_same_email_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Совпадение по почте при уже занятой связи неоднозначно.
 
         Это либо смена идентификатора у того же человека, либо адрес,
         переданный другому после увольнения. Перепривязка во втором случае
         отдала бы чужую учётную запись.
         """
-        provider, workspace = await _provider(session)
-        existing = (
-            await session.execute(
-                select(User)
-                .where(User.workspace_id == workspace.id)
-                .where(User.deleted_at.is_(None))
-            )
-        ).scalars().first()
+        provider = await _provider(session, workspace)
+        existing = owner
         service = SsoIdentityService(session)
 
         await service.resolve(
-            provider=provider, subject="первый", email=existing.email,
-            name=existing.name, workspace_id=workspace.id,
+            provider=provider,
+            subject="первый",
+            email=existing.email,
+            name=existing.name,
+            workspace_id=workspace.id,
         )
 
         with pytest.raises(AppError) as failure:
             await service.resolve(
-                provider=provider, subject="второй", email=existing.email,
-                name=existing.name, workspace_id=workspace.id,
+                provider=provider,
+                subject="второй",
+                email=existing.email,
+                name=existing.name,
+                workspace_id=workspace.id,
             )
         assert "identity_conflict" in str(failure.value.extra)
 
@@ -228,13 +233,15 @@ class TestGroupSync:
         await session.flush()
         return await session.get(Group, group_id)
 
-    async def test_unbound_group_is_never_touched(self, session: AsyncSession) -> None:
+    async def test_unbound_group_is_never_touched(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Непривязанная группа не трогается вовсе.
 
         Это и есть защита от захвата чужой группы: в v1 владение выводилось из
         совпадения имени, и людей вычищало из групп, которые вёл администратор.
         """
-        provider, workspace = await _provider(session, group_sync=True)
+        provider = await _provider(session, workspace, group_sync=True)
         manual_id = uuid.uuid4()
         await session.execute(
             insert(Group).values(
@@ -264,8 +271,8 @@ class TestGroupSync:
         ).scalar_one_or_none()
         assert member is None
 
-    async def test_bound_group_by_key(self, session: AsyncSession) -> None:
-        provider, workspace = await _provider(session, group_sync=True)
+    async def test_bound_group_by_key(self, session: AsyncSession, workspace, owner) -> None:
+        provider = await _provider(session, workspace, group_sync=True)
         group = await self._bound_group(session, provider, workspace, "CN=HR,OU=Groups")
 
         user = await SsoIdentityService(session).resolve(
@@ -286,14 +293,16 @@ class TestGroupSync:
         ).scalar_one_or_none()
         assert member is not None
 
-    async def test_missing_claim_changes_nothing(self, session: AsyncSession) -> None:
+    async def test_missing_claim_changes_nothing(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Провайдер, не приславший групп, состава не меняет.
 
         Это главное правило: пустой список снимает членство, отсутствие
         сведений не делает ничего. Их смешение в v1 вычищало людям все группы
         каталога при первом же входе.
         """
-        provider, workspace = await _provider(session, group_sync=True)
+        provider = await _provider(session, workspace, group_sync=True)
         group = await self._bound_group(session, provider, workspace, "CN=Dev,OU=Groups")
         subject = f"sub-{uuid.uuid4().hex[:8]}"
         email = f"sso-{uuid.uuid4().hex[:8]}@example.com"
@@ -327,21 +336,31 @@ class TestGroupSync:
         ).scalar_one_or_none()
         assert member is not None, "членство снято, хотя сведений о группах не было"
 
-    async def test_empty_claim_removes_membership(self, session: AsyncSession) -> None:
+    async def test_empty_claim_removes_membership(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Пустой список снимает членство: каталог не числит человека нигде."""
-        provider, workspace = await _provider(session, group_sync=True)
+        provider = await _provider(session, workspace, group_sync=True)
         group = await self._bound_group(session, provider, workspace, "CN=Ops,OU=Groups")
         subject = f"sub-{uuid.uuid4().hex[:8]}"
         email = f"sso-{uuid.uuid4().hex[:8]}@example.com"
         service = SsoIdentityService(session)
 
         user = await service.resolve(
-            provider=provider, subject=subject, email=email, name="Кто-то",
-            workspace_id=workspace.id, group_names=["CN=Ops,OU=Groups"],
+            provider=provider,
+            subject=subject,
+            email=email,
+            name="Кто-то",
+            workspace_id=workspace.id,
+            group_names=["CN=Ops,OU=Groups"],
         )
         await service.resolve(
-            provider=provider, subject=subject, email=email, name="Кто-то",
-            workspace_id=workspace.id, group_names=[],
+            provider=provider,
+            subject=subject,
+            email=email,
+            name="Кто-то",
+            workspace_id=workspace.id,
+            group_names=[],
         )
 
         member = (
@@ -353,7 +372,9 @@ class TestGroupSync:
         ).scalar_one_or_none()
         assert member is None
 
-    async def test_other_providers_group_is_never_touched(self, session: AsyncSession) -> None:
+    async def test_other_providers_group_is_never_touched(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Группа, привязанная к другому провайдеру, не трогается.
 
         Проверка заведена по результату мутации: снятие фильтра по провайдеру
@@ -361,8 +382,8 @@ class TestGroupSync:
         стоило потери доступов. Ключ здесь совпадает намеренно — совпадение
         ключа при чужом владельце не должно давать ничего.
         """
-        mine, workspace = await _provider(session, group_sync=True)
-        theirs, _ = await _provider(session, group_sync=True)
+        mine = await _provider(session, workspace, group_sync=True)
+        theirs = await _provider(session, workspace, group_sync=True)
 
         foreign_id = uuid.uuid4()
         await session.execute(

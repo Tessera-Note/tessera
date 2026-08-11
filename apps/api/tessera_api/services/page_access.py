@@ -69,17 +69,13 @@ class PageAccessService:
             """
         )
         row = (
-            await self._session.execute(
-                stmt, {"page_id": page.id, "restricted": ACCESS_RESTRICTED}
-            )
+            await self._session.execute(stmt, {"page_id": page.id, "restricted": ACCESS_RESTRICTED})
         ).first()
         if row is None:
             return None
         return await self._session.get(PageAccess, row[0])
 
-    async def _explicit_role(
-        self, user_id: uuid.UUID, page_access_id: uuid.UUID
-    ) -> str | None:
+    async def _explicit_role(self, user_id: uuid.UUID, page_access_id: uuid.UUID) -> str | None:
         """Роль, выданная человеку на ограниченной странице.
 
         Считается и прямая, и доставшаяся через группу, берётся сильнейшая:
@@ -96,9 +92,7 @@ class PageAccessService:
             .where(PagePermission.page_access_id == page_access_id)
             .where(GroupUser.user_id == user_id)
         )
-        roles = [
-            row[0] for row in (await self._session.execute(direct.union(via_group))).all()
-        ]
+        roles = [row[0] for row in (await self._session.execute(direct.union(via_group))).all()]
         if not roles:
             return None
         return max(roles, key=lambda role: SPACE_RANK.get(role, 0))
@@ -165,9 +159,7 @@ class PageAccessService:
                 allowed.append(page_id)
         return allowed
 
-    async def load_page(
-        self, page_id_or_slug: str, workspace_id: uuid.UUID
-    ) -> Page:
+    async def load_page(self, page_id_or_slug: str, workspace_id: uuid.UUID) -> Page:
         """Найти страницу по идентификатору или короткому имени."""
         try:
             page_id = uuid.UUID(page_id_or_slug)

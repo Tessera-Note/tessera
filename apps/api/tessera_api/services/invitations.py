@@ -58,13 +58,17 @@ class InvitationService:
         # Уже заведённых не приглашаем повторно: приглашение такому человеку
         # ничего не даёт, а выглядит как приглашение.
         existing = (
-            await self._session.execute(
-                select(User.email)
-                .where(User.email.in_(normalized))
-                .where(User.workspace_id == workspace_id)
-                .where(User.deleted_at.is_(None))
+            (
+                await self._session.execute(
+                    select(User.email)
+                    .where(User.email.in_(normalized))
+                    .where(User.workspace_id == workspace_id)
+                    .where(User.deleted_at.is_(None))
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         pending = [e for e in normalized if e not in set(existing)]
         if not pending:
             raise bad_request("error.workspace.all_already_members")
@@ -81,7 +85,9 @@ class InvitationService:
                         .where(Group.workspace_id == workspace_id)
                         .where(Group.deleted_at.is_(None))
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
 
         created: list[WorkspaceInvitation] = []

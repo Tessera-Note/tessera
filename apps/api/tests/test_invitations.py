@@ -14,32 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import UserRole
-from tessera_api.infrastructure.models import Group, GroupUser, User, Workspace
+from tessera_api.infrastructure.models import Group, GroupUser, User
 from tessera_api.services.invitations import InvitationService
 from tests.conftest import needs_database
 
 pytestmark = needs_database
 
 
-async def _context(session: AsyncSession) -> tuple[User, Workspace]:
-    """Владелец и пространство рабочей базы: их и берём за основу."""
-    workspace = (
-        await session.execute(select(Workspace).where(Workspace.deleted_at.is_(None)))
-    ).scalars().first()
-    owner = (
-        await session.execute(
-            select(User)
-            .where(User.workspace_id == workspace.id)
-            .where(User.deleted_at.is_(None))
-            .order_by(User.created_at.asc())
-        )
-    ).scalars().first()
-    return owner, workspace
-
-
 class TestCreate:
-    async def test_member_cannot_invite(self, session: AsyncSession) -> None:
-        owner, workspace = await _context(session)
+    async def test_member_cannot_invite(self, session: AsyncSession, workspace, owner) -> None:
         member = User(id=uuid.uuid4(), email="m@example.com", role=UserRole.MEMBER)
 
         with pytest.raises(AppError) as failure:
@@ -48,13 +31,14 @@ class TestCreate:
             )
         assert "admin_required" in str(failure.value.extra)
 
-    async def test_existing_member_is_not_invited_again(self, session: AsyncSession) -> None:
+    async def test_existing_member_is_not_invited_again(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Уже заведённого приглашать некуда.
 
         Приглашение такому человеку ничего не даёт, но выглядит как
         приглашение: он получит письмо и не поймёт, что делать.
         """
-        owner, workspace = await _context(session)
 
         with pytest.raises(AppError) as failure:
             await InvitationService(session).create(
@@ -62,8 +46,7 @@ class TestCreate:
             )
         assert "all_already_members" in str(failure.value.extra)
 
-    async def test_unknown_role_is_refused(self, session: AsyncSession) -> None:
-        owner, workspace = await _context(session)
+    async def test_unknown_role_is_refused(self, session: AsyncSession, workspace, owner) -> None:
 
         with pytest.raises(AppError) as failure:
             await InvitationService(session).create(
@@ -71,13 +54,12 @@ class TestCreate:
             )
         assert "unknown_role" in str(failure.value.extra)
 
-    async def test_foreign_group_is_dropped(self, session: AsyncSession) -> None:
+    async def test_foreign_group_is_dropped(self, session: AsyncSession, workspace, owner) -> None:
         """Чужая группа в приглашении не срабатывает.
 
         Идентификатор группы приходит от клиента, и без сверки с рабочим
         пространством приглашённый попал бы в группу чужого пространства.
         """
-        owner, workspace = await _context(session)
 
         created = await InvitationService(session).create(
             owner,
@@ -88,8 +70,7 @@ class TestCreate:
         )
         assert created[0].group_ids in (None, [])
 
-    async def test_token_is_not_predictable(self, session: AsyncSession) -> None:
-        owner, workspace = await _context(session)
+    async def test_token_is_not_predictable(self, session: AsyncSession, workspace, owner) -> None:
 
         created = await InvitationService(session).create(
             owner,
@@ -102,8 +83,7 @@ class TestCreate:
 
 
 class TestAccept:
-    async def _invite(self, session: AsyncSession) -> tuple:
-        owner, workspace = await _context(session)
+    async def _invite(self, session: AsyncSession, workspace, owner) -> tuple:
         created = await InvitationService(session).create(
             owner,
             [f"guest-{uuid.uuid4().hex[:8]}@example.com"],
@@ -112,12 +92,12 @@ class TestAccept:
         )
         return created[0], workspace
 
-    async def test_wrong_token_is_refused(self, session: AsyncSession) -> None:
+    async def test_wrong_token_is_refused(self, session: AsyncSession, workspace, owner) -> None:
         """Идентификатор приглашения не секрет: он в адресной строке.
 
         Без сверки токена достаточно было бы его угадать.
         """
-        invitation, _ = await self._invite(session)
+        invitation, _ = await self._invite(session, workspace, owner)
 
         with pytest.raises(AppError) as failure:
             await InvitationService(session).accept(
@@ -125,8 +105,8 @@ class TestAccept:
             )
         assert "invalid_invitation_token" in str(failure.value.extra)
 
-    async def test_short_password_is_refused(self, session: AsyncSession) -> None:
-        invitation, _ = await self._invite(session)
+    async def test_short_password_is_refused(self, session: AsyncSession, workspace, owner) -> None:
+        invitation, _ = await self._invite(session, workspace, owner)
 
         with pytest.raises(AppError) as failure:
             await InvitationService(session).accept(
@@ -135,9 +115,9 @@ class TestAccept:
         assert "password_too_short" in str(failure.value.extra)
 
     async def test_accepted_invitation_creates_user_in_default_group(
-        self, session: AsyncSession
+        self, session: AsyncSession, workspace, owner
     ) -> None:
-        invitation, workspace = await self._invite(session)
+        invitation, workspace = await self._invite(session, workspace, owner)
 
         user, joined = await InvitationService(session).accept(
             invitation.id, invitation.token, "Гость", "достаточно-длинный"
@@ -149,9 +129,7 @@ class TestAccept:
 
         default_group = (
             await session.execute(
-                select(Group.id)
-                .where(Group.workspace_id == workspace.id)
-                .where(Group.is_default)
+                select(Group.id).where(Group.workspace_id == workspace.id).where(Group.is_default)
             )
         ).scalar_one()
         membership = (
@@ -165,13 +143,13 @@ class TestAccept:
         # Без группы по умолчанию приглашённый не увидит общих пространств.
         assert membership == 1
 
-    async def test_invitation_is_consumed(self, session: AsyncSession) -> None:
+    async def test_invitation_is_consumed(self, session: AsyncSession, workspace, owner) -> None:
         """Принятое приглашение снимается.
 
         Оставленное, оно позволяет завести вторую учётную запись на тот же
         адрес, если первую удалят.
         """
-        invitation, _ = await self._invite(session)
+        invitation, _ = await self._invite(session, workspace, owner)
         await InvitationService(session).accept(
             invitation.id, invitation.token, "Гость", "достаточно-длинный"
         )

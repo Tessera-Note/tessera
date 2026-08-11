@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.roles import SpaceRole
@@ -12,10 +12,8 @@ from tessera_api.infrastructure.models import (
     Page,
     PageAccess,
     PagePermission,
-    Space,
     SpaceMember,
     User,
-    Workspace,
 )
 from tessera_api.services.page_access import ACCESS_RESTRICTED
 from tessera_api.services.search import SearchService, build_tsquery
@@ -47,49 +45,36 @@ pytestmark = needs_database
 
 
 class TestSearchPages:
-    async def test_finds_by_word_form(self, session: AsyncSession) -> None:
+    async def test_finds_by_word_form(self, session: AsyncSession, workspace, owner) -> None:
         """Кириллица приводится к основе.
 
         Это то, ради чего в v1 меняли конфигурацию: под `english` запрос
         «прокат» не находил страницу со словом «прокате».
         """
-        workspace = (await session.execute(select(Workspace))).scalars().first()
-        user = (
-            await session.execute(select(User).where(User.workspace_id == workspace.id))
-        ).scalars().first()
-
         hits = await SearchService(session).search_pages(
-            "прокат", user_id=user.id, workspace_id=workspace.id
+            "прокат", user_id=owner.id, workspace_id=workspace.id
         )
         assert hits, "поиск по основе слова ничего не нашёл"
 
-    async def test_stranger_finds_nothing(self, session: AsyncSession) -> None:
+    async def test_stranger_finds_nothing(self, session: AsyncSession, workspace) -> None:
         """Человек без пространств не находит ничего.
 
         Выборка ограничена его пространствами до подсчёта ранга: иначе ранг
         считается по чужим страницам, а подсказки выдают их заголовки.
         """
-        workspace = (await session.execute(select(Workspace))).scalars().first()
-
         hits = await SearchService(session).search_pages(
             "прокат", user_id=uuid.uuid4(), workspace_id=workspace.id
         )
         assert hits == []
 
-    async def test_restricted_page_is_not_found(self, session: AsyncSession) -> None:
+    async def test_restricted_page_is_not_found(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Закрытая страница не находится поиском.
 
         Права страницы поверх прав пространства: без этого поиск становится
         обходным путём к тому, что закрыто прямым.
         """
-        workspace = (await session.execute(select(Workspace))).scalars().first()
-        owner = (
-            await session.execute(select(User).where(User.workspace_id == workspace.id))
-        ).scalars().first()
-        space = (
-            await session.execute(select(Space).where(Space.workspace_id == workspace.id))
-        ).scalars().first()
-
         outsider_id = uuid.uuid4()
         await session.execute(
             insert(User).values(
@@ -145,9 +130,7 @@ class TestSearchPages:
         await session.flush()
 
         service = SearchService(session)
-        mine = await service.search_pages(
-            secret_word, user_id=owner.id, workspace_id=workspace.id
-        )
+        mine = await service.search_pages(secret_word, user_id=owner.id, workspace_id=workspace.id)
         theirs = await service.search_pages(
             secret_word, user_id=outsider_id, workspace_id=workspace.id
         )

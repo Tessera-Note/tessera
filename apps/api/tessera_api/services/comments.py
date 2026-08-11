@@ -104,9 +104,7 @@ class CommentService:
             raise forbidden("error.comment.not_yours")
 
         await self._session.execute(
-            update(Comment)
-            .where(Comment.id == comment_id)
-            .values(deleted_at=datetime.now(UTC))
+            update(Comment).where(Comment.id == comment_id).values(deleted_at=datetime.now(UTC))
         )
         await self._session.commit()
 

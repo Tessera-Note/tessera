@@ -27,9 +27,7 @@ from tessera_api.infrastructure.models import (
 )
 
 
-def extract_group_names(
-    profile: dict | None, claim_name: str | None = None
-) -> list[str] | None:
+def extract_group_names(profile: dict | None, claim_name: str | None = None) -> list[str] | None:
     """Достать имена групп из профиля.
 
     Возвращает `None`, когда утверждения в профиле нет вовсе, и `[]`, когда оно
@@ -97,7 +95,9 @@ class SsoGroupSyncService:
                     .where(Group.directory_source == "sso")
                     .where(Group.directory_provider_id == provider.id)
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         if not owned:
             return
@@ -116,7 +116,9 @@ class SsoGroupSyncService:
                     .where(GroupUser.user_id == user_id)
                     .where(GroupUser.group_id.in_(owned_ids))
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
         for group_id in matched - current:
@@ -228,9 +230,7 @@ class SsoIdentityService:
         ).scalar_one_or_none()
         if default_group is not None:
             await self._session.execute(
-                insert(GroupUser).values(
-                    id=uuid.uuid4(), user_id=user_id, group_id=default_group
-                )
+                insert(GroupUser).values(id=uuid.uuid4(), user_id=user_id, group_id=default_group)
             )
 
         created = await self._session.get(User, user_id)
@@ -276,9 +276,7 @@ class SsoIdentityService:
         except Exception:  # noqa: BLE001 — причина в журнале, вход важнее
             import logging
 
-            logging.getLogger(__name__).exception(
-                "Синхронизация групп для %s не удалась", user.id
-            )
+            logging.getLogger(__name__).exception("Синхронизация групп для %s не удалась", user.id)
 
         await self._session.execute(
             update(User).where(User.id == user.id).values(last_login_at=datetime.now(UTC))

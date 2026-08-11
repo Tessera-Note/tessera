@@ -122,9 +122,7 @@ class PageController(Controller):
         db_session: NamedDependency[AsyncSession],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(
-            data.pageId, principal.workspace_id
-        )
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         updated = await PageService(db_session).update(
             page=page,
             user_id=principal.user_id,
@@ -139,9 +137,7 @@ class PageController(Controller):
         self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(
-            data.pageId, principal.workspace_id
-        )
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         await PageService(db_session).move_to_trash(page, principal.user_id)
         return {"status": "ok"}
 
@@ -192,9 +188,7 @@ class CommentController(Controller):
         self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(
-            data.pageId, principal.workspace_id
-        )
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         found = await CommentService(db_session).list_for_page(page, principal.user_id)
         return [
             {
@@ -214,9 +208,7 @@ class CommentController(Controller):
         self, data: CommentRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(
-            data.pageId, principal.workspace_id
-        )
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         comment = await CommentService(db_session).create(
             page=page,
             user_id=principal.user_id,
@@ -243,12 +235,8 @@ class LabelController(Controller):
         self, data: LabelRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(
-            data.pageId, principal.workspace_id
-        )
-        attached = await LabelService(db_session).attach(
-            page, data.names, principal.user_id
-        )
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
+        attached = await LabelService(db_session).attach(page, data.names, principal.user_id)
         return [{"id": label.id, "name": label.name} for label in attached]
 
 
@@ -270,9 +258,7 @@ class FavoriteController(Controller):
         self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(
-            data.pageId, principal.workspace_id
-        )
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         await FavoriteService(db_session).add_page(page, principal.user_id)
         return {"status": "ok"}
 
@@ -283,7 +269,5 @@ class FavoriteController(Controller):
         principal: Principal = request.scope["principal"]
         # Права намеренно не проверяются: снять свою запись человек должен
         # мочь и после того, как доступ к странице у него отобрали.
-        await FavoriteService(db_session).remove_page(
-            uuid.UUID(data.pageId), principal.user_id
-        )
+        await FavoriteService(db_session).remove_page(uuid.UUID(data.pageId), principal.user_id)
         return {"status": "ok"}

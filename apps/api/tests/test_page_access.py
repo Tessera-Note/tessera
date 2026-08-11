@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import insert, select
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -21,10 +21,8 @@ from tessera_api.infrastructure.models import (
     Page,
     PageAccess,
     PagePermission,
-    Space,
     SpaceMember,
     User,
-    Workspace,
 )
 from tessera_api.services.page_access import ACCESS_RESTRICTED, PageAccessService
 from tests.conftest import needs_database
@@ -32,25 +30,12 @@ from tests.conftest import needs_database
 pytestmark = needs_database
 
 
-async def _world(session: AsyncSession) -> dict:
-    """Пространство, два человека и дерево из трёх страниц."""
-    workspace = (
-        await session.execute(select(Workspace).where(Workspace.deleted_at.is_(None)))
-    ).scalars().first()
-    owner = (
-        await session.execute(
-            select(User)
-            .where(User.workspace_id == workspace.id)
-            .where(User.deleted_at.is_(None))
-        )
-    ).scalars().first()
-    space = (
-        await session.execute(
-            select(Space)
-            .where(Space.workspace_id == workspace.id)
-            .where(Space.deleted_at.is_(None))
-        )
-    ).scalars().first()
+async def _world(session: AsyncSession, workspace, owner, space) -> dict:
+    """Два человека и дерево из трёх страниц поверх живой оснастки.
+
+    Живые записи берутся фикстурами: выборка без фильтра `deleted_at` и без
+    порядка недетерминирована, в базе четырнадцать записей людей и живая одна.
+    """
 
     outsider_id = uuid.uuid4()
     await session.execute(
@@ -130,15 +115,19 @@ async def _restrict(session: AsyncSession, world: dict, page: Page) -> PageAcces
 
 
 class TestOpenPages:
-    async def test_space_member_sees_open_page(self, session: AsyncSession) -> None:
-        world = await _world(session)
+    async def test_space_member_sees_open_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
         rights = await PageAccessService(session).rights(world["root"], world["outsider_id"])
         assert rights.can_view is True
         assert rights.restricted is False
 
-    async def test_non_member_sees_nothing(self, session: AsyncSession) -> None:
+    async def test_non_member_sees_nothing(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Нет доступа к пространству — нет и к странице."""
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         stranger = uuid.uuid4()
 
         rights = await PageAccessService(session).rights(world["root"], stranger)
@@ -146,61 +135,69 @@ class TestOpenPages:
 
 
 class TestRestriction:
-    async def test_membership_is_not_enough(self, session: AsyncSession) -> None:
+    async def test_membership_is_not_enough(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Членства в пространстве недостаточно для закрытой страницы.
 
         Это и есть главное правило: в v1 забытая проверка здесь означала
         выдачу содержимого тому, кому оно не полагается.
         """
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
         rights = await PageAccessService(session).rights(world["child"], world["outsider_id"])
         assert rights.can_view is False
         assert rights.restricted is True
 
-    async def test_restriction_is_inherited_by_children(self, session: AsyncSession) -> None:
+    async def test_restriction_is_inherited_by_children(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Ограничение родителя закрывает и подстраницы.
 
         Иначе достаточно завести подстраницу, чтобы обойти ограничение.
         """
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
-        rights = await PageAccessService(session).rights(
-            world["grandchild"], world["outsider_id"]
-        )
+        rights = await PageAccessService(session).rights(world["grandchild"], world["outsider_id"])
         assert rights.can_view is False
         assert rights.restricted is True
 
-    async def test_permitted_person_sees_restricted_page(self, session: AsyncSession) -> None:
-        world = await _world(session)
+    async def test_permitted_person_sees_restricted_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
         rights = await PageAccessService(session).rights(world["child"], world["owner"].id)
         assert rights.can_view is True
         assert rights.can_edit is True
 
-    async def test_permission_reaches_descendants(self, session: AsyncSession) -> None:
-        world = await _world(session)
+    async def test_permission_reaches_descendants(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
-        rights = await PageAccessService(session).rights(
-            world["grandchild"], world["owner"].id
-        )
+        rights = await PageAccessService(session).rights(world["grandchild"], world["owner"].id)
         assert rights.can_view is True
 
-    async def test_sibling_branch_stays_open(self, session: AsyncSession) -> None:
+    async def test_sibling_branch_stays_open(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Ограничение не расползается вверх и вбок."""
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
         rights = await PageAccessService(session).rights(world["root"], world["outsider_id"])
         assert rights.can_view is True
 
-    async def test_group_permission_works(self, session: AsyncSession) -> None:
+    async def test_group_permission_works(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Доступ, выданный группе, действует на её участников."""
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         access = await _restrict(session, world, world["child"])
 
         group_id = uuid.uuid4()
@@ -233,13 +230,15 @@ class TestRestriction:
         # Читатель не правит: роль в разрешении определяет и это тоже.
         assert rights.can_edit is False
 
-    async def test_nearest_restriction_wins(self, session: AsyncSession) -> None:
+    async def test_nearest_restriction_wins(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Считается ближайший ограниченный предок, а не самый верхний.
 
         Разрешение на верхнем уровне не должно открывать ветку, закрытую
         ниже отдельно.
         """
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["root"])
 
         deep_access_id = uuid.uuid4()
@@ -265,19 +264,21 @@ class TestRestriction:
 
 
 class TestValidators:
-    async def test_view_refusal_raises(self, session: AsyncSession) -> None:
-        world = await _world(session)
+    async def test_view_refusal_raises(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
         with pytest.raises(AppError) as failure:
-            await PageAccessService(session).validate_can_view(
-                world["child"], world["outsider_id"]
-            )
+            await PageAccessService(session).validate_can_view(world["child"], world["outsider_id"])
         assert "access_denied" in str(failure.value.extra)
 
-    async def test_filter_drops_closed_pages(self, session: AsyncSession) -> None:
+    async def test_filter_drops_closed_pages(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
         """Пачка страниц фильтруется до выдачи, а не на клиенте."""
-        world = await _world(session)
+        world = await _world(session, workspace, owner, space)
         await _restrict(session, world, world["child"])
 
         visible = await PageAccessService(session).filter_viewable(

@@ -36,9 +36,7 @@ class InvitationController(Controller):
         found = await InvitationService(db_session).list(principal.workspace_id)
         # Токена в списке нет: он и есть учётные данные приглашённого.
         return [
-            InvitationView(
-                id=inv.id, email=inv.email, role=inv.role, createdAt=inv.created_at
-            )
+            InvitationView(id=inv.id, email=inv.email, role=inv.role, createdAt=inv.created_at)
             for inv in found
         ]
 
@@ -58,9 +56,7 @@ class InvitationController(Controller):
             actor, data.emails, data.role, principal.workspace_id, data.groupIds
         )
         return [
-            InvitationView(
-                id=inv.id, email=inv.email, role=inv.role, createdAt=inv.created_at
-            )
+            InvitationView(id=inv.id, email=inv.email, role=inv.role, createdAt=inv.created_at)
             for inv in created
         ]
 

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.infrastructure.mail import MailService, MailSettings
-from tessera_api.infrastructure.models import User, UserSession, UserToken, Workspace
+from tessera_api.infrastructure.models import UserSession, UserToken
 from tessera_api.infrastructure.repositories import UserRepo
 from tessera_api.services.password_reset import PasswordResetService
 from tests.conftest import needs_database
@@ -30,48 +30,45 @@ class Recorder(MailService):
         self.sent.append({"to": to, "subject": subject, "body": body})
 
 
-async def _service(session: AsyncSession) -> tuple[PasswordResetService, Recorder, User, Workspace]:
-    workspace = (
-        await session.execute(select(Workspace).where(Workspace.deleted_at.is_(None)))
-    ).scalars().first()
-    user = (
-        await session.execute(
-            select(User)
-            .where(User.workspace_id == workspace.id)
-            .where(User.deleted_at.is_(None))
-        )
-    ).scalars().first()
+async def _service(session: AsyncSession, workspace, owner):
+    """Служба сброса с почтой-записной книжкой.
+
+    Живые записи приходят фикстурами: выборка без фильтра `deleted_at` и без
+    порядка недетерминирована.
+    """
     mail = Recorder()
-    return PasswordResetService(session, UserRepo(session), mail), mail, user, workspace
+    return PasswordResetService(session, UserRepo(session), mail), mail, owner, workspace
 
 
 class TestRequest:
-    async def test_unknown_email_looks_the_same(self, session: AsyncSession) -> None:
+    async def test_unknown_email_looks_the_same(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
         """Незаведённый адрес не отличается от заведённого.
 
         Разные ответы позволяют перебором узнать, кто здесь работает.
         """
-        service, mail, _, workspace = await _service(session)
+        service, mail, _, workspace = await _service(session, workspace, owner)
 
         await service.request("нет-такого@example.com", workspace.id, "http://localhost:3000")
 
         assert mail.sent == []
 
-    async def test_link_is_sent(self, session: AsyncSession) -> None:
-        service, mail, user, workspace = await _service(session)
+    async def test_link_is_sent(self, session: AsyncSession, workspace, owner) -> None:
+        service, mail, user, workspace = await _service(session, workspace, owner)
 
         await service.request(user.email, workspace.id, "http://localhost:3000")
 
         assert len(mail.sent) == 1
         assert "password-reset?token=" in mail.sent[0]["body"]
 
-    async def test_previous_links_are_killed(self, session: AsyncSession) -> None:
+    async def test_previous_links_are_killed(self, session: AsyncSession, workspace, owner) -> None:
         """Второй запрос гасит первую ссылку.
 
         Несколько живых ссылок это несколько способов войти, и отозвать их
         разом потом нечем.
         """
-        service, mail, user, workspace = await _service(session)
+        service, mail, user, workspace = await _service(session, workspace, owner)
 
         await service.request(user.email, workspace.id, "http://localhost:3000")
         first = mail.sent[0]["body"].split("token=")[1].split()[0]
@@ -81,29 +78,29 @@ class TestRequest:
 
 
 class TestReset:
-    async def _fresh_token(self, session: AsyncSession) -> tuple[str, User, Workspace]:
-        service, mail, user, workspace = await _service(session)
+    async def _fresh_token(self, session: AsyncSession, workspace, owner):
+        service, mail, user, _ = await _service(session, workspace, owner)
         await service.request(user.email, workspace.id, "http://localhost:3000")
         token = mail.sent[0]["body"].split("token=")[1].split()[0]
         return token, user, workspace
 
-    async def test_unknown_token_is_refused(self, session: AsyncSession) -> None:
-        service, _, _, workspace = await _service(session)
+    async def test_unknown_token_is_refused(self, session: AsyncSession, workspace, owner) -> None:
+        service, _, _, workspace = await _service(session, workspace, owner)
 
         with pytest.raises(AppError) as failure:
             await service.reset("нет-такого-токена", "достаточно-длинный", workspace.id)
         assert "invalid_or_expired_token" in str(failure.value.extra)
 
-    async def test_short_password_is_refused(self, session: AsyncSession) -> None:
-        token, _, workspace = await self._fresh_token(session)
-        service, _, _, _ = await _service(session)
+    async def test_short_password_is_refused(self, session: AsyncSession, workspace, owner) -> None:
+        token, _, workspace = await self._fresh_token(session, workspace, owner)
+        service, _, _, _ = await _service(session, workspace, owner)
 
         with pytest.raises(AppError) as failure:
             await service.reset(token, "1234567", workspace.id)
         assert "password_too_short" in str(failure.value.extra)
 
-    async def test_expired_token_is_refused(self, session: AsyncSession) -> None:
-        token, _, workspace = await self._fresh_token(session)
+    async def test_expired_token_is_refused(self, session: AsyncSession, workspace, owner) -> None:
+        token, _, workspace = await self._fresh_token(session, workspace, owner)
         await session.execute(
             update(UserToken)
             .where(UserToken.token == token)
@@ -111,14 +108,14 @@ class TestReset:
         )
         await session.flush()
 
-        service, _, _, _ = await _service(session)
+        service, _, _, _ = await _service(session, workspace, owner)
         with pytest.raises(AppError) as failure:
             await service.reset(token, "достаточно-длинный", workspace.id)
         assert "invalid_or_expired_token" in str(failure.value.extra)
 
-    async def test_token_works_once(self, session: AsyncSession) -> None:
-        token, _, workspace = await self._fresh_token(session)
-        service, _, _, _ = await _service(session)
+    async def test_token_works_once(self, session: AsyncSession, workspace, owner) -> None:
+        token, _, workspace = await self._fresh_token(session, workspace, owner)
+        service, _, _, _ = await _service(session, workspace, owner)
 
         await service.reset(token, "достаточно-длинный", workspace.id)
 
@@ -126,13 +123,13 @@ class TestReset:
             await service.reset(token, "другой-достаточно-длинный", workspace.id)
         assert "invalid_or_expired_token" in str(failure.value.extra)
 
-    async def test_all_sessions_are_revoked(self, session: AsyncSession) -> None:
+    async def test_all_sessions_are_revoked(self, session: AsyncSession, workspace, owner) -> None:
         """Сброс отзывает все сессии.
 
         Пароль сбрасывают в том числе тогда, когда его увели, и оставленная
         чужая сессия делает сброс бессмысленным.
         """
-        token, user, workspace = await self._fresh_token(session)
+        token, user, workspace = await self._fresh_token(session, workspace, owner)
 
         from sqlalchemy import insert
 
@@ -146,14 +143,18 @@ class TestReset:
         )
         await session.flush()
 
-        service, _, _, _ = await _service(session)
+        service, _, _, _ = await _service(session, workspace, owner)
         await service.reset(token, "достаточно-длинный", workspace.id)
 
         live = (
-            await session.execute(
-                select(UserSession)
-                .where(UserSession.user_id == user.id)
-                .where(UserSession.revoked_at.is_(None))
+            (
+                await session.execute(
+                    select(UserSession)
+                    .where(UserSession.user_id == user.id)
+                    .where(UserSession.revoked_at.is_(None))
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert live == []

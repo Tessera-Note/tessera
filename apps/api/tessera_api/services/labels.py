@@ -18,11 +18,7 @@ class LabelService:
         self._access = PageAccessService(session)
 
     async def list_all(self, workspace_id: uuid.UUID) -> list[Label]:
-        stmt = (
-            select(Label)
-            .where(Label.workspace_id == workspace_id)
-            .order_by(Label.name.asc())
-        )
+        stmt = select(Label).where(Label.workspace_id == workspace_id).order_by(Label.name.asc())
         return list((await self._session.execute(stmt)).scalars().all())
 
     async def ensure(self, name: str, workspace_id: uuid.UUID) -> Label:
@@ -70,9 +66,7 @@ class LabelService:
             ).scalar_one_or_none()
             if already is None:
                 await self._session.execute(
-                    insert(PageLabel).values(
-                        id=uuid.uuid4(), page_id=page.id, label_id=label.id
-                    )
+                    insert(PageLabel).values(id=uuid.uuid4(), page_id=page.id, label_id=label.id)
                 )
             attached.append(label)
 
@@ -175,8 +169,6 @@ class FavoriteService:
         мочь и тогда, когда доступ к странице у него уже отобрали.
         """
         await self._session.execute(
-            delete(Favorite)
-            .where(Favorite.user_id == user_id)
-            .where(Favorite.page_id == page_id)
+            delete(Favorite).where(Favorite.user_id == user_id).where(Favorite.page_id == page_id)
         )
         await self._session.commit()

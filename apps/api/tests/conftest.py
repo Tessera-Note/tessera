@@ -43,3 +43,65 @@ async def session() -> AsyncIterator[AsyncSession]:
             yield db_session
         await outer.rollback()
     await engine.dispose()
+
+
+@pytest.fixture
+async def workspace(session: AsyncSession):
+    """Рабочее пространство базы."""
+    from sqlalchemy import select
+
+    from tessera_api.infrastructure.models import Workspace
+
+    return (
+        (await session.execute(select(Workspace).where(Workspace.deleted_at.is_(None))))
+        .scalars()
+        .first()
+    )
+
+
+@pytest.fixture
+async def owner(session: AsyncSession, workspace):
+    """Живой владелец пространства.
+
+    Фильтр по `deleted_at` обязателен, и вынесен сюда именно поэтому: в базе
+    четырнадцать записей людей, из них живая одна, остальные обезличены при
+    удалении. Выборка без фильтра берёт удалённого, и проверка падает на
+    отсутствии прав — так и случилось, пока эта фикстура не появилась.
+    """
+    from sqlalchemy import select
+
+    from tessera_api.infrastructure.models import User
+
+    return (
+        (
+            await session.execute(
+                select(User)
+                .where(User.workspace_id == workspace.id)
+                .where(User.deleted_at.is_(None))
+                .where(User.deactivated_at.is_(None))
+                .order_by(User.created_at.asc())
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+
+@pytest.fixture
+async def space(session: AsyncSession, workspace):
+    """Пространство, в котором владелец состоит."""
+    from sqlalchemy import select
+
+    from tessera_api.infrastructure.models import Space
+
+    return (
+        (
+            await session.execute(
+                select(Space)
+                .where(Space.workspace_id == workspace.id)
+                .where(Space.deleted_at.is_(None))
+            )
+        )
+        .scalars()
+        .first()
+    )
