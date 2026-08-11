@@ -81,3 +81,29 @@ class MemberView(msgspec.Struct):
     role: str | None
     avatarUrl: str | None  # noqa: N815 — имя поля из v1
     deactivatedAt: datetime | None  # noqa: N815 — имя поля из v1
+
+
+class InviteRequest(msgspec.Struct):
+    emails: list[str]
+    role: str
+    groupIds: list[uuid.UUID] | None = None  # noqa: N815 — имя поля из v1
+
+
+class AcceptInviteRequest(msgspec.Struct):
+    invitationId: uuid.UUID  # noqa: N815 — имя поля из v1
+    token: str
+    name: str
+    password: str
+
+
+class InvitationView(msgspec.Struct):
+    """Приглашение в списке.
+
+    Токена здесь нет намеренно: он и есть учётные данные приглашённого, а
+    список видят все администраторы. Ссылка выдаётся отдельным запросом.
+    """
+
+    id: uuid.UUID
+    email: str | None
+    role: str
+    createdAt: datetime  # noqa: N815 — имя поля из v1

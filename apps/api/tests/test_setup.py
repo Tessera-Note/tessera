@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.infrastructure.database import _asyncpg_url
+from tessera_api.domain.errors import AppError
 from tessera_api.infrastructure.models import (
     Group,
     GroupUser,
@@ -24,33 +23,9 @@ from tessera_api.infrastructure.models import (
     Workspace,
 )
 from tessera_api.services.setup import SetupService
+from tests.conftest import needs_database
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-pytestmark = pytest.mark.skipif(
-    not DATABASE_URL,
-    reason="нужна настоящая база: DATABASE_URL не задан",
-)
-
-
-@pytest.fixture
-async def session() -> AsyncSession:
-    """Сессия в транзакции, которая всегда откатывается.
-
-    Настройка внутри вызывает commit, поэтому обычной отмены мало: сессия
-    открывается во вложенной транзакции, и внешняя откатывает всё, что
-    внутренняя зафиксировала.
-    """
-    engine = create_async_engine(_asyncpg_url(DATABASE_URL))
-    async with engine.connect() as connection:
-        outer = await connection.begin()
-        maker = async_sessionmaker(
-            bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
-        )
-        async with maker() as db_session:
-            yield db_session
-        await outer.rollback()
-    await engine.dispose()
+pytestmark = needs_database
 
 
 class TestIsDone:
@@ -66,7 +41,7 @@ class TestIsDone:
 class TestRun:
     async def test_second_setup_is_refused(self, session: AsyncSession) -> None:
         service = SetupService(session)
-        with pytest.raises(Exception) as failure:
+        with pytest.raises(AppError) as failure:
             await service.run(
                 workspace_name="Второе",
                 name="Кто-то",
@@ -143,7 +118,7 @@ class TestRun:
         await session.execute(update(Workspace).values(deleted_at=func.now()))
         await session.flush()
 
-        with pytest.raises(Exception) as failure:
+        with pytest.raises(AppError) as failure:
             await SetupService(session).run(
                 workspace_name="Проверка",
                 name="Владелец",
@@ -158,7 +133,7 @@ class TestRun:
         await session.execute(update(Workspace).values(deleted_at=func.now()))
         await session.flush()
 
-        with pytest.raises(Exception) as failure:
+        with pytest.raises(AppError) as failure:
             await SetupService(session).run(
                 workspace_name="Проверка",
                 name="Владелец",
@@ -180,7 +155,9 @@ class TestRun:
 
         before = (await session.execute(select(func.count()).select_from(User))).scalar_one()
 
-        with pytest.raises(Exception):
+        # Тип сужен намеренно: `Exception` поймал бы и падение самой
+        # настройки, и проверка была бы зелёной на сломанном коде.
+        with pytest.raises(AppError):
             await SetupService(session).run(
                 workspace_name="Проверка",
                 name="Владелец",

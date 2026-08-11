@@ -29,6 +29,8 @@ class AuditEvent:
     USER_ROLE_CHANGED = "user.role_changed"
     USER_DEACTIVATED = "user.deactivated"
     USER_ACTIVATED = "user.activated"
+    USER_INVITE_ACCEPTED = "user.invite_accepted"
+    USER_INVITED = "user.invited"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
 

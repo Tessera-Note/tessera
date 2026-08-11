@@ -58,6 +58,7 @@ class User(Base, SoftDeleteMixin):
     avatar_url: Mapped[str | None] = mapped_column(String)
     role: Mapped[str | None] = mapped_column(String)
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    invited_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     locale: Mapped[str | None] = mapped_column(String)
     timezone: Mapped[str | None] = mapped_column(String)
     settings: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
