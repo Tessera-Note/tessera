@@ -459,6 +459,43 @@ class TestCallback:
             )
 
 
+class TestParsingHelpers:
+    @pytest.mark.parametrize(
+        ("given", "ok"),
+        [
+            ("2026-08-11T12:00:00Z", True),
+            ("2026-08-11T12:00:00+00:00", True),
+            ("2026-08-11T12:00:00.123Z", True),
+            (None, False),
+            ("", False),
+            ("не-дата", False),
+            ("11.08.2026", False),
+        ],
+    )
+    def test_instant_parsing_never_raises(self, given, ok: bool) -> None:  # noqa: ANN001
+        """Отметки времени приходят снаружи.
+
+        Непригодное значение это отсутствие условия, а не поломка сервера: на
+        исключении здесь весь вход отвечал бы пятисотым.
+        """
+        from tessera_api.services.saml import _instant
+
+        assert (_instant(given) is not None) is ok
+
+    def test_pick_takes_the_first_known_name(self) -> None:
+        from tessera_api.services.saml import _pick
+
+        attributes = {"mail": ["второй@example.com"], "email": ["первый@example.com"]}
+        assert _pick(attributes, ("email", "mail")) == "первый@example.com"
+        assert _pick(attributes, ("нет", "mail")) == "второй@example.com"
+        assert _pick(attributes, ("нет",)) is None
+
+    def test_pick_skips_empty_lists(self) -> None:
+        from tessera_api.services.saml import _pick
+
+        assert _pick({"email": []}, ("email", "mail")) is None
+
+
 class TestClaimNames:
     @pytest.mark.parametrize(
         "claim",

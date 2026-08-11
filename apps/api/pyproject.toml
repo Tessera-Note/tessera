@@ -14,7 +14,6 @@ dependencies = [
     "arq==0.25.0",
     "aiobotocore==3.9.0",
     "cryptography==50.0.0",
-    "scim2-models==0.6.12",
     "ldap3==2.9.1",
     "signxml==5.1.0",
 ]
