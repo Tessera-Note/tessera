@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ARRAY, Boolean, DateTime, String, Text, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -229,15 +229,139 @@ class AuthProvider(Base, SoftDeleteMixin):
     ldap_base_dn: Mapped[str | None] = mapped_column(String)
 
 
+class Page(Base, SoftDeleteMixin):
+    """Страница.
+
+    `content` это документ редактора в JSON, `ydoc` — то же состояние в
+    двоичном виде совместного редактирования, `text_content` — плоский текст
+    для поиска. Все три обязаны меняться вместе: правка одного JSON вернётся
+    назад при следующем открытии страницы.
+    """
+
+    __tablename__ = "pages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    slug_id: Mapped[str] = mapped_column(String)
+    title: Mapped[str | None] = mapped_column(String)
+    icon: Mapped[str | None] = mapped_column(String)
+    cover_photo: Mapped[str | None] = mapped_column(String)
+    position: Mapped[str | None] = mapped_column(String)
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    text_content: Mapped[str | None] = mapped_column(Text)
+    parent_page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    last_updated_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    deleted_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class PageAccess(Base, TimestampMixin):
+    """Отметка о том, что доступ к странице ограничен."""
+
+    __tablename__ = "page_access"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    access_level: Mapped[str] = mapped_column(String)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+class PagePermission(Base, TimestampMixin):
+    """Кому открыта страница с ограниченным доступом."""
+
+    __tablename__ = "page_permissions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_access_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    group_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    role: Mapped[str] = mapped_column(String)
+    added_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+class Comment(Base, SoftDeleteMixin):
+    __tablename__ = "comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    selection: Mapped[str | None] = mapped_column(String)
+    type: Mapped[str | None] = mapped_column(String)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    last_edited_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+class Attachment(Base, SoftDeleteMixin):
+    __tablename__ = "attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    file_name: Mapped[str] = mapped_column(String)
+    file_path: Mapped[str] = mapped_column(String)
+    file_size: Mapped[int | None] = mapped_column(BigInteger)
+    file_ext: Mapped[str] = mapped_column(String)
+    mime_type: Mapped[str | None] = mapped_column(String)
+    type: Mapped[str | None] = mapped_column(String)
+    creator_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    text_content: Mapped[str | None] = mapped_column(Text)
+
+
+class Label(Base, TimestampMixin):
+    __tablename__ = "labels"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class PageLabel(Base, CreatedMixin):
+    __tablename__ = "page_labels"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    label_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class Favorite(Base, CreatedMixin):
+    __tablename__ = "favorites"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    type: Mapped[str] = mapped_column(String)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
 __all__ = [
     "AuditLog",
+    "Attachment",
     "AuthAccount",
     "AuthProvider",
     "Base",
     "CreatedMixin",
     "SoftDeleteMixin",
+    "Comment",
+    "Favorite",
     "Group",
     "GroupUser",
+    "Label",
+    "Page",
+    "PageAccess",
+    "PageLabel",
+    "PagePermission",
     "Space",
     "SpaceMember",
     "User",
