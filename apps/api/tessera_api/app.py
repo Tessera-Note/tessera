@@ -22,9 +22,11 @@ from tessera_api.api.invitations import InvitationController
 from tessera_api.api.pages import (
     CommentController,
     FavoriteController,
+    HistoryController,
     LabelController,
     PageController,
     SearchController,
+    ShareController,
 )
 from tessera_api.api.spaces import GroupController, SpaceController
 from tessera_api.api.workspace import WorkspaceController
@@ -98,6 +100,8 @@ def create_app(settings: Settings | None = None) -> Litestar:
             CommentController,
             LabelController,
             FavoriteController,
+            HistoryController,
+            ShareController,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же

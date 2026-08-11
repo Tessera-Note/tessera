@@ -9,12 +9,14 @@ from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.guards import Principal
+from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.services.comments import CommentService
+from tessera_api.services.history import PageHistoryService
 from tessera_api.services.labels import FavoriteService, LabelService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
 from tessera_api.services.search import SearchService
+from tessera_api.services.shares import ShareService
 
 
 class CreatePageRequest(msgspec.Struct):
@@ -271,3 +273,116 @@ class FavoriteController(Controller):
         # мочь и после того, как доступ к странице у него отобрали.
         await FavoriteService(db_session).remove_page(uuid.UUID(data.pageId), principal.user_id)
         return {"status": "ok"}
+
+
+class ShareRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+    includeSubPages: bool = False  # noqa: N815 — имя поля из v1
+    searchIndexing: bool = False  # noqa: N815 — имя поля из v1
+
+
+class ShareKeyRequest(msgspec.Struct):
+    key: str
+    pageId: str | None = None  # noqa: N815 — имя поля из v1
+
+
+class HistoryController(Controller):
+    path = "/api/pages/history"
+
+    @post("/list")
+    async def list_versions(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(
+            data.pageId, principal.workspace_id
+        )
+        versions = await PageHistoryService(db_session).list_for_page(
+            page, principal.user_id
+        )
+        return [
+            {
+                "id": v.id,
+                "version": v.version,
+                "title": v.title,
+                "lastUpdatedById": v.last_updated_by_id,
+                "createdAt": v.created_at,
+            }
+            for v in versions
+        ]
+
+    @post("/get")
+    async def get_version(
+        self, data: dict, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        version = await PageHistoryService(db_session).get_version(
+            uuid.UUID(str(data["versionId"])), principal.user_id, principal.workspace_id
+        )
+        return {
+            "id": version.id,
+            "version": version.version,
+            "title": version.title,
+            "content": version.content,
+            "createdAt": version.created_at,
+        }
+
+
+class ShareController(Controller):
+    path = "/api/share"
+
+    @post("/create")
+    async def create(
+        self, data: ShareRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(
+            data.pageId, principal.workspace_id
+        )
+        share = await ShareService(db_session).create(
+            page=page,
+            user_id=principal.user_id,
+            include_sub_pages=data.includeSubPages,
+            search_indexing=data.searchIndexing,
+        )
+        return {
+            "id": share.id,
+            "key": share.key,
+            "includeSubPages": share.include_sub_pages,
+        }
+
+    @post("/revoke")
+    async def revoke(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(
+            data.pageId, principal.workspace_id
+        )
+        await ShareService(db_session).revoke(page, principal.user_id)
+        return {"status": "ok"}
+
+    @post("/open", opt={PUBLIC: True})
+    async def open_shared(
+        self, data: ShareKeyRequest, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        """Открыть страницу по ссылке без входа.
+
+        Публичный по назначению: ссылка и заводится ради тех, у кого учётной
+        записи нет. Учётными данными служит ключ, права не проверяются, но
+        проверяется, что ссылка не отозвана, страница жива, а запрошенная
+        подстраница действительно потомок открытой.
+        """
+        service = ShareService(db_session)
+        if data.pageId:
+            page = await service.shared_page(data.key, data.pageId)
+        else:
+            _, page = await service.resolve(data.key)
+
+        return {
+            "id": page.id,
+            "slugId": page.slug_id,
+            "title": page.title,
+            "content": page.content,
+            "updatedAt": page.updated_at,
+        }

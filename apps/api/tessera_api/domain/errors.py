@@ -58,6 +58,8 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.label.label_not_found": "Label not found",
     "error.label.name_required": "The label needs a name",
     "error.attachment.attachment_not_found": "Attachment not found",
+    "error.page.version_not_found": "Page version not found",
+    "error.share.share_not_found": "This link is not valid",
 }
 
 

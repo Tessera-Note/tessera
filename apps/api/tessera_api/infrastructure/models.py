@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, String, Text, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -345,8 +345,60 @@ class Favorite(Base, CreatedMixin):
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
 
+class PageHistory(Base, CreatedMixin):
+    """Версия страницы.
+
+    Снимок содержимого на момент правки. Нужен и человеку, и восстановлению
+    после ошибочной правки, поэтому пишется в тех же случаях, что в v1.
+    """
+
+    __tablename__ = "page_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    slug_id: Mapped[str | None] = mapped_column(String)
+    title: Mapped[str | None] = mapped_column(String)
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    icon: Mapped[str | None] = mapped_column(String)
+    version: Mapped[int | None] = mapped_column(Integer)
+    last_updated_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class Share(Base, SoftDeleteMixin):
+    """Ссылка общего доступа.
+
+    Ключ и есть учётные данные того, кто открывает страницу без входа, поэтому
+    берётся у криптографического источника.
+    """
+
+    __tablename__ = "shares"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    key: Mapped[str] = mapped_column(String)
+    page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    include_sub_pages: Mapped[bool] = mapped_column(Boolean)
+    search_indexing: Mapped[bool] = mapped_column(Boolean)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class Backlink(Base, TimestampMixin):
+    """Обратная ссылка: какая страница ссылается на какую."""
+
+    __tablename__ = "backlinks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    source_page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    target_page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
 __all__ = [
     "AuditLog",
+    "Backlink",
     "Attachment",
     "AuthAccount",
     "AuthProvider",
@@ -361,7 +413,9 @@ __all__ = [
     "Page",
     "PageAccess",
     "PageLabel",
+    "PageHistory",
     "PagePermission",
+    "Share",
     "Space",
     "SpaceMember",
     "User",

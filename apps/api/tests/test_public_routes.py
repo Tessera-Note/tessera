@@ -38,6 +38,9 @@ EXPECTED_PUBLIC = {
     "/api/auth/forgot-password",
     "/api/auth/password-reset",
     "/api/auth/verify-token",
+    # Ссылка общего доступа заводится ради тех, у кого учётной записи нет.
+    # Учётными данными служит ключ ссылки.
+    "/api/share/open",
 }
 
 

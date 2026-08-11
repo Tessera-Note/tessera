@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden
 from tessera_api.infrastructure.models import Page
+from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import PageAccessService
 
 #: Алфавит короткого имени страницы. Тот же, что в v1: короткое имя попадает в
@@ -55,6 +56,7 @@ class PageService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        self._history = PageHistoryService(session)
 
     async def create(
         self,
@@ -114,6 +116,12 @@ class PageService:
         icon: str | None = None,
     ) -> Page:
         await self._access.validate_can_edit(page, user_id)
+
+        if content is not None:
+            # Версия пишется до правки, а не после: она обязана хранить то, что
+            # было, иначе восстанавливать нечего. Частые правки подряд
+            # сливаются в одну, см. PageHistoryService.
+            await self._history.record(page, user_id)
 
         values: dict = {"last_updated_by_id": user_id, "updated_at": datetime.now(UTC)}
         if title is not None:
