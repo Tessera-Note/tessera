@@ -19,6 +19,7 @@ from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.invitations import InvitationController
+from tessera_api.api.page_permissions import PagePermissionController
 from tessera_api.api.pages import (
     CommentController,
     FavoriteController,
@@ -105,6 +106,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             WorkspaceController,
             InvitationController,
             PageController,
+            PagePermissionController,
             SearchController,
             CommentController,
             LabelController,
