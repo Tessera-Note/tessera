@@ -18,6 +18,10 @@ ALGORITHM = "HS256"
 #: Срок жизни токена доступа. Тот же, что в v1 по умолчанию.
 DEFAULT_EXPIRES = timedelta(days=30)
 
+#: Срок токена совместного редактирования. Короче доступа: соединение живёт
+#: сеанс работы, а не месяц, и утёкший токен должен протухнуть быстро.
+COLLAB_EXPIRES = timedelta(hours=24)
+
 
 class TokenType:
     """Вид токена.
@@ -29,6 +33,10 @@ class TokenType:
 
     ACCESS = "access"
     EXCHANGE = "exchange"
+    #: Токен для сервиса совместного редактирования. Отдельный вид намеренно:
+    #: он живёт в другом процессе, и токен доступа, попавший туда, дал бы этому
+    #: процессу право ходить в основное приложение от имени человека.
+    COLLAB = "collab"
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +69,25 @@ class TokenService:
                 "type": TokenType.ACCESS,
                 "iat": int(now.timestamp()),
                 "exp": int((now + expires).timestamp()),
+            },
+            self._secret,
+            algorithm=ALGORITHM,
+        )
+
+    def issue_collab(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> str:
+        """Токен для подключения к сеансу совместного редактирования.
+
+        Сессии здесь нет: сервис редактирования держит соединение сам и в базу
+        за проверкой не ходит. Поэтому срок короткий, а вид токена отдельный.
+        """
+        now = datetime.now(UTC)
+        return jwt.encode(
+            {
+                "sub": str(user_id),
+                "workspaceId": str(workspace_id),
+                "type": TokenType.COLLAB,
+                "iat": int(now.timestamp()),
+                "exp": int((now + COLLAB_EXPIRES).timestamp()),
             },
             self._secret,
             algorithm=ALGORITHM,

@@ -1,0 +1,62 @@
+# Развёртывание v2. Отдельный файл: прод поднимается корневым docker-compose.yml
+# и трогать его нельзя, пока v2 не готов целиком.
+#
+# Имена сервисов и container_name несут префикс проекта: на машине с несколькими
+# проектами голое имя `postgres` означает, что второй проект не поднимется, а
+# `docker compose down` снесёт чужой контейнер.
+services:
+  tessera-v2-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tessera-v2-api
+    depends_on:
+      - tessera-v2-db
+      - tessera-v2-redis
+    environment:
+      # Окружение перечисляется поимённо, как в v1, и по той же причине: всё,
+      # чего здесь нет, до приложения не доходит. Список сверен с тем, что
+      # читает Settings.from_env.
+      APP_URL: ${APP_URL:-http://localhost:3100}
+      APP_SECRET: ${APP_SECRET:?APP_SECRET обязателен, не короче 32 символов}
+      DATABASE_URL: postgresql://tessera:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@tessera-v2-db:5432/tessera
+      REDIS_URL: redis://tessera-v2-redis:6379
+      HOST: ${HOST:-0.0.0.0}
+      PORT: ${PORT:-3000}
+      DEBUG_MODE: ${DEBUG_MODE:-}
+      # Число доверенных прокси, а не «доверять всей цепочке»: по этому адресу
+      # считаются пороги частоты и пишется журнал аудита.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      MAIL_DRIVER: ${MAIL_DRIVER:-log}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@tessera.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Tessera}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+    ports:
+      - "3100:3000"
+    restart: unless-stopped
+
+  tessera-v2-db:
+    image: pgvector/pgvector:pg18
+    container_name: tessera-v2-db
+    environment:
+      POSTGRES_DB: tessera
+      POSTGRES_USER: tessera
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
+    restart: unless-stopped
+    volumes:
+      - tessera_v2_db_data:/var/lib/postgresql
+
+  tessera-v2-redis:
+    image: redis:8
+    container_name: tessera-v2-redis
+    restart: unless-stopped
+    volumes:
+      - tessera_v2_redis_data:/data
+
+volumes:
+  tessera_v2_db_data:
+  tessera_v2_redis_data:

@@ -25,5 +25,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 3000
 
+# Сервер запускается напрямую, а не через `litestar run`. Команда CLI читает из
+# окружения LITESTAR_DEBUG, LITESTAR_PDB и LITESTAR_RELOAD (объявлены как envvar
+# в её исходнике), то есть переменная, попавшая в контейнер, меняет режим работы
+# приложения снаружи. У точки входа в прод такой поверхности быть не должно.
+#
 # Порт и адрес берутся из окружения теми же именами, что в v1.
-CMD ["sh", "-c", "litestar --app tessera_api.app:create_app run --host ${HOST:-0.0.0.0} --port ${PORT:-3000}"]
+CMD ["sh", "-c", "uvicorn --factory tessera_api.app:create_app --host ${HOST:-0.0.0.0} --port ${PORT:-3000}"]

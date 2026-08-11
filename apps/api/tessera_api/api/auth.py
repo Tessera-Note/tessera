@@ -248,6 +248,32 @@ class AuthController(Controller):
         )
         return {"valid": valid}
 
+    @post("/collab-token")
+    async def collab_token(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+    ) -> dict:
+        """Токен для сеанса совместного редактирования.
+
+        Отдельный вид токена, а не токен доступа: сервис редактирования живёт
+        отдельным процессом, и токен доступа, попавший туда, дал бы ему право
+        ходить в приложение от имени человека.
+
+        Учётная запись проверяется здесь: сервис редактирования в базу не
+        ходит и отключённого человека сам не отличит.
+        """
+        principal: Principal = request.scope["principal"]
+
+        user = await UserRepo(db_session).by_id(principal.user_id, principal.workspace_id)
+        if user is None or user.deactivated_at is not None:
+            raise unauthorized("error.auth.account_deactivated")
+
+        return {
+            "token": tokens.issue_collab(principal.user_id, principal.workspace_id)
+        }
+
     @get("/me")
     async def me(self, request: Request, db_session: NamedDependency[AsyncSession]) -> dict:
         principal: Principal = request.scope["principal"]
