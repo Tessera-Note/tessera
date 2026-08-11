@@ -18,6 +18,7 @@ from tessera_api.services.backlinks import (
     BacklinkService,
     extract_internal_link_slugs,
     extract_page_mentions,
+    internal_page_segment,
     page_slug_id,
 )
 from tessera_api.services.page_access import ACCESS_RESTRICTED
@@ -61,6 +62,29 @@ class TestSlugExtraction:
         делить пополам означало бы промахиваться на любом составном названии.
         """
         assert page_slug_id(given) == expected
+
+
+class TestAddressParsing:
+    @pytest.mark.parametrize(
+        ("href", "expected"),
+        [
+            ("/s/general/p/название-abc", "название-abc"),
+            ("https://host/p/abc", "abc"),
+            ("/p/abc/", "abc"),
+            ("https://host/blog/post", None),
+            ("", None),
+            ("/p/", None),
+            ("не адрес вовсе", None),
+        ],
+    )
+    def test_page_segment_is_taken_from_the_path(
+        self, href: str, expected: str | None
+    ) -> None:
+        """Сегмент берётся после раздела `p`, где бы тот ни стоял.
+
+        Раздел пространства перед ним необязателен, домен и протокол тоже.
+        """
+        assert internal_page_segment(href) == expected
 
 
 class TestMentions:
