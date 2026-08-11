@@ -15,7 +15,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import insert, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tessera_api.infrastructure.database import _asyncpg_url
@@ -118,8 +118,19 @@ async def test_live_session_survives(session, workspace, owner) -> None:
 
 @needs_database
 async def test_excess_sessions_are_trimmed_keeping_the_newest(session, workspace, owner) -> None:
-    """Сверх предела остаются самые свежие, а не произвольные."""
+    """Сверх предела остаются самые свежие, а не произвольные.
+
+    Начальное состояние задаёт сама проверка: у этого человека в базе есть свои
+    сессии, и утверждение о точном составе выживших без их удаления зависело бы
+    от того, заходил ли кто-то в продукт перед прогоном. Удаление уходит вместе
+    с откатом транзакции.
+    """
     now = datetime.now(UTC)
+    await session.execute(
+        delete(UserSession)
+        .where(UserSession.user_id == owner.id)
+        .where(UserSession.workspace_id == workspace.id)
+    )
     created: list[tuple[uuid.UUID, datetime]] = []
     for index in range(MAX_SESSIONS_PER_USER + 5):
         stamp = now - timedelta(minutes=index)

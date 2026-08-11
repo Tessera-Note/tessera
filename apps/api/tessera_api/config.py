@@ -52,6 +52,15 @@ class Settings:
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_secure: bool = False
+    storage_driver: str = "local"
+    storage_local_path: str = "/app/data/storage"
+    s3_endpoint: str | None = None
+    s3_bucket: str | None = None
+    s3_region: str = "us-east-1"
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_force_path_style: bool = True
+    file_upload_size_limit: int = 50 * 1024 * 1024
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -83,4 +92,41 @@ class Settings:
             smtp_username=_env("SMTP_USERNAME") or None,
             smtp_password=_env("SMTP_PASSWORD") or None,
             smtp_secure=_env("SMTP_SECURE", "false").lower() == "true",
+            # Имена переменных хранилища взяты из v1 без изменений: одно и то
+            # же развёртывание должно поднимать обе версии на время перехода.
+            storage_driver=_env("STORAGE_DRIVER", "local").lower(),
+            storage_local_path=_env("STORAGE_LOCAL_PATH", "/app/data/storage"),
+            s3_endpoint=_env("AWS_S3_ENDPOINT") or None,
+            s3_bucket=_env("AWS_S3_BUCKET") or None,
+            s3_region=_env("AWS_S3_REGION", "us-east-1"),
+            s3_access_key_id=_env("AWS_S3_ACCESS_KEY_ID") or None,
+            s3_secret_access_key=_env("AWS_S3_SECRET_ACCESS_KEY") or None,
+            # MinIO не умеет виртуальные хосты бакетов, и в v1 здесь тоже
+            # `true`. Значение по умолчанию именно такое, а не «как у AWS».
+            s3_force_path_style=_env("AWS_S3_FORCE_PATH_STYLE", "true").lower() == "true",
+            file_upload_size_limit=_parse_size(_env("FILE_UPLOAD_SIZE_LIMIT", "50mb")),
         )
+
+
+#: Множители размеров. Значение в окружении записано как `50mb`, потому что так
+#: оно записано в v1 и в документации развёртывания.
+_SIZE_UNITS = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
+
+
+def _parse_size(value: str) -> int:
+    """Разобрать размер вида `50mb`.
+
+    Голое число трактуется как байты. Неразбираемое значение — отказ на старте,
+    а не молчаливое умолчание: предел размера загрузки, ставший неожиданно
+    другим, обнаруживается уже отказами загрузки у людей.
+    """
+    text = value.strip().lower()
+    if text.isdigit():
+        return int(text)
+    for suffix, multiplier in sorted(_SIZE_UNITS.items(), key=lambda x: -len(x[0])):
+        if text.endswith(suffix):
+            number = text[: -len(suffix)].strip()
+            if not number.replace(".", "", 1).isdigit():
+                break
+            return int(float(number) * multiplier)
+    raise RuntimeError(f"FILE_UPLOAD_SIZE_LIMIT не разбирается: {value!r}")

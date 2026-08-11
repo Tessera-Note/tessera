@@ -15,6 +15,7 @@ from litestar.datastructures import State
 from litestar.di import Provide
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import jwt_guard
 from tessera_api.api.health import HealthController
@@ -35,7 +36,9 @@ from tessera_api.config import Settings
 from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
 from tessera_api.infrastructure.mail import MailService, MailSettings
+from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.scheduler import Scheduler
+from tessera_api.infrastructure.storage import Storage, create_storage
 from tessera_api.services.maintenance import PERIODIC_TASKS
 from tessera_api.services.tokens import TokenService
 
@@ -63,10 +66,13 @@ def create_app(settings: Settings | None = None) -> Litestar:
         )
     )
 
+    storage = create_storage(resolved)
+    queue = JobQueue(resolved.redis_url)
     scheduler = Scheduler(database, PERIODIC_TASKS)
 
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:
+        await queue.connect()
         scheduler.start()
         try:
             yield
@@ -75,6 +81,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             # открытую транзакцию, и закрытие пула до её завершения повисло бы
             # на ней.
             await scheduler.stop()
+            await queue.dispose()
             # Закрытие обоих подключений на остановке. Пропущенное здесь
             # оставляет висящие соединения, и это видно только по счётчику на
             # стороне базы, то есть не видно.
@@ -97,6 +104,12 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_mail() -> MailService:
         return mail
 
+    async def provide_storage() -> Storage:
+        return storage
+
+    async def provide_queue() -> JobQueue:
+        return queue
+
     return Litestar(
         route_handlers=[
             HealthController,
@@ -107,6 +120,8 @@ def create_app(settings: Settings | None = None) -> Litestar:
             InvitationController,
             PageController,
             PagePermissionController,
+            FileController,
+            ImageController,
             SearchController,
             CommentController,
             LabelController,
@@ -126,6 +141,8 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "settings": Provide(provide_settings),
             "tokens": Provide(provide_tokens),
             "mail": Provide(provide_mail),
+            "storage": Provide(provide_storage),
+            "queue": Provide(provide_queue),
         },
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.
