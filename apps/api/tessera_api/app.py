@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.api_keys import ApiKeyController
 from tessera_api.api.attachments import FileController, ImageController
+from tessera_api.api.audit import AuditController
 from tessera_api.api.auth import AuthController
 from tessera_api.api.guards import PUBLIC, jwt_guard
 from tessera_api.api.health import HealthController
@@ -173,6 +174,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             ApiKeyController,
             MfaController,
             ScimController,
+            AuditController,
             SsoController,
             socket_io,
         ],

@@ -26,6 +26,7 @@ from tessera_api.services.attachments import AttachmentService
 LOCK_SESSION_CLEANUP = 815_043_001
 LOCK_TRASH_CLEANUP = 815_043_002
 LOCK_VERIFICATION_PASS = 815_043_003
+LOCK_AUDIT_PURGE = 815_043_004
 
 #: Сколько живёт отозванная или истёкшая сессия до удаления. Запись нужна не
 #: ради входа, а ради разбора: по ней видно, откуда и когда заходили.
@@ -212,6 +213,30 @@ VERIFICATION_PASS = PeriodicTask(
     run=run_verification_passes,
 )
 
+#: Как часто убирается просроченный журнал аудита. Раз в час, как в v1: срок
+#: хранения задаётся днями, и точность прохода дороже точности до минуты не
+#: стоит.
+AUDIT_PURGE_INTERVAL = timedelta(hours=1)
+
+
+async def purge_audit(session: AsyncSession, resources: TaskResources) -> int:  # noqa: ARG001
+    """Удалить записи журнала старше срока хранения пространства.
+
+    Срок у каждого пространства свой, и одного общего порога здесь быть не
+    может: у пространства, которому срок не задавали, журнал хранится вечно.
+    """
+    from tessera_api.services.audit import purge_expired
+
+    return await purge_expired(session)
+
+
+AUDIT_PURGE = PeriodicTask(
+    name="audit-purge",
+    interval=AUDIT_PURGE_INTERVAL,
+    lock_key=LOCK_AUDIT_PURGE,
+    run=purge_audit,
+)
+
 #: Полный состав периодических задач. Планировщик получает этот список, а не
 #: собирает задачи сам: список видно целиком, и забытая в нём задача заметна.
-PERIODIC_TASKS = [SESSION_CLEANUP, TRASH_CLEANUP, VERIFICATION_PASS]
+PERIODIC_TASKS = [SESSION_CLEANUP, TRASH_CLEANUP, VERIFICATION_PASS, AUDIT_PURGE]

@@ -38,6 +38,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.auth.invalid_or_expired_token": "This link is not valid or has expired",
     "error.sso.provider_disabled": "This sign-in provider is turned off",
     "error.sso.provider_not_found": "Sign-in provider not found",
+    "error.audit.invalid_retention": "Retention must be between 0 and 3650 days",
     "error.auth.this_workspace_has_enforced_sso_login": (
         "This workspace requires signing in through a provider"
     ),

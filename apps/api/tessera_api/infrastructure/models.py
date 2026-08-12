@@ -102,6 +102,9 @@ class Workspace(Base, SoftDeleteMixin):
     # опирается парольный вход: пропажа колонки обязана ронять сверку схемы, а
     # не открывать вход паролем в пространстве, где его запретили.
     enforce_sso: Mapped[bool | None] = mapped_column(Boolean)
+    # Сколько дней хранить журнал аудита. Ноль и пустое значение означают
+    # «хранить вечно»: уборка отсекает и то и другое одним условием.
+    audit_retention_days: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class Space(Base, SoftDeleteMixin):
@@ -200,7 +203,15 @@ class AuditLog(Base, CreatedMixin):
     resource_type: Mapped[str] = mapped_column(String)
     resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # Кто именно: человек, сама система или ключ API. Без этой колонки действия
+    # синхронизации каталога неотличимы от действий администратора, и вопрос
+    # «кто снял человека с доступа» остаётся без ответа.
+    actor_type: Mapped[str] = mapped_column(String, server_default="'user'")
     changes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Подробности события. В отличие от `changes` пишутся дословно, поэтому
+    # класть сюда содержимое страниц нельзя: журнал читает администратор
+    # пространства, которому сама страница может быть закрыта.
+    event_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     ip_address: Mapped[str | None] = mapped_column(INET)
 
 
