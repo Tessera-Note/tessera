@@ -16,6 +16,7 @@ from litestar.di import Provide
 from litestar.types import Receive, Scope, Send
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.ai import AiSettingsController
 from tessera_api.api.api_keys import ApiKeyController
 from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.audit import AuditController
@@ -183,6 +184,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             MfaController,
             ScimController,
             AuditController,
+            AiSettingsController,
             SsoController,
             socket_io,
         ],

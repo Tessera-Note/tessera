@@ -275,6 +275,37 @@ class AuthProvider(Base, SoftDeleteMixin):
     ldap_tls_ca_cert: Mapped[str | None] = mapped_column(Text)
 
 
+class WorkspaceAiSettings(Base, TimestampMixin):
+    """Настройки ИИ рабочего пространства.
+
+    Ровно одна строка на пространство: уникальность `workspace_id` и есть
+    механизм идемпотентности при сохранении.
+
+    Ключи провайдеров хранятся зашифрованными. Наружу отдаётся только маска, и
+    ни один путь не возвращает ключ целиком.
+    """
+
+    __tablename__ = "workspace_ai_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    driver: Mapped[str | None] = mapped_column(String)
+    base_url: Mapped[str | None] = mapped_column(String)
+    api_key_encrypted: Mapped[str | None] = mapped_column(Text)
+    chat_model: Mapped[str | None] = mapped_column(String)
+    completion_model: Mapped[str | None] = mapped_column(String)
+    # Пустой провайдер эмбеддингов означает «тот же, что у чата». Это не то же
+    # самое, что «эмбеддингов нет»: у большинства пространств провайдер один, и
+    # заставлять выбирать его дважды незачем.
+    embedding_driver: Mapped[str | None] = mapped_column(String)
+    embedding_base_url: Mapped[str | None] = mapped_column(String)
+    embedding_api_key_encrypted: Mapped[str | None] = mapped_column(Text)
+    embedding_model: Mapped[str | None] = mapped_column(String)
+    web_search_driver: Mapped[str | None] = mapped_column(String)
+    web_search_base_url: Mapped[str | None] = mapped_column(String)
+    web_search_api_key_encrypted: Mapped[str | None] = mapped_column(Text)
+
+
 class Page(Base, SoftDeleteMixin):
     """Страница.
 

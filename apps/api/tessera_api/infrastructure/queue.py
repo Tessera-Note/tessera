@@ -53,6 +53,8 @@ class JobName:
     PAGE_BACKLINKS = "page-backlinks"
     #: Разбор загруженного вложения ради поиска по его тексту.
     INDEX_ATTACHMENT = "attachment-index-content"
+    #: Пересчёт векторов рабочего пространства после смены провайдера.
+    REINDEX_EMBEDDINGS = "workspace-create-embeddings"
 
 
 def retrying(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

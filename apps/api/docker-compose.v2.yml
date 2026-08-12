@@ -54,6 +54,17 @@ services:
       # MinIO не умеет виртуальные хосты бакетов.
       AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-true}
       FILE_UPLOAD_SIZE_LIMIT: ${FILE_UPLOAD_SIZE_LIMIT:-50mb}
+      # Провайдер ИИ. Применяется только к пространству, которое не выбрало
+      # провайдера само: как только выбрало, отсюда не наследуется ничего,
+      # включая имена моделей — они у провайдеров несовместимы.
+      AI_DRIVER: ${AI_DRIVER:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
+      AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
     ports:
       - "3100:3000"
     restart: unless-stopped
@@ -92,6 +103,17 @@ services:
       AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD обязателен}
       AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-true}
       FILE_UPLOAD_SIZE_LIMIT: ${FILE_UPLOAD_SIZE_LIMIT:-50mb}
+      # Провайдер ИИ. Применяется только к пространству, которое не выбрало
+      # провайдера само: как только выбрало, отсюда не наследуется ничего,
+      # включая имена моделей — они у провайдеров несовместимы.
+      AI_DRIVER: ${AI_DRIVER:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
+      AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
     restart: unless-stopped
 
   # Хранилище вложений, совместимое с протоколом S3.

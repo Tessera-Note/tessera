@@ -61,6 +61,17 @@ class Settings:
     s3_secret_access_key: str | None = None
     s3_force_path_style: bool = True
     file_upload_size_limit: int = 50 * 1024 * 1024
+    # Настройки ИИ из окружения. Применяются только к пространству, которое не
+    # выбрало провайдера само: как только выбрало, наследуется отсюда ничего,
+    # включая имена моделей — они у провайдеров несовместимы.
+    ai_driver: str | None = None
+    ai_base_url: str | None = None
+    openai_api_key: str | None = None
+    gemini_api_key: str | None = None
+    ollama_api_url: str | None = None
+    ai_chat_model: str | None = None
+    ai_completion_model: str | None = None
+    ai_embedding_model: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -96,6 +107,16 @@ class Settings:
             # же развёртывание должно поднимать обе версии на время перехода.
             storage_driver=_env("STORAGE_DRIVER", "local").lower(),
             storage_local_path=_env("STORAGE_LOCAL_PATH", "/app/data/storage"),
+            ai_driver=(_env("AI_DRIVER") or "").strip().lower() or None,
+            ai_base_url=_env("AI_BASE_URL") or None,
+            openai_api_key=_env("OPENAI_API_KEY") or None,
+            gemini_api_key=_env("GEMINI_API_KEY") or None,
+            # Умолчание намеренное: локальная модель почти всегда стоит здесь,
+            # и требовать переменную ради адреса по умолчанию незачем.
+            ollama_api_url=_env("OLLAMA_API_URL", "http://localhost:11434") or None,
+            ai_chat_model=_env("AI_CHAT_MODEL") or None,
+            ai_completion_model=_env("AI_COMPLETION_MODEL") or None,
+            ai_embedding_model=_env("AI_EMBEDDING_MODEL") or None,
             s3_endpoint=_env("AWS_S3_ENDPOINT") or None,
             s3_bucket=_env("AWS_S3_BUCKET") or None,
             s3_region=_env("AWS_S3_REGION", "us-east-1"),
