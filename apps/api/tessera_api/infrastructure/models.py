@@ -12,7 +12,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import (
+    ARRAY,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -335,6 +345,13 @@ class Page(Base, SoftDeleteMixin):
     position: Mapped[str | None] = mapped_column(String)
     content: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     text_content: Mapped[str | None] = mapped_column(Text)
+    # Двоичное состояние совместного редактирования. Хранится рядом с JSON, а
+    # не вместо него: из JSON поиск и выгрузка читают напрямую, а состояние
+    # несёт историю правок, без которой открытые вкладки теряют позиции.
+    ydoc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # Кто правил страницу. Пополняется совместным редактированием и служит
+    # источником подписчиков для ленты обновлений.
+    contributor_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
     parent_page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     last_updated_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

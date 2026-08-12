@@ -6,6 +6,11 @@
 - In the same task, update the applicable `docs/ai-context/` file when changing behavior, architecture, module boundaries, commands, configuration, or recurring code patterns. If none apply, state that assessment in the final response.
 - Keep these files factual and compact: document stable implementation context with source paths, not task plans, exhaustive API listings, or Git history.
 
+## Runtime Dependencies
+
+- A new runtime dependency is not allowed. When a capability is missing, add a service to compose and write the missing code in Python and Litestar, following `services/hub`.
+- One closed exception: `services/collab` on Node. It owns the editor node schema (Tiptap extensions) and the Hocuspocus protocol; a second description of either in Python would drop document nodes silently, with no error. The exception is limited to that service and those two subjects — access decisions and database writes stay in Python, and the neighbour asks for them over `/api/internal/collab/*`. Do not extend the exception to other subsystems.
+
 ## Workspace
 
 - Use Node 22 and pnpm 10.18.3; install with `pnpm install --frozen-lockfile`.

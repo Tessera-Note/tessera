@@ -24,6 +24,7 @@ from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.audit import AuditController
 from tessera_api.api.auth import AuthController
 from tessera_api.api.bases import BaseController
+from tessera_api.api.collab import CollabInternalController
 from tessera_api.api.exports import ExportController
 from tessera_api.api.guards import PUBLIC, jwt_guard
 from tessera_api.api.health import HealthController
@@ -202,6 +203,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             BaseController,
             McpController,
             SsoController,
+            CollabInternalController,
             ImportController,
             FileTaskController,
             ExportController,

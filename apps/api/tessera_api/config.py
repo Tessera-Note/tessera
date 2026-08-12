@@ -75,6 +75,9 @@ class Settings:
     ai_chat_model: str | None = None
     ai_completion_model: str | None = None
     ai_embedding_model: str | None = None
+    # Общий секрет для внутренних маршрутов совместного редактирования. Ими
+    # пользуется только сосед на Node; пустое значение выключает их вовсе.
+    collab_internal_token: str = ""
     # Адрес соседнего сервиса преобразования содержимого. Схема узлов
     # редактора живёт там, и второй её реализации быть не должно.
     content_service_url: str = "http://tessera-v2-collab:3001"
@@ -123,6 +126,7 @@ class Settings:
             ai_chat_model=_env("AI_CHAT_MODEL") or None,
             ai_completion_model=_env("AI_COMPLETION_MODEL") or None,
             ai_embedding_model=_env("AI_EMBEDDING_MODEL") or None,
+            collab_internal_token=_env("COLLAB_INTERNAL_TOKEN", ""),
             content_service_url=_env(
                 "CONTENT_SERVICE_URL", "http://tessera-v2-collab:3001"
             ),

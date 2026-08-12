@@ -18,6 +18,8 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
+import { attachCollab, closeCollab, createCollabServer, startSweep } from './collab.js';
+
 import {
   addUniqueIdsToDoc,
   htmlToMarkdown,
@@ -130,7 +132,33 @@ export function createTransformServer() {
 // настоящий порт. На машине, где порт уже занят соседом, это роняло весь файл
 // проверок ошибкой, к самим проверкам отношения не имеющей.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  createTransformServer().listen(PORT, HOST, () => {
+  const server = createTransformServer();
+
+  // Канал совместного редактирования поднимается на том же порту: у него та же
+  // схема узлов редактора и тот же процесс, а второй порт означал бы второй
+  // сервис с тем же кодом внутри.
+  const { hocuspocus } = createCollabServer();
+  attachCollab(server, hocuspocus);
+  const stopSweep = startSweep(hocuspocus);
+
+  server.listen(PORT, HOST, () => {
     console.log(`Преобразование содержимого слушает ${HOST}:${PORT}`);
+    console.log(`Совместное редактирование слушает ${HOST}:${PORT}/collab`);
   });
+
+  const stop = async () => {
+    // Порядок обратный запуску: сначала перестаём проверять права, потом
+    // закрываем соединения, и только затем сам сервер. Иначе обход застаёт
+    // уже закрытые соединения.
+    stopSweep();
+    try {
+      await closeCollab(hocuspocus);
+    } catch (error) {
+      console.error(error);
+    }
+    server.close(() => process.exit(0));
+  };
+
+  process.on('SIGTERM', stop);
+  process.on('SIGINT', stop);
 }
