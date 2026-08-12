@@ -21,6 +21,16 @@ class Base(DeclarativeBase):
     """Общий предок моделей."""
 
 
+#: JSONB для колонок, где пустота допустима.
+#:
+#: Без `none_as_null` пустое значение уезжает в колонку как JSON-«null», то есть
+#: как значение, а не как его отсутствие. Разница не косметическая: у колонок
+#: базы стоит ограничение «объект или ничего», и JSON-«null» его нарушает — а
+#: там, где ограничения нет, отбор `IS NULL` молча перестаёт находить такие
+#: строки.
+NullableJsonb = JSONB(none_as_null=True)
+
+
 class CreatedMixin:
     """Только отметка создания.
 
@@ -61,7 +71,7 @@ class User(Base, SoftDeleteMixin):
     invited_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     locale: Mapped[str | None] = mapped_column(String)
     timezone: Mapped[str | None] = mapped_column(String)
-    settings: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    settings: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -83,7 +93,7 @@ class Workspace(Base, SoftDeleteMixin):
     logo: Mapped[str | None] = mapped_column(String)
     hostname: Mapped[str | None] = mapped_column(String)
     custom_domain: Mapped[str | None] = mapped_column(String)
-    settings: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    settings: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     default_space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     status: Mapped[str | None] = mapped_column(String)
     plan: Mapped[str | None] = mapped_column(String)
@@ -117,7 +127,7 @@ class Space(Base, SoftDeleteMixin):
     logo: Mapped[str | None] = mapped_column(String)
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
-    settings: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    settings: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
 
 
 class SpaceMember(Base, SoftDeleteMixin):
@@ -207,11 +217,11 @@ class AuditLog(Base, CreatedMixin):
     # синхронизации каталога неотличимы от действий администратора, и вопрос
     # «кто снял человека с доступа» остаётся без ответа.
     actor_type: Mapped[str] = mapped_column(String, server_default="'user'")
-    changes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    changes: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     # Подробности события. В отличие от `changes` пишутся дословно, поэтому
     # класть сюда содержимое страниц нельзя: журнал читает администратор
     # пространства, которому сама страница может быть закрыта.
-    event_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    event_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", NullableJsonb)
     ip_address: Mapped[str | None] = mapped_column(INET)
 
 
@@ -270,7 +280,7 @@ class AuthProvider(Base, SoftDeleteMixin):
     ldap_bind_dn: Mapped[str | None] = mapped_column(String)
     ldap_bind_password: Mapped[str | None] = mapped_column(String)
     ldap_user_search_filter: Mapped[str | None] = mapped_column(String)
-    ldap_user_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    ldap_user_attributes: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     ldap_tls_enabled: Mapped[bool | None] = mapped_column(Boolean)
     ldap_tls_ca_cert: Mapped[str | None] = mapped_column(Text)
 
@@ -323,7 +333,7 @@ class Page(Base, SoftDeleteMixin):
     icon: Mapped[str | None] = mapped_column(String)
     cover_photo: Mapped[str | None] = mapped_column(String)
     position: Mapped[str | None] = mapped_column(String)
-    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    content: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     text_content: Mapped[str | None] = mapped_column(Text)
     parent_page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -341,6 +351,68 @@ class Page(Base, SoftDeleteMixin):
     # колонку обязательной и на создании обычной страницы шлёт в неё NULL —
     # то есть роняет создание страниц целиком.
     is_base: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    # Версия схемы базы. Клиент при подписке сверяет её с той, под которой
+    # построен его кеш, и по расхождению перезапрашивает состав свойств.
+    base_schema_version: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+class BaseProperty(Base, SoftDeleteMixin):
+    """Колонка базы.
+
+    Идентификатор уникален только внутри страницы: первичный ключ составной.
+    Восемь шестнадцатеричных знаков, потому что этот идентификатор становится
+    ключом в объекте ячеек каждой строки, и длинный раздувал бы каждую строку.
+    """
+
+    __tablename__ = "base_properties"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String)
+    position: Mapped[str] = mapped_column(String)
+    type_options: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
+    is_primary: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    schema_version: Mapped[int] = mapped_column(Integer, server_default="1")
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class BaseRow(Base, SoftDeleteMixin):
+    """Строка базы.
+
+    Все ячейки — один объект jsonb, ключ равен идентификатору свойства.
+    Частичное изменение делает база одним запросом: чтение, слияние и запись
+    целиком затирали бы правки соседа.
+    """
+
+    __tablename__ = "base_rows"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    cells: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    position: Mapped[str] = mapped_column(String)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    last_updated_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class BaseView(Base, TimestampMixin):
+    """Представление базы: таблица, доска или календарь.
+
+    Мягкого удаления у него нет намеренно: представление это настройка показа,
+    а не данные, и удалённое незачем хранить.
+    """
+
+    __tablename__ = "base_views"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    name: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String, server_default="'table'")
+    position: Mapped[str] = mapped_column(String)
+    config: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
 class PageEmbedding(Base, SoftDeleteMixin):
@@ -370,7 +442,7 @@ class PageEmbedding(Base, SoftDeleteMixin):
     chunk_index: Mapped[int] = mapped_column(Integer)
     chunk_start: Mapped[int | None] = mapped_column(Integer)
     chunk_length: Mapped[int | None] = mapped_column(Integer)
-    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", NullableJsonb)
 
 
 class PageAccess(Base, TimestampMixin):
@@ -403,7 +475,7 @@ class Comment(Base, SoftDeleteMixin):
     __tablename__ = "comments"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    content: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     selection: Mapped[str | None] = mapped_column(String)
     type: Mapped[str | None] = mapped_column(String)
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -482,7 +554,7 @@ class PageHistory(Base, CreatedMixin):
     page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     slug_id: Mapped[str | None] = mapped_column(String)
     title: Mapped[str | None] = mapped_column(String)
-    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    content: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     icon: Mapped[str | None] = mapped_column(String)
     version: Mapped[int | None] = mapped_column(Integer)
     last_updated_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -648,7 +720,7 @@ class Notification(Base, CreatedMixin):
     page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     comment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    data: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -671,7 +743,7 @@ class Template(Base, SoftDeleteMixin):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     title: Mapped[str | None] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text)
-    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    content: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
     icon: Mapped[str | None] = mapped_column(String)
     space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))

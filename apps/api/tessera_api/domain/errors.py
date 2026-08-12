@@ -73,6 +73,15 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.attachment.attachment_not_found": "Attachment not found",
     "error.page.version_not_found": "Page version not found",
     "error.share.share_not_found": "This link is not valid",
+    "error.base.base_not_found": "Base not found",
+    "error.base.property_not_found": "Property not found",
+    "error.base.row_not_found": "Row not found",
+    "error.base.view_not_found": "View not found",
+    "error.base.unknown_property_type": "Unknown property type",
+    "error.base.unknown_view_type": "Unknown view type",
+    "error.base.primary_property": "The title property cannot be removed",
+    "error.base.last_view": "A base must keep at least one view",
+    "error.base.export_too_large": "This base is too large to export at once",
 }
 
 

@@ -22,6 +22,7 @@ from tessera_api.api.api_keys import ApiKeyController
 from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.audit import AuditController
 from tessera_api.api.auth import AuthController
+from tessera_api.api.bases import BaseController
 from tessera_api.api.guards import PUBLIC, jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.invitations import InvitationController
@@ -187,6 +188,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             AuditController,
             AiSettingsController,
             AiController,
+            BaseController,
             SsoController,
             socket_io,
         ],
