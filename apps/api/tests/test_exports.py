@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import uuid
@@ -766,3 +767,154 @@ async def _mention(session: AsyncSession, page: Page, target: Page) -> None:
         )
     )
     await session.commit()
+
+
+class TestImageSources:
+    def test_addresses_come_in_order(self) -> None:
+        """Порядок определяет, какие картинки попадут в предел."""
+        from tessera_api.services.docx import image_sources
+
+        content = doc(
+            {"type": "image", "attrs": {"src": "/api/files/a/1.png"}},
+            paragraph({"type": "image", "attrs": {"src": "/api/files/b/2.png"}}),
+        )
+        assert image_sources(content) == ["/api/files/a/1.png", "/api/files/b/2.png"]
+
+    def test_the_same_address_is_taken_once(self) -> None:
+        from tessera_api.services.docx import image_sources
+
+        content = doc(
+            {"type": "image", "attrs": {"src": "/api/files/a/1.png"}},
+            {"type": "image", "attrs": {"src": "/api/files/a/1.png"}},
+        )
+        assert image_sources(content) == ["/api/files/a/1.png"]
+
+    def test_other_attachments_are_not_images(self) -> None:
+        """В документ Word встраивается картинка, остальное идёт строкой."""
+        from tessera_api.services.docx import image_sources
+
+        assert image_sources(doc({"type": "video", "attrs": {"src": "/api/files/a/v.mp4"}})) == []
+
+    def test_an_empty_document_is_not_a_crash(self) -> None:
+        from tessera_api.services.docx import image_sources
+
+        assert image_sources(None) == []
+
+
+@needs_database
+class TestDocxExport:
+    async def test_a_stranger_is_refused(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.docx import DocxExportService
+
+        page = await _page(session, workspace, owner, space, "Страница")
+        with pytest.raises(AppError) as error:
+            await DocxExportService(session, _docx_client()).export(page, uuid.uuid4())
+        assert error.value.code == "error.page.access_denied"
+
+    async def test_the_title_leads_the_document(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Название хранится отдельным полем, и файл начинался бы с текста."""
+        from tessera_api.services.docx import DocxExportService
+
+        seen: list[dict] = []
+        page = await _page(session, workspace, owner, space, "Годовой отчёт")
+        await DocxExportService(session, _docx_client(seen)).export(page, owner.id)
+
+        first = seen[0]["content"]["content"][0]
+        assert first["type"] == "heading"
+        assert first["content"][0]["text"] == "Годовой отчёт"
+
+    async def test_the_file_is_named_after_the_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.docx import DocxExportService
+
+        page = await _page(session, workspace, owner, space, "Годовой отчёт")
+        file = await DocxExportService(session, _docx_client()).export(page, owner.id)
+        assert file.file_name == "Годовой отчёт.docx"
+
+    async def test_an_image_of_the_page_is_bundled(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.docx import DocxExportService
+
+        seen: list[dict] = []
+        page = await _page(session, workspace, owner, space, "Со схемой")
+        attachment = await _attachment(session, workspace, owner, space, page, "схема.png")
+        await _attach(session, page, attachment)
+
+        await DocxExportService(session, _docx_client(seen), _StorageDouble()).export(
+            page, owner.id
+        )
+        assert seen[0]["images"]
+
+    async def test_an_image_of_another_space_is_not_bundled(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ссылку на чужое вложение можно вписать в документ руками."""
+        from tessera_api.services.docx import DocxExportService
+
+        seen: list[dict] = []
+        page = await _page(session, workspace, owner, space, "Страница")
+        attachment = await _attachment(session, workspace, owner, space, page, "чужая.png")
+        await session.execute(
+            Attachment.__table__.update()
+            .where(Attachment.id == attachment.id)
+            .values(space_id=uuid.uuid4())
+        )
+        await session.commit()
+        # Правка мимо ORM не обновляет загруженный объект, а служба читает
+        # вложение через него.
+        await session.refresh(attachment)
+        await _attach(session, page, attachment)
+
+        await DocxExportService(session, _docx_client(seen), _StorageDouble()).export(
+            page, owner.id
+        )
+        assert seen[0]["images"] == {}
+
+    async def test_a_lost_image_does_not_cancel_the_document(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.docx import DocxExportService
+
+        seen: list[dict] = []
+        page = await _page(session, workspace, owner, space, "Со схемой")
+        attachment = await _attachment(session, workspace, owner, space, page, "схема.png")
+        await _attach(session, page, attachment)
+
+        file = await DocxExportService(
+            session, _docx_client(seen), _StorageDouble(missing=True)
+        ).export(page, owner.id)
+        assert file.data
+        assert seen[0]["images"] == {}
+
+    async def test_an_outside_address_is_not_fetched(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ходить по адресу из содержимого значит ходить по чужому вводу."""
+        from tessera_api.services.docx import DocxExportService
+
+        seen: list[dict] = []
+        page = await _page(session, workspace, owner, space, "Страница")
+        page.content = doc({"type": "image", "attrs": {"src": "https://example.com/x.png"}})
+        await session.commit()
+
+        await DocxExportService(session, _docx_client(seen), _StorageDouble()).export(
+            page, owner.id
+        )
+        assert seen[0]["images"] == {}
+
+
+def _docx_client(seen: list | None = None) -> ContentClient:
+    """Сосед, отвечающий готовым файлом. Сборку проверяют его собственные проверки."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"docx": base64.b64encode("PK файл".encode()).decode()})
+
+    return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))

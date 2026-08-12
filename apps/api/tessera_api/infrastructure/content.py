@@ -64,6 +64,19 @@ class ContentClient:
     async def json_to_html(self, content: dict | None) -> str:
         return (await self._call("json-to-html", {"content": content}))["html"]
 
+    async def json_to_docx(self, content: dict | None, images: dict[str, str]) -> bytes:
+        """Документ Word из содержимого страницы.
+
+        Картинки передаются готовыми: хранилище и права на вложения живут
+        здесь, и решать, какой файл попадёт в документ, соседу не полагается.
+        Ответ приходит в base64 — у сервиса один вид ответа, и двоичный
+        потребовал бы второго ради одного маршрута.
+        """
+        import base64
+
+        answer = await self._call("json-to-docx", {"content": content, "images": images})
+        return base64.b64decode(answer["docx"])
+
     async def json_to_text(self, content: dict | None) -> str:
         """Плоский текст документа.
 

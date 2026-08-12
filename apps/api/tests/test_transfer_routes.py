@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import uuid
@@ -45,6 +46,7 @@ from tessera_api.infrastructure.models import (
 )
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.storage import Storage
+from tessera_api.infrastructure.throttle import Limit, Throttle
 from tessera_api.services.pages import generate_slug_id
 from tessera_api.services.realtime import RealtimeService
 from tests.conftest import RealtimeDouble, needs_database
@@ -94,6 +96,26 @@ class StorageDouble(Storage):
         return len(gone)
 
 
+class ThrottleDouble(Throttle):
+    """Счётчик, который всё пропускает и всё запоминает.
+
+    Наследуется от настоящего: Litestar сверяет значение зависимости с
+    объявленным типом, и посторонний класс до обработчика не доходит. Само
+    поведение счётчика проверено отдельно, маршруту важно только то, что он к
+    нему обращается.
+    """
+
+    def __init__(self) -> None:  # noqa: D107 — подключения к Redis здесь нет
+        self.calls: list[tuple[str, Limit]] = []
+
+    async def allow(self, key: str, limit: Limit) -> bool:
+        self.calls.append((key, limit))
+        return True
+
+    async def check(self, key: str, limit: Limit) -> None:
+        self.calls.append((key, limit))
+
+
 class QueueDouble(JobQueue):
     """Очередь, которая ничего не ставит и всё запоминает."""
 
@@ -117,7 +139,14 @@ def _content() -> ContentClient:
         body = json.loads(request.content)
         rendered = json.dumps(body.get("content"), ensure_ascii=False)
         return httpx.Response(
-            200, json={"content": {"type": "doc", "content": []}, "markdown": rendered}
+            200,
+            json={
+                "content": {"type": "doc", "content": []},
+                "markdown": rendered,
+                # Сборку файла Word ведёт сосед, и здесь она подменена: её
+                # проверяют его собственные проверки, на настоящей схеме узлов.
+                "docx": base64.b64encode(b"PK").decode(),
+            },
         )
 
     return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
@@ -147,6 +176,7 @@ def _app(
     *,
     upload_limit: int | None = None,
     import_limit: int | None = None,
+    throttle: ThrottleDouble | None = None,
 ) -> Litestar:
     settings = _settings(upload_limit=upload_limit, import_limit=import_limit)
 
@@ -159,6 +189,7 @@ def _app(
 
     realtime = RealtimeDouble()
     content = _content()
+    throttle = throttle or ThrottleDouble()
 
     return Litestar(
         route_handlers=[ImportController, FileTaskController, ExportController],
@@ -171,13 +202,14 @@ def _app(
             "storage": Provide(lambda: storage, sync_to_thread=False),
             "queue": Provide(lambda: queue, sync_to_thread=False),
             "content": Provide(lambda: content, sync_to_thread=False),
+            "throttle": Provide(lambda: throttle, sync_to_thread=False),
             "realtime": Provide(lambda: realtime, sync_to_thread=False),
         },
         state=State({"tokens": tokens, "database": DatabaseDouble(session)}),
         # Тот же обработчик, что в приложении: без него код отказа уезжает
         # внутрь `extra`, и проверка кода проверяла бы не то, что видит клиент.
         exception_handlers={AppError: app_error_response},
-        signature_types=[RealtimeService, Storage, JobQueue, ContentClient],
+        signature_types=[RealtimeService, Storage, JobQueue, ContentClient, Throttle],
     )
 
 
@@ -188,6 +220,7 @@ def _client(
     *,
     upload_limit: int | None = None,
     import_limit: int | None = None,
+    throttle: ThrottleDouble | None = None,
 ) -> AsyncClient:
     """Клиент, работающий в том же цикле событий, что и сессия базы.
 
@@ -203,6 +236,7 @@ def _client(
                 queue,
                 upload_limit=upload_limit,
                 import_limit=import_limit,
+                throttle=throttle,
             )
         ),
         base_url="http://testserver.local",
@@ -771,3 +805,53 @@ class TestTaskListPaging:
             )
         assert answer.status_code == 201
         assert answer.json()["items"]
+
+
+@needs_database
+class TestDocxRoute:
+    async def test_the_document_comes_back_as_a_file(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "Отчёт")
+        token = await _token(session, owner.id, workspace.id)
+        async with _client(session, StorageDouble(), QueueDouble()) as client:
+            answer = await client.post(
+                "/api/docx-export",
+                json={"pageId": str(page.id)},
+                cookies={AUTH_COOKIE: token},
+            )
+        assert answer.status_code == 201
+        assert "wordprocessingml" in answer.headers["content-type"]
+        assert "filename*=UTF-8''" in answer.headers["content-disposition"]
+
+    async def test_the_limit_is_taken_before_the_work(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Смысл предела в том, чтобы не собирать десятый документ подряд."""
+        page = await _page(session, workspace, owner, space, "Отчёт")
+        token = await _token(session, owner.id, workspace.id)
+        throttle = ThrottleDouble()
+        async with _client(
+            session, StorageDouble(), QueueDouble(), throttle=throttle
+        ) as client:
+            await client.post(
+                "/api/docx-export",
+                json={"pageId": str(page.id)},
+                cookies={AUTH_COOKIE: token},
+            )
+        assert throttle.calls and throttle.calls[0][0] == f"user:{owner.id}"
+        assert throttle.calls[0][1].name == "export"
+
+    async def test_a_stranger_gets_nothing(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "Закрытая")
+        stranger = await _stranger(session, workspace)
+        token = await _token(session, stranger, workspace.id)
+        async with _client(session, StorageDouble(), QueueDouble()) as client:
+            answer = await client.post(
+                "/api/docx-export",
+                json={"pageId": str(page.id)},
+                cookies={AUTH_COOKIE: token},
+            )
+        assert answer.status_code == 403

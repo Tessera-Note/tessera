@@ -19,6 +19,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 import { attachCollab, closeCollab, createCollabServer, startSweep } from './collab.js';
+import { docxFromJson } from './docx.js';
 
 import {
   addUniqueIdsToDoc,
@@ -68,6 +69,13 @@ const handlers = {
   }),
   'json-to-text': async (body) => ({
     text: generateText(body.content || emptyDocument(), tiptapExtensions),
+  }),
+  // Содержимое файла уходит в base64: ответ этого сервиса всегда JSON, а
+  // двоичный ответ потребовал бы второго вида ответа ради одного маршрута.
+  'json-to-docx': async (body) => ({
+    docx: (await docxFromJson(body.content || emptyDocument(), body.images)).toString(
+      'base64',
+    ),
   }),
 };
 

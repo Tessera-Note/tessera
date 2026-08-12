@@ -107,3 +107,53 @@ test('неизвестный путь отвечает отказом', withServ
   const { status } = await call(server, '/transform/выдуманное', {});
   assert.equal(status, 404);
 }));
+
+test('документ Word собирается из содержимого', async () => {
+  const { docxFromJson } = await import('./docx.js');
+  const buffer = await docxFromJson({
+    type: 'doc',
+    content: [
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Заголовок' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Текст страницы' }] },
+    ],
+  });
+  // Файл Word это zip: подпись видна первыми двумя знаками.
+  assert.equal(buffer.subarray(0, 2).toString(), 'PK');
+  assert.ok(buffer.length > 1000);
+});
+
+test('неизвестный узел не роняет выгрузку', async () => {
+  // Узел из чужой версии редактора не повод оставить человека без документа:
+  // он разворачивается на месте, текст внутри доезжает до файла.
+  const { docxFromJson } = await import('./docx.js');
+  const buffer = await docxFromJson({
+    type: 'doc',
+    content: [
+      {
+        type: 'выдуманный',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Внутри' }] }],
+      },
+    ],
+  });
+  assert.equal(buffer.subarray(0, 2).toString(), 'PK');
+});
+
+test('картинка попадает в документ содержимым, а не адресом', async () => {
+  const { docxFromJson } = await import('./docx.js');
+  // Наименьший настоящий PNG: сериализатор читает размеры из содержимого, и
+  // выдуманные байты он молча пропустил бы.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const src = '/api/files/11111111-1111-4111-8111-111111111111/точка.png';
+  const withImage = await docxFromJson(
+    { type: 'doc', content: [{ type: 'image', attrs: { src } }] },
+    { [src]: png.toString('base64') },
+  );
+  const without = await docxFromJson({
+    type: 'doc',
+    content: [{ type: 'image', attrs: { src } }],
+  });
+  assert.ok(withImage.length > without.length, 'содержимое картинки не попало в файл');
+});

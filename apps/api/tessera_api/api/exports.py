@@ -21,9 +21,20 @@ from tessera_api.domain.roles import can_manage_space
 from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.infrastructure.storage import Storage
+from tessera_api.infrastructure.throttle import Limit, Throttle
 from tessera_api.services.audit import ActorType, AuditEvent, AuditResource, AuditService
+from tessera_api.services.docx import DocxExportService, load_page
 from tessera_api.services.exports import Exported, ExportService
 from tessera_api.services.page_access import PageAccessService
+
+#: Предел выгрузок. Тот же, что в v1: десять в минуту на человека. Считается по
+#: человеку, а не по адресу: за корпоративным NAT счёт по адресу делится всеми
+#: сотрудниками сразу.
+EXPORT_LIMIT = Limit("export", limit=10, window=60)
+
+
+class DocxRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
 
 
 class ExportPageRequest(msgspec.Struct):
@@ -117,6 +128,54 @@ class ExportController(Controller):
         )
         await db_session.commit()
         return _file(exported)
+
+    @post("/docx-export")
+    async def export_docx(
+        self,
+        data: DocxRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        content: NamedDependency[ContentClient],
+        storage: NamedDependency[Storage],
+        throttle: NamedDependency[Throttle],
+    ) -> Response:
+        """Выгрузить страницу в Word.
+
+        Отдельный маршрут, а не формат общей выгрузки: файл собирает сосед на
+        Node, и путь у него свой. Путь и имя поля взяты из v1.
+
+        Предел снимается до всякой работы: смысл в том, чтобы не собирать
+        десятый документ подряд, а не в том, чтобы отказать после сборки.
+        """
+        principal: Principal = request.scope["principal"]
+        await throttle.check(f"user:{principal.user_id}", EXPORT_LIMIT)
+
+        page = await load_page(db_session, data.pageId, principal.workspace_id)
+        file = await DocxExportService(db_session, content, storage).export(
+            page, principal.user_id
+        )
+
+        await AuditService(db_session).log(
+            event=AuditEvent.PAGE_EXPORTED,
+            resource_type=AuditResource.PAGE,
+            resource_id=page.id,
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            space_id=page.space_id,
+            actor_type=ActorType.USER,
+            metadata={"format": "docx"},
+        )
+        await db_session.commit()
+
+        return _file(
+            Exported(
+                file_name=file.file_name,
+                media_type=(
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                ),
+                data=file.data,
+            )
+        )
 
     @post("/spaces/export")
     async def export_space(
