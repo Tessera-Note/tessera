@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
+  import PageTree from '$lib/components/page/PageTree.svelte';
   import { logout } from '$lib/features/auth/services/auth';
   import { locale } from '$lib/stores/i18n.svelte';
   import { theme } from '$lib/stores/theme.svelte';
@@ -35,6 +36,11 @@
         >
           {space.name ?? space.slug}
         </a>
+        {#if page.params.spaceSlug === space.slug}
+          <!-- Дерево показывается только у открытого пространства: остальные
+               свернуты, и загружать их ветви незачем. -->
+          <PageTree spaceId={space.id} spaceSlug={space.slug} />
+        {/if}
       {:else}
         <p class="px-2 text-sm text-text-muted">{t('No spaces found')}</p>
       {/each}

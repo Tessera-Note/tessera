@@ -1,4 +1,9 @@
 <script lang="ts">
+  import { goto, invalidateAll } from '$app/navigation';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Notice from '$lib/components/ui/Notice.svelte';
+  import { ApiError } from '$lib/api/client';
+  import { createPage } from '$lib/features/page/services/pages';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -6,17 +11,43 @@
   const { data }: Props = $props();
 
   const t = $derived(locale.t);
+
+  let busy = $state(false);
+  let failure = $state<string | null>(null);
+
+  async function addPage() {
+    busy = true;
+    failure = null;
+    try {
+      const created = await createPage({ spaceId: data.space.id });
+      // Дерево в боковой панели читает список с сервера: без перечитывания
+      // новая страница появится там только после перезагрузки.
+      await invalidateAll();
+      await goto(`/s/${data.space.slug}/p/${created.slugId}`);
+    } catch (error) {
+      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+    } finally {
+      busy = false;
+    }
+  }
 </script>
 
 <svelte:head><title>{data.space.name ?? data.space.slug} · Tessera</title></svelte:head>
 
 <section data-route="space">
-  <h1 class="mb-1 text-2xl font-semibold">{data.space.name ?? data.space.slug}</h1>
-  {#if data.space.description}
-    <p class="mb-6 text-text-muted">{data.space.description}</p>
-  {/if}
+  <div class="mb-6 flex items-start justify-between gap-4">
+    <div>
+      <h1 class="mb-1 text-2xl font-semibold">{data.space.name ?? data.space.slug}</h1>
+      {#if data.space.description}
+        <p class="text-text-muted">{data.space.description}</p>
+      {/if}
+    </div>
+    <Button disabled={busy} onclick={addPage}>{busy ? t('Loading...') : t('New page')}</Button>
+  </div>
 
-  <ul data-component="PageTree" class="mt-6 space-y-1">
+  {#if failure}<Notice message={failure} />{/if}
+
+  <ul data-component="SpacePageList" class="mt-6 space-y-1">
     {#each data.pages as page (page.id)}
       <li>
         <a
