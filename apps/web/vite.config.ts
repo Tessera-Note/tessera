@@ -1,0 +1,39 @@
+import tailwindcss from '@tailwindcss/vite';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+/**
+ * Адрес приложения для разработки.
+ *
+ * Проксирование обязательно, и это выяснилось глазами: без него страница и API
+ * лежат на разных портах, то есть на разных источниках. Браузер шлёт перед
+ * запросом проверочный OPTIONS, охрана отвечает отказом входа, а кука входа
+ * становится сторонней. В развёртывании этой беды нет — там обратный прокси
+ * отдаёт и страницу, и `/api` с одного адреса, — и сервер разработки обязан
+ * повторять эту расстановку, а не заводить свою.
+ */
+const API_TARGET = process.env.API_PROXY_TARGET || 'http://127.0.0.1:3100';
+
+export default defineConfig({
+  plugins: [tailwindcss(), sveltekit()],
+  server: {
+    port: 3200,
+    strictPort: true,
+    // Наблюдатель не выходит за пределы своих исходников. Падение сервера
+    // разработки это не лечит (см. `docs/future-roadmap.md`), но следить за
+    // чужими сборками ему незачем.
+    watch: {
+      ignored: ['**/node_modules/**', '**/.svelte-kit/**', '**/build/**', '**/.nx/**']
+    },
+    proxy: {
+      '/api': { target: API_TARGET, changeOrigin: true },
+      // Канал событий и канал редактирования идут теми же путями, что в v1.
+      '/socket.io': { target: API_TARGET, changeOrigin: true, ws: true },
+      '/collab': {
+        target: process.env.COLLAB_PROXY_TARGET || 'http://127.0.0.1:3101',
+        changeOrigin: true,
+        ws: true
+      }
+    }
+  }
+});

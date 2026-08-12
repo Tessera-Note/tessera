@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/**
+ * Цвета объявлены переменными и переключаются по `data-theme` на корне.
+ *
+ * Значения в компонентах не пишутся: цвет, вписанный в компонент, не
+ * переключается вместе с темой, и обнаруживается это только глазами, в тёмной
+ * теме, на одном экране из сорока.
+ */
+:root,
+:root[data-theme='light'] {
+  --surface: #ffffff;
+  --surface-muted: #f6f6f7;
+  --surface-raised: #ffffff;
+  --border: #e4e4e7;
+  --text: #18181b;
+  --text-muted: #71717a;
+  --accent: #18181b;
+  --accent-text: #ffffff;
+  --danger: #b91c1c;
+}
+
+:root[data-theme='dark'] {
+  --surface: #18181b;
+  --surface-muted: #101012;
+  --surface-raised: #232327;
+  --border: #33333a;
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --accent: #f4f4f5;
+  --accent-text: #18181b;
+  --danger: #f87171;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-danger: var(--danger);
+}
+
+html {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
