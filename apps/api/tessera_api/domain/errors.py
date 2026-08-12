@@ -64,6 +64,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.page.edit_denied": "You cannot edit this page",
     "error.page.title_required": "The page needs a title or content",
     "error.page.parent_in_other_space": "The parent page is in another space",
+    "error.page.parent_is_descendant": "A page cannot be moved into its own subtree",
     "error.comment.comment_not_found": "Comment not found",
     "error.comment.content_required": "The comment is empty",
     "error.comment.parent_on_other_page": "The parent comment is on another page",
@@ -82,6 +83,8 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.base.primary_property": "The title property cannot be removed",
     "error.base.last_view": "A base must keep at least one view",
     "error.base.export_too_large": "This base is too large to export at once",
+    "error.mcp.disabled": "The agent tools channel is turned off for this workspace",
+    "error.mcp.tool_failed": "The tool could not complete",
 }
 
 

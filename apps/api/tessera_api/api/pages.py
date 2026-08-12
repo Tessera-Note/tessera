@@ -28,6 +28,19 @@ from tessera_api.services.search import AttachmentSearchService, SearchService
 from tessera_api.services.shares import ShareService
 
 
+def _page_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор страницы из тела запроса.
+
+    Негодное значение — отказ «не найдено», а не иная ошибка: разные отказы на
+    «не существует» и «не разобрано» позволяют перебором нащупывать формат
+    чужих идентификаторов.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.page.page_not_found") from error
+
+
 class CreatePageRequest(msgspec.Struct):
     spaceId: uuid.UUID  # noqa: N815 — имя поля из v1
     title: str | None = None
@@ -44,6 +57,25 @@ class UpdatePageRequest(msgspec.Struct):
 
 class PageIdRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
+
+
+class MoveRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+    position: str | None = None
+    parentPageId: str | None = None  # noqa: N815 — имя поля из v1
+    #: Вынести в корень. Отдельным признаком, а не пустым родителем: пустое
+    #: значение и «поле не передавали» иначе неразличимы.
+    detach: bool = False
+
+
+class MoveToSpaceRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+    spaceId: str  # noqa: N815 — имя поля из v1
+
+
+class DuplicateRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+    spaceId: str | None = None  # noqa: N815 — имя поля из v1
 
 
 class TreeRequest(msgspec.Struct):
@@ -176,6 +208,93 @@ class PageController(Controller):
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         await PageService(db_session, realtime, queue).move_to_trash(page, principal.user_id)
         return {"status": "ok"}
+
+    @post("/restore")
+    async def restore(
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageService(db_session, realtime, queue).restore(
+            _page_uuid(data.pageId), principal.user_id
+        )
+        return {"id": str(page.id), "slugId": page.slug_id, "title": page.title}
+
+    @post("/move")
+    async def move(
+        self,
+        data: MoveRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageService(db_session, realtime, queue).move(
+            _page_uuid(data.pageId),
+            principal.user_id,
+            position=data.position,
+            parent_page_id=_page_uuid(data.parentPageId) if data.parentPageId else None,
+            detach=data.detach,
+        )
+        return {
+            "id": str(page.id),
+            "position": page.position,
+            "parentPageId": str(page.parent_page_id) if page.parent_page_id else None,
+        }
+
+    @post("/move-to-space")
+    async def move_to_space(
+        self,
+        data: MoveToSpaceRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageService(db_session, realtime, queue).move_to_space(
+            _page_uuid(data.pageId), principal.user_id, _page_uuid(data.spaceId)
+        )
+        return {"id": str(page.id), "spaceId": str(page.space_id)}
+
+    @post("/duplicate")
+    async def duplicate(
+        self,
+        data: DuplicateRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageService(db_session, realtime, queue).duplicate(
+            _page_uuid(data.pageId),
+            principal.user_id,
+            space_id=_page_uuid(data.spaceId) if data.spaceId else None,
+        )
+        return {"id": str(page.id), "slugId": page.slug_id, "title": page.title}
+
+    @post("/breadcrumbs")
+    async def breadcrumbs(
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
+    ) -> list[dict]:
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(
+            data.pageId, principal.workspace_id
+        )
+        return await PageService(db_session, realtime, queue).breadcrumbs(
+            page, principal.user_id
+        )
 
     @post("/tree")
     async def tree(

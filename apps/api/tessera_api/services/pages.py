@@ -7,12 +7,13 @@ import string
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.domain.errors import bad_request, forbidden
-from tessera_api.infrastructure.models import Page
+from tessera_api.domain.errors import bad_request, forbidden, not_found
+from tessera_api.infrastructure.models import Page, PageAccess, Space
 from tessera_api.infrastructure.queue import JobName, JobQueue
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import PageAccessService
@@ -69,6 +70,7 @@ class PageService:
         self._session = session
         self._access = PageAccessService(session)
         self._history = PageHistoryService(session)
+        self._members = SpaceMemberRepo(session)
         # `None` означает «не рассылать». Так собирают службу проверки, где
         # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
         self._realtime = realtime
@@ -274,7 +276,251 @@ class PageService:
         await self._refresh_tree(page)
         await self._drop_index([page.id, *ids])
 
-    async def _descendants(self, page_id: uuid.UUID) -> list[uuid.UUID]:
+    async def restore(self, page_id: uuid.UUID, user_id: uuid.UUID) -> Page:
+        """Вернуть страницу из корзины вместе с ветвью.
+
+        Ветвь возвращается целиком: в корзину она ушла целиком, и вернуть один
+        корень значит оставить потомков в корзине без родителя — оттуда их уже
+        не видно и не достать.
+
+        Права проверяются по самой странице, а не по родителю: пока она в
+        корзине, ограничения на ней сохраняются, и восстановить закрытую
+        страницу должен тот, кому она открыта.
+        """
+        page = await self._session.get(Page, page_id)
+        if page is None or page.deleted_at is None:
+            # Живая страница восстановлению не подлежит: это не отказ, а
+            # признак того, что вызывающий смотрит не на то состояние.
+            raise not_found("error.page.page_not_found")
+        await self._access.validate_can_edit(page, user_id)
+
+        ids = await self._descendants(page_id, include_deleted=True)
+        await self._session.execute(
+            update(Page)
+            .where(Page.id.in_([page_id, *ids]))
+            .where(Page.deleted_at.isnot(None))
+            .values(deleted_at=None, deleted_by_id=None)
+        )
+        await self._session.commit()
+
+        restored = await self._session.get(Page, page_id)
+        await self._refresh_tree(restored)
+        await self._reindex(restored)
+        for one in ids:
+            child = await self._session.get(Page, one)
+            if child is not None:
+                await self._reindex(child)
+        return restored
+
+    async def move(
+        self,
+        page_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        position: str | None = None,
+        parent_page_id: uuid.UUID | None = None,
+        detach: bool = False,
+    ) -> Page:
+        """Переставить страницу в дереве.
+
+        Новый родитель проверяется отдельно и в том же пространстве: страница,
+        получившая родителя из другого пространства, ломает обход предков —
+        права начинают считаться через связь, пересекающую границу
+        пространства.
+
+        Собственный потомок родителем быть не может: получилось бы кольцо, и
+        обход предков не закончился бы никогда.
+        """
+        page = await self._session.get(Page, page_id)
+        if page is None or page.deleted_at is not None:
+            raise not_found("error.page.page_not_found")
+        await self._access.validate_can_edit(page, user_id)
+
+        if parent_page_id is not None:
+            parent = await self._session.get(Page, parent_page_id)
+            if parent is None or parent.deleted_at is not None:
+                raise not_found("error.page.page_not_found")
+            if parent.space_id != page.space_id:
+                raise bad_request("error.page.parent_in_other_space")
+            if parent_page_id == page_id or parent_page_id in set(
+                await self._descendants(page_id)
+            ):
+                raise bad_request("error.page.parent_is_descendant")
+            await self._access.validate_can_edit(parent, user_id)
+
+        values: dict = {"last_updated_by_id": user_id}
+        if position is not None:
+            values["position"] = position
+        if parent_page_id is not None:
+            values["parent_page_id"] = parent_page_id
+        elif detach:
+            # Отдельный признак, а не пустое значение в поле: пустое значение и
+            # «поле не передавали» иначе неразличимы, и вынести страницу в
+            # корень было бы нечем.
+            values["parent_page_id"] = None
+
+        await self._session.execute(update(Page).where(Page.id == page_id).values(**values))
+        await self._session.commit()
+
+        moved = await self._session.get(Page, page_id)
+        await self._refresh_tree(moved)
+        return moved
+
+    async def move_to_space(
+        self, page_id: uuid.UUID, user_id: uuid.UUID, space_id: uuid.UUID
+    ) -> Page:
+        """Перенести страницу с ветвью в другое пространство.
+
+        Ветвь переносится целиком: оставленный потомок унаследовал бы права
+        нового пространства через родителя, находясь в старом, и оказался бы
+        виден тем, кому не полагается.
+
+        Ограничения страницы при переносе снимаются. Они выданы людям прежнего
+        пространства, и перенесённые вместе со страницей открывали бы её тем,
+        кто в новом пространстве не состоит.
+        """
+        page = await self._session.get(Page, page_id)
+        if page is None or page.deleted_at is not None:
+            raise not_found("error.page.page_not_found")
+        await self._access.validate_can_edit(page, user_id)
+
+        space = await self._session.get(Space, space_id)
+        if space is None or space.deleted_at is not None:
+            raise not_found("error.space.space_not_found")
+        if space.workspace_id != page.workspace_id:
+            raise not_found("error.space.space_not_found")
+        if await self._members.role_in_space(user_id, space_id) is None:
+            raise forbidden("error.space.access_denied")
+
+        source = page.space_id
+        ids = [page_id, *await self._descendants(page_id)]
+        await self._session.execute(
+            update(Page)
+            .where(Page.id.in_(ids))
+            .values(space_id=space_id, last_updated_by_id=user_id)
+        )
+        # Страница выносится в корень нового пространства: прежний родитель
+        # остался в старом, и связь через границу пространства ломает обход
+        # предков.
+        await self._session.execute(
+            update(Page).where(Page.id == page_id).values(parent_page_id=None)
+        )
+        await self._session.execute(delete(PageAccess).where(PageAccess.page_id.in_(ids)))
+        await self._session.commit()
+
+        moved = await self._session.get(Page, page_id)
+        # Два события: у прежнего пространства страница пропала, у нового
+        # появилась. Одним не обойтись — комнаты разные.
+        if self._realtime is not None:
+            await self._realtime.publish_to_space(
+                source, {"operation": REFETCH_TREE, "spaceId": str(source)}
+            )
+        await self._refresh_tree(moved)
+        for one in ids:
+            child = await self._session.get(Page, one)
+            if child is not None:
+                await self._reindex(child)
+        return moved
+
+    async def duplicate(
+        self,
+        page_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        space_id: uuid.UUID | None = None,
+    ) -> Page:
+        """Скопировать страницу.
+
+        Копируется одна страница, без ветви: копия ветви — это отдельное
+        действие с другой ценой, и делать её молча по той же кнопке значит
+        удивить человека сотней новых страниц.
+
+        Ограничения на копию не переносятся. Копия — новая страница, и права
+        на неё выдаёт тот, кто её завёл; унаследованное ограничение выглядело
+        бы как чужая настройка, которой никто не делал.
+        """
+        page = await self._session.get(Page, page_id)
+        if page is None or page.deleted_at is not None:
+            raise not_found("error.page.page_not_found")
+        await self._access.validate_can_view(page, user_id)
+
+        target_space = space_id or page.space_id
+        if target_space != page.space_id:
+            space = await self._session.get(Space, target_space)
+            if space is None or space.deleted_at is not None:
+                raise not_found("error.space.space_not_found")
+            if space.workspace_id != page.workspace_id:
+                raise not_found("error.space.space_not_found")
+        if await self._members.role_in_space(user_id, target_space) is None:
+            raise forbidden("error.space.access_denied")
+
+        copy_id = uuid.uuid4()
+        self._session.add(
+            Page(
+                id=copy_id,
+                slug_id=generate_slug_id(),
+                title=f"{page.title or ''} (copy)".strip(),
+                icon=page.icon,
+                content=page.content,
+                text_content=page.text_content,
+                parent_page_id=page.parent_page_id if target_space == page.space_id else None,
+                creator_id=user_id,
+                last_updated_by_id=user_id,
+                space_id=target_space,
+                workspace_id=page.workspace_id,
+                is_base=False,
+            )
+        )
+        await self._session.commit()
+
+        created = await self._session.get(Page, copy_id)
+        await BacklinkService(self._session).rebuild(created)
+        await self._session.commit()
+
+        await self._refresh_tree(created)
+        await self._reindex(created)
+        return created
+
+    async def breadcrumbs(self, page: Page, user_id: uuid.UUID) -> list[dict]:
+        """Цепочка предков от корня.
+
+        Закрытый предок в цепочку не попадает: его название — содержимое, и
+        показывать его тому, кому предок закрыт, нельзя.
+
+        **Сегодня эта ветка недостижима, и проверено это внесением дефекта.**
+        Право нужно на каждом ограниченном предке, поэтому закрытый предок
+        закрывает и саму страницу — до цепочки дело не доходит, отказ приходит
+        раньше. Отбор оставлен как защита от изменения правила наследования:
+        стоит ему стать «достаточно права на ближайшем», как ветка оживёт, и
+        отсутствие отбора здесь выдало бы названия закрытых предков.
+        """
+        await self._access.validate_can_view(page, user_id)
+
+        chain: list[dict] = []
+        current = page
+        for _ in range(100):
+            parent_id = current.parent_page_id
+            if parent_id is None:
+                break
+            parent = await self._session.get(Page, parent_id)
+            if parent is None or parent.deleted_at is not None:
+                break
+            if (await self._access.rights(parent, user_id)).can_view:
+                chain.append(
+                    {
+                        "id": str(parent.id),
+                        "slugId": parent.slug_id,
+                        "title": parent.title,
+                        "icon": parent.icon,
+                    }
+                )
+            current = parent
+        chain.reverse()
+        return chain
+
+    async def _descendants(
+        self, page_id: uuid.UUID, *, include_deleted: bool = False
+    ) -> list[uuid.UUID]:
         from sqlalchemy import text as sql_text
 
         rows = await self._session.execute(

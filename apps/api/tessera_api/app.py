@@ -26,6 +26,7 @@ from tessera_api.api.bases import BaseController
 from tessera_api.api.guards import PUBLIC, jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.invitations import InvitationController
+from tessera_api.api.mcp import McpController
 from tessera_api.api.mfa import MfaController
 from tessera_api.api.notifications import NotificationController
 from tessera_api.api.page_permissions import PagePermissionController
@@ -189,6 +190,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             AiSettingsController,
             AiController,
             BaseController,
+            McpController,
             SsoController,
             socket_io,
         ],
