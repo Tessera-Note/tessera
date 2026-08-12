@@ -624,3 +624,29 @@ async def _restrict(session: AsyncSession, workspace, space, page: Page, allowed
         )
     )
     await session.commit()
+
+
+def test_every_internal_route_checks_the_secret() -> None:
+    """Маршрут без сверки секрета открыт всему интернету.
+
+    Опись, а не чтение глазами: маршрутов четыре, они растут, и забытая сверка
+    на пятом не проявится ничем — маршрут просто ответит.
+    """
+    import inspect
+
+    from tessera_api.api.collab import CollabInternalController
+
+    checked = [
+        name
+        for name, one in vars(CollabInternalController).items()
+        if not name.startswith("_")
+        and callable(getattr(one, "fn", None) or one)
+        and "_assert_internal" in inspect.getsource(getattr(one, "fn", None) or one)
+    ]
+    declared = [
+        name
+        for name, one in vars(CollabInternalController).items()
+        if not name.startswith("_") and hasattr(one, "fn")
+    ]
+    assert declared, "маршруты не найдены, проверка ничего не подтверждает"
+    assert sorted(checked) == sorted(declared)
