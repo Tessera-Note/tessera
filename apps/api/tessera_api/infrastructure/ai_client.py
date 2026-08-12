@@ -36,6 +36,14 @@ DONE = "[DONE]"
 
 
 @dataclass(frozen=True, slots=True)
+class ToolStep:
+    """Ход модели: текст и вызовы инструментов."""
+
+    text: str
+    tool_calls: list[dict]
+
+
+@dataclass(frozen=True, slots=True)
 class ChatTarget:
     """Куда обращаться и какой моделью."""
 
@@ -131,6 +139,79 @@ class AiClient:
         if response.status_code != 200:
             _fail(response.status_code)
         return ((response.json().get("message") or {}).get("content")) or ""
+
+    # --- ход с инструментами ---------------------------------------------
+
+    async def chat_with_tools(
+        self,
+        target: ChatTarget,
+        *,
+        system: str,
+        messages: list[dict],
+        tools: list[dict],
+    ) -> ToolStep:
+        """Один ход разговора: текст и, возможно, вызовы инструментов.
+
+        Не поток: пока модель зовёт инструменты, потока текста нет вовсе, а
+        поле вызовов приходит в потоке кусками, которые надо склеивать по
+        номеру. Собранный ответ здесь проще и надёжнее, а наружу поток даёт
+        уже сама беседа — по одному событию на вызов.
+
+        Ходят только совместимые с OpenAI. У Gemini и локальной модели вызов
+        инструментов описан иначе, и делать вид, что он тот же, значило бы
+        молча ломать агента на этих провайдерах.
+        """
+        if target.driver in ("gemini", "ollama"):
+            raise bad_request("error.ai.tools_unsupported", {"driver": target.driver})
+
+        base = (target.base_url or "https://api.openai.com/v1").rstrip("/")
+        payload: dict = {
+            "model": target.model,
+            "messages": [{"role": "system", "content": system}, *messages],
+        }
+        if tools:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": one["name"],
+                        "description": one["description"],
+                        "parameters": one["inputSchema"],
+                    },
+                }
+                for one in tools
+            ]
+
+        async with self._client() as client:
+            response = await client.post(
+                f"{base}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {target.api_key or ''}"},
+            )
+        if response.status_code != 200:
+            _fail(response.status_code)
+
+        body = response.json()
+        choices = body.get("choices") or []
+        if not choices:
+            return ToolStep(text="", tool_calls=[])
+
+        message = choices[0].get("message") or {}
+        calls = []
+        for one in message.get("tool_calls") or []:
+            function = one.get("function") or {}
+            try:
+                arguments = json.loads(function.get("arguments") or "{}")
+            except ValueError:
+                # Модель вправе прислать испорченный JSON. Пустые аргументы
+                # дадут отказ инструмента, который она увидит и исправит; отказ
+                # разбора оборвал бы весь ход.
+                arguments = {}
+            calls.append(
+                {"id": one.get("id"), "name": function.get("name"), "arguments": arguments}
+            )
+
+        return ToolStep(text=message.get("content") or "", tool_calls=calls)
 
     # --- поток ------------------------------------------------------------
 

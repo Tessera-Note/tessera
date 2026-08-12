@@ -85,6 +85,13 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.base.export_too_large": "This base is too large to export at once",
     "error.mcp.disabled": "The agent tools channel is turned off for this workspace",
     "error.mcp.tool_failed": "The tool could not complete",
+    "error.ai.tools_unsupported": "This AI provider cannot use tools",
+    "error.ai_chat.chat_not_found": "Conversation not found",
+    "error.ai_chat.disabled": "The assistant is turned off for this workspace",
+    "error.ai_chat.message_not_found": "Message not found",
+    "error.ai_chat.tool_not_allowed": "The agent is not allowed to use this tool",
+    "error.ai_chat.unknown_decision": "Unknown decision",
+    "error.ai_chat.plan_already_resolved": "This plan has already been decided",
 }
 
 

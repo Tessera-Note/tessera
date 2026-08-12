@@ -415,6 +415,43 @@ class BaseView(Base, TimestampMixin):
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
+class AiChat(Base, SoftDeleteMixin):
+    """Беседа с агентом.
+
+    Принадлежит ровно одному человеку. Признака общего доступа нет ни в схеме,
+    ни в коде, и заводить его нельзя: в беседе оседает содержимое страниц, к
+    которым доступ есть у создателя и может не быть у другого участника
+    пространства.
+    """
+
+    __tablename__ = "ai_chats"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    creator_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    title: Mapped[str | None] = mapped_column(String)
+
+
+class AiChatMessage(Base, SoftDeleteMixin):
+    """Реплика беседы.
+
+    `metadata` у ответа агента хранит план необратимых действий, ожидающий
+    решения человека. Именно в базе, а не в памяти процесса: подтвердить план
+    можно после перезагрузки страницы, с другого устройства и через час.
+    """
+
+    __tablename__ = "ai_chat_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    chat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    role: Mapped[str] = mapped_column(String)
+    content: Mapped[str | None] = mapped_column(Text)
+    tool_calls: Mapped[list[Any] | None] = mapped_column(NullableJsonb)
+    message_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", NullableJsonb)
+
+
 class PageEmbedding(Base, SoftDeleteMixin):
     """Вектор куска страницы.
 
