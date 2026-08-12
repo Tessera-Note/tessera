@@ -80,7 +80,9 @@ export function normalizeLocale(candidate: string | null | undefined): string {
   // Браузер шлёт `ru`, `ru-BY`, `en-GB`. Язык важнее страны: перевод на
   // русский лучше английского запасного, даже если страна другая.
   const language = candidate.split('-')[0].toLowerCase();
-  return LOCALE_CODES.find((one) => one.split('-')[0].toLowerCase() === language) ?? FALLBACK_LOCALE;
+  return (
+    LOCALE_CODES.find((one) => one.split('-')[0].toLowerCase() === language) ?? FALLBACK_LOCALE
+  );
 }
 
 /**

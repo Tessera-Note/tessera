@@ -510,7 +510,7 @@
   "Toggle viewer comments": "切换观众评论",
   "Public sharing is disabled at the workspace level": "公开分享在工作区级别被禁用",
   "Prevent pages in this space from being shared publicly.": "阻止此空间中的页面被公开分享。",
-  "Page permissions": "页面权限},{",
+  "Page permissions": "页面权限",
   "Control who can view and edit individual pages. Available with an enterprise license.": "控制谁可以查看和编辑单个页面。此功能在企业版许可下可用。",
   "Enable public sharing": "启用公开分享",
   "Are you sure you want to enable public sharing? Members will be able to share pages publicly.": "您确定要启用公开分享吗？成员将能够公开分享页面。",

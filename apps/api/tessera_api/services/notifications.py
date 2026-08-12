@@ -18,8 +18,17 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from tessera_api.infrastructure.models import Comment, Notification, Page, Watcher
+from tessera_api.infrastructure.models import (
+    Comment,
+    Notification,
+    Page,
+    Space,
+    SpaceMember,
+    User,
+    Watcher,
+)
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
 
@@ -64,6 +73,10 @@ DIRECT_TYPES = (
 )
 
 UPDATE_TYPES = (NotificationType.PAGE_UPDATED,)
+
+#: Потолок одной выдачи списка. Без него человек с многолетней перепиской
+#: получает всю её разом, и экран собирает мегабайты ради первого десятка строк.
+MAX_LIST = 200
 
 #: Подписка на страницу. Второй вид, `space`, заведён в базе и здесь не
 #: используется: подписки на пространство в v2 пока нет.
@@ -427,22 +440,66 @@ class NotificationService:
             expires_at=expires_at.date().isoformat() if expires_at else None,
         )
 
+    def _visible(self, user_id: uuid.UUID):
+        """Условие «уведомление всё ещё положено видеть».
+
+        Членство проверяется при выдаче, а не только при заведении: человека
+        могли исключить из пространства после того, как уведомление завели, и
+        строка списка несёт название страницы, то есть содержимое.
+        """
+        return or_(
+            Notification.space_id.is_(None),
+            Notification.space_id.in_(
+                select(SpaceMember.space_id)
+                .where(SpaceMember.user_id == user_id)
+                .where(SpaceMember.deleted_at.is_(None))
+            ),
+        )
+
     async def list(
-        self, user_id: uuid.UUID, workspace_id: uuid.UUID, *, tab: str = "all"
+        self,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        tab: str = "all",
+        limit: int = 50,
     ) -> list[dict]:
+        """Список уведомлений с именем написавшего и названием страницы.
+
+        Одним запросом с присоединением, а не выборкой по строке: список на
+        полсотни строк дал бы полторы сотни отдельных запросов.
+        """
+        actor = aliased(User)
         stmt = (
-            select(Notification)
+            select(
+                Notification,
+                actor.id,
+                actor.name,
+                actor.avatar_url,
+                Page.id,
+                Page.title,
+                Page.slug_id,
+                Page.icon,
+                Space.id,
+                Space.name,
+                Space.slug,
+            )
+            .outerjoin(actor, actor.id == Notification.actor_id)
+            .outerjoin(Page, Page.id == Notification.page_id)
+            .outerjoin(Space, Space.id == Notification.space_id)
             .where(Notification.user_id == user_id)
             .where(Notification.workspace_id == workspace_id)
             .where(Notification.archived_at.is_(None))
+            .where(self._visible(user_id))
             .order_by(Notification.created_at.desc())
+            .limit(max(1, min(limit, MAX_LIST)))
         )
         if tab == "direct":
             stmt = stmt.where(Notification.type.in_(DIRECT_TYPES))
         elif tab == "updates":
             stmt = stmt.where(Notification.type.in_(UPDATE_TYPES))
 
-        found = (await self._session.execute(stmt)).scalars().all()
+        rows = (await self._session.execute(stmt)).all()
         return [
             {
                 "id": one.id,
@@ -454,8 +511,40 @@ class NotificationService:
                 "data": one.data,
                 "readAt": one.read_at,
                 "createdAt": one.created_at,
+                "actor": (
+                    None
+                    if actor_id is None
+                    else {"id": actor_id, "name": actor_name, "avatarUrl": actor_avatar}
+                ),
+                "page": (
+                    None
+                    if page_id is None
+                    else {
+                        "id": page_id,
+                        "title": page_title,
+                        "slugId": page_slug,
+                        "icon": page_icon,
+                    }
+                ),
+                "space": (
+                    None
+                    if space_id is None
+                    else {"id": space_id, "name": space_name, "slug": space_slug}
+                ),
             }
-            for one in found
+            for (
+                one,
+                actor_id,
+                actor_name,
+                actor_avatar,
+                page_id,
+                page_title,
+                page_slug,
+                page_icon,
+                space_id,
+                space_name,
+                space_slug,
+            ) in rows
         ]
 
     async def unread_count(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> int:
@@ -467,6 +556,7 @@ class NotificationService:
                 .where(Notification.workspace_id == workspace_id)
                 .where(Notification.read_at.is_(None))
                 .where(Notification.archived_at.is_(None))
+                .where(self._visible(user_id))
             )
         ).scalar_one()
 

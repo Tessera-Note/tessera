@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.roles import SpaceRole
@@ -17,6 +17,7 @@ from tessera_api.infrastructure.models import (
     Notification,
     PageAccess,
     PagePermission,
+    SpaceMember,
     Watcher,
 )
 from tessera_api.services.comments import CommentService
@@ -390,6 +391,101 @@ class TestReading:
         assert len(await service.list(user_id, workspace.id, tab="direct")) == 1
         assert await service.list(user_id, workspace.id, tab="updates") == []
         assert len(await service.list(user_id, workspace.id, tab="all")) == 1
+
+
+class TestListing:
+    """Строка списка: кто, где и что. Одних идентификаторов экрану мало."""
+
+    async def _some(self, session, workspace, owner, space) -> tuple[dict, uuid.UUID]:
+        world = await _world(session, workspace, owner, space)
+        await WatcherService(session).watch_page(
+            user_id=world["outsider_id"], page=world["root"]
+        )
+        await CommentService(session).create(
+            page=world["root"], user_id=owner.id, content=_doc()
+        )
+        return world, world["outsider_id"]
+
+    async def test_the_row_carries_the_author_and_the_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Без имени и названия строка нечитаема, а ссылке некуда вести."""
+        world, user_id = await self._some(session, workspace, owner, space)
+
+        rows = await NotificationService(session).list(user_id, workspace.id)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["actor"]["id"] == owner.id
+        assert row["page"]["title"] == "Корень"
+        assert row["page"]["slugId"] == world["root"].slug_id
+        assert row["space"]["slug"] == space.slug
+
+    async def test_an_excluded_person_stops_seeing_the_space(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Членство проверяется при выдаче, а не только при заведении.
+
+        Строка несёт название страницы: исключённому из пространства она
+        показывала бы содержимое, к которому доступ уже закрыт.
+        """
+        _, user_id = await self._some(session, workspace, owner, space)
+        service = NotificationService(session)
+        assert len(await service.list(user_id, workspace.id)) == 1
+
+        await session.execute(
+            delete(SpaceMember)
+            .where(SpaceMember.user_id == user_id)
+            .where(SpaceMember.space_id == space.id)
+        )
+        await session.flush()
+
+        assert await service.list(user_id, workspace.id) == []
+
+    async def test_an_excluded_person_is_not_counted_either(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Иначе значок показывает непрочитанное, которого в списке нет."""
+        _, user_id = await self._some(session, workspace, owner, space)
+        service = NotificationService(session)
+        assert await service.unread_count(user_id, workspace.id) == 1
+
+        await session.execute(
+            delete(SpaceMember)
+            .where(SpaceMember.user_id == user_id)
+            .where(SpaceMember.space_id == space.id)
+        )
+        await session.flush()
+
+        assert await service.unread_count(user_id, workspace.id) == 0
+
+    async def test_the_list_is_bounded(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Выдача без потолка отдаёт всю многолетнюю переписку разом."""
+        world, user_id = await self._some(session, workspace, owner, space)
+        for _ in range(4):
+            await CommentService(session).create(
+                page=world["root"], user_id=owner.id, content=_doc()
+            )
+        service = NotificationService(session)
+
+        assert len(await service.list(user_id, workspace.id)) == 5
+        assert len(await service.list(user_id, workspace.id, limit=2)) == 2
+
+    async def test_newest_comes_first(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world, user_id = await self._some(session, workspace, owner, space)
+        await CommentService(session).create(
+            page=world["root"], user_id=owner.id, content=_doc("второй")
+        )
+
+        rows = await NotificationService(session).list(user_id, workspace.id)
+        assert len(rows) > 1, "порядок на одной строке ничего не проверяет"
+        assert [one["createdAt"] for one in rows] == sorted(
+            [one["createdAt"] for one in rows], reverse=True
+        )
 
 
 class TestPermissionGranted:

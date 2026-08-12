@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -14,8 +14,10 @@ from tessera_api.infrastructure.models import (
     Page,
     PageAccess,
     PagePermission,
+    Space,
     SpaceMember,
     User,
+    Workspace,
 )
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import ACCESS_RESTRICTED
@@ -201,6 +203,202 @@ class TestShares:
 
         with pytest.raises(AppError):
             await ShareService(session).create(page=page, user_id=reader_id)
+
+    async def _restrict(self, session, workspace, space, owner, page) -> None:
+        """Ограничить страницу, оставив право самому владельцу.
+
+        Без права владельца проверка упёрлась бы в отказ доступа и не дошла до
+        правила о публикации — то есть проверяла бы не то.
+        """
+        access_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=access_id,
+                page_id=page.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(PagePermission).values(
+                id=uuid.uuid4(),
+                page_access_id=access_id,
+                user_id=owner.id,
+                role=SpaceRole.ADMIN,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+    async def test_a_restricted_page_is_not_published(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ограниченная страница наружу не отдаётся.
+
+        Иначе ограничение обходится в один щелчок: закрытую от пространства
+        страницу публичная ссылка открывает всему интернету.
+        """
+        page = await self._page(session, workspace, owner, space)
+        await self._restrict(session, workspace, space, owner, page)
+
+        with pytest.raises(AppError) as failure:
+            await ShareService(session).create(page=page, user_id=owner.id)
+        assert failure.value.code == "error.share.cannot_share_a_restricted_page"
+
+    async def test_a_page_under_a_restricted_parent_is_not_published(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Проверяется вся ветвь вверх.
+
+        Ограничение ставят на раздел, а публикуют лист внутри него: проверка
+        одной страницы пропустила бы ровно этот случай.
+        """
+        parent = await self._page(session, workspace, owner, space)
+        child = await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Внутри раздела",
+            parent_page_id=parent.id,
+        )
+        await self._restrict(session, workspace, space, owner, parent)
+
+        with pytest.raises(AppError) as failure:
+            await ShareService(session).create(page=child, user_id=owner.id)
+        assert failure.value.code == "error.share.cannot_share_a_restricted_page"
+
+    async def test_a_space_that_forbids_publishing_refuses(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, owner, space)
+        await session.execute(
+            update(Space)
+            .where(Space.id == space.id)
+            .values(settings={"sharing": {"disabled": True}})
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await ShareService(session).create(page=page, user_id=owner.id)
+        assert failure.value.code == "error.share.public_sharing_is_disabled"
+
+    async def test_a_workspace_that_forbids_publishing_refuses(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, owner, space)
+        await session.execute(
+            update(Workspace)
+            .where(Workspace.id == workspace.id)
+            .values(settings={"sharing": {"disabled": True}})
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await ShareService(session).create(page=page, user_id=owner.id)
+        assert failure.value.code == "error.share.public_sharing_is_disabled"
+
+    async def test_the_switch_closes_links_already_made(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Выключатель обязан закрывать и прежние ссылки.
+
+        Иначе он ничего не выключает: заведённые до запрета ссылки продолжают
+        отдавать содержимое наружу.
+        """
+        page = await self._page(session, workspace, owner, space)
+        service = ShareService(session)
+        share = await service.create(page=page, user_id=owner.id)
+        assert (await service.resolve(share.key))[1].id == page.id
+
+        await session.execute(
+            update(Space)
+            .where(Space.id == space.id)
+            .values(settings={"sharing": {"disabled": True}})
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await service.resolve(share.key)
+        assert failure.value.code == "error.share.share_not_found"
+
+    async def test_for_page_returns_nothing_when_not_shared(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, owner, space)
+        assert await ShareService(session).for_page(page, owner.id) is None
+
+    async def test_for_page_returns_the_live_link(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, owner, space)
+        service = ShareService(session)
+        share = await service.create(page=page, user_id=owner.id)
+
+        found = await service.for_page(page, owner.id)
+        assert found is not None
+        assert found.key == share.key
+
+    async def test_for_page_forgets_a_revoked_link(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отозванная ссылка не показывается как действующая.
+
+        Иначе экран сообщает, что страница открыта наружу, хотя её закрыли,
+        и человек отзывает несуществующее.
+        """
+        page = await self._page(session, workspace, owner, space)
+        service = ShareService(session)
+        await service.create(page=page, user_id=owner.id)
+        await service.revoke(page, owner.id)
+
+        assert await service.for_page(page, owner.id) is None
+
+    async def test_a_reader_sees_that_the_page_is_open(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Читателю полагается знать, что страница отдаётся наружу.
+
+        Заводить ссылку он не вправе, а видеть её обязан: иначе содержимое
+        уходит посторонним незаметно для тех, кто страницу читает.
+        """
+        page = await self._page(session, workspace, owner, space)
+        share = await ShareService(session).create(page=page, user_id=owner.id)
+
+        reader_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=reader_id,
+                email=f"reader-{uuid.uuid4().hex[:8]}@example.com",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=reader_id,
+                space_id=space.id,
+                role=SpaceRole.READER,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+        found = await ShareService(session).for_page(page, reader_id)
+        assert found is not None
+        assert found.key == share.key
+
+    async def test_a_stranger_gets_nothing(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ключ ссылки это доступ к странице: посторонний его не получает."""
+        page = await self._page(session, workspace, owner, space)
+        await ShareService(session).create(page=page, user_id=owner.id)
+
+        with pytest.raises(AppError):
+            await ShareService(session).for_page(page, uuid.uuid4())
 
     async def test_resolve_opens_the_page(
         self, session: AsyncSession, workspace, owner, space

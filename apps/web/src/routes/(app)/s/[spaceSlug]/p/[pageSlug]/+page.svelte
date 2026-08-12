@@ -5,6 +5,7 @@
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import PageBody from '$lib/components/page/PageBody.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
+  import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
   import { deletePage, updatePage } from '$lib/features/page/services/pages';
@@ -65,46 +66,58 @@
 
 <svelte:head><title>{data.page.title ?? t('Untitled')} · Tessera</title></svelte:head>
 
-<article data-route="page" class="mx-auto max-w-3xl">
-  {#if data.crumbs.length > 1}
-    <nav data-component="Breadcrumbs" class="mb-4 flex flex-wrap gap-1 text-sm text-text-muted">
-      {#each data.crumbs as crumb, index (crumb.id)}
-        {#if index > 0}<span aria-hidden="true">/</span>{/if}
-        <a class="hover:underline" href="/s/{data.space?.slug}/p/{crumb.slugId}">
-          {crumb.title ?? t('Untitled')}
-        </a>
-      {/each}
-    </nav>
-  {/if}
-
-  <div class="mb-6 flex items-start justify-between gap-4">
-    {#if renaming}
-      <form class="flex flex-1 gap-2" onsubmit={rename}>
-        <div class="flex-1"><TextInput bind:value={title} required /></div>
-        <Button type="submit" disabled={busy}>{t('Save')}</Button>
-        <Button variant="quiet" onclick={() => (renaming = false)}>{t('Cancel')}</Button>
-      </form>
-    {:else}
-      <h1 class="text-3xl font-semibold">
-        {#if data.page.icon}<span class="mr-2" aria-hidden="true">{data.page.icon}</span>{/if}
-        {data.page.title ?? t('Untitled')}
-      </h1>
-
-      <div class="flex shrink-0 gap-2">
-        <Button variant="quiet" disabled={busy} onclick={toggleFavorite}>
-          {data.favorite ? t('Remove from favorites') : t('Add to favorites')}
-        </Button>
-        {#if canEdit}
-          <Button variant="quiet" onclick={() => (renaming = true)}>{t('Rename')}</Button>
-          <Button variant="quiet" disabled={busy} onclick={remove}>{t('Delete')}</Button>
-        {/if}
-      </div>
+<div class="mx-auto flex max-w-6xl gap-8">
+  <article data-route="page" class="min-w-0 flex-1">
+    {#if data.crumbs.length > 1}
+      <nav data-component="Breadcrumbs" class="mb-4 flex flex-wrap gap-1 text-sm text-text-muted">
+        {#each data.crumbs as crumb, index (crumb.id)}
+          {#if index > 0}<span aria-hidden="true">/</span>{/if}
+          <a class="hover:underline" href="/s/{data.space?.slug}/p/{crumb.slugId}">
+            {crumb.title ?? t('Untitled')}
+          </a>
+        {/each}
+      </nav>
     {/if}
-  </div>
 
-  {#if failure}<Notice message={failure} />{/if}
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+      {#if renaming}
+        <form class="flex flex-1 gap-2" onsubmit={rename}>
+          <div class="flex-1"><TextInput bind:value={title} required /></div>
+          <Button type="submit" disabled={busy}>{t('Save')}</Button>
+          <Button variant="quiet" onclick={() => (renaming = false)}>{t('Cancel')}</Button>
+        </form>
+      {:else}
+        <h1 class="min-w-64 flex-1 text-3xl font-semibold">
+          {#if data.page.icon}<span class="mr-2" aria-hidden="true">{data.page.icon}</span>{/if}
+          {data.page.title ?? t('Untitled')}
+        </h1>
 
-  <PageBody content={data.page.content} />
+        <div class="flex shrink-0 gap-2">
+          <Button variant="quiet" disabled={busy} onclick={toggleFavorite}>
+            {data.favorite ? t('Remove from favorites') : t('Add to favorites')}
+          </Button>
+          {#if canEdit}
+            <Button variant="quiet" onclick={() => (renaming = true)}>{t('Rename')}</Button>
+            <Button variant="quiet" disabled={busy} onclick={remove}>{t('Delete')}</Button>
+          {/if}
+        </div>
+      {/if}
+    </div>
 
-  <PageComments pageId={data.page.id} comments={data.comments} />
-</article>
+    {#if failure}<Notice message={failure} />{/if}
+
+    <PageBody content={data.page.content} />
+
+    <PageComments pageId={data.page.id} comments={data.comments} />
+  </article>
+
+  <PageSidePanel
+    pageId={data.page.id}
+    versions={data.versions}
+    labels={data.labels}
+    backlinks={data.backlinks}
+    permission={data.permission}
+    share={data.share}
+    spaceSlug={data.space?.slug ?? ''}
+  />
+</div>

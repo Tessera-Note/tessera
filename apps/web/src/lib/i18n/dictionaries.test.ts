@@ -33,6 +33,9 @@ const SLAVIC_FORMS = ['one', 'few', 'many', 'other'];
 const ICU_SYNTAX = /\{\s*\w+\s*,\s*(plural|select|selectordinal)\s*,/;
 const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 
+//: Обрывок разметки самого файла словаря внутри значения.
+const JSON_TAIL = /(?<!\})\}\s*,\s*\{(?!\{)|^\s*[}\]]/;
+
 function readLocale(locale: string): Record<string, string> {
   return JSON.parse(readFileSync(join(SOURCE_DIR, `${locale}.json`), 'utf8'));
 }
@@ -109,6 +112,17 @@ describe('состав словарей', () => {
         const extra = [...actual].filter((one) => !expected.has(one) && one !== 'count');
         return lost.length > 0 || extra.length > 0;
       });
+    expect(broken).toEqual([]);
+  });
+
+  it.each(locales)('%s не содержит обрывков разметки файла', (locale) => {
+    // Шесть словарей форка несли хвост `},{` внутри значения: след неудачного
+    // слияния. Разбору JSON это не мешает, и заметить такое можно только на
+    // экране, где хвост стоит прямо в заголовке раздела.
+    const dictionary = readLocale(locale);
+    const broken = Object.entries(dictionary)
+      .filter(([, value]) => JSON_TAIL.test(String(value)))
+      .map(([key]) => key);
     expect(broken).toEqual([]);
   });
 

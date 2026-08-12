@@ -613,6 +613,24 @@ class ShareController(Controller):
             "includeSubPages": share.include_sub_pages,
         }
 
+    @post("/for-page")
+    async def for_page(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict | None:
+        """Ссылка страницы, если она заведена. Путь и имя поля из v1."""
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(
+            data.pageId, principal.workspace_id
+        )
+        share = await ShareService(db_session).for_page(page, principal.user_id)
+        if share is None:
+            return None
+        return {
+            "id": share.id,
+            "key": share.key,
+            "includeSubPages": share.include_sub_pages,
+        }
+
     @post("/revoke")
     async def revoke(
         self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]

@@ -179,6 +179,37 @@ class PageAccessService:
                 allowed.append(page_id)
         return allowed
 
+    async def has_restricted_ancestor(self, page: Page) -> bool:
+        """Ограничена ли страница или любой её предок.
+
+        Без привязки к человеку: вопрос не «кому она открыта», а «закрыта ли
+        она вообще». Этим проверяется, можно ли отдавать её наружу по ссылке.
+        """
+        found = (
+            await self._session.execute(
+                text(
+                    """
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_page_id, 0 AS depth
+                        FROM pages
+                        WHERE id = :page_id
+                        UNION ALL
+                        SELECT p.id, p.parent_page_id, a.depth + 1
+                        FROM pages p
+                        JOIN ancestors a ON p.id = a.parent_page_id
+                        WHERE a.depth < 100
+                    )
+                    SELECT 1
+                    FROM ancestors a
+                    JOIN page_access pa ON pa.page_id = a.id
+                    LIMIT 1
+                    """
+                ),
+                {"page_id": page.id},
+            )
+        ).first()
+        return found is not None
+
     async def space_has_restrictions(self, space_id: uuid.UUID) -> bool:
         """Есть ли в пространстве хоть одна ограниченная страница.
 

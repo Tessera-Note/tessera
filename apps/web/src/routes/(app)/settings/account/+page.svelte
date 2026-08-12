@@ -99,14 +99,20 @@
     {#if profileFailure}<Notice message={profileFailure} />{/if}
     {#if profileSaved}<Notice tone="info" message={t('Saved')} />{/if}
 
-    <Button type="submit" disabled={profileBusy}>{profileBusy ? t('Loading...') : t('Save')}</Button>
+    <Button type="submit" disabled={profileBusy}>{profileBusy ? t('Loading...') : t('Save')}</Button
+    >
   </form>
 
   <form class="rounded-lg border border-border bg-surface-raised p-6" onsubmit={savePassword}>
     <h2 class="mb-4 text-lg font-medium">{t('Change password')}</h2>
 
     <Field label={t('Current password')}>
-      <TextInput bind:value={oldPassword} type="password" autocomplete="current-password" required />
+      <TextInput
+        bind:value={oldPassword}
+        type="password"
+        autocomplete="current-password"
+        required
+      />
     </Field>
     <Field label={t('New password')}>
       <TextInput bind:value={newPassword} type="password" autocomplete="new-password" required />

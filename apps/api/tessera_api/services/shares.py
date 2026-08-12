@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.domain.errors import not_found
-from tessera_api.infrastructure.models import Page, Share
+from tessera_api.domain.errors import bad_request, forbidden, not_found
+from tessera_api.infrastructure.models import Page, Share, Space, Workspace
 from tessera_api.services.page_access import PageAccessService
 
 #: Длина ключа ссылки. Ключ и есть учётные данные того, кто открывает страницу
@@ -34,6 +34,15 @@ class ShareService:
         # Открывать страницу наружу может тот, кто вправе её править: чтение
         # для этого мало, иначе читатель раздаёт чужое содержимое.
         await self._access.validate_can_edit(page, user_id)
+
+        # Ограниченная страница наружу не отдаётся ни при каких правах. Иначе
+        # ограничение обходится в один щелчок: страницу, закрытую от всего
+        # пространства, публичная ссылка открывает всему интернету.
+        if await self._access.has_restricted_ancestor(page):
+            raise bad_request("error.share.cannot_share_a_restricted_page")
+
+        if not await self.sharing_allowed(page):
+            raise forbidden("error.share.public_sharing_is_disabled")
 
         existing = (
             await self._session.execute(
@@ -60,6 +69,47 @@ class ShareService:
         )
         await self._session.commit()
         return await self._session.get(Share, share_id)
+
+    async def sharing_allowed(self, page: Page) -> bool:
+        """Разрешена ли публикация в этом пространстве.
+
+        Запрет ставится и на рабочее пространство, и на отдельное space, и
+        любого из двух достаточно: настройка заводится ровно затем, чтобы
+        участник не мог отдать содержимое наружу.
+        """
+        row = (
+            await self._session.execute(
+                select(Workspace.settings, Space.settings)
+                .select_from(Workspace)
+                .join(Space, Space.workspace_id == Workspace.id)
+                .where(Workspace.id == page.workspace_id)
+                .where(Space.id == page.space_id)
+            )
+        ).first()
+        if row is None:
+            return False
+        return not any(
+            isinstance(settings, dict)
+            and isinstance(settings.get("sharing"), dict)
+            and settings["sharing"].get("disabled") is True
+            for settings in row
+        )
+
+    async def for_page(self, page: Page, user_id: uuid.UUID) -> Share | None:
+        """Ссылка страницы, если она заведена.
+
+        Право чтения, а не правки: тому, кто страницу видит, полагается знать,
+        что она открыта наружу. Скрывать это от читателя значило бы, что
+        содержимое уходит к посторонним незаметно для тех, кто его пишет.
+        """
+        await self._access.validate_can_view(page, user_id)
+        return (
+            await self._session.execute(
+                select(Share)
+                .where(Share.page_id == page.id)
+                .where(Share.deleted_at.is_(None))
+            )
+        ).scalar_one_or_none()
 
     async def revoke(self, page: Page, user_id: uuid.UUID) -> None:
         await self._access.validate_can_edit(page, user_id)
@@ -91,6 +141,12 @@ class ShareService:
         if page is None or page.deleted_at is not None:
             # Страница удалена, а ссылка осталась. Отдавать нечего, и делать
             # вид, что ссылка цела, нельзя.
+            raise not_found("error.share.share_not_found")
+
+        # Запрет публикации закрывает и уже заведённые ссылки. Иначе выключатель
+        # не выключает: он лишь мешает завести новую, а прежние продолжают
+        # отдавать содержимое наружу.
+        if not await self.sharing_allowed(page):
             raise not_found("error.share.share_not_found")
 
         return share, page

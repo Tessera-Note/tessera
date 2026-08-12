@@ -48,6 +48,17 @@
 
     <nav class="mt-6 space-y-1 border-t border-border pt-4 text-sm">
       <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/search">{t('Search')}</a>
+      <a
+        class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-surface-muted"
+        href="/notifications"
+      >
+        {t('Notifications')}
+        {#if data.unread > 0}
+          <span class="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-text">
+            {data.unread}
+          </span>
+        {/if}
+      </a>
       <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/settings/account">
         {t('Settings')}
       </a>
@@ -55,7 +66,10 @@
 
     <div class="mt-6 border-t border-border pt-4 text-sm">
       <p class="truncate px-2 text-text-muted">{data.session?.user.email}</p>
-      <button class="mt-2 w-full rounded px-2 py-1.5 text-left hover:bg-surface-muted" onclick={() => theme.toggle()}>
+      <button
+        class="mt-2 w-full rounded px-2 py-1.5 text-left hover:bg-surface-muted"
+        onclick={() => theme.toggle()}
+      >
         {theme.current === 'dark' ? t('Light mode') : t('Dark mode')}
       </button>
       <button class="w-full rounded px-2 py-1.5 text-left hover:bg-surface-muted" onclick={signOut}>

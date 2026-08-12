@@ -56,7 +56,7 @@
       placeholder={t('Write a comment')}
       bind:value={text}
     ></textarea>
-    <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Comment')}</Button>
+    <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Add comment')}</Button>
   </form>
 
   {#if failure}<Notice message={failure} />{/if}

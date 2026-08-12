@@ -512,7 +512,7 @@
   "Toggle viewer comments": "Activar/desactivar comentarios de los espectadores",
   "Public sharing is disabled at the workspace level": "El uso compartido público está desactivado a nivel de espacio de trabajo",
   "Prevent pages in this space from being shared publicly.": "Evitar que las páginas en este espacio se compartan públicamente.",
-  "Page permissions": "Permisos de la página},{",
+  "Page permissions": "Permisos de la página",
   "Control who can view and edit individual pages. Available with an enterprise license.": "Controla quién puede ver y editar páginas individuales. Disponible con una licencia empresarial.",
   "Enable public sharing": "Activar el uso compartido público",
   "Are you sure you want to enable public sharing? Members will be able to share pages publicly.": "¿Está seguro de que desea activar el uso compartido público? Los miembros podrán compartir páginas públicamente.",

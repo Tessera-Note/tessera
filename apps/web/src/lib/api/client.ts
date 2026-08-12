@@ -19,7 +19,12 @@ export class ApiError extends Error {
   readonly code: string;
   readonly params: Record<string, string | number>;
 
-  constructor(status: number, code: string, message: string, params: Record<string, string | number>) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    params: Record<string, string | number>
+  ) {
     super(message || code);
     this.name = 'ApiError';
     this.status = status;

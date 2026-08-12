@@ -29,11 +29,7 @@ export function pageTree(
   return post<PageSummary[]>('/api/pages/tree', { spaceId, parentPageId }, { fetcher, headers });
 }
 
-export function pageInfo(
-  pageId: string,
-  fetcher?: typeof fetch,
-  headers?: Record<string, string>
-) {
+export function pageInfo(pageId: string, fetcher?: typeof fetch, headers?: Record<string, string>) {
   return post<PageBody>('/api/pages/info', { pageId }, { fetcher, headers });
 }
 
@@ -49,11 +45,9 @@ export function createPage(
   values: { spaceId: string; title?: string; parentPageId?: string | null },
   fetcher?: typeof fetch
 ) {
-  return post<{ id: string; slugId: string; title: string | null }>(
-    '/api/pages/create',
-    values,
-    { fetcher }
-  );
+  return post<{ id: string; slugId: string; title: string | null }>('/api/pages/create', values, {
+    fetcher
+  });
 }
 
 /**

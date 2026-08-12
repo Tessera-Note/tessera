@@ -29,8 +29,7 @@
       // туда, а не на общий экран.
       await goto(page.url.searchParams.get('redirect') ?? '/home');
     } catch (error) {
-      failure =
-        error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
     } finally {
       busy = false;
     }
