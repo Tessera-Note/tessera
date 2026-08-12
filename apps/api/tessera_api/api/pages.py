@@ -14,6 +14,7 @@ from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.comments import CommentService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.labels import FavoriteService, LabelService
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
@@ -220,10 +221,13 @@ class CommentController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        found = await CommentService(db_session, realtime).list_for_page(page, principal.user_id)
+        found = await CommentService(db_session, realtime, mailer).list_for_page(
+            page, principal.user_id
+        )
         return [
             {
                 "id": c.id,
@@ -244,10 +248,11 @@ class CommentController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        comment = await CommentService(db_session, realtime).create(
+        comment = await CommentService(db_session, realtime, mailer).create(
             page=page,
             user_id=principal.user_id,
             content=data.content,

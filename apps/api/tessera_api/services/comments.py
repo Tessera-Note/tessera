@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import Comment, Page
 from tessera_api.services.backlinks import extract_user_mentions
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import NotificationService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
@@ -24,12 +25,18 @@ DELETED = "commentDeleted"
 
 
 class CommentService:
-    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        realtime: RealtimeService | None = None,
+        mailer: NotificationMailer | None = None,
+    ) -> None:
         self._session = session
         self._access = PageAccessService(session)
         # `None` означает «не рассылать». Так собирают службу проверки, где
         # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
         self._realtime = realtime
+        self._mailer = mailer
 
     async def _publish(self, page: Page, operation: str, payload: dict) -> None:
         """Разослать событие панели комментариев.
@@ -107,7 +114,7 @@ class CommentService:
         # Уведомления заводятся в той же транзакции, что и комментарий: иначе
         # отказ на середине оставляет либо уведомление о том, чего нет, либо
         # комментарий, о котором никто не узнает.
-        notifications = NotificationService(self._session, self._realtime)
+        notifications = NotificationService(self._session, self._realtime, self._mailer)
         await notifications.notify_comment(
             page=page,
             comment=created,

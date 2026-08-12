@@ -10,6 +10,7 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import Principal
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import NotificationService
 from tessera_api.services.realtime import RealtimeService
 
@@ -33,9 +34,10 @@ class NotificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        return await NotificationService(db_session, realtime).list(
+        return await NotificationService(db_session, realtime, mailer).list(
             principal.user_id, principal.workspace_id, tab=data.tab
         )
 
@@ -45,9 +47,10 @@ class NotificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        count = await NotificationService(db_session, realtime).unread_count(
+        count = await NotificationService(db_session, realtime, mailer).unread_count(
             principal.user_id, principal.workspace_id
         )
         return {"count": count}
@@ -59,9 +62,10 @@ class NotificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        marked = await NotificationService(db_session, realtime).mark_read(
+        marked = await NotificationService(db_session, realtime, mailer).mark_read(
             data.notificationIds, principal.user_id
         )
         return {"marked": marked}
@@ -72,9 +76,10 @@ class NotificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        marked = await NotificationService(db_session, realtime).mark_all_read(
+        marked = await NotificationService(db_session, realtime, mailer).mark_all_read(
             principal.user_id, principal.workspace_id
         )
         return {"marked": marked}

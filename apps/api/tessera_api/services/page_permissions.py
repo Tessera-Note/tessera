@@ -32,6 +32,7 @@ from tessera_api.infrastructure.models import (
     PagePermission,
     User,
 )
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import NotificationService
 from tessera_api.services.page_access import (
     ACCESS_RESTRICTED,
@@ -60,12 +61,18 @@ class PermissionTarget:
 
 
 class PagePermissionService:
-    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        realtime: RealtimeService | None = None,
+        mailer: NotificationMailer | None = None,
+    ) -> None:
         self._session = session
         self._access = PageAccessService(session)
         # `None` означает «не рассылать». Так собирают службу проверки, где
         # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
         self._realtime = realtime
+        self._mailer = mailer
 
     async def _access_changed(self, page: Page) -> None:
         """Сообщить каналу событий, что права изменились.
@@ -260,14 +267,18 @@ class PagePermissionService:
                 )
             )
 
-        notifications = await self._notify_granted(page, targets, user_id)
+        notifications = await self._notify_granted(page, targets, user_id, role)
         await self._session.commit()
         await notifications.flush()
         await self._access_changed(page)
         return len(targets)
 
     async def _notify_granted(
-        self, page: Page, targets: list[PermissionTarget], actor_id: uuid.UUID
+        self,
+        page: Page,
+        targets: list[PermissionTarget],
+        actor_id: uuid.UUID,
+        role: str | None = None,
     ) -> NotificationService:
         """Сообщить тем, кому только что открыли страницу.
 
@@ -293,9 +304,9 @@ class PagePermissionService:
             )
             people.extend(members)
 
-        notifications = NotificationService(self._session, self._realtime)
+        notifications = NotificationService(self._session, self._realtime, self._mailer)
         await notifications.notify_permission_granted(
-            page=page, user_ids=people, actor_id=actor_id
+            page=page, user_ids=people, actor_id=actor_id, role=role
         )
         return notifications
 

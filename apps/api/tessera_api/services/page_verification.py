@@ -27,6 +27,7 @@ from tessera_api.infrastructure.models import (
     PageVerification,
     PageVerifier,
 )
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import NotificationService, NotificationType
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
@@ -106,11 +107,17 @@ class VerificationRights:
 
 
 class PageVerificationService:
-    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        realtime: RealtimeService | None = None,
+        mailer: NotificationMailer | None = None,
+    ) -> None:
         self._session = session
         self._access = PageAccessService(session)
         # `None` означает «не рассылать»: так собирают службу проверки.
         self._realtime = realtime
+        self._mailer = mailer
         self._pending_notifications: NotificationService | None = None
 
     async def _record(self, page: Page) -> PageVerification | None:
@@ -389,12 +396,13 @@ class PageVerificationService:
             .scalars()
             .all()
         )
-        notifications = NotificationService(self._session, self._realtime)
+        notifications = NotificationService(self._session, self._realtime, self._mailer)
         await notifications.notify_page_event(
             page=page,
             kind=kind,
             user_ids=[one for one in recipients if one != actor_id],
             actor_id=actor_id,
+            expires_at=record.expires_at,
         )
         # Сигнал уходит после фиксации: до неё клиент перезапросил бы список и
         # не нашёл там уведомления, которого ещё нет в базе.

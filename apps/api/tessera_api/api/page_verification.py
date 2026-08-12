@@ -11,6 +11,7 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import Principal
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.page_verification import (
     MODE_PERIOD,
@@ -53,10 +54,13 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        return await PageVerificationService(db_session, realtime).info(page, principal.user_id)
+        return await PageVerificationService(db_session, realtime, mailer).info(
+            page, principal.user_id
+        )
 
     @post("/create-verification")
     async def create(
@@ -65,10 +69,11 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session, realtime)
+        service = PageVerificationService(db_session, realtime, mailer)
         await service.create(
             page=page,
             user_id=principal.user_id,
@@ -87,10 +92,11 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session, realtime)
+        service = PageVerificationService(db_session, realtime, mailer)
         await service.update_settings(
             page=page,
             user_id=principal.user_id,
@@ -109,10 +115,11 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        await PageVerificationService(db_session, realtime).remove(page, principal.user_id)
+        await PageVerificationService(db_session, realtime, mailer).remove(page, principal.user_id)
         return {"success": True}
 
     @post("/verify")
@@ -122,10 +129,11 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session, realtime)
+        service = PageVerificationService(db_session, realtime, mailer)
         await service.verify(page, principal.user_id)
         return await service.info(page, principal.user_id)
 
@@ -136,10 +144,11 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session, realtime)
+        service = PageVerificationService(db_session, realtime, mailer)
         await service.submit(page, principal.user_id)
         return await service.info(page, principal.user_id)
 
@@ -150,10 +159,11 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session, realtime)
+        service = PageVerificationService(db_session, realtime, mailer)
         await service.reject(page, principal.user_id, data.comment)
         return await service.info(page, principal.user_id)
 
@@ -164,9 +174,10 @@ class PageVerificationController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session, realtime)
+        service = PageVerificationService(db_session, realtime, mailer)
         await service.mark_obsolete(page, principal.user_id)
         return await service.info(page, principal.user_id)

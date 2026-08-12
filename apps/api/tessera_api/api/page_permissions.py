@@ -19,6 +19,7 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import Principal
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_permissions import PagePermissionService
 from tessera_api.services.realtime import RealtimeService
 
@@ -57,9 +58,10 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        return await PagePermissionService(db_session, realtime).restrict(
+        return await PagePermissionService(db_session, realtime, mailer).restrict(
             data.pageId, principal.user_id, principal.workspace_id
         )
 
@@ -70,9 +72,10 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        await PagePermissionService(db_session, realtime).remove_restriction(
+        await PagePermissionService(db_session, realtime, mailer).remove_restriction(
             data.pageId, principal.user_id, principal.workspace_id
         )
         return {"success": True}
@@ -84,9 +87,10 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        added = await PagePermissionService(db_session, realtime).add_permissions(
+        added = await PagePermissionService(db_session, realtime, mailer).add_permissions(
             data.pageId,
             principal.user_id,
             principal.workspace_id,
@@ -103,9 +107,10 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        removed = await PagePermissionService(db_session, realtime).remove_permissions(
+        removed = await PagePermissionService(db_session, realtime, mailer).remove_permissions(
             data.pageId,
             principal.user_id,
             principal.workspace_id,
@@ -121,9 +126,10 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        await PagePermissionService(db_session, realtime).update_permission(
+        await PagePermissionService(db_session, realtime, mailer).update_permission(
             data.pageId,
             principal.user_id,
             principal.workspace_id,
@@ -140,9 +146,10 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        return await PagePermissionService(db_session, realtime).list_permissions(
+        return await PagePermissionService(db_session, realtime, mailer).list_permissions(
             data.pageId, principal.user_id, principal.workspace_id
         )
 
@@ -153,8 +160,9 @@ class PagePermissionController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        return await PagePermissionService(db_session, realtime).info(
+        return await PagePermissionService(db_session, realtime, mailer).info(
             data.pageId, principal.user_id, principal.workspace_id
         )

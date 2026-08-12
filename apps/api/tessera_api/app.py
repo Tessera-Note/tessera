@@ -52,6 +52,7 @@ from tessera_api.infrastructure.scheduler import Scheduler, TaskResources
 from tessera_api.infrastructure.storage import Storage, create_storage
 from tessera_api.infrastructure.throttle import Throttle
 from tessera_api.services.maintenance import PERIODIC_TASKS
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import TokenService
 
@@ -150,6 +151,11 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_realtime() -> RealtimeService:
         return realtime
 
+    async def provide_mailer(db_session: AsyncSession) -> NotificationMailer:
+        # На той же сессии, что и уведомления: страницы и людей отправитель
+        # читает из той же транзакции, где уведомления только что заведены.
+        return NotificationMailer(db_session, queue, resolved.app_url)
+
     return Litestar(
         route_handlers=[
             HealthController,
@@ -194,6 +200,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "queue": Provide(provide_queue),
             "throttle": Provide(provide_throttle),
             "realtime": Provide(provide_realtime),
+            "mailer": Provide(provide_mailer),
         },
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.

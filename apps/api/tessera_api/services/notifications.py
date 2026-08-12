@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.infrastructure.models import Comment, Notification, Page, Watcher
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
+
+if TYPE_CHECKING:
+    # Только для подсказок типов. Настоящий импорт замкнул бы круг: отправитель
+    # писем читает отсюда перечень видов уведомлений.
+    from tessera_api.services.notification_mail import NotificationMailer
 
 
 class NotificationType:
@@ -140,7 +145,12 @@ class WatcherService:
 
 
 class NotificationService:
-    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        realtime: RealtimeService | None = None,
+        mailer: NotificationMailer | None = None,
+    ) -> None:
         self._session = session
         self._access = PageAccessService(session)
         self._watchers = WatcherService(session)
@@ -148,10 +158,18 @@ class NotificationService:
         # канала событий нет вовсе; контроллеры обязаны передавать настоящий,
         # и это проверяется отдельно.
         self._realtime = realtime
+        # То же и для писем: без отправителя уведомление остаётся только в
+        # интерфейсе. Отсутствие письма это не поломка, а установка без почты.
+        self._mailer = mailer
         #: Что разослать после фиксации. Собирается по ходу, отправляется одним
         #: вызовом `flush`: до фиксации сигнал указывает на запись, которой в
         #: базе ещё нет.
         self._pending: list[tuple[uuid.UUID, uuid.UUID, str]] = []
+        #: Кому и о чём отправить письмо. Отдельно от сигналов, потому что
+        #: письмо шлётся одно на человека и на событие, а не на запись.
+        self._letters: list[
+            tuple[str, list[uuid.UUID], Page | None, uuid.UUID | None, str | None, str | None]
+        ] = []
 
     async def _deliver(
         self,
@@ -163,6 +181,8 @@ class NotificationService:
         page: Page | None = None,
         comment_id: uuid.UUID | None = None,
         data: dict[str, Any] | None = None,
+        access: str | None = None,
+        expires_at: str | None = None,
     ) -> int:
         """Завести уведомления тем, кто действительно видит страницу.
 
@@ -202,6 +222,11 @@ class NotificationService:
                 )
             )
             self._pending.append((user_id, notification_id, kind))
+
+        if recipients:
+            self._letters.append(
+                (kind, list(recipients), page, actor_id, access, expires_at)
+            )
         return len(recipients)
 
     async def flush(self) -> None:
@@ -212,14 +237,31 @@ class NotificationService:
         нет в базе. Откат транзакции превратил бы такой сигнал в извещение о
         событии, которого не было вовсе.
 
+        Тем же шагом уходят письма. Они не могут быть в транзакции — отправить
+        письмо и откатиться нельзя, — поэтому ставятся в очередь здесь же, по
+        тому же списку получателей: он уже прошёл проверку прав, и второй отбор
+        был бы вторым источником правды.
+
         Сам сигнал содержимого не несёт — только идентификатор и вид. Список
         клиент забирает по HTTP, где он фильтруется по доступности страниц.
         """
         pending, self._pending = self._pending, []
-        if self._realtime is None:
-            return
-        for user_id, notification_id, kind in pending:
-            await self._realtime.notify(user_id, notification_id, kind)
+        letters, self._letters = self._letters, []
+
+        if self._realtime is not None:
+            for user_id, notification_id, kind in pending:
+                await self._realtime.notify(user_id, notification_id, kind)
+
+        if self._mailer is not None:
+            for kind, recipients, page, actor_id, access, expires_at in letters:
+                await self._mailer.send(
+                    kind=kind,
+                    user_ids=recipients,
+                    page=page,
+                    actor_id=actor_id,
+                    access=access,
+                    expires_at=expires_at,
+                )
 
     async def notify_comment(
         self,
@@ -289,28 +331,50 @@ class NotificationService:
         )
 
     async def notify_permission_granted(
-        self, *, page: Page, user_ids: list[uuid.UUID], actor_id: uuid.UUID
+        self,
+        *,
+        page: Page,
+        user_ids: list[uuid.UUID],
+        actor_id: uuid.UUID,
+        role: str | None = None,
     ) -> int:
         """Уведомить о выданном доступе к закрытой странице.
 
         Проверка прав здесь не лишняя, хотя доступ только что и выдали: выдача
         могла быть на предке, а на самой странице ограничение строже.
+
+        Уровень доступа нужен письму: «вам открыли страницу» без указания, на
+        чтение или на правку, оставляет человека гадать, можно ли ему её
+        менять.
         """
+        from tessera_api.services.notification_mail import access_word
+
         return await self._deliver(
             user_ids=user_ids,
             kind=NotificationType.PAGE_PERMISSION_GRANTED,
             workspace_id=page.workspace_id,
             actor_id=actor_id,
             page=page,
+            access=access_word(role),
         )
 
     async def notify_page_event(
-        self, *, page: Page, kind: str, user_ids: list[uuid.UUID], actor_id: uuid.UUID
+        self,
+        *,
+        page: Page,
+        kind: str,
+        user_ids: list[uuid.UUID],
+        actor_id: uuid.UUID,
+        expires_at: datetime | None = None,
     ) -> int:
         """Сообщить о событии страницы перечисленным людям.
 
         Общий путь для событий проверки. Отсев по правам тот же, что у
         остальных: уведомление несёт название страницы.
+
+        Срок подтверждения нужен письму: «страницу пора перепроверить» без даты
+        не говорит, когда именно, и человек откладывает его на потом
+        бессрочно.
         """
         return await self._deliver(
             user_ids=user_ids,
@@ -318,6 +382,7 @@ class NotificationService:
             workspace_id=page.workspace_id,
             actor_id=actor_id,
             page=page,
+            expires_at=expires_at.date().isoformat() if expires_at else None,
         )
 
     async def list(
