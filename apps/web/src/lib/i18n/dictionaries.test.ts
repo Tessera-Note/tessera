@@ -33,8 +33,38 @@ const SLAVIC_FORMS = ['one', 'few', 'many', 'other'];
 const ICU_SYNTAX = /\{\s*\w+\s*,\s*(plural|select|selectordinal)\s*,/;
 const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 
-//: Обрывок разметки самого файла словаря внутри значения.
-const JSON_TAIL = /(?<!\})\}\s*,\s*\{(?!\{)|^\s*[}\]]/;
+/**
+ * Строка без подстановок: `{{name}}` вырезается перед проверкой скобок.
+ *
+ * Иначе любая законная подстановка выглядит как обрывок разметки.
+ */
+const WITHOUT_PLACEHOLDERS = /\{\{[^}]*\}\}/g;
+
+/**
+ * Непарная скобка в значении: след разметки самого файла словаря.
+ *
+ * Считается парность, а не положение. Скобки в тексте законны и встречаются:
+ * `[max: 50]` в подсказке про адреса, пример `{ "key": value }` в сообщении
+ * MCP, — но там они парные. Обрывок слияния всегда непарный: в форке таких
+ * нашлось семь, в двух видах — хвост `},{` у шести языков и одиночная `{` у
+ * китайского.
+ */
+function unbalanced(value: string): boolean {
+  const text = value.replace(WITHOUT_PLACEHOLDERS, '');
+  for (const [open, close] of [
+    ['{', '}'],
+    ['[', ']']
+  ]) {
+    let depth = 0;
+    for (const character of text) {
+      if (character === open) depth += 1;
+      else if (character === close) depth -= 1;
+      if (depth < 0) return true;
+    }
+    if (depth !== 0) return true;
+  }
+  return false;
+}
 
 function readLocale(locale: string): Record<string, string> {
   return JSON.parse(readFileSync(join(SOURCE_DIR, `${locale}.json`), 'utf8'));
@@ -116,12 +146,13 @@ describe('состав словарей', () => {
   });
 
   it.each(locales)('%s не содержит обрывков разметки файла', (locale) => {
-    // Шесть словарей форка несли хвост `},{` внутри значения: след неудачного
-    // слияния. Разбору JSON это не мешает, и заметить такое можно только на
-    // экране, где хвост стоит прямо в заголовке раздела.
+    // Семь словарей форка несли на краю значения обрывок разметки: у шести
+    // хвост `},{`, у китайского одиночная `{`. Разбору JSON это не мешает, и
+    // заметить такое можно только на экране, где хвост стоит прямо в
+    // заголовке раздела.
     const dictionary = readLocale(locale);
     const broken = Object.entries(dictionary)
-      .filter(([, value]) => JSON_TAIL.test(String(value)))
+      .filter(([, value]) => unbalanced(String(value)))
       .map(([key]) => key);
     expect(broken).toEqual([]);
   });

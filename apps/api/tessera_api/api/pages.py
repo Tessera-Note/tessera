@@ -28,6 +28,30 @@ from tessera_api.services.search import AttachmentSearchService, SearchService
 from tessera_api.services.shares import ShareService
 
 
+def _label_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор метки из тела запроса.
+
+    По тем же основаниям, что и у страницы: негодное значение это отказ «не
+    найдено», а не ошибка разбора и не пятисотый ответ.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.label.label_not_found") from error
+
+
+def _version_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор версии из тела запроса.
+
+    По тем же основаниям, что и у страницы: негодное значение это отказ «не
+    найдено», а не ошибка разбора и не пятисотый ответ.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.page.version_not_found") from error
+
+
 def _page_uuid(raw: str) -> uuid.UUID:
     """Идентификатор страницы из тела запроса.
 
@@ -101,9 +125,22 @@ class CommentRequest(msgspec.Struct):
     selection: str | None = None
 
 
+class VersionRequest(msgspec.Struct):
+    versionId: str  # noqa: N815 — имя поля из v1
+
+
 class LabelRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
     names: list[str]
+
+
+class PageLabelsRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+
+
+class DetachLabelRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+    labelId: str  # noqa: N815 — имя поля из v1
 
 
 def _page_view(page, rights=None) -> dict:
@@ -503,6 +540,32 @@ class LabelController(Controller):
         attached = await LabelService(db_session).attach(page, data.names, principal.user_id)
         return [{"id": label.id, "name": label.name} for label in attached]
 
+    @post("/for-page")
+    async def for_page(
+        self, data: PageLabelsRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Метки самой страницы.
+
+        Отдельно от списка меток рабочего пространства: тот перечисляет всё
+        заведённое и служит выбору, а экран страницы показывает привязанное
+        именно к ней.
+        """
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
+        found = await LabelService(db_session).for_page(page, principal.user_id)
+        return [{"id": label.id, "name": label.name} for label in found]
+
+    @post("/detach")
+    async def detach(
+        self, data: DetachLabelRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
+        await LabelService(db_session).detach(
+            page, _label_uuid(data.labelId), principal.user_id
+        )
+        return {"status": "ok"}
+
 
 class FavoriteController(Controller):
     path = "/api/favorites"
@@ -575,11 +638,11 @@ class HistoryController(Controller):
 
     @post("/get")
     async def get_version(
-        self, data: dict, request: Request, db_session: NamedDependency[AsyncSession]
+        self, data: VersionRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> dict:
         principal: Principal = request.scope["principal"]
         version = await PageHistoryService(db_session).get_version(
-            uuid.UUID(str(data["versionId"])), principal.user_id, principal.workspace_id
+            _version_uuid(data.versionId), principal.user_id, principal.workspace_id
         )
         return {
             "id": version.id,

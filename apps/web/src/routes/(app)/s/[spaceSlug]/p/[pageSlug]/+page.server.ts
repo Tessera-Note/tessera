@@ -4,7 +4,7 @@ import { backlinksOf } from '$lib/features/page/services/backlinks';
 import { listComments } from '$lib/features/page/services/comments';
 import { listFavorites } from '$lib/features/page/services/favorites';
 import { listVersions } from '$lib/features/page/services/history';
-import { listLabels } from '$lib/features/page/services/labels';
+import { labelsOfPage } from '$lib/features/page/services/labels';
 import { permissionInfo } from '$lib/features/page/services/permissions';
 import { breadcrumbs, pageInfo } from '$lib/features/page/services/pages';
 import { shareForPage } from '$lib/features/share/services/share';
@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
         listComments(page.id, fetch, headers),
         listFavorites(fetch, headers),
         listVersions(page.id, fetch, headers).catch(() => []),
-        listLabels(fetch, headers).catch(() => []),
+        labelsOfPage(page.id, fetch, headers).catch(() => []),
         backlinksOf(page.id, fetch, headers).catch(() => []),
         permissionInfo(page.id, fetch, headers).catch(() => null),
         shareForPage(page.id, fetch, headers).catch(() => null)

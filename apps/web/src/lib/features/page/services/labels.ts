@@ -2,8 +2,29 @@ import { get, post } from '$lib/api/client';
 
 export type Label = { id: string; name: string };
 
+/** Все метки рабочего пространства. Служит выбору, а не показу на странице. */
 export function listLabels(fetcher?: typeof fetch, headers?: Record<string, string>) {
   return get<Label[]>('/api/labels', { fetcher, headers });
+}
+
+/**
+ * Метки самой страницы.
+ *
+ * Отдельный запрос, а не отбор из списка рабочего пространства: тот перечисляет
+ * все заведённые метки, и показ его на странице выдавал бы чужие метки за её
+ * собственные.
+ */
+export function labelsOfPage(
+  pageId: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<Label[]>('/api/labels/for-page', { pageId }, { fetcher, headers });
+}
+
+/** Снять метку со страницы. Сама метка при этом остаётся в пространстве. */
+export function detachLabel(pageId: string, labelId: string, fetcher?: typeof fetch) {
+  return post<{ status: string }>('/api/labels/detach', { pageId, labelId }, { fetcher });
 }
 
 /**

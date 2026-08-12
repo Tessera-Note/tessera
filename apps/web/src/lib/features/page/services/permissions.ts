@@ -40,11 +40,15 @@ export function listPermissions(
  * подстранице.
  */
 export function restrictPage(pageId: string, fetcher?: typeof fetch) {
-  return post<PermissionInfo>('/api/pages/restrict', { pageId }, { fetcher });
+  return post<{ restrictionId: string; created: boolean }>(
+    '/api/pages/restrict',
+    { pageId },
+    { fetcher }
+  );
 }
 
 export function removeRestriction(pageId: string, fetcher?: typeof fetch) {
-  return post<PermissionInfo>('/api/pages/remove-restriction', { pageId }, { fetcher });
+  return post<{ success: boolean }>('/api/pages/remove-restriction', { pageId }, { fetcher });
 }
 
 /** Дать доступ. Люди и группы передаются списками: их и добавляют пачкой. */

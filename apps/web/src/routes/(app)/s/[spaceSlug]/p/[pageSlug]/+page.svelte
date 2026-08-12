@@ -113,6 +113,7 @@
 
   <PageSidePanel
     pageId={data.page.id}
+    spaceId={data.page.spaceId}
     versions={data.versions}
     labels={data.labels}
     backlinks={data.backlinks}
