@@ -45,6 +45,8 @@ ERROR_MESSAGES: dict[str, str] = {
         "The embedding model returns a different vector width than the index expects"
     ),
     "error.ai.embedding_failed": "The embedding provider refused the request",
+    "error.ai.request_failed": "The AI provider refused the request",
+    "error.ai.empty_query": "Ask a question first",
     "error.auth.this_workspace_has_enforced_sso_login": (
         "This workspace requires signing in through a provider"
     ),
