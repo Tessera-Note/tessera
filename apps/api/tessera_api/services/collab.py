@@ -22,7 +22,7 @@ import base64
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +40,12 @@ from tessera_api.services.notifications import (
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import TokenService, TokenType
+
+if TYPE_CHECKING:
+    # Только для подсказок типов: и отправитель писем, и сводка читают отсюда
+    # службу уведомлений, и настоящий импорт замкнул бы круг.
+    from tessera_api.services.digest import DigestService
+    from tessera_api.services.notification_mail import NotificationMailer
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +84,17 @@ class CollabService:
         *,
         realtime: RealtimeService | None = None,
         queue: JobQueue | None = None,
+        mailer: NotificationMailer | None = None,
+        digest: DigestService | None = None,
     ) -> None:
         self._session = session
         self._tokens = tokens
         self._realtime = realtime
         self._queue = queue
+        # Письма и сводка. Без них уведомление остаётся только в интерфейсе —
+        # это установка без почты, а не поломка.
+        self._mailer = mailer
+        self._digest = digest
         self._access = PageAccessService(session)
 
     # --- права ------------------------------------------------------------
@@ -308,7 +320,9 @@ class CollabService:
                 # отсюда берутся получатели ленты обновлений.
                 await watchers.watch_page(user_id=one, page=page)
 
-            notifications = NotificationService(self._session, self._realtime)
+            notifications = NotificationService(
+                self._session, self._realtime, self._mailer, self._digest
+            )
 
             fresh = set(extract_user_mentions(page.content)) - set(
                 extract_user_mentions(before)
@@ -333,6 +347,9 @@ class CollabService:
                     actor_id=actor_id,
                 )
             await self._session.commit()
+            # Сигналы и письма уходят после фиксации: до неё они указывали бы
+            # на записи, которых в базе ещё нет.
+            await notifications.flush()
         except Exception:  # noqa: BLE001 — страница уже сохранена
             logger.exception("Последействие сохранения страницы %s не выполнено", page.id)
             await self._session.rollback()

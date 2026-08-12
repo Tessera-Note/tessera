@@ -62,6 +62,8 @@ class JobName:
     REMOVE_PAGE_EMBEDDING = "page-deleted-embedding"
     #: Разбор принятого архива.
     IMPORT_ARCHIVE = "import-task"
+    #: Отложенная сводка правок. Имя из v1.
+    PAGE_UPDATE_DIGEST = "page-update-digest"
 
 
 def retrying(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

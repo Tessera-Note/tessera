@@ -62,6 +62,7 @@ from tessera_api.infrastructure.realtime import RealtimeServer
 from tessera_api.infrastructure.scheduler import Scheduler, TaskResources
 from tessera_api.infrastructure.storage import Storage, create_storage
 from tessera_api.infrastructure.throttle import Throttle
+from tessera_api.services.digest import DigestService
 from tessera_api.services.maintenance import PERIODIC_TASKS
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.realtime import RealtimeService
@@ -171,6 +172,12 @@ def create_app(settings: Settings | None = None) -> Litestar:
         # читает из той же транзакции, где уведомления только что заведены.
         return NotificationMailer(db_session, queue, resolved.app_url)
 
+    async def provide_digest(db_session: AsyncSession) -> DigestService:
+        # Сводка помечает уведомления той же сессией, в которой они заведены:
+        # отметка, поставленная отдельной транзакцией, разошлась бы с ними при
+        # откате.
+        return DigestService(db_session, cache.client, queue, app_url=resolved.app_url)
+
     return Litestar(
         route_handlers=[
             HealthController,
@@ -227,6 +234,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "realtime": Provide(provide_realtime),
             "content": Provide(provide_content),
             "mailer": Provide(provide_mailer),
+            "digest": Provide(provide_digest),
         },
         # Форма тела отказа v1: код наверху, а не внутри `extra`. Клиент
         # переводит по коду и ищет его там.

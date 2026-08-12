@@ -43,7 +43,13 @@ class MailService:
         """
         return self._settings.driver == "smtp" and bool(self._settings.host)
 
-    def send(self, *, to: str, subject: str, body: str) -> None:
+    def send(self, *, to: str, subject: str, body: str, html: str | None = None) -> None:
+        """Отправить письмо. Разметка необязательна.
+
+        При заданной разметке письмо уходит двумя частями сразу: почтовые
+        клиенты выбирают ту, которую умеют показать. Одна разметка без текста
+        не годится — там, где её не показывают, письмо осталось бы пустым.
+        """
         if not self.enabled:
             # Драйвер `log`. Тело письма пишется целиком: в развёртывании без
             # почты это единственный способ добраться до ссылки сброса.
@@ -60,6 +66,10 @@ class MailService:
         message["To"] = to
         message["Subject"] = subject
         message.set_content(body)
+        if html:
+            # Порядок частей задан стандартом: последняя считается
+            # предпочтительной, поэтому разметка добавляется после текста.
+            message.add_alternative(html, subtype="html")
 
         # Отказ не глушится: он всплывает наружу и обрабатывается вызывающим.
         # Проглоченный здесь, он превратил бы неотправленное письмо в

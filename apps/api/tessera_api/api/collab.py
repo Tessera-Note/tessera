@@ -27,6 +27,8 @@ from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, unauthorized
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.services.collab import CollabService, decode_ydoc, page_id_of
+from tessera_api.services.digest import DigestService
+from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import TokenService
 
@@ -96,6 +98,8 @@ class CollabInternalController(Controller):
         tokens: NamedDependency[TokenService],
         realtime: NamedDependency[RealtimeService],
         queue: NamedDependency[JobQueue],
+        mailer: NamedDependency[NotificationMailer],
+        digest: NamedDependency[DigestService],
     ) -> dict:
         """Сохранить состояние документа."""
         _assert_internal(request, settings)
@@ -117,7 +121,14 @@ class CollabInternalController(Controller):
                 # в нём не повод отказать в сохранении страницы.
                 continue
 
-        service = CollabService(db_session, tokens, realtime=realtime, queue=queue)
+        service = CollabService(
+            db_session,
+            tokens,
+            realtime=realtime,
+            queue=queue,
+            mailer=mailer,
+            digest=digest,
+        )
         return await service.store(
             page_id=_page_id(data.get("pageId")),
             user_id=_page_id(data.get("userId")),

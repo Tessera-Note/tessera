@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 @retrying
-async def send_email(ctx: dict, *, to: str, subject: str, body: str) -> str:
+async def send_email(
+    ctx: dict, *, to: str, subject: str, body: str, html: str | None = None
+) -> str:
     """Отправить письмо.
 
     Отправка вынесена из запроса намеренно. Соединение с почтовым сервером
@@ -37,7 +39,7 @@ async def send_email(ctx: dict, *, to: str, subject: str, body: str) -> str:
     # секунд. Вызванная напрямую, она на это время останавливает цикл событий
     # исполнителя, и остальные задания стоят. То же решение принято для
     # обращений к каталогу LDAP.
-    await asyncio.to_thread(mail.send, to=to, subject=subject, body=body)
+    await asyncio.to_thread(mail.send, to=to, subject=subject, body=body, html=html)
     return to
 
 
@@ -161,6 +163,27 @@ async def import_archive(ctx: dict, *, task_id: str) -> int:
 
 IMPORT_ARCHIVE = func(import_archive, name=JobName.IMPORT_ARCHIVE)
 
+
+@retrying
+async def page_update_digest(ctx: dict, *, user_id: str, workspace_id: str) -> int:
+    """Отправить накопленную сводку правок.
+
+    Задание ставится отложенным и с постоянным идентификатором, поэтому десять
+    правок подряд дают одну сводку, а не десять: очередь отбрасывает повторную
+    постановку, пока первая не исполнилась.
+    """
+    from tessera_api.services.digest import DigestService
+
+    database: Database = ctx["database"]
+    settings: Settings = ctx["settings"]
+    async with database.session() as session:
+        return await DigestService(
+            session, queue=ctx["queue"], app_url=settings.app_url
+        ).send(uuid.UUID(user_id), uuid.UUID(workspace_id))
+
+
+PAGE_UPDATE_DIGEST = func(page_update_digest, name=JobName.PAGE_UPDATE_DIGEST)
+
 #: Полный состав обработчиков. Список видно целиком, и забытый в нём
 #: обработчик заметен: задание встанет в очередь и не разберётся никем.
 HANDLERS = [
@@ -170,6 +193,7 @@ HANDLERS = [
     REMOVE_PAGE_EMBEDDING,
     REINDEX_EMBEDDINGS,
     IMPORT_ARCHIVE,
+    PAGE_UPDATE_DIGEST,
 ]
 
 

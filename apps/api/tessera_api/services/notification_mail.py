@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.roles import SpaceRole
+from tessera_api.infrastructure.mail_html import letter_html
 from tessera_api.infrastructure.mail_text import mail_text
 from tessera_api.infrastructure.models import Page, Space, User
 from tessera_api.infrastructure.queue import JobName, JobQueue
@@ -99,6 +100,9 @@ class Letter:
     to: str
     subject: str
     body: str
+    #: Та же самая записка разметкой. Уходит второй частью письма: клиент
+    #: выбирает ту, которую умеет показать.
+    html: str
 
 
 def page_url(app_url: str, space_slug: str | None, page: Page) -> str:
@@ -128,11 +132,10 @@ def compose(
 ) -> Letter | None:
     """Собрать письмо. `None` означает, что для этого вида письма нет.
 
-    Тело простым текстом, а не размеченным. В v1 письма собираются React Email
-    и приходят версткой; здесь верстки нет намеренно — она потребовала бы
-    отдельного слоя шаблонов, а читаемость письма из четырёх строк от этого не
-    зависит. Ссылка отдельной строкой: почтовые клиенты делают её кликабельной
-    сами.
+    Собирается сразу в двух видах. Текст — там, где разметку не показывают:
+    почта в терминале, читалка с речевым выводом, клиент с выключенными
+    стилями. Разметка — везде остальном. В текстовой части ссылка идёт
+    отдельной строкой: почтовые клиенты делают её кликабельной сами.
     """
     if kind in SILENT or kind not in LAYOUT:
         return None
@@ -163,10 +166,19 @@ def compose(
         "",
         mail_text(locale, "mail.footer"),
     ]
+    subject = mail_text(locale, subject_key, params)
     return Letter(
         to=to,
-        subject=mail_text(locale, subject_key, params),
+        subject=subject,
         body="\n".join(lines),
+        html=letter_html(
+            subject=subject,
+            greeting=f"{greeting}!",
+            body=mail_text(locale, body_key, params),
+            action=mail_text(locale, action_key),
+            url=url,
+            footer=mail_text(locale, "mail.footer"),
+        ),
     )
 
 
@@ -236,6 +248,7 @@ class NotificationMailer:
                 to=letter.to,
                 subject=letter.subject,
                 body=letter.body,
+                html=letter.html,
             )
             sent += 1
         return sent

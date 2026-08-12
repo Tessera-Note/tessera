@@ -24,8 +24,9 @@ from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
 
 if TYPE_CHECKING:
-    # Только для подсказок типов. Настоящий импорт замкнул бы круг: отправитель
-    # писем читает отсюда перечень видов уведомлений.
+    # Только для подсказок типов. Настоящий импорт замкнул бы круг: и отправитель
+    # писем, и сводка читают отсюда перечень видов уведомлений.
+    from tessera_api.services.digest import DigestService
     from tessera_api.services.notification_mail import NotificationMailer
 
 
@@ -150,6 +151,7 @@ class NotificationService:
         session: AsyncSession,
         realtime: RealtimeService | None = None,
         mailer: NotificationMailer | None = None,
+        digest: DigestService | None = None,
     ) -> None:
         self._session = session
         self._access = PageAccessService(session)
@@ -161,6 +163,9 @@ class NotificationService:
         # То же и для писем: без отправителя уведомление остаётся только в
         # интерфейсе. Отсутствие письма это не поломка, а установка без почты.
         self._mailer = mailer
+        # Сводка правок. Без неё письмо о правке уходит сразу и всегда — так же,
+        # как до её появления.
+        self._digest = digest
         #: Что разослать после фиксации. Собирается по ходу, отправляется одним
         #: вызовом `flush`: до фиксации сигнал указывает на запись, которой в
         #: базе ещё нет.
@@ -253,15 +258,52 @@ class NotificationService:
                 await self._realtime.notify(user_id, notification_id, kind)
 
         if self._mailer is not None:
+            # Уведомления этого захода, по которым можно узнать, какую запись
+            # человек получил: сводке нужен именно идентификатор записи, чтобы
+            # пометить накопленное.
+            written = {(user_id, kind): one for user_id, one, kind in pending}
             for kind, recipients, page, actor_id, access, expires_at in letters:
+                audience = await self._route_digest(kind, recipients, page, written)
+                if not audience:
+                    continue
                 await self._mailer.send(
                     kind=kind,
-                    user_ids=recipients,
+                    user_ids=audience,
                     page=page,
                     actor_id=actor_id,
                     access=access,
                     expires_at=expires_at,
                 )
+
+    async def _route_digest(
+        self,
+        kind: str,
+        recipients: list[uuid.UUID],
+        page: Page | None,
+        written: dict[tuple[uuid.UUID, str], uuid.UUID],
+    ) -> list[uuid.UUID]:
+        """Кому из получателей письмо уходит сразу.
+
+        Сводка касается только ленты обновлений: остальные виды адресованы
+        лично и откладывания не терпят. Приглашение к обсуждению, пришедшее
+        через двенадцать часов, уже не приглашение.
+        """
+        if self._digest is None or kind != NotificationType.PAGE_UPDATED or page is None:
+            return recipients
+
+        immediate: list[uuid.UUID] = []
+        for user_id in recipients:
+            notification_id = written.get((user_id, kind))
+            if notification_id is None:
+                immediate.append(user_id)
+                continue
+            if await self._digest.route(
+                user_id=user_id,
+                workspace_id=page.workspace_id,
+                notification_id=notification_id,
+            ):
+                immediate.append(user_id)
+        return immediate
 
     async def notify_comment(
         self,
