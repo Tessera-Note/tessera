@@ -385,7 +385,7 @@ export default function AiProviderSettings() {
             {t("Create an OpenRouter key")}
           </Anchor>{" "}
           {t(
-            "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.",
+            "then pick any model it offers, e.g. openai/gpt-5.6-luna. Embeddings are configured separately below.",
           )}
         </Text>
       )}
@@ -435,7 +435,7 @@ export default function AiProviderSettings() {
               data={chatModels}
               value={form.chatModel}
               onChange={(value) => set("chatModel", value)}
-              placeholder={t("e.g. gpt-4o-mini")}
+              placeholder={t("e.g. gpt-5.6-luna")}
               disabled={!hasAccess}
             />
             <Autocomplete
@@ -444,7 +444,7 @@ export default function AiProviderSettings() {
               data={chatModels}
               value={form.completionModel}
               onChange={(value) => set("completionModel", value)}
-              placeholder={t("e.g. gpt-4o-mini")}
+              placeholder={t("e.g. gpt-5.6-luna")}
               disabled={!hasAccess}
             />
           </Group>

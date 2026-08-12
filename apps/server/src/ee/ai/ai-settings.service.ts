@@ -46,12 +46,22 @@ const OLLAMA_DEFAULT_URL = 'http://localhost:11434';
 const GEMINI_MODELS_URL =
   'https://generativelanguage.googleapis.com/v1beta/models';
 
-const DEFAULT_MODELS: Record<AiDriver, string> = {
-  openai: 'gpt-4o-mini',
-  openrouter: 'openai/gpt-4o-mini',
-  'openai-compatible': 'gpt-4o-mini',
-  gemini: 'gemini-1.5-flash',
-  ollama: 'llama3.2',
+/**
+ * Модели по умолчанию: одна для беседы, другая для переписывания текста.
+ * Роли разные по стоимости и по требованиям, поэтому и модели разные.
+ *
+ * Записан только OpenRouter, и это не упущение. Имя модели у него содержит имя
+ * поставщика (`openai/gpt-5.6-luna`), а прямому API OpenAI, Gemini и Ollama то
+ * же имя ничего не говорит. Придумать им умолчание значит подставить имя,
+ * которое провайдер отвергнет: отказ придет от него и прочтется как «ключ
+ * неверный». Провайдер без записи здесь обязан получить имя модели явно.
+ */
+const DEFAULT_CHAT_MODELS: Partial<Record<AiDriver, string>> = {
+  openrouter: 'openai/gpt-5.6-luna',
+};
+
+const DEFAULT_COMPLETION_MODELS: Partial<Record<AiDriver, string>> = {
+  openrouter: 'deepseek/deepseek-v4-flash-0731',
 };
 
 /** Everything the provider factory needs, with env fallbacks already applied. */
@@ -136,8 +146,8 @@ export class AiSettingsService {
     }
 
     // Once a workspace picks its own provider, env values stop applying: model
-    // names are provider-specific (OpenRouter wants `openai/gpt-4o-mini`, not
-    // `gpt-4o-mini`), so inheriting AI_CHAT_MODEL from a different provider
+    // names are provider-specific (OpenRouter wants `openai/gpt-5.6-luna`, not
+    // `gpt-5.6-luna`), so inheriting AI_CHAT_MODEL from a different provider
     // yields a model id the new one rejects.
     const ownsConfig = Boolean(row?.driver);
 
@@ -154,11 +164,16 @@ export class AiSettingsService {
     const completionModel =
       row?.completionModel ||
       (ownsConfig ? null : this.environmentService.getAiCompletionModel()) ||
-      DEFAULT_MODELS[driver];
+      DEFAULT_COMPLETION_MODELS[driver] ||
+      '';
 
+    // Имя модели беседы не задано — берется умолчание своей роли, и только
+    // потом модель переписывания. Последняя ступень оставлена намеренно:
+    // администратор, указавший одну модель на все, получает работающую беседу.
     const chatModel =
       row?.chatModel ||
       (ownsConfig ? null : this.environmentService.getAiChatModel()) ||
+      DEFAULT_CHAT_MODELS[driver] ||
       completionModel;
 
     return {
@@ -575,8 +590,14 @@ export class AiSettingsService {
     return null;
   }
 
-  defaultModelFor(driver: AiDriver): string {
-    return DEFAULT_MODELS[driver];
+  /**
+   * Модель по умолчанию для переписывания текста, если она у провайдера есть.
+   *
+   * Пусто у всех, кроме OpenRouter: имя модели специфично для провайдера, и
+   * подставить чужое значит получить отказ от него самого.
+   */
+  defaultModelFor(driver: AiDriver): string | undefined {
+    return DEFAULT_COMPLETION_MODELS[driver];
   }
 
   /** Returns the trimmed URL when it parses as http(s), otherwise null. */

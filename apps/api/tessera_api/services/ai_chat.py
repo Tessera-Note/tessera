@@ -45,7 +45,7 @@ from tessera_api.infrastructure.models import AiChat, AiChatMessage, Page
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.ai import language_from_locale
-from tessera_api.services.ai_settings import AiSettingsService
+from tessera_api.services.ai_settings import AiSettingsService, require_model
 from tessera_api.services.mcp import McpService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
@@ -501,7 +501,7 @@ class AiChatService:
             driver=resolved.driver,
             base_url=resolved.base_url,
             api_key=resolved.api_key,
-            model=resolved.chat_model or "",
+            model=require_model(resolved, chat=True),
         )
 
     async def _history(self, chat_id: uuid.UUID) -> list[AiChatMessage]:

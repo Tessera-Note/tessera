@@ -9,7 +9,7 @@
 
 **Как только пространство задало своего провайдера, окружение перестаёт
 применяться целиком.** Не только ключ — имена моделей тоже. Имена специфичны
-для провайдера: OpenRouter требует `openai/gpt-4o-mini`, а не `gpt-4o-mini`, и
+для провайдера: OpenRouter требует `openai/gpt-5.6-luna`, а не `gpt-5.6-luna`, и
 унаследованное от другого провайдера имя даёт идентификатор, который новый
 провайдер отвергает. Частичное наследование выглядит удобным ровно до первой
 такой ошибки, а выглядит она как «ИИ не работает».
@@ -61,14 +61,22 @@ CANONICAL_BASE_URL = {
     AiDriver.OLLAMA: "http://localhost:11434",
 }
 
-#: Модель по умолчанию для каждого провайдера. Имена разные не по прихоти:
-#: у OpenRouter имя модели содержит имя поставщика.
-DEFAULT_MODELS = {
-    AiDriver.OPENAI: "gpt-4o-mini",
-    AiDriver.OPENROUTER: "openai/gpt-4o-mini",
-    AiDriver.COMPATIBLE: "gpt-4o-mini",
-    AiDriver.GEMINI: "gemini-1.5-flash",
-    AiDriver.OLLAMA: "llama3.1",
+#: Модели по умолчанию: одна для беседы, другая для переписывания текста.
+#: Роли разные по стоимости и по требованиям — беседа ведёт агента и зовёт
+#: инструменты, переписывание правит абзац, — поэтому и модели разные.
+#:
+#: Записан только OpenRouter, и это не упущение. Имя модели у него содержит имя
+#: поставщика (`openai/gpt-5.6-luna`), а прямому API OpenAI, Gemini и Ollama то
+#: же имя ничего не говорит. Придумать им умолчание значит подставить имя,
+#: которое провайдер отвергнет: отказ придёт от него, без объяснения, что
+#: настраивать. Провайдер без записи здесь обязан получить имя модели явно, и
+#: до обращения это проверяет `require_model`.
+DEFAULT_CHAT_MODELS = {
+    AiDriver.OPENROUTER: "openai/gpt-5.6-luna",
+}
+
+DEFAULT_COMPLETION_MODELS = {
+    AiDriver.OPENROUTER: "deepseek/deepseek-v4-flash-0731",
 }
 
 DEFAULT_EMBEDDING_MODELS = {
@@ -78,6 +86,20 @@ DEFAULT_EMBEDDING_MODELS = {
     AiDriver.GEMINI: "text-embedding-004",
     AiDriver.OLLAMA: "nomic-embed-text",
 }
+
+
+def require_model(resolved: ResolvedAi, *, chat: bool) -> str:
+    """Имя модели для обращения. Без него — отказ, а не пустая строка.
+
+    Умолчание есть не у всех провайдеров, и пустое имя, отправленное дальше,
+    возвращается отказом самого провайдера: где-то «model not found», где-то
+    пятисотым. По такому ответу не понять, что настраивать, а настраивать надо
+    одно поле в настройках рабочего пространства.
+    """
+    model = ((resolved.chat_model if chat else resolved.completion_model) or "").strip()
+    if not model:
+        raise bad_request("error.ai.model_not_configured", {"driver": resolved.driver})
+    return model
 
 
 def mask_key(value: str | None) -> str | None:
@@ -210,11 +232,18 @@ class AiSettingsService:
         own_driver = (row.driver or "").strip() if row else ""
         if own_driver:
             base_url = (row.base_url or "").strip() or CANONICAL_BASE_URL.get(own_driver)
-            completion = (row.completion_model or "").strip() or DEFAULT_MODELS.get(own_driver)
-            # Имя модели чата не задано — берётся модель переписывания. Чат
-            # бывает дороже, но при незаданном имени разумнее взять ту же
-            # модель, чем не работать вовсе.
-            chat = (row.chat_model or "").strip() or completion
+            completion = (row.completion_model or "").strip() or DEFAULT_COMPLETION_MODELS.get(
+                own_driver
+            )
+            # Имя модели беседы не задано — берётся умолчание своей роли, и
+            # только потом модель переписывания. Последняя ступень оставлена
+            # намеренно: администратор, указавший одну модель на всё, получает
+            # работающую беседу, а не отказ.
+            chat = (
+                (row.chat_model or "").strip()
+                or DEFAULT_CHAT_MODELS.get(own_driver)
+                or completion
+            )
             return ResolvedAi(
                 driver=own_driver,
                 base_url=base_url,
@@ -233,8 +262,10 @@ class AiSettingsService:
             if driver == AiDriver.OLLAMA
             else self._settings.ai_base_url
         ) or CANONICAL_BASE_URL.get(driver)
-        completion = self._settings.ai_completion_model or DEFAULT_MODELS.get(driver)
-        chat = self._settings.ai_chat_model or completion
+        completion = self._settings.ai_completion_model or DEFAULT_COMPLETION_MODELS.get(driver)
+        chat = (
+            self._settings.ai_chat_model or DEFAULT_CHAT_MODELS.get(driver) or completion
+        )
         return ResolvedAi(
             driver=driver,
             base_url=base_url,

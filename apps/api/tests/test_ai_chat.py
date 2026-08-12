@@ -833,6 +833,9 @@ async def _configure_provider(session: AsyncSession, workspace) -> None:
             workspace_id=workspace.id,
             driver=AiDriver.OPENAI,
             api_key_encrypted=_encrypted("sk-x"),
+            # Имя модели задаётся явно: умолчание есть только у OpenRouter,
+            # у прямого API провайдера имя обязан указать администратор.
+            chat_model="проверочная-модель",
         )
     )
 

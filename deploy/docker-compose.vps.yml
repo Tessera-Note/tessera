@@ -18,8 +18,12 @@ services:
       PORT: 3000
       HOST: 0.0.0.0
       AI_DRIVER: ${AI_DRIVER:-openai}
-      AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-gpt-4o-mini}
-      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gpt-4o-mini}
+      # Имена моделей без подстановки по умолчанию: имя специфично для
+      # провайдера, и подставленное здесь чужое имя уходит к нему как есть.
+      # Пустое значение означает «взять умолчание провайдера, если оно у него
+      # есть», а если нет - отказ с внятной причиной вместо отказа провайдера.
+      AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OLLAMA_API_URL: ${OLLAMA_API_URL:-}

@@ -382,6 +382,8 @@ export const ErrorMessage = {
   'error.auth.email_domain_not_approved':
     'The email domain "{{domain}}" is not approved for this workspace',
   'error.ai.unknown_driver': 'Unknown AI driver: {{driver}}',
+  'error.ai.model_not_configured':
+    'No model name is set for this AI provider',
   'error.ai.models_unavailable':
     'Could not list models from the provider: {{reason}}',
   'error.ai.embedding_models_unavailable':

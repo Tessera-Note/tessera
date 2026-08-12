@@ -24,14 +24,17 @@ from tessera_api.infrastructure.models import Workspace, WorkspaceAiSettings
 from tessera_api.infrastructure.secrets import decrypt_secret
 from tessera_api.services.ai_settings import (
     CANONICAL_BASE_URL,
+    DEFAULT_CHAT_MODELS,
+    DEFAULT_COMPLETION_MODELS,
     DEFAULT_EMBEDDING_MODELS,
-    DEFAULT_MODELS,
     DRIVERS,
     AiDriver,
     AiSettingsService,
+    ResolvedAi,
     driver_from_env,
     feature_enabled,
     mask_key,
+    require_model,
 )
 from tests.conftest import needs_database
 
@@ -129,21 +132,21 @@ class TestResolve:
         """Как только пространство выбрало провайдера, окружение не наследуется.
 
         Ни ключ, ни имена моделей. Имена специфичны для провайдера: OpenRouter
-        требует `openai/gpt-4o-mini`, и унаследованное `gpt-4o-mini` он
+        требует `openai/gpt-5.6-luna`, и унаследованное `gpt-5.6-luna` он
         отвергает — а выглядит это как «ИИ не работает».
         """
         await self._clean(session, workspace)
         await self._row(session, workspace, driver=AiDriver.OPENROUTER)
         settings = _settings(
             openai_api_key="sk-env",
-            ai_chat_model="gpt-4o-mini",
-            ai_completion_model="gpt-4o-mini",
+            ai_chat_model="gpt-5.6-luna",
+            ai_completion_model="gpt-5.6-luna",
         )
 
         resolved = await AiSettingsService(session, settings).resolve(workspace.id)
         assert resolved.driver == AiDriver.OPENROUTER
         assert resolved.api_key is None
-        assert resolved.chat_model == DEFAULT_MODELS[AiDriver.OPENROUTER]
+        assert resolved.chat_model == DEFAULT_CHAT_MODELS[AiDriver.OPENROUTER]
         assert resolved.owns_config is True
 
     async def test_the_chat_model_falls_back_to_the_completion_model(
@@ -534,14 +537,67 @@ class TestFeatureFlags:
         assert feature_enabled(Workspace(settings=["не объект"]), "chat") is False
 
 
-def test_every_driver_has_a_default_model() -> None:
-    """Провайдер без модели по умолчанию не заработает без ручной настройки.
+def test_the_two_roles_have_their_own_default() -> None:
+    """Беседа и переписывание — разные роли и разная цена обращения.
 
-    Отказом это не проявится: имя модели уйдёт пустым, и провайдер ответит
-    отказом, который читается как «ключ неверный».
+    Одна модель на обе означала бы, что правка абзаца идёт по цене хода агента.
+    """
+    assert DEFAULT_CHAT_MODELS[AiDriver.OPENROUTER] != (
+        DEFAULT_COMPLETION_MODELS[AiDriver.OPENROUTER]
+    )
+
+
+def test_only_openrouter_has_a_default_model() -> None:
+    """Имя модели у OpenRouter содержит имя поставщика.
+
+    То же имя, отправленное прямому API OpenAI, Gemini или Ollama, ими не
+    опознаётся, поэтому умолчания у них нет вовсе.
+    """
+    assert set(DEFAULT_CHAT_MODELS) == {AiDriver.OPENROUTER}
+    assert set(DEFAULT_COMPLETION_MODELS) == {AiDriver.OPENROUTER}
+
+
+def test_a_driver_without_a_default_refuses_before_the_request() -> None:
+    """Пустое имя модели провайдер возвращает отказом, читаемым как «ключ неверный».
+
+    Поэтому отказ обязан прийти отсюда, где ещё известно, что настраивать.
     """
     for driver in DRIVERS:
-        assert DEFAULT_MODELS.get(driver), driver
+        if driver in DEFAULT_CHAT_MODELS:
+            continue
+        resolved = ResolvedAi(
+            driver=driver,
+            base_url=None,
+            api_key="k",
+            chat_model=None,
+            completion_model=None,
+            owns_config=False,
+        )
+        with pytest.raises(AppError) as error:
+            require_model(resolved, chat=True)
+        assert error.value.code == "error.ai.model_not_configured"
+
+
+def test_a_configured_model_passes_through() -> None:
+    """Обратная сторона: заданное имя не должно отвергаться."""
+    resolved = ResolvedAi(
+        driver=AiDriver.OPENAI,
+        base_url=None,
+        api_key="k",
+        chat_model="  своя-модель  ",
+        completion_model=None,
+        owns_config=True,
+    )
+    assert require_model(resolved, chat=True) == "своя-модель"
+
+
+def test_every_driver_has_a_default_embedding_model() -> None:
+    """У векторов иначе: имя модели эмбеддингов у провайдеров своё и известно.
+
+    Подставить чужое нельзя — вектора несравнимы, — но и оставлять пустым
+    незачем: у каждого провайдера есть та модель, которой он считает.
+    """
+    for driver in DRIVERS:
         assert DEFAULT_EMBEDDING_MODELS.get(driver), driver
 
 

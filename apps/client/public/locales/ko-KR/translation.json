@@ -1313,7 +1313,7 @@
   "Embedding provider": "임베딩 제공자",
   "Same as chat provider": "채팅 제공자와 동일",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "임베딩은 자체 키, 주소, 모델을 사용하므로 검색은 채팅 설정에 의존하지 않습니다. 제공자나 모델을 바꾸면 작업 공간이 다시 색인됩니다.",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "그런 다음 제공되는 아무 모델, 예를 들어 anthropic/claude-sonnet-4.5 를 선택하십시오. 임베딩은 아래에서 별도로 설정합니다.",
+  "then pick any model it offers, e.g. openai/gpt-5.6-luna. Embeddings are configured separately below.": "그런 다음 제공되는 아무 모델, 예를 들어 openai/gpt-5.6-luna 를 선택하십시오. 임베딩은 아래에서 별도로 설정합니다.",
   "Paste an API key used only for embeddings": "임베딩에만 사용되는 API 키를 붙여넣으십시오",
   "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "선택 사항. 임베딩 제공자가 채팅 제공자와 같으면 채팅 키를 사용합니다.",
   "Optional. Defaults to the address of the selected provider.": "선택 사항. 기본값은 선택한 제공자의 주소입니다.",

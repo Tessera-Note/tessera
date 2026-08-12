@@ -80,6 +80,15 @@ export class AiProviderFactory {
       config.completionModel ||
       this.aiSettingsService.defaultModelFor(config.driver);
 
+    // Пустое имя модели провайдер возвращает отказом, который читается как
+    // «ключ неверный». Отказ обязан прийти отсюда, где еще известно, что
+    // именно настраивать.
+    if (!effectiveModel) {
+      throw badRequest('error.ai.model_not_configured', {
+        driver: config.driver,
+      });
+    }
+
     switch (config.driver) {
       // OpenRouter and any other OpenAI-compatible gateway differ from OpenAI
       // only by base URL, which resolve() has already filled in.

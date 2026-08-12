@@ -1314,7 +1314,7 @@
   "Embedding provider": "埋め込みプロバイダー",
   "Same as chat provider": "チャットと同じプロバイダー",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "埋め込みは独自のキー、アドレス、モデルを持つため、検索はチャットの設定に依存しません。プロバイダーまたはモデルを変更するとワークスペースが再インデックスされます。",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "次に提供されている任意のモデル、たとえば anthropic/claude-sonnet-4.5 を選んでください。埋め込みは下で個別に設定します。",
+  "then pick any model it offers, e.g. openai/gpt-5.6-luna. Embeddings are configured separately below.": "次に提供されている任意のモデル、たとえば openai/gpt-5.6-luna を選んでください。埋め込みは下で個別に設定します。",
   "Paste an API key used only for embeddings": "埋め込み専用の API キーを貼り付けてください",
   "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "任意。埋め込みプロバイダーがチャットと同じ場合はチャットのキーを使用します。",
   "Optional. Defaults to the address of the selected provider.": "任意。既定では選択したプロバイダーのアドレスです。",

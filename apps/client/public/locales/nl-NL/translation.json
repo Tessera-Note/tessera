@@ -1313,7 +1313,7 @@
   "Embedding provider": "Embedding-aanbieder",
   "Same as chat provider": "Zelfde als chat-aanbieder",
   "Embeddings keep their own key, address and model, so search does not depend on the chat setup. Changing the provider or the model re-indexes the workspace.": "Embeddings hebben een eigen sleutel, adres en model, zodat zoeken niet afhangt van de chat-instelling. Het wijzigen van de aanbieder of het model indexeert de werkruimte opnieuw.",
-  "then pick any model it offers, e.g. anthropic/claude-sonnet-4.5. Embeddings are configured separately below.": "kies daarna een willekeurig aangeboden model, bijvoorbeeld anthropic/claude-sonnet-4.5. Embeddings worden hieronder apart ingesteld.",
+  "then pick any model it offers, e.g. openai/gpt-5.6-luna. Embeddings are configured separately below.": "kies daarna een willekeurig aangeboden model, bijvoorbeeld openai/gpt-5.6-luna. Embeddings worden hieronder apart ingesteld.",
   "Paste an API key used only for embeddings": "Plak een API-sleutel die alleen voor embeddings wordt gebruikt",
   "Optional. Falls back to the chat key when the embedding provider is the same as the chat provider.": "Optioneel. Gebruikt de chat-sleutel wanneer de embedding-aanbieder gelijk is aan de chat-aanbieder.",
   "Optional. Defaults to the address of the selected provider.": "Optioneel. Standaard het adres van de gekozen aanbieder.",

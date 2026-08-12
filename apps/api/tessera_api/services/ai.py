@@ -36,7 +36,7 @@ from tessera_api.domain.errors import bad_request
 from tessera_api.infrastructure.ai_client import AiClient, ChatTarget
 from tessera_api.infrastructure.models import Page, Space
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
-from tessera_api.services.ai_settings import AiSettingsService
+from tessera_api.services.ai_settings import AiSettingsService, require_model
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.search import SEARCH_CONFIG
 
@@ -254,7 +254,7 @@ class AiService:
             driver=resolved.driver,
             base_url=resolved.base_url,
             api_key=resolved.api_key,
-            model=(resolved.chat_model if chat else resolved.completion_model) or "",
+            model=require_model(resolved, chat=chat),
         )
 
     # --- переписывание ----------------------------------------------------

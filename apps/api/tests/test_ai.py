@@ -390,6 +390,10 @@ class TestAnswers:
                 workspace_id=workspace.id,
                 driver=AiDriver.OPENAI,
                 api_key_encrypted=encrypt_secret("sk-x", SECRET),
+                # Имя модели задаётся явно: умолчание есть только у OpenRouter,
+                # у прямого API провайдера имя обязан указать администратор.
+                chat_model="проверочная-модель",
+                completion_model="проверочная-модель",
             )
         )
         await session.commit()
@@ -667,3 +671,82 @@ class TestAnswers:
                 )
             )
         ).scalar_one() == "дорогая"
+
+
+@needs_database
+class TestModelRequired:
+    """Провайдер без имени модели обязан отказать до обращения к сети.
+
+    Умолчание есть только у OpenRouter: у него имя модели содержит имя
+    поставщика. Прямому API OpenAI то же имя ничего не говорит, поэтому
+    придумывать ему умолчание нельзя, а уходить к нему с пустым именем — тем
+    более: отказ вернётся от провайдера и прочтётся как «ключ неверный».
+    """
+
+    async def test_a_provider_without_a_model_is_refused(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        from sqlalchemy import select
+
+        from tessera_api.infrastructure.secrets import encrypt_secret
+
+        existing = (
+            await session.execute(
+                select(WorkspaceAiSettings).where(
+                    WorkspaceAiSettings.workspace_id == workspace.id
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            await session.delete(existing)
+            await session.flush()
+        await session.execute(
+            insert(WorkspaceAiSettings).values(
+                id=uuid.uuid4(),
+                workspace_id=workspace.id,
+                driver=AiDriver.OPENAI,
+                api_key_encrypted=encrypt_secret("sk-x", SECRET),
+            )
+        )
+        await session.commit()
+
+        with pytest.raises(AppError) as error:
+            await AiService(session, _settings()).generate(
+                workspace_id=workspace.id, content="текст"
+            )
+        assert error.value.code == "error.ai.model_not_configured"
+
+    async def test_openrouter_works_without_naming_a_model(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Обратная сторона: у OpenRouter умолчание есть, и его хватает."""
+        from sqlalchemy import select
+
+        from tessera_api.infrastructure.secrets import encrypt_secret
+        from tessera_api.services.ai_settings import (
+            DEFAULT_COMPLETION_MODELS,
+            AiSettingsService,
+        )
+
+        existing = (
+            await session.execute(
+                select(WorkspaceAiSettings).where(
+                    WorkspaceAiSettings.workspace_id == workspace.id
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            await session.delete(existing)
+            await session.flush()
+        await session.execute(
+            insert(WorkspaceAiSettings).values(
+                id=uuid.uuid4(),
+                workspace_id=workspace.id,
+                driver=AiDriver.OPENROUTER,
+                api_key_encrypted=encrypt_secret("sk-x", SECRET),
+            )
+        )
+        await session.commit()
+
+        resolved = await AiSettingsService(session, _settings()).resolve(workspace.id)
+        assert resolved.completion_model == DEFAULT_COMPLETION_MODELS[AiDriver.OPENROUTER]
