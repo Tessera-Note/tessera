@@ -29,6 +29,7 @@ from tessera_api.infrastructure.models import (
 )
 from tessera_api.services.notifications import NotificationService, NotificationType
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.realtime import RealtimeService
 
 
 class Status:
@@ -105,9 +106,12 @@ class VerificationRights:
 
 
 class PageVerificationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        # `None` означает «не рассылать»: так собирают службу проверки.
+        self._realtime = realtime
+        self._pending_notifications: NotificationService | None = None
 
     async def _record(self, page: Page) -> PageVerification | None:
         return (
@@ -221,6 +225,7 @@ class PageVerificationService:
         )
         await self._set_verifiers(verification_id, verifier_ids or [], user_id)
         await self._session.commit()
+        await self._flush_notifications()
         return await self._require(page)
 
     async def _set_verifiers(
@@ -310,6 +315,7 @@ class PageVerificationService:
             await self._set_verifiers(record.id, verifier_ids, user_id)
 
         await self._session.commit()
+        await self._flush_notifications()
         return await self._require(page)
 
     async def remove(self, page: Page, user_id: uuid.UUID) -> None:
@@ -362,6 +368,7 @@ class PageVerificationService:
         )
         await self._notify(page, record, user_id, NotificationType.PAGE_VERIFIED)
         await self._session.commit()
+        await self._flush_notifications()
         return await self._require(page)
 
     async def _notify(
@@ -382,12 +389,21 @@ class PageVerificationService:
             .scalars()
             .all()
         )
-        await NotificationService(self._session).notify_page_event(
+        notifications = NotificationService(self._session, self._realtime)
+        await notifications.notify_page_event(
             page=page,
             kind=kind,
             user_ids=[one for one in recipients if one != actor_id],
             actor_id=actor_id,
         )
+        # Сигнал уходит после фиксации: до неё клиент перезапросил бы список и
+        # не нашёл там уведомления, которого ещё нет в базе.
+        self._pending_notifications = notifications
+
+    async def _flush_notifications(self) -> None:
+        pending, self._pending_notifications = self._pending_notifications, None
+        if pending is not None:
+            await pending.flush()
 
     def _assert_transition(self, current: str | None, allowed: tuple[str, ...]) -> None:
         if (current or Status.PENDING) not in allowed:
@@ -418,6 +434,7 @@ class PageVerificationService:
             page, record, user_id, NotificationType.PAGE_APPROVAL_REQUESTED
         )
         await self._session.commit()
+        await self._flush_notifications()
         return await self._require(page)
 
     async def reject(
@@ -451,6 +468,7 @@ class PageVerificationService:
             page, record, user_id, NotificationType.PAGE_APPROVAL_REJECTED
         )
         await self._session.commit()
+        await self._flush_notifications()
         return await self._require(page)
 
     async def mark_obsolete(self, page: Page, user_id: uuid.UUID) -> PageVerification:
@@ -465,6 +483,7 @@ class PageVerificationService:
             .values(status=Status.OBSOLETE, expires_at=None)
         )
         await self._session.commit()
+        await self._flush_notifications()
         return await self._require(page)
 
     async def info(self, page: Page, user_id: uuid.UUID) -> dict:

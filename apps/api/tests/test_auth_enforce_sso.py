@@ -28,7 +28,7 @@ from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService, hash_password
 from tessera_api.services.tokens import TokenService
-from tests.conftest import needs_database
+from tests.conftest import RealtimeDouble, needs_database
 
 pytestmark = needs_database
 
@@ -131,10 +131,14 @@ class TestPublicWorkspace:
         async def provide_session() -> AsyncSession:
             return session
 
+        realtime = RealtimeDouble()
         app = Litestar(
             route_handlers=[WorkspaceController],
             guards=[jwt_guard],
-            dependencies={"db_session": Provide(provide_session)},
+            dependencies={
+                "db_session": Provide(provide_session),
+                "realtime": Provide(lambda: realtime, sync_to_thread=False),
+            },
             state=State({"tokens": TokenService(SECRET)}),
         )
         return AsyncClient(
@@ -242,6 +246,7 @@ class TestPublicAuthRoutesAreLimited:
                 "settings": Provide(lambda: settings, sync_to_thread=False),
                 "queue": Provide(lambda: _QueueDouble(), sync_to_thread=False),
                 "throttle": Provide(lambda: throttle, sync_to_thread=False),
+                "realtime": Provide(lambda: RealtimeDouble(), sync_to_thread=False),
             },
             state=State({"tokens": TokenService(SECRET)}),
         )

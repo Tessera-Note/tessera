@@ -16,6 +16,7 @@ from tessera_api.services.history import PageHistoryService
 from tessera_api.services.labels import FavoriteService, LabelService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
+from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.search import SearchService
 from tessera_api.services.shares import ShareService
 
@@ -121,9 +122,10 @@ class PageController(Controller):
         data: CreatePageRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        page = await PageService(db_session).create(
+        page = await PageService(db_session, realtime).create(
             user_id=principal.user_id,
             workspace_id=principal.workspace_id,
             space_id=data.spaceId,
@@ -139,10 +141,11 @@ class PageController(Controller):
         data: UpdatePageRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        updated = await PageService(db_session).update(
+        updated = await PageService(db_session, realtime).update(
             page=page,
             user_id=principal.user_id,
             title=data.title,
@@ -153,19 +156,27 @@ class PageController(Controller):
 
     @post("/delete")
     async def delete(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        await PageService(db_session).move_to_trash(page, principal.user_id)
+        await PageService(db_session, realtime).move_to_trash(page, principal.user_id)
         return {"status": "ok"}
 
     @post("/tree")
     async def tree(
-        self, data: TreeRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: TreeRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        pages = await PageService(db_session).children(
+        pages = await PageService(db_session, realtime).children(
             data.parentPageId, data.spaceId, principal.user_id
         )
         return [_page_view(page) for page in pages]
@@ -204,11 +215,15 @@ class CommentController(Controller):
 
     @post("/list")
     async def list_comments(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        found = await CommentService(db_session).list_for_page(page, principal.user_id)
+        found = await CommentService(db_session, realtime).list_for_page(page, principal.user_id)
         return [
             {
                 "id": c.id,
@@ -224,11 +239,15 @@ class CommentController(Controller):
 
     @post("/create")
     async def create(
-        self, data: CommentRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: CommentRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        comment = await CommentService(db_session).create(
+        comment = await CommentService(db_session, realtime).create(
             page=page,
             user_id=principal.user_id,
             content=data.content,

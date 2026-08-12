@@ -13,12 +13,43 @@ from tessera_api.infrastructure.models import Comment, Page
 from tessera_api.services.backlinks import extract_user_mentions
 from tessera_api.services.notifications import NotificationService
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.realtime import RealtimeService
+
+#: Имена событий панели комментариев. Совпадают с v1 побуквенно: их разбирает
+#: клиент, и переименование здесь молча перестало бы обновлять панель.
+CREATED = "commentCreated"
+UPDATED = "commentUpdated"
+RESOLVED = "commentResolved"
+DELETED = "commentDeleted"
 
 
 class CommentService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        # `None` означает «не рассылать». Так собирают службу проверки, где
+        # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
+        self._realtime = realtime
+
+    async def _publish(self, page: Page, operation: str, payload: dict) -> None:
+        """Разослать событие панели комментариев.
+
+        После фиксации и с отбором получателей. Создание, правка и снятие
+        несут тело комментария целиком, то есть являются выдачей содержимого:
+        отправить их всей комнате пространства и понадеяться, что лишние
+        выбросят, нельзя.
+
+        Удаление тела не несёт, но рассылается тем же путём намеренно. Иначе по
+        одному лишь факту события посторонний узнавал бы, что на закрытой
+        странице идёт обсуждение.
+        """
+        if self._realtime is None:
+            return
+        await self._realtime.publish_page_event(
+            self._session,
+            page,
+            {"operation": operation, "pageId": str(page.id), **payload},
+        )
 
     async def list_for_page(self, page: Page, user_id: uuid.UUID) -> list[Comment]:
         # Комментарии несут содержимое страницы: цитаты, обсуждение решений.
@@ -76,16 +107,26 @@ class CommentService:
         # Уведомления заводятся в той же транзакции, что и комментарий: иначе
         # отказ на середине оставляет либо уведомление о том, чего нет, либо
         # комментарий, о котором никто не узнает.
-        await NotificationService(self._session).notify_comment(
+        notifications = NotificationService(self._session, self._realtime)
+        await notifications.notify_comment(
             page=page,
             comment=created,
             actor_id=user_id,
             mentioned_user_ids=extract_user_mentions(content),
         )
         await self._session.commit()
+        await notifications.flush()
+        await self._publish(
+            page, CREATED, {"comment": _view(created)}
+        )
         return created
 
-    async def update(self, comment_id: uuid.UUID, user_id: uuid.UUID, content: dict) -> Comment:
+    async def update(
+        self,
+        comment_id: uuid.UUID,
+        user_id: uuid.UUID,
+        content: dict,
+    ) -> Comment:
         comment = await self._require(comment_id)
 
         # Править можно только своё. Право правки страницы этого не даёт:
@@ -103,7 +144,12 @@ class CommentService:
             )
         )
         await self._session.commit()
-        return await self._session.get(Comment, comment_id)
+        updated = await self._session.get(Comment, comment_id)
+
+        page = await self._session.get(Page, comment.page_id)
+        if page is not None:
+            await self._publish(page, UPDATED, {"comment": _view(updated)})
+        return updated
 
     async def delete(self, comment_id: uuid.UUID, user_id: uuid.UUID) -> None:
         comment = await self._require(comment_id)
@@ -121,7 +167,15 @@ class CommentService:
         )
         await self._session.commit()
 
-    async def resolve(self, comment_id: uuid.UUID, user_id: uuid.UUID, resolved: bool) -> Comment:
+        if page is not None:
+            await self._publish(page, DELETED, {"commentId": str(comment_id)})
+
+    async def resolve(
+        self,
+        comment_id: uuid.UUID,
+        user_id: uuid.UUID,
+        resolved: bool,
+    ) -> Comment:
         comment = await self._require(comment_id)
 
         page = await self._session.get(Page, comment.page_id)
@@ -138,10 +192,32 @@ class CommentService:
             )
         )
         await self._session.commit()
-        return await self._session.get(Comment, comment_id)
+        changed = await self._session.get(Comment, comment_id)
+        await self._publish(page, RESOLVED, {"comment": _view(changed)})
+        return changed
 
     async def _require(self, comment_id: uuid.UUID) -> Comment:
         comment = await self._session.get(Comment, comment_id)
         if comment is None or comment.deleted_at is not None:
             raise not_found("error.comment.comment_not_found")
         return comment
+
+
+def _view(comment: Comment) -> dict:
+    """Комментарий так, как его ждёт панель.
+
+    Имена полей взяты из v1: их разбирает уже написанный клиент.
+    """
+    return {
+        "id": str(comment.id),
+        "pageId": str(comment.page_id),
+        "parentCommentId": (
+            str(comment.parent_comment_id) if comment.parent_comment_id else None
+        ),
+        "content": comment.content,
+        "selection": comment.selection,
+        "creatorId": str(comment.creator_id) if comment.creator_id else None,
+        "createdAt": comment.created_at.isoformat() if comment.created_at else None,
+        "editedAt": comment.edited_at.isoformat() if comment.edited_at else None,
+        "resolvedAt": comment.resolved_at.isoformat() if comment.resolved_at else None,
+    }

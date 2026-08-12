@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import Principal
 from tessera_api.services.page_permissions import PagePermissionService
+from tessera_api.services.realtime import RealtimeService
 
 
 class PageIdRequest(msgspec.Struct):
@@ -51,19 +52,27 @@ class PagePermissionController(Controller):
 
     @post("/restrict")
     async def restrict(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        return await PagePermissionService(db_session).restrict(
+        return await PagePermissionService(db_session, realtime).restrict(
             data.pageId, principal.user_id, principal.workspace_id
         )
 
     @post("/remove-restriction")
     async def remove_restriction(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        await PagePermissionService(db_session).remove_restriction(
+        await PagePermissionService(db_session, realtime).remove_restriction(
             data.pageId, principal.user_id, principal.workspace_id
         )
         return {"success": True}
@@ -74,9 +83,10 @@ class PagePermissionController(Controller):
         data: AddPermissionRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        added = await PagePermissionService(db_session).add_permissions(
+        added = await PagePermissionService(db_session, realtime).add_permissions(
             data.pageId,
             principal.user_id,
             principal.workspace_id,
@@ -92,9 +102,10 @@ class PagePermissionController(Controller):
         data: RemovePermissionRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        removed = await PagePermissionService(db_session).remove_permissions(
+        removed = await PagePermissionService(db_session, realtime).remove_permissions(
             data.pageId,
             principal.user_id,
             principal.workspace_id,
@@ -109,9 +120,10 @@ class PagePermissionController(Controller):
         data: UpdatePermissionRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        await PagePermissionService(db_session).update_permission(
+        await PagePermissionService(db_session, realtime).update_permission(
             data.pageId,
             principal.user_id,
             principal.workspace_id,
@@ -123,18 +135,26 @@ class PagePermissionController(Controller):
 
     @post("/permissions")
     async def permissions(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        return await PagePermissionService(db_session).list_permissions(
+        return await PagePermissionService(db_session, realtime).list_permissions(
             data.pageId, principal.user_id, principal.workspace_id
         )
 
     @post("/permission-info")
     async def permission_info(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        return await PagePermissionService(db_session).info(
+        return await PagePermissionService(db_session, realtime).info(
             data.pageId, principal.user_id, principal.workspace_id
         )

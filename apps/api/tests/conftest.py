@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import os
+import uuid
 from collections.abc import AsyncIterator
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tessera_api.infrastructure.database import _asyncpg_url
+from tessera_api.services.realtime import RealtimeService
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -105,3 +107,49 @@ async def space(session: AsyncSession, workspace):
         .scalars()
         .first()
     )
+
+
+class RealtimeDouble(RealtimeService):
+    """Канал событий, который ничего не рассылает и всё запоминает.
+
+    Наследуется от настоящего намеренно. Во-первых, Litestar сверяет значение
+    зависимости с объявленным типом, и посторонний класс до обработчика не
+    доходит. Во-вторых, подмена не может оказаться шире настоящего класса — на
+    этом проекте такая подмена уже принимала вызов, который настоящий класс
+    отвергает, и ошибка вышла наружу только в рантайме.
+
+    Настоящий здесь не годится: он держит подключение к Redis и открывает свои
+    сессии базы, то есть проверял бы доступность соседей вместо поведения
+    вызывающего кода.
+    """
+
+    def __init__(self) -> None:
+        self.page_events: list[tuple[uuid.UUID, dict]] = []
+        self.space_events: list[tuple[uuid.UUID, dict]] = []
+        self.notified: list[tuple[uuid.UUID, uuid.UUID, str]] = []
+        self.dropped: list[uuid.UUID] = []
+        self.forgotten: list[uuid.UUID] = []
+        self.resynced: list[uuid.UUID] = []
+
+    async def publish_page_event(self, session, page, payload, *, skip_sid=None) -> None:  # noqa: ANN001
+        self.page_events.append((page.id, payload))
+
+    async def publish_to_space(self, space_id: uuid.UUID, payload: dict) -> None:
+        self.space_events.append((space_id, payload))
+
+    async def notify(self, user_id: uuid.UUID, notification_id: uuid.UUID, kind: str) -> None:
+        self.notified.append((user_id, notification_id, kind))
+
+    async def drop_sessions(self, session_ids: list[uuid.UUID]) -> None:
+        self.dropped.extend(session_ids)
+
+    async def forget_restrictions(self, space_id: uuid.UUID) -> None:
+        self.forgotten.append(space_id)
+
+    async def resync_user(self, user_id: uuid.UUID) -> None:
+        self.resynced.append(user_id)
+
+
+@pytest.fixture
+def realtime() -> RealtimeDouble:
+    return RealtimeDouble()

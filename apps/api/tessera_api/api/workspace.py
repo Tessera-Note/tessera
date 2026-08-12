@@ -16,6 +16,7 @@ from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import AuthProvider
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
+from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.workspace import WorkspaceService
 
 
@@ -137,7 +138,8 @@ class WorkspaceController(Controller):
 
     @get("/members")
     async def members(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
+        self, request: Request, db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService]
     ) -> list[MemberView]:
         """Список участников.
 
@@ -148,35 +150,38 @@ class WorkspaceController(Controller):
         if not is_workspace_admin(actor.role):
             raise forbidden("error.common.admin_required")
 
-        found = await WorkspaceService(db_session).members(principal.workspace_id)
+        found = await WorkspaceService(db_session, realtime).members(principal.workspace_id)
         return [_member_view(user) for user in found]
 
     @post("/members/change-role")
     async def change_role(
-        self, data: ChangeRoleRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self, data: ChangeRoleRequest, request: Request, db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService]
     ) -> MemberView:
         actor, principal = await self._actor(request, db_session)
-        updated = await WorkspaceService(db_session).change_role(
+        updated = await WorkspaceService(db_session, realtime).change_role(
             actor, uuid.UUID(data.userId), data.role, principal.workspace_id
         )
         return _member_view(updated)
 
     @post("/members/deactivate")
     async def deactivate(
-        self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService]
     ) -> MemberView:
         actor, principal = await self._actor(request, db_session)
-        updated = await WorkspaceService(db_session).set_active(
+        updated = await WorkspaceService(db_session, realtime).set_active(
             actor, uuid.UUID(data.userId), False, principal.workspace_id
         )
         return _member_view(updated)
 
     @post("/members/activate")
     async def activate(
-        self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService]
     ) -> MemberView:
         actor, principal = await self._actor(request, db_session)
-        updated = await WorkspaceService(db_session).set_active(
+        updated = await WorkspaceService(db_session, realtime).set_active(
             actor, uuid.UUID(data.userId), True, principal.workspace_id
         )
         return _member_view(updated)

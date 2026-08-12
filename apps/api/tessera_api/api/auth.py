@@ -27,6 +27,7 @@ from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.throttle import AUTH_LIMIT, Throttle, client_ip
 from tessera_api.services.auth import AuthService
 from tessera_api.services.password_reset import PasswordResetService
+from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.setup import SetupService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
@@ -119,6 +120,7 @@ class AuthController(Controller):
         data: SetupRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
         tokens: NamedDependency[TokenService],
         settings: NamedDependency[Settings],
         throttle: NamedDependency[Throttle],
@@ -140,7 +142,9 @@ class AuthController(Controller):
             password=data.password,
         )
 
-        auth = AuthService(db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens)
+        auth = AuthService(
+            db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
+        )
         token, user = await auth.login(
             data.email,
             data.password,
@@ -187,13 +191,14 @@ class AuthController(Controller):
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
         tokens: NamedDependency[TokenService],
     ) -> Response[dict]:
         principal: Principal = request.scope["principal"]
 
         if principal.session_id is not None:
             service = AuthService(
-                db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens
+                db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
             )
             # Отзыв на сервере, а не только очистка cookie. Иначе человек
             # считает себя вышедшим, а сессия продолжает действовать.
@@ -209,6 +214,7 @@ class AuthController(Controller):
         data: ChangePasswordRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
         tokens: NamedDependency[TokenService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
@@ -218,7 +224,9 @@ class AuthController(Controller):
         if len(data.newPassword) < 8:
             raise bad_request("error.auth.password_too_short")
 
-        service = AuthService(db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens)
+        service = AuthService(
+            db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
+        )
         await service.change_password(
             principal.user_id,
             principal.workspace_id,

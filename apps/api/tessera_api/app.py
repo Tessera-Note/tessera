@@ -10,15 +10,16 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from litestar import Litestar
+from litestar import Litestar, asgi
 from litestar.datastructures import State
 from litestar.di import Provide
+from litestar.types import Receive, Scope, Send
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.api_keys import ApiKeyController
 from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.auth import AuthController
-from tessera_api.api.guards import jwt_guard
+from tessera_api.api.guards import PUBLIC, jwt_guard
 from tessera_api.api.health import HealthController
 from tessera_api.api.invitations import InvitationController
 from tessera_api.api.mfa import MfaController
@@ -34,6 +35,7 @@ from tessera_api.api.pages import (
     SearchController,
     ShareController,
 )
+from tessera_api.api.realtime import attach
 from tessera_api.api.scim import ScimController
 from tessera_api.api.spaces import GroupController, SpaceController
 from tessera_api.api.sso import SsoController
@@ -44,10 +46,12 @@ from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.database import Database
 from tessera_api.infrastructure.mail import MailService, MailSettings
 from tessera_api.infrastructure.queue import JobQueue
+from tessera_api.infrastructure.realtime import RealtimeServer
 from tessera_api.infrastructure.scheduler import Scheduler, TaskResources
 from tessera_api.infrastructure.storage import Storage, create_storage
 from tessera_api.infrastructure.throttle import Throttle
 from tessera_api.services.maintenance import PERIODIC_TASKS
+from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import TokenService
 
 
@@ -76,12 +80,31 @@ def create_app(settings: Settings | None = None) -> Litestar:
 
     storage = create_storage(resolved)
     throttle = Throttle(cache.client)
+
+    realtime_server = RealtimeServer(resolved.redis_url)
+    realtime = RealtimeService(
+        realtime_server, database, cache.client, tokens, resolved.app_url
+    )
+    socket_app = attach(realtime_server, realtime, resolved.app_url)
+
+    @asgi("/socket.io", is_mount=True, opt={PUBLIC: True})
+    async def socket_io(scope: Scope, receive: Receive, send: Send) -> None:
+        """Канал событий.
+
+        Открыт для общей охраны и аутентифицируется сам: у рукопожатия нет ни
+        разобранного токена, ни сессии базы, и охрана маршрута ему ничего дать
+        не может. Проверки те же, что у обычного запроса, — вид токена,
+        обязательная сессия, её отзыв и срок, отключённость человека, — плюс
+        сверка происхождения, которой у обычного запроса нет.
+        """
+        await socket_app(scope, receive, send)
     queue = JobQueue(resolved.redis_url)
     scheduler = Scheduler(database, PERIODIC_TASKS, TaskResources(storage=storage))
 
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:
         await queue.connect()
+        await realtime.start()
         scheduler.start()
         try:
             yield
@@ -90,6 +113,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             # открытую транзакцию, и закрытие пула до её завершения повисло бы
             # на ней.
             await scheduler.stop()
+            await realtime.stop()
             await queue.dispose()
             # Закрытие обоих подключений на остановке. Пропущенное здесь
             # оставляет висящие соединения, и это видно только по счётчику на
@@ -122,6 +146,9 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_throttle() -> Throttle:
         return throttle
 
+    async def provide_realtime() -> RealtimeService:
+        return realtime
+
     return Litestar(
         route_handlers=[
             HealthController,
@@ -147,6 +174,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             MfaController,
             ScimController,
             SsoController,
+            socket_io,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
         # порядок, где закрывают по одному маршруту, забывается на первом же
@@ -163,10 +191,11 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "storage": Provide(provide_storage),
             "queue": Provide(provide_queue),
             "throttle": Provide(provide_throttle),
+            "realtime": Provide(provide_realtime),
         },
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.
-        state=State({"tokens": tokens, "database": database}),
+        state=State({"tokens": tokens, "database": database, "realtime": realtime}),
         debug=resolved.debug,
     )
 

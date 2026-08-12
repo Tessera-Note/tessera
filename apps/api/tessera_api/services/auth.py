@@ -13,6 +13,7 @@ from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.models import User, UserSession
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
+from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
 
@@ -38,12 +39,27 @@ class AuthService:
         users: UserRepo,
         workspaces: WorkspaceRepo,
         tokens: TokenService,
+        realtime: RealtimeService | None = None,
     ) -> None:
         self._session = session
         self._users = users
         self._workspaces = workspaces
         self._tokens = tokens
         self._audit = AuditService(session)
+        # `None` означает «канал не трогать». Так собирают службу проверки;
+        # контроллеры передают настоящий, иначе выход не закрывает соединение.
+        self._realtime = realtime
+
+    async def _close_channel(self, session_ids: list[uuid.UUID]) -> None:
+        """Разорвать соединения отозванных сессий.
+
+        Отметка сессии отозванной не разрывает уже открытый сокет: он прошёл
+        проверку при подключении и живёт дальше сам по себе. Без этого вызова
+        вышедший на чужой машине продолжает получать события — то есть выход
+        не выходит ровно в том смысле, ради которого его нажимают.
+        """
+        if self._realtime is not None and session_ids:
+            await self._realtime.drop_sessions(session_ids)
 
     async def login(
         self,
@@ -180,7 +196,18 @@ class AuthService:
             # Своя сессия остаётся: иначе человек, сменивший пароль, тут же
             # выбрасывается и решает, что смена не прошла.
             revoke = revoke.where(UserSession.id != current_session_id)
-        await self._session.execute(revoke.values(revoked_at=datetime.now(UTC)))
+        # Идентификаторы возвращаются запросом отзыва, а не выбираются до него:
+        # между выборкой и правкой успела бы появиться новая сессия, и она
+        # осталась бы отозванной в базе, но живой на канале.
+        revoked = list(
+            (
+                await self._session.execute(
+                    revoke.values(revoked_at=datetime.now(UTC)).returning(UserSession.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         await self._audit.log(
             event=AuditEvent.USER_PASSWORD_CHANGED,
@@ -190,6 +217,7 @@ class AuthService:
             workspace_id=workspace_id,
         )
         await self._session.commit()
+        await self._close_channel(revoked)
 
     async def logout(self, session_id: uuid.UUID) -> None:
         """Отозвать сессию.
@@ -205,6 +233,7 @@ class AuthService:
             .values(revoked_at=datetime.now(UTC))
         )
         await self._session.commit()
+        await self._close_channel([session_id])
 
     async def session_is_live(self, session_id: uuid.UUID) -> bool:
         """Действует ли сессия прямо сейчас.

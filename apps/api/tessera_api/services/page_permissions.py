@@ -38,6 +38,8 @@ from tessera_api.services.page_access import (
     PageAccessService,
     PageRights,
 )
+from tessera_api.services.pages import REFETCH_TREE
+from tessera_api.services.realtime import RealtimeService
 
 #: Сколько адресатов принимается за один запрос. Предел не про нагрузку, а про
 #: то, что список приходит из тела запроса и ничем иным не ограничен.
@@ -58,9 +60,35 @@ class PermissionTarget:
 
 
 class PagePermissionService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        # `None` означает «не рассылать». Так собирают службу проверки, где
+        # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
+        self._realtime = realtime
+
+    async def _access_changed(self, page: Page) -> None:
+        """Сообщить каналу событий, что права изменились.
+
+        Обязательно после **каждой** правки ограничений и прав. Канал держит
+        ответ «в пространстве есть ограничения» тридцать секунд, и пропущенный
+        сброс означает окно, в котором только что закрытая страница ещё
+        рассылается всей комнате.
+
+        Дерево обновляется тем же вызовом: закрытая страница обязана пропасть
+        из него у тех, кто потерял доступ, а открытая — появиться.
+        """
+        if self._realtime is None:
+            return
+        # Сброс кеша строго перед рассылкой: иначе отбор получателей у самого
+        # этого события пройдёт по устаревшему ответу, то есть по правам,
+        # которые мы только что изменили.
+        await self._realtime.forget_restrictions(page.space_id)
+        await self._realtime.publish_page_event(
+            self._session,
+            page,
+            {"operation": REFETCH_TREE, "spaceId": str(page.space_id)},
+        )
 
     async def _authorize(
         self,
@@ -126,6 +154,7 @@ class PagePermissionService:
             )
         )
         await self._session.commit()
+        await self._access_changed(page)
         return {"restrictionId": access_id, "created": True}
 
     async def remove_restriction(
@@ -138,6 +167,7 @@ class PagePermissionService:
             return
         await self._session.execute(delete(PageAccess).where(PageAccess.id == restriction.id))
         await self._session.commit()
+        await self._access_changed(page)
 
     async def _validate_targets(
         self,
@@ -230,17 +260,23 @@ class PagePermissionService:
                 )
             )
 
-        await self._notify_granted(page, targets, user_id)
+        notifications = await self._notify_granted(page, targets, user_id)
         await self._session.commit()
+        await notifications.flush()
+        await self._access_changed(page)
         return len(targets)
 
     async def _notify_granted(
         self, page: Page, targets: list[PermissionTarget], actor_id: uuid.UUID
-    ) -> None:
+    ) -> NotificationService:
         """Сообщить тем, кому только что открыли страницу.
 
         Права, выданные группе, разворачиваются в её состав: иначе выдача
         группе не уведомляет никого, и человек узнаёт о доступе случайно.
+
+        Возвращает службу уведомлений, а не ничего: сигналы по каналу событий
+        уходят отдельным шагом после фиксации, и вызывающему нужно, кому
+        сказать «теперь рассылай».
         """
         people = [one.user_id for one in targets if one.user_id]
 
@@ -257,9 +293,11 @@ class PagePermissionService:
             )
             people.extend(members)
 
-        await NotificationService(self._session).notify_permission_granted(
+        notifications = NotificationService(self._session, self._realtime)
+        await notifications.notify_permission_granted(
             page=page, user_ids=people, actor_id=actor_id
         )
+        return notifications
 
     async def _writers_left_after(
         self, restriction_id: uuid.UUID, removed: list[PermissionTarget]
@@ -333,6 +371,7 @@ class PagePermissionService:
             .where(or_(*conditions))
         )
         await self._session.commit()
+        await self._access_changed(page)
         return result.rowcount or 0
 
     async def update_permission(
@@ -380,6 +419,7 @@ class PagePermissionService:
         existing.role = role
         existing.added_by_id = user_id
         await self._session.commit()
+        await self._access_changed(page)
 
     async def list_permissions(
         self, page_id_or_slug: str, user_id: uuid.UUID, workspace_id: uuid.UUID

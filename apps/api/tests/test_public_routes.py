@@ -92,6 +92,15 @@ EXPECTED_PUBLIC = {
     "/api/sso/saml/{provider_id:uuid}/login",
     "/api/sso/saml/{provider_id:uuid}/callback",
     "/api/sso/ldap/{provider_id:uuid}/login",
+    # Канал событий. Открыт для общей охраны и аутентифицируется сам: у
+    # рукопожатия нет ни разобранного токена, ни сессии базы, и охрана маршрута
+    # ему ничего дать не может.
+    #
+    # Собственная проверка строже общей. Тот же вид токена, обязательный
+    # идентификатор сессии, её отзыв и срок, отключённость и удаление человека
+    # — и сверх того сверка происхождения, которой у обычного запроса нет.
+    # Комнаты назначает только сервер: попросить их клиент не может.
+    "/socket.io",
 }
 
 
@@ -109,9 +118,20 @@ def _settings() -> Settings:
 
 
 def _public_paths(app: Litestar) -> set[str]:
+    """Все публичные маршруты, каким бы способом они ни были объявлены.
+
+    Обходятся оба вида: обычные обработчики держат их списком в
+    `route_handlers`, смонтированное ASGI-приложение — одним в `route_handler`.
+    Проверка, знающая только про список, пропустила бы монтирование целиком, то
+    есть самый крупный вид публичной поверхности молча не попадал бы в опись.
+    """
     found: set[str] = set()
     for route in app.routes:
-        for handler in getattr(route, "route_handlers", []):
+        handlers = list(getattr(route, "route_handlers", []))
+        single = getattr(route, "route_handler", None)
+        if single is not None:
+            handlers.append(single)
+        for handler in handlers:
             if handler.opt.get(PUBLIC):
                 found.add(route.path)
     return found

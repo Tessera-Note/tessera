@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.infrastructure.models import Comment, Notification, Page, Watcher
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.realtime import RealtimeService
 
 
 class NotificationType:
@@ -139,10 +140,18 @@ class WatcherService:
 
 
 class NotificationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
         self._access = PageAccessService(session)
         self._watchers = WatcherService(session)
+        # `None` означает «не рассылать». Так собирают службу проверки, где
+        # канала событий нет вовсе; контроллеры обязаны передавать настоящий,
+        # и это проверяется отдельно.
+        self._realtime = realtime
+        #: Что разослать после фиксации. Собирается по ходу, отправляется одним
+        #: вызовом `flush`: до фиксации сигнал указывает на запись, которой в
+        #: базе ещё нет.
+        self._pending: list[tuple[uuid.UUID, uuid.UUID, str]] = []
 
     async def _deliver(
         self,
@@ -178,9 +187,10 @@ class NotificationService:
             recipients = allowed
 
         for user_id in recipients:
+            notification_id = uuid.uuid4()
             await self._session.execute(
                 insert(Notification).values(
-                    id=uuid.uuid4(),
+                    id=notification_id,
                     user_id=user_id,
                     workspace_id=workspace_id,
                     type=kind,
@@ -191,7 +201,25 @@ class NotificationService:
                     data=data,
                 )
             )
+            self._pending.append((user_id, notification_id, kind))
         return len(recipients)
+
+    async def flush(self) -> None:
+        """Разослать сигналы о заведённых уведомлениях.
+
+        Отдельным шагом и после фиксации: сигнал, ушедший до неё, заставит
+        клиента перезапросить список и не найти там уведомления, которого ещё
+        нет в базе. Откат транзакции превратил бы такой сигнал в извещение о
+        событии, которого не было вовсе.
+
+        Сам сигнал содержимого не несёт — только идентификатор и вид. Список
+        клиент забирает по HTTP, где он фильтруется по доступности страниц.
+        """
+        pending, self._pending = self._pending, []
+        if self._realtime is None:
+            return
+        for user_id, notification_id, kind in pending:
+            await self._realtime.notify(user_id, notification_id, kind)
 
     async def notify_comment(
         self,

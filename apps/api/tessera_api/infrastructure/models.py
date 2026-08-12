@@ -289,6 +289,16 @@ class Page(Base, SoftDeleteMixin):
     deleted_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    # Страница может быть встроенной базой. Описан здесь потому, что на него
+    # опирается канал событий: подписка на комнату базы разрешается только для
+    # страницы-базы, и пропажа колонки обязана ронять сверку схемы, а не
+    # открывать подписку на любую страницу.
+    #
+    # Значение по умолчанию описано как серверное, потому что оно и есть
+    # серверное (`default = false` в схеме). Без этого описания ORM считает
+    # колонку обязательной и на создании обычной страницы шлёт в неё NULL —
+    # то есть роняет создание страниц целиком.
+    is_base: Mapped[bool] = mapped_column(Boolean, server_default="false")
 
 
 class PageAccess(Base, TimestampMixin):

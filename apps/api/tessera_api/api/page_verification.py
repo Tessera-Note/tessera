@@ -16,6 +16,7 @@ from tessera_api.services.page_verification import (
     MODE_PERIOD,
     PageVerificationService,
 )
+from tessera_api.services.realtime import RealtimeService
 
 
 class PageIdRequest(msgspec.Struct):
@@ -47,19 +48,27 @@ class PageVerificationController(Controller):
 
     @post("/verification-info")
     async def info(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        return await PageVerificationService(db_session).info(page, principal.user_id)
+        return await PageVerificationService(db_session, realtime).info(page, principal.user_id)
 
     @post("/create-verification")
     async def create(
-        self, data: ConfigureRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: ConfigureRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session)
+        service = PageVerificationService(db_session, realtime)
         await service.create(
             page=page,
             user_id=principal.user_id,
@@ -73,11 +82,15 @@ class PageVerificationController(Controller):
 
     @post("/update-verification")
     async def update(
-        self, data: ConfigureRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: ConfigureRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session)
+        service = PageVerificationService(db_session, realtime)
         await service.update_settings(
             page=page,
             user_id=principal.user_id,
@@ -91,49 +104,69 @@ class PageVerificationController(Controller):
 
     @post("/delete-verification")
     async def remove(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        await PageVerificationService(db_session).remove(page, principal.user_id)
+        await PageVerificationService(db_session, realtime).remove(page, principal.user_id)
         return {"success": True}
 
     @post("/verify")
     async def verify(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session)
+        service = PageVerificationService(db_session, realtime)
         await service.verify(page, principal.user_id)
         return await service.info(page, principal.user_id)
 
     @post("/submit-for-approval")
     async def submit(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session)
+        service = PageVerificationService(db_session, realtime)
         await service.submit(page, principal.user_id)
         return await service.info(page, principal.user_id)
 
     @post("/reject-approval")
     async def reject(
-        self, data: RejectRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: RejectRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session)
+        service = PageVerificationService(db_session, realtime)
         await service.reject(page, principal.user_id, data.comment)
         return await service.info(page, principal.user_id)
 
     @post("/mark-obsolete")
     async def mark_obsolete(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: PageIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await self._page(db_session, principal, data.pageId)
-        service = PageVerificationService(db_session)
+        service = PageVerificationService(db_session, realtime)
         await service.mark_obsolete(page, principal.user_id)
         return await service.info(page, principal.user_id)

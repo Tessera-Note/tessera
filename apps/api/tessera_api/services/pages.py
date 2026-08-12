@@ -15,11 +15,16 @@ from tessera_api.infrastructure.models import Page
 from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.realtime import RealtimeService
 
 #: Алфавит короткого имени страницы. Тот же, что в v1: короткое имя попадает в
 #: адрес страницы, и менять его на переходе значило бы сломать все ссылки.
 SLUG_ALPHABET = string.ascii_letters + string.digits
 SLUG_LENGTH = 10
+
+#: Имя события обновления дерева. Совпадает с v1 побуквенно: его разбирает уже
+#: написанный клиент.
+REFETCH_TREE = "refetchRootTreeNodeEvent"
 
 
 def generate_slug_id() -> str:
@@ -54,10 +59,37 @@ def extract_text(content: dict | None) -> str:
 
 
 class PageService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
         self._access = PageAccessService(session)
         self._history = PageHistoryService(session)
+        # `None` означает «не рассылать». Так собирают службу проверки, где
+        # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
+        self._realtime = realtime
+
+    async def _refresh_tree(self, page: Page) -> None:
+        """Сообщить, что дерево изменилось.
+
+        Событие не несёт содержимого: клиент по нему выбрасывает поддерево и
+        перезапрашивает его обычным маршрутом с полной проверкой доступа.
+
+        Получатели всё равно отбираются. Защищается здесь не содержимое, а сам
+        факт существования закрытой страницы: в пространстве без ограничений
+        событие уходит всей комнате, в пространстве с ограничениями — только
+        тем, кому эта страница видна.
+
+        Отдавать в событии сам узел было бы дешевле по числу запросов и дороже
+        по последствиям: тогда каждое изменение дерева пришлось бы фильтровать
+        поимённо, а промах фильтра означал бы выданный заголовок закрытой
+        страницы.
+        """
+        if self._realtime is None:
+            return
+        await self._realtime.publish_page_event(
+            self._session,
+            page,
+            {"operation": REFETCH_TREE, "spaceId": str(page.space_id)},
+        )
 
     async def create(
         self,
@@ -112,6 +144,7 @@ class PageService:
         await BacklinkService(self._session).rebuild(created)
 
         await self._session.commit()
+        await self._refresh_tree(created)
         return created
 
     async def update(
@@ -151,6 +184,13 @@ class PageService:
             await BacklinkService(self._session).rebuild(updated)
 
         await self._session.commit()
+        # Дерево показывает заголовок и значок, поэтому их правка обновляет и
+        # его. Правка одного содержимого дерева не касается, но событие уходит
+        # и на неё: разделять пришлось бы по составу переданных полей, а
+        # ошибка в таком разделении оставляла бы дерево устаревшим — то есть
+        # дороже лишнего перезапроса.
+        if title is not None or icon is not None or content is not None:
+            await self._refresh_tree(updated)
         return updated
 
     async def children(
@@ -197,6 +237,7 @@ class PageService:
             .values(deleted_at=now, deleted_by_id=user_id)
         )
         await self._session.commit()
+        await self._refresh_tree(page)
 
     async def _descendants(self, page_id: uuid.UUID) -> list[uuid.UUID]:
         from sqlalchemy import text as sql_text

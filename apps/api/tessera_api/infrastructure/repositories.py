@@ -175,6 +175,27 @@ class SpaceMemberRepo:
 
         return max(roles, key=lambda role: SPACE_RANK.get(role, 0))
 
+    async def members_of(self, space_id: uuid.UUID) -> set[uuid.UUID]:
+        """Все, кто состоит в пространстве, прямо или через группу.
+
+        Множеством, а не списком: один и тот же человек попадает сюда дважды,
+        если состоит и сам, и в группе с доступом.
+        """
+        direct = (
+            select(SpaceMember.user_id)
+            .where(SpaceMember.space_id == space_id)
+            .where(SpaceMember.user_id.isnot(None))
+            .where(SpaceMember.deleted_at.is_(None))
+        )
+        via_group = (
+            select(GroupUser.user_id)
+            .join(SpaceMember, SpaceMember.group_id == GroupUser.group_id)
+            .where(SpaceMember.space_id == space_id)
+            .where(SpaceMember.deleted_at.is_(None))
+        )
+        rows = await self._session.execute(direct.union(via_group))
+        return {row[0] for row in rows.all() if row[0] is not None}
+
 
 class GroupRepo:
     def __init__(self, session: AsyncSession) -> None:

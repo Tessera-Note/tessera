@@ -179,6 +179,112 @@ class PageAccessService:
                 allowed.append(page_id)
         return allowed
 
+    async def space_has_restrictions(self, space_id: uuid.UUID) -> bool:
+        """Есть ли в пространстве хоть одна ограниченная страница.
+
+        Дешёвый первый шаг отбора получателей рассылки. В подавляющем
+        большинстве пространств ограничений нет вовсе, и один этот запрос
+        избавляет от обхода предков на каждом событии.
+
+        Ответ кешируется вызывающим, а не здесь: срок жизни кеша — решение
+        того, кто им пользуется, и прятать его сюда значило бы навязать один
+        срок всем.
+        """
+        found = (
+            await self._session.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM page_access pa
+                    JOIN pages p ON p.id = pa.page_id
+                    WHERE p.space_id = :space_id
+                      AND p.deleted_at IS NULL
+                    LIMIT 1
+                    """
+                ),
+                {"space_id": space_id},
+            )
+        ).first()
+        return found is not None
+
+    async def viewers_of(self, page: Page) -> set[uuid.UUID] | None:
+        """Кому эту страницу можно показывать.
+
+        `None` означает, что ограничений нет и показывать можно всему
+        пространству. Пустое множество — что нельзя никому: это законный
+        ответ, а не признак ошибки, и путать их нельзя. Именно поэтому здесь
+        не список.
+
+        Считается так же, как `rights`, и по той же причине: право нужно на
+        **каждом** ограниченном предке, поэтому множества пересекаются. Взяв
+        объединение, мы бы отдали страницу тому, кому дали право на внутреннем
+        ограничении и не давали на внешнем.
+
+        Нужно рассылке. Отправить событие всей комнате пространства и
+        рассчитывать, что лишние его выбросят, нельзя: событие несёт заголовок
+        страницы или тело комментария, то есть само по себе является выдачей
+        содержимого.
+        """
+        chain = (
+            await self._session.execute(
+                text(
+                    """
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_page_id, 0 AS depth
+                        FROM pages
+                        WHERE id = :page_id
+                        UNION ALL
+                        SELECT p.id, p.parent_page_id, a.depth + 1
+                        FROM pages p
+                        JOIN ancestors a ON p.id = a.parent_page_id
+                        WHERE a.depth < 100
+                    )
+                    SELECT pa.id AS access_id
+                    FROM ancestors a
+                    JOIN page_access pa ON pa.page_id = a.id
+                    ORDER BY a.depth ASC
+                    """
+                ),
+                {"page_id": page.id},
+            )
+        ).all()
+        if not chain:
+            return None
+
+        allowed: set[uuid.UUID] | None = None
+        for row in chain:
+            rows = (
+                await self._session.execute(
+                    text(
+                        """
+                        SELECT pp.user_id AS user_id
+                        FROM page_permissions pp
+                        WHERE pp.page_access_id = :access_id
+                          AND pp.user_id IS NOT NULL
+                        UNION
+                        SELECT gu.user_id AS user_id
+                        FROM page_permissions pp
+                        JOIN group_users gu ON gu.group_id = pp.group_id
+                        WHERE pp.page_access_id = :access_id
+                          AND pp.group_id IS NOT NULL
+                        """
+                    ),
+                    {"access_id": row.access_id},
+                )
+            ).all()
+            here = {one.user_id for one in rows}
+            allowed = here if allowed is None else (allowed & here)
+            if not allowed:
+                # Пересечение уже пусто, дальше оно пустым и останется.
+                return set()
+
+        # Права на страницу выдаются внутри пространства, и выбывший из
+        # пространства теряет их вместе с ним. Запись в `page_permissions` при
+        # этом остаётся, поэтому пересечение с составом пространства
+        # обязательно.
+        members = await self._members.members_of(page.space_id)
+        return (allowed or set()) & members
+
     async def load_page(self, page_id_or_slug: str, workspace_id: uuid.UUID) -> Page:
         """Найти страницу по идентификатору или короткому имени."""
         try:

@@ -10,14 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.domain.roles import UserRole, is_workspace_admin, outranks
-from tessera_api.infrastructure.models import User
+from tessera_api.infrastructure.models import User, UserSession
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
+from tessera_api.services.realtime import RealtimeService
 
 
 class WorkspaceService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
         self._audit = AuditService(session)
+        # `None` означает «канал не трогать»: так собирают службу проверки.
+        self._realtime = realtime
 
     async def members(self, workspace_id: uuid.UUID, limit: int = 100) -> list[User]:
         stmt = (
@@ -95,6 +98,28 @@ class WorkspaceService:
             .where(User.id == user_id)
             .values(deactivated_at=None if active else datetime.now(UTC))
         )
+
+        revoked: list[uuid.UUID] = []
+        if not active:
+            # Отключение обязано отзывать сессии, а не только закрывать вход.
+            # Иначе отключённый продолжает работать по уже выданному токену до
+            # конца его срока, то есть отключение выглядит выполненным, не
+            # будучи им. Охрана запроса такого человека тоже не пускает, но
+            # отозванная сессия — это ещё и разорванное соединение канала.
+            revoked = list(
+                (
+                    await self._session.execute(
+                        update(UserSession)
+                        .where(UserSession.user_id == user_id)
+                        .where(UserSession.workspace_id == workspace_id)
+                        .where(UserSession.revoked_at.is_(None))
+                        .values(revoked_at=datetime.now(UTC))
+                        .returning(UserSession.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
         await self._audit.log(
             event=AuditEvent.USER_ACTIVATED if active else AuditEvent.USER_DEACTIVATED,
             resource_type=AuditResource.USER,
@@ -103,6 +128,8 @@ class WorkspaceService:
             workspace_id=workspace_id,
         )
         await self._session.commit()
+        if revoked and self._realtime is not None:
+            await self._realtime.drop_sessions(revoked)
         return await self._target(user_id, workspace_id)
 
     async def _count_owners(self, workspace_id: uuid.UUID) -> int:

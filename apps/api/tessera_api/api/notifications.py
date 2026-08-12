@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import Principal
 from tessera_api.services.notifications import NotificationService
+from tessera_api.services.realtime import RealtimeService
 
 
 class ListRequest(msgspec.Struct):
@@ -27,39 +28,53 @@ class NotificationController(Controller):
 
     @post("/")
     async def list_notifications(
-        self, data: ListRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: ListRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        return await NotificationService(db_session).list(
+        return await NotificationService(db_session, realtime).list(
             principal.user_id, principal.workspace_id, tab=data.tab
         )
 
     @post("/unread-count")
     async def unread_count(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        count = await NotificationService(db_session).unread_count(
+        count = await NotificationService(db_session, realtime).unread_count(
             principal.user_id, principal.workspace_id
         )
         return {"count": count}
 
     @post("/mark-read")
     async def mark_read(
-        self, data: MarkReadRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        data: MarkReadRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        marked = await NotificationService(db_session).mark_read(
+        marked = await NotificationService(db_session, realtime).mark_read(
             data.notificationIds, principal.user_id
         )
         return {"marked": marked}
 
     @post("/mark-all-read")
     async def mark_all_read(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        marked = await NotificationService(db_session).mark_all_read(
+        marked = await NotificationService(db_session, realtime).mark_all_read(
             principal.user_id, principal.workspace_id
         )
         return {"marked": marked}
