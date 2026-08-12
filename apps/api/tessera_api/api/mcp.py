@@ -28,6 +28,7 @@ from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.infrastructure.throttle import Limit, Throttle
+from tessera_api.infrastructure.web_search import WebSearch
 from tessera_api.services.ai_settings import feature_enabled
 from tessera_api.services.mcp import (
     METHOD_NOT_FOUND,
@@ -113,6 +114,7 @@ class McpController(Controller):
             realtime=realtime,
             queue=queue,
             storage=storage,
+            web=WebSearch(),
         )
 
     @post(["/mcp", "/api/mcp"])

@@ -44,6 +44,7 @@ from tessera_api.infrastructure.ai_client import AiClient, ChatTarget
 from tessera_api.infrastructure.models import AiChat, AiChatMessage, Page
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.storage import Storage
+from tessera_api.infrastructure.web_search import WebSearch
 from tessera_api.services.ai import language_from_locale
 from tessera_api.services.ai_settings import AiSettingsService, require_model
 from tessera_api.services.mcp import McpService
@@ -68,6 +69,8 @@ AGENT_TOOL_POLICY: dict[str, str] = {
     "search_semantic": READ,
     "search_attachments": READ,
     "search_everything": READ,
+    # Наружу уходит только формулировка запроса, содержимое вики — нет.
+    "search_web": READ,
     "get_page_breadcrumbs": READ,
     "get_page_backlinks": READ,
     "list_page_comments": READ,
@@ -115,7 +118,12 @@ HISTORY_DEPTH = 20
 #: Сколько раз подряд агент может звать инструменты в одном ходе. Предел не от
 #: жадности: без него неверно сформулированная задача даёт бесконечный цикл
 #: вызовов, каждый из которых стоит денег.
-MAX_TOOL_ROUNDS = 8
+#:
+#: Значение из v1. Восьми хватало пяти собственным инструментам, но просьбы
+#: стали составными: перенести десяток страниц — это список пространств, список
+#: страниц и по вызову на каждую. На восьми ходах такая просьба обрывалась на
+#: середине, и обрыв выглядел как ответ.
+MAX_TOOL_ROUNDS = 24
 
 #: Сколько бесед отдавать за раз.
 CHATS_DEFAULT_LIMIT = 30
@@ -196,6 +204,7 @@ class AiChatService:
         queue: JobQueue | None = None,
         storage: Storage | None = None,
         locale: str | None = None,
+        web: WebSearch | None = None,
     ) -> None:
         self._session = session
         self._settings = settings
@@ -212,6 +221,7 @@ class AiChatService:
             realtime=realtime,
             queue=queue,
             storage=storage,
+            web=web or WebSearch(),
         )
 
     # --- беседы -----------------------------------------------------------

@@ -31,6 +31,7 @@ from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request
 from tessera_api.infrastructure.models import Workspace, WorkspaceAiSettings
 from tessera_api.infrastructure.secrets import decrypt_secret, encrypt_secret
+from tessera_api.infrastructure.web_search import WebSearchConfig
 
 
 class AiDriver:
@@ -273,6 +274,22 @@ class AiSettingsService:
             chat_model=chat,
             completion_model=completion,
             owns_config=False,
+        )
+
+    async def resolve_web_search(self, workspace_id: uuid.UUID) -> WebSearchConfig:
+        """Чем искать в интернете.
+
+        Настройки отдельные от настроек модели: поиск бывает включён у
+        пространства, где своя модель не выбрана, и наоборот. Пустая строка
+        настроек означает свой сервис рядом — он часть развёртывания.
+        """
+        row = await self.row(workspace_id)
+        if row is None:
+            return WebSearchConfig()
+        return WebSearchConfig(
+            driver=(row.web_search_driver or "").strip() or None,
+            base_url=(row.web_search_base_url or "").strip() or None,
+            api_key=decrypt_secret(row.web_search_api_key_encrypted, self._settings.app_secret),
         )
 
     async def resolve_embedding(self, workspace_id: uuid.UUID) -> ResolvedEmbedding:

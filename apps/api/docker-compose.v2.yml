@@ -167,6 +167,19 @@ services:
     volumes:
       - tessera_v2_minio_data:/data
 
+  # Поиск в интернете для агента. Свой сервис, а не чужая услуга: ключа он не
+  # требует, счёта в закрытом контуре не заводит и хранить найденное не
+  # запрещает. Наружу не публикуется — ходит к нему только приложение.
+  tessera-v2-searxng:
+    image: searxng/searxng@sha256:f4c8e59de166ed71f6380c0847c312ca51f0d41996e31d0559163b6b09ecde52
+    container_name: tessera-v2-searxng
+    environment:
+      SEARXNG_BASE_URL: http://tessera-v2-searxng:8080/
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-tessera-v2-searxng-secret}
+    volumes:
+      - ../../deploy/searxng:/etc/searxng:ro
+    restart: unless-stopped
+
   tessera-v2-db:
     image: pgvector/pgvector:pg18
     container_name: tessera-v2-db

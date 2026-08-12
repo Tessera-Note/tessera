@@ -42,6 +42,7 @@ from tessera_api.infrastructure.models import Page
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.infrastructure.storage import Storage
+from tessera_api.infrastructure.web_search import WebSearch, image_query
 from tessera_api.services.attachments import AttachmentService
 from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.bases import BaseService
@@ -278,6 +279,26 @@ TOOLS: list[ToolDefinition] = [
                 "limit": {"type": "integer"},
             },
             "required": ["query"],
+        },
+    ),
+    ToolDefinition(
+        "search_web",
+        "Search the internet. Several different phrasings find more than one repeated one.",
+        {
+            "type": "object",
+            "properties": {
+                "queries": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 4,
+                    "description": "Search phrasings",
+                },
+                "images": {
+                    "type": "boolean",
+                    "description": "Also look for images. Use when the answer needs pictures",
+                },
+            },
+            "required": ["queries"],
         },
     ),
     ToolDefinition(
@@ -639,6 +660,7 @@ class McpService:
         realtime: RealtimeService | None = None,
         queue: JobQueue | None = None,
         storage: Storage | None = None,
+        web: WebSearch | None = None,
     ) -> None:
         self._session = session
         self._settings = settings
@@ -647,6 +669,9 @@ class McpService:
         self._realtime = realtime
         self._queue = queue
         self._storage = storage
+        # Поиск в интернете. Без него инструмент отвечает пустой выдачей: это
+        # установка без поиска, а не поломка.
+        self._web = web
         self._access = PageAccessService(session)
         self._members = SpaceMemberRepo(session)
 
@@ -699,6 +724,7 @@ class McpService:
             "search_semantic": self._search_semantic,
             "search_attachments": self._search_attachments,
             "search_everything": self._search_everything,
+            "search_web": self._search_web,
             "list_page_comments": self._list_comments,
             "create_comment": self._create_comment,
             "delete_comment": self._delete_comment,
@@ -985,6 +1011,42 @@ class McpService:
                 }
                 for one in hits
             ]
+        }
+
+    async def _search_web(self, args: dict) -> Any:
+        """Поиск в интернете.
+
+        Единственный инструмент, выходящий за пределы экземпляра. Он читающий:
+        в вики ничего не меняет и содержимого её наружу не отдаёт — наружу
+        уходит только та формулировка, которую составила модель.
+
+        Выключённый поиск отвечает пустой выдачей, а не отказом: модель на
+        отказ отвечает извинением, а на пустую выдачу — ответом по вики.
+        """
+        from tessera_api.services.ai_settings import AiSettingsService
+
+        queries = [str(one) for one in (args.get("queries") or []) if str(one).strip()]
+        if not queries or self._web is None:
+            return {"count": 0, "results": [], "images": []}
+
+        config = await AiSettingsService(self._session, self._settings).resolve_web_search(
+            self._workspace_id
+        )
+        if not config.enabled:
+            return {"count": 0, "results": [], "images": []}
+
+        found = await self._web.search_many(queries[:4], config)
+        pictures = (
+            await self._web.search_images(image_query(queries[0]), config)
+            if args.get("images")
+            else []
+        )
+        return {
+            "count": len(found),
+            "results": [
+                {"title": one.title, "url": one.url, "snippet": one.snippet} for one in found
+            ],
+            "images": [{"title": one.title, "url": one.image_url} for one in pictures],
         }
 
     async def _search_everything(self, args: dict) -> Any:
