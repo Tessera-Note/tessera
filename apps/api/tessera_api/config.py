@@ -75,6 +75,11 @@ class Settings:
     ai_chat_model: str | None = None
     ai_completion_model: str | None = None
     ai_embedding_model: str | None = None
+    # Приёмник счётчиков установки. Пустое значение выключает отправку: в
+    # развёртывании без `tessera-hub` она каждые сутки писала бы в журнал
+    # отказ соединения.
+    hub_internal_url: str = ""
+    disable_telemetry: bool = False
     # Общий секрет для внутренних маршрутов совместного редактирования. Ими
     # пользуется только сосед на Node; пустое значение выключает их вовсе.
     collab_internal_token: str = ""
@@ -126,6 +131,8 @@ class Settings:
             ai_chat_model=_env("AI_CHAT_MODEL") or None,
             ai_completion_model=_env("AI_COMPLETION_MODEL") or None,
             ai_embedding_model=_env("AI_EMBEDDING_MODEL") or None,
+            hub_internal_url=_env("HUB_INTERNAL_URL", ""),
+            disable_telemetry=_env("DISABLE_TELEMETRY", "false").lower() == "true",
             collab_internal_token=_env("COLLAB_INTERNAL_TOKEN", ""),
             content_service_url=_env(
                 "CONTENT_SERVICE_URL", "http://tessera-v2-collab:3001"

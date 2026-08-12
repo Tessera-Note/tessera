@@ -23,6 +23,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +53,9 @@ class TaskResources:
     """
 
     storage: Storage
+    # Настройки нужны задачам, которые ходят наружу: адрес соседа и секрет
+    # берутся оттуда же, откуда их берёт приложение.
+    settings: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)

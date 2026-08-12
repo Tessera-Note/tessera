@@ -114,7 +114,9 @@ def create_app(settings: Settings | None = None) -> Litestar:
         """
         await socket_app(scope, receive, send)
     queue = JobQueue(resolved.redis_url)
-    scheduler = Scheduler(database, PERIODIC_TASKS, TaskResources(storage=storage))
+    scheduler = Scheduler(
+        database, PERIODIC_TASKS, TaskResources(storage=storage, settings=resolved)
+    )
 
     @asynccontextmanager
     async def lifespan(_: Litestar) -> AsyncIterator[None]:

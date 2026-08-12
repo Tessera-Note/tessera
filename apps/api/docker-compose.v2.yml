@@ -99,6 +99,10 @@ services:
       # Тот же секрет, что у соседа. Пустое значение выключает внутренние
       # маршруты совместного редактирования вовсе.
       COLLAB_INTERNAL_TOKEN: ${COLLAB_INTERNAL_TOKEN:?COLLAB_INTERNAL_TOKEN обязателен}
+      # Приёмник счётчиков установки. Внутри сети развёртывания: наружу
+      # телеметрия не уходит. Пустое значение выключает отправку.
+      HUB_INTERNAL_URL: ${HUB_INTERNAL_URL:-http://tessera-v2-hub:4000}
+      DISABLE_TELEMETRY: ${DISABLE_TELEMETRY:-false}
     ports:
       - "3100:3000"
     restart: unless-stopped
@@ -167,6 +171,32 @@ services:
     volumes:
       - tessera_v2_minio_data:/data
 
+  # Внутренний сервис: версии, телеметрия, документация, лицензия. Написан на
+  # Python и Litestar, правки не требует — берётся как есть. Наружу порт не
+  # публикуется: к нему ходит только приложение.
+  tessera-v2-hub:
+    build:
+      context: ../../services/hub
+    container_name: tessera-v2-hub
+    depends_on:
+      - tessera-v2-hub-db
+    environment:
+      HUB_DATABASE_URL: postgresql+asyncpg://tessera_hub:${HUB_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD}}@tessera-v2-hub-db:5432/tessera_hub
+      HOST: 0.0.0.0
+      PORT: 4000
+    restart: unless-stopped
+
+  tessera-v2-hub-db:
+    image: postgres:18-alpine
+    container_name: tessera-v2-hub-db
+    environment:
+      POSTGRES_DB: tessera_hub
+      POSTGRES_USER: tessera_hub
+      POSTGRES_PASSWORD: ${HUB_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}}
+    restart: unless-stopped
+    volumes:
+      - tessera_v2_hub_db_data:/var/lib/postgresql
+
   # Поиск в интернете для агента. Свой сервис, а не чужая услуга: ключа он не
   # требует, счёта в закрытом контуре не заводит и хранить найденное не
   # запрещает. Наружу не публикуется — ходит к нему только приложение.
@@ -200,5 +230,6 @@ services:
 
 volumes:
   tessera_v2_db_data:
+  tessera_v2_hub_db_data:
   tessera_v2_minio_data:
   tessera_v2_redis_data:

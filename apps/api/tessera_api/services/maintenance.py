@@ -27,6 +27,7 @@ LOCK_SESSION_CLEANUP = 815_043_001
 LOCK_TRASH_CLEANUP = 815_043_002
 LOCK_VERIFICATION_PASS = 815_043_003
 LOCK_AUDIT_PURGE = 815_043_004
+LOCK_TELEMETRY = 815_043_005
 
 #: Сколько живёт отозванная или истёкшая сессия до удаления. Запись нужна не
 #: ради входа, а ради разбора: по ней видно, откуда и когда заходили.
@@ -237,6 +238,37 @@ AUDIT_PURGE = PeriodicTask(
     run=purge_audit,
 )
 
+#: Как часто уходят счётчики установки. Раз в сутки, как в v1.
+TELEMETRY_INTERVAL = timedelta(days=1)
+
+
+async def send_telemetry(session: AsyncSession, resources: TaskResources) -> int:
+    """Отправить счётчики установки соседнему приёмнику.
+
+    Задача заводится всегда, а решает о себе сама служба: без адреса приёмника
+    она молчит. Проверять это здесь значило бы разнести одно решение по двум
+    местам.
+    """
+    from tessera_api.services.telemetry import TelemetryService
+
+    if resources.settings is None:
+        return 0
+    return 1 if await TelemetryService(session, resources.settings).send() else 0
+
+
+TELEMETRY = PeriodicTask(
+    name="telemetry",
+    interval=TELEMETRY_INTERVAL,
+    lock_key=LOCK_TELEMETRY,
+    run=send_telemetry,
+)
+
 #: Полный состав периодических задач. Планировщик получает этот список, а не
 #: собирает задачи сам: список видно целиком, и забытая в нём задача заметна.
-PERIODIC_TASKS = [SESSION_CLEANUP, TRASH_CLEANUP, VERIFICATION_PASS, AUDIT_PURGE]
+PERIODIC_TASKS = [
+    SESSION_CLEANUP,
+    TRASH_CLEANUP,
+    VERIFICATION_PASS,
+    AUDIT_PURGE,
+    TELEMETRY,
+]
