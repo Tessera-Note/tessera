@@ -13,18 +13,74 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.dto import GroupView, SpaceView
 from tessera_api.api.guards import Principal
 from tessera_api.domain.errors import forbidden, not_found
+from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import User
 from tessera_api.infrastructure.repositories import GroupRepo, SpaceMemberRepo, SpaceRepo
+from tessera_api.services.realtime import RealtimeService
+from tessera_api.services.spaces import SpaceService
 
 
 class SpaceIdRequest(msgspec.Struct):
     spaceId: str  # noqa: N815 — имя поля из v1
 
 
+class CreateSpaceRequest(msgspec.Struct):
+    name: str
+    description: str | None = None
+    slug: str | None = None
+
+
+class UpdateSpaceRequest(msgspec.Struct):
+    spaceId: str  # noqa: N815 — имя поля из v1
+    name: str | None = None
+    description: str | None = None
+    slug: str | None = None
+
+
+class AddMembersRequest(msgspec.Struct):
+    spaceId: str  # noqa: N815 — имя поля из v1
+    role: str
+    userIds: list[uuid.UUID] | None = None  # noqa: N815 — имя поля из v1
+    groupIds: list[uuid.UUID] | None = None  # noqa: N815 — имя поля из v1
+
+
+class MemberRequest(msgspec.Struct):
+    spaceId: str  # noqa: N815 — имя поля из v1
+    userId: uuid.UUID | None = None  # noqa: N815 — имя поля из v1
+    groupId: uuid.UUID | None = None  # noqa: N815 — имя поля из v1
+
+
+class MemberRoleRequest(msgspec.Struct):
+    spaceId: str  # noqa: N815 — имя поля из v1
+    role: str
+    userId: uuid.UUID | None = None  # noqa: N815 — имя поля из v1
+    groupId: uuid.UUID | None = None  # noqa: N815 — имя поля из v1
+
+
 class SpaceMemberView(msgspec.Struct):
     id: uuid.UUID
     name: str | None
     email: str
+
+
+def _space_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор пространства из тела запроса.
+
+    Негодное значение это отказ «не найдено», а не ошибка разбора: значение
+    приходит от клиента, и пятисотый ответ на опечатку хуже отказа.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.space.space_not_found") from error
+
+
+async def _actor(request: Request, db_session: AsyncSession) -> tuple[User, Principal]:
+    principal: Principal = request.scope["principal"]
+    actor = await db_session.get(User, principal.user_id)
+    if actor is None or actor.workspace_id != principal.workspace_id:
+        raise not_found("error.common.user_not_found")
+    return actor, principal
 
 
 class SpaceController(Controller):
@@ -128,6 +184,138 @@ class SpaceController(Controller):
         return [
             SpaceMemberView(id=one.id, name=one.name, email=one.email) for one in rows
         ]
+
+
+    @post("/create")
+    async def create(
+        self,
+        data: CreateSpaceRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> SpaceView:
+        actor, principal = await _actor(request, db_session)
+        space = await SpaceService(db_session, realtime).create(
+            actor,
+            principal.workspace_id,
+            name=data.name,
+            description=data.description,
+            slug=data.slug,
+        )
+        return SpaceView(
+            id=space.id,
+            name=space.name,
+            slug=space.slug,
+            description=space.description,
+            role=SpaceRole.ADMIN,
+        )
+
+    @post("/update")
+    async def update(
+        self,
+        data: UpdateSpaceRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> SpaceView:
+        actor, principal = await _actor(request, db_session)
+        space = await SpaceService(db_session, realtime).update(
+            actor,
+            _space_uuid(data.spaceId),
+            principal.workspace_id,
+            name=data.name,
+            description=data.description,
+            slug=data.slug,
+        )
+        role = await SpaceMemberRepo(db_session).role_in_space(actor.id, space.id)
+        return SpaceView(
+            id=space.id,
+            name=space.name,
+            slug=space.slug,
+            description=space.description,
+            role=role,
+        )
+
+    @post("/delete")
+    async def delete(
+        self,
+        data: SpaceIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        actor, principal = await _actor(request, db_session)
+        await SpaceService(db_session, realtime).delete(
+            actor, _space_uuid(data.spaceId), principal.workspace_id
+        )
+        return {"success": True}
+
+    @post("/members/list")
+    async def member_list(
+        self, data: SpaceIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Состав с ролями. Отдельно от `/members`, который отдаёт людей для
+        выбора: там намеренно нет ни ролей, ни групп."""
+        actor, principal = await _actor(request, db_session)
+        return await SpaceService(db_session).members(
+            _space_uuid(data.spaceId), principal.workspace_id, actor.id
+        )
+
+    @post("/members/add")
+    async def member_add(
+        self,
+        data: AddMembersRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        actor, principal = await _actor(request, db_session)
+        added = await SpaceService(db_session, realtime).add_members(
+            actor,
+            _space_uuid(data.spaceId),
+            principal.workspace_id,
+            role=data.role,
+            user_ids=data.userIds,
+            group_ids=data.groupIds,
+        )
+        return {"added": added}
+
+    @post("/members/remove")
+    async def member_remove(
+        self,
+        data: MemberRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        actor, principal = await _actor(request, db_session)
+        await SpaceService(db_session, realtime).remove_member(
+            actor,
+            _space_uuid(data.spaceId),
+            principal.workspace_id,
+            user_id=data.userId,
+            group_id=data.groupId,
+        )
+        return {"success": True}
+
+    @post("/members/change-role")
+    async def member_role(
+        self,
+        data: MemberRoleRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        actor, principal = await _actor(request, db_session)
+        await SpaceService(db_session, realtime).change_role(
+            actor,
+            _space_uuid(data.spaceId),
+            principal.workspace_id,
+            role=data.role,
+            user_id=data.userId,
+            group_id=data.groupId,
+        )
+        return {"success": True}
 
 
 class GroupController(Controller):

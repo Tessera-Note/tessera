@@ -50,7 +50,7 @@ export function logout(fetcher?: typeof fetch) {
 }
 
 export function setupRequired(fetcher?: typeof fetch, headers?: Record<string, string>) {
-  return get<{ requiresSetup: boolean }>('/api/auth/setup-required', { fetcher, headers });
+  return get<{ setupRequired: boolean }>('/api/auth/setup-required', { fetcher, headers });
 }
 
 export function setup(
@@ -70,8 +70,14 @@ export function forgotPassword(email: string, fetcher?: typeof fetch) {
   return post<void>('/api/auth/forgot-password', { email }, { fetcher });
 }
 
+/**
+ * Сменить пароль по ссылке из письма.
+ *
+ * Сессию не заводит: сервер отвечает признаком и только. Человек входит новым
+ * паролем сам — и проходит второй фактор, если он у него включён.
+ */
 export function resetPassword(token: string, newPassword: string, fetcher?: typeof fetch) {
-  return post<LoginResult>('/api/auth/password-reset', { token, newPassword }, { fetcher });
+  return post<{ status: string }>('/api/auth/password-reset', { token, newPassword }, { fetcher });
 }
 
 export function verifyToken(token: string, fetcher?: typeof fetch) {

@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import UserRole
-from tessera_api.infrastructure.models import User, UserMfa, Workspace
+from tessera_api.infrastructure.models import AuditLog, User, UserMfa, Workspace
 from tessera_api.infrastructure.secrets import decrypt_secret, encrypt_secret
 from tessera_api.services.mfa import (
     BACKUP_CODE_COUNT,
@@ -389,19 +389,68 @@ class TestLifecycle:
         with pytest.raises(AppError):
             await MfaService(session, APP_SECRET).reset(owner, stranger_id, workspace)
 
-    async def test_required_when_the_workspace_enforces_it(
+    async def test_enrolment_is_seen_by_login(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """На этом признаке вход решает, спрашивать ли код.
+
+        Требование рабочего пространства проверяется входом отдельно, см.
+        `tests/test_login_mfa.py`.
+        """
+        person = await self._person(session, workspace)
+        service = MfaService(session, APP_SECRET)
+        assert await service.is_enrolled(person) is False
+
+        await service.setup(person, "Tessera")
+        assert await service.is_enrolled(person) is False, "секрет заведён, но не подтверждён"
+
+        await service.enable(person, await self._current_code(session, person))
+        assert await service.is_enrolled(person) is True
+
+    async def test_enabling_leaves_a_trace(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Второй фактор это способ входа: его появление и снятие видны в журнале."""
+        person = await self._person(session, workspace)
+        service = MfaService(session, APP_SECRET)
+        await service.setup(person, "Tessera")
+        await service.enable(person, await self._current_code(session, person))
+
+        events = await self._events(session, workspace)
+        assert "mfa.enabled" in events
+
+    async def test_disabling_leaves_a_trace(
         self, session: AsyncSession, workspace, owner
     ) -> None:
         person = await self._person(session, workspace)
         service = MfaService(session, APP_SECRET)
-        assert await service.is_required(person, workspace) is False
+        await service.setup(person, "Tessera")
+        await service.enable(person, await self._current_code(session, person))
 
-        await session.execute(
-            update(Workspace).where(Workspace.id == workspace.id).values(enforce_mfa=True)
-        )
-        await session.flush()
-        strict = await session.get(Workspace, workspace.id)
-        assert await service.is_required(person, strict) is True
+        await service.disable(person, workspace, await self._current_code(session, person))
+
+        assert "mfa.disabled" in await self._events(session, workspace)
+
+    async def test_a_reset_by_an_admin_leaves_a_trace(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Самый важный след: снятие чужого фактора без кода."""
+        person = await self._person(session, workspace)
+        service = MfaService(session, APP_SECRET)
+        await service.setup(person, "Tessera")
+        await service.enable(person, await self._current_code(session, person))
+
+        await service.reset(owner, person.id, workspace)
+
+        assert "mfa.reset" in await self._events(session, workspace)
+
+    async def _events(self, session: AsyncSession, workspace) -> set[str]:
+        rows = (
+            await session.execute(
+                select(AuditLog.event).where(AuditLog.workspace_id == workspace.id)
+            )
+        ).scalars().all()
+        return set(rows)
 
     async def test_verify_is_false_when_not_enabled(
         self, session: AsyncSession, workspace, owner

@@ -40,6 +40,12 @@
           <!-- Дерево показывается только у открытого пространства: остальные
                свернуты, и загружать их ветви незачем. -->
           <PageTree spaceId={space.id} spaceSlug={space.slug} />
+          <a
+            class="block rounded px-2 py-1 text-xs text-text-muted hover:bg-surface-muted"
+            href="/s/{space.slug}/settings"
+          >
+            {t('Space settings')}
+          </a>
         {/if}
       {:else}
         <p class="px-2 text-sm text-text-muted">{t('No spaces found')}</p>

@@ -95,12 +95,17 @@ class AuthService:
         *,
         user_agent: str | None = None,
         ip: str | None = None,
-    ) -> tuple[str, User]:
+    ) -> LoginOutcome:
         # Принуждение к входу через провайдера проверяется до сверки пароля.
         # После неё отказ различал бы верный пароль и неверный там, где пароль
         # вообще не должен приниматься.
         workspace = await self._workspaces.by_id(workspace_id)
-        if workspace is not None and workspace.enforce_sso:
+        if workspace is None:
+            # Отказ, а не продолжение. Дальше по этому значению решается, нужен
+            # ли второй фактор, и «пространства нет» не должно означать «фактор
+            # не спрашиваем».
+            raise not_found("error.common.workspace_not_found")
+        if workspace.enforce_sso:
             raise bad_request("error.auth.this_workspace_has_enforced_sso_login")
 
         user = await self._users.by_email(email, workspace_id)
@@ -120,16 +125,14 @@ class AuthService:
         # Второй фактор проверяется до выдачи сессии. Пропуск этого шага
         # означает вход по одному паролю у того, кто фактор включил, — то
         # есть отмену второго фактора без ведома человека.
-        if workspace is not None:
-            mfa = MfaService(self._session, self._app_secret)
-            enrolled = await mfa.is_enrolled(user)
-            if enrolled or workspace.enforce_mfa:
-                return LoginOutcome(
-                    user=user,
-                    mfa_token=self._tokens.issue_mfa(user.id, workspace_id),
-                    has_mfa=enrolled,
-                    needs_setup=not enrolled,
-                )
+        enrolled = await MfaService(self._session, self._app_secret).is_enrolled(user)
+        if enrolled or workspace.enforce_mfa:
+            return LoginOutcome(
+                user=user,
+                mfa_token=self._tokens.issue_mfa(user.id, workspace_id),
+                has_mfa=enrolled,
+                needs_setup=not enrolled,
+            )
 
         token = await self.open_session_for(
             user, workspace_id, user_agent=user_agent, ip=ip

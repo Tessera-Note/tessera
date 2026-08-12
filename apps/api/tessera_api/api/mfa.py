@@ -9,7 +9,12 @@ from litestar import Controller, Request, Response, post
 from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.auth import MFA_COOKIE, login_response, set_session_cookie
+from tessera_api.api.auth import (
+    MFA_COOKIE,
+    https_only,
+    login_response,
+    set_session_cookie,
+)
 from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
@@ -90,7 +95,9 @@ class MfaController(Controller):
             ip=request.client.host if request.client else None,
         )
 
-        answer = login_response(LoginOutcome(user=user, access_token=access), workspace)
+        answer = login_response(
+            LoginOutcome(user=user, access_token=access), workspace, https_only(settings)
+        )
         # Промежуточный токен больше не нужен и не должен пережить вход.
         answer.delete_cookie(MFA_COOKIE, path="/")
         return answer
@@ -172,7 +179,7 @@ class MfaController(Controller):
 
         # Резервные коды уходят телом: они видны один раз, и место у них здесь.
         answer: Response = Response(result)
-        set_session_cookie(answer, access)
+        set_session_cookie(answer, access, secure=https_only(settings))
         answer.delete_cookie(MFA_COOKIE, path="/")
         return answer
 

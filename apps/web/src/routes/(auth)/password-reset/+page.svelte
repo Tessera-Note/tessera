@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto, invalidateAll } from '$app/navigation';
+  import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
   import Field from '$lib/components/ui/Field.svelte';
@@ -30,10 +30,10 @@
     failure = null;
     try {
       await resetPassword(token, password);
-      // Смена пароля заводит вход: перечитать данные слоёв обязательно, иначе
-      // страница останется отрисованной для невошедшего.
-      await invalidateAll();
-      await goto('/home');
+      // Сессию смена пароля не заводит: сервер отвечает признаком и только.
+      // Человек входит новым паролем сам — и проходит второй фактор, если он у
+      // него включён. Прежний переход на закрытый экран возвращал его сюда же.
+      await goto('/login');
     } catch (error) {
       failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
     } finally {

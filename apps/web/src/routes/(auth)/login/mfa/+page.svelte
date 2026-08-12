@@ -45,7 +45,10 @@
     {t('Enter the 6-digit code found in your authenticator app')}
   </p>
 
-  <Field label={t('Backup code')} hint={t('Enter one of your backup codes')}>
+  <Field
+    label={t('Two-factor authentication')}
+    hint={t('Enter a 6-digit code or 8-character backup code')}
+  >
     <!-- Поле принимает и одноразовый код, и резервный: разделять их незачем,
          служба проверяет оба одним вызовом. -->
     <TextInput bind:value={code} placeholder="123456" required />

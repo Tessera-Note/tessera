@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import User, UserMfa, Workspace
 from tessera_api.infrastructure.secrets import decrypt_secret, encrypt_secret
+from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 
 #: Параметры одноразовых кодов. См. оговорку в описании модуля.
 TOTP_DIGITS = 6
@@ -237,6 +238,13 @@ class MfaService:
             .where(UserMfa.id == record.id)
             .values(is_enabled=True, backup_codes=[hash_backup_code(one) for one in codes])
         )
+        await AuditService(self._session).log(
+            event=AuditEvent.MFA_ENABLED,
+            resource_type=AuditResource.MFA,
+            resource_id=user.id,
+            user_id=user.id,
+            workspace_id=user.workspace_id,
+        )
         await self._session.commit()
         return {"backupCodes": codes}
 
@@ -264,6 +272,13 @@ class MfaService:
             .where(UserMfa.id == record.id)
             .values(is_enabled=False, secret=None, backup_codes=None)
         )
+        await AuditService(self._session).log(
+            event=AuditEvent.MFA_DISABLED,
+            resource_type=AuditResource.MFA,
+            resource_id=user.id,
+            user_id=user.id,
+            workspace_id=workspace.id,
+        )
         await self._session.commit()
 
     async def reset(self, actor: User, target_user_id: uuid.UUID, workspace: Workspace) -> None:
@@ -290,6 +305,13 @@ class MfaService:
             update(UserMfa)
             .where(UserMfa.id == record.id)
             .values(is_enabled=False, secret=None, backup_codes=None)
+        )
+        await AuditService(self._session).log(
+            event=AuditEvent.MFA_RESET,
+            resource_type=AuditResource.MFA,
+            resource_id=target_user_id,
+            user_id=actor.id,
+            workspace_id=workspace.id,
         )
         await self._session.commit()
 
@@ -352,9 +374,3 @@ class MfaService:
         record = await self._record(user.id)
         return bool(record is not None and record.is_enabled)
 
-    async def is_required(self, user: User, workspace: Workspace) -> bool:
-        """Нужен ли второй фактор этому человеку при входе."""
-        record = await self._record(user.id)
-        if record is not None and record.is_enabled:
-            return True
-        return bool(workspace.enforce_mfa)

@@ -15,10 +15,10 @@ import re
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.infrastructure.models import Page
+from tessera_api.infrastructure.models import Group, Page, User
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.page_access import PageAccessService
 
@@ -146,6 +146,80 @@ class AttachmentHit:
     space_id: uuid.UUID | None
     highlight: str | None
     rank: float
+
+
+class SuggestionService:
+    """Подсказки людей и групп для выбора.
+
+    Отдельно от поиска по страницам: тот ищет содержимое и фильтруется правами
+    на страницы, а здесь речь о составе рабочего пространства.
+
+    Пустой запрос не отвечает ничем. Иначе один вызов отдавал бы перечень всех
+    работающих — то есть список адресов почты для того, кому он не нужен по делу.
+    """
+
+    #: Сколько подсказок отдавать. Список выбора, а не выгрузка.
+    MAX_LIMIT = 20
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def suggest(
+        self,
+        query: str,
+        workspace_id: uuid.UUID,
+        *,
+        include_users: bool = True,
+        include_groups: bool = False,
+        limit: int = 10,
+    ) -> dict:
+        clean = (query or "").strip()
+        if not clean:
+            return {"users": [], "groups": []}
+
+        cap = max(1, min(limit, self.MAX_LIMIT))
+        pattern = f"%{clean.lower()}%"
+
+        users: list[dict] = []
+        if include_users:
+            rows = (
+                await self._session.execute(
+                    select(User.id, User.name, User.email, User.avatar_url)
+                    .where(User.workspace_id == workspace_id)
+                    .where(User.deleted_at.is_(None))
+                    .where(User.deactivated_at.is_(None))
+                    .where(
+                        or_(
+                            func.lower(User.name).like(pattern),
+                            func.lower(User.email).like(pattern),
+                        )
+                    )
+                    .order_by(User.name.asc())
+                    .limit(cap)
+                )
+            ).all()
+            users = [
+                {"id": one[0], "name": one[1], "email": one[2], "avatarUrl": one[3]}
+                for one in rows
+            ]
+
+        groups: list[dict] = []
+        if include_groups:
+            rows = (
+                await self._session.execute(
+                    select(Group.id, Group.name, Group.description)
+                    .where(Group.workspace_id == workspace_id)
+                    .where(Group.deleted_at.is_(None))
+                    .where(func.lower(Group.name).like(pattern))
+                    .order_by(Group.name.asc())
+                    .limit(cap)
+                )
+            ).all()
+            groups = [
+                {"id": one[0], "name": one[1], "description": one[2]} for one in rows
+            ]
+
+        return {"users": users, "groups": groups}
 
 
 class AttachmentSearchService:

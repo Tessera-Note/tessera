@@ -70,6 +70,16 @@ def _workspace_view(workspace) -> WorkspaceView:
 MFA_COOKIE = "mfaToken"
 
 
+def https_only(settings: Settings) -> bool:
+    """Ставить ли куку только для защищённого соединения.
+
+    Признак выводится из адреса приложения, а не задаётся отдельно: два
+    источника правды здесь означали бы куку без `Secure` на боевом узле или
+    неработающий вход на локальном.
+    """
+    return (settings.app_url or "").lower().startswith("https://")
+
+
 def set_session_cookie(response: Response, token: str, *, secure: bool = False) -> None:
     """Положить токен сессии в cookie.
 
@@ -155,7 +165,7 @@ class AuthController(Controller):
             user_agent=request.headers.get("user-agent"),
             ip=request.client.host if request.client else None,
         )
-        return login_response(outcome, workspace)
+        return login_response(outcome, workspace, https_only(settings))
 
     @post("/setup", opt={PUBLIC: True})
     async def setup(
@@ -200,7 +210,7 @@ class AuthController(Controller):
             user_agent=request.headers.get("user-agent"),
             ip=request.client.host if request.client else None,
         )
-        return login_response(outcome, workspace)
+        return login_response(outcome, workspace, https_only(settings))
 
     @get("/setup-required", opt={PUBLIC: True})
     async def setup_required(

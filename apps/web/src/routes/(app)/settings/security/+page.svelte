@@ -4,6 +4,7 @@
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
+  import QrCode from '$lib/components/ui/QrCode.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { ApiError } from '$lib/api/client';
   import {
@@ -24,7 +25,11 @@
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
   let setup = $state<MfaSetup | null>(null);
+  //: Код подтверждения. Своё поле у каждой формы: одно на всех означало бы,
+  //: что набранное для перевыпуска кодов уходит в отключение фактора.
   let code = $state('');
+  let renewCode = $state('');
+  let disableCode = $state('');
   let codes = $state<string[] | null>(null);
 
   async function act(key: string, action: () => Promise<unknown>) {
@@ -61,8 +66,8 @@
   const turnOff = (event: SubmitEvent) => {
     event.preventDefault();
     return act('disable', async () => {
-      await mfaDisable(code.trim());
-      code = '';
+      await mfaDisable(disableCode.trim());
+      disableCode = '';
       codes = null;
       await invalidateAll();
     });
@@ -71,9 +76,9 @@
   const renew = (event: SubmitEvent) => {
     event.preventDefault();
     return act('codes', async () => {
-      const answer = await mfaNewBackupCodes(code.trim());
+      const answer = await mfaNewBackupCodes(renewCode.trim());
       codes = answer.backupCodes;
-      code = '';
+      renewCode = '';
       await invalidateAll();
     });
   };
@@ -121,18 +126,16 @@
       )}
     >
       {#if setup}
-        <!--
-          Секрет показывается строкой, а не изображением кода: рисовать QR
-          нечем — ни на сервере, ни на клиенте такой библиотеки в v2 нет, а
-          заводить её ради одного экрана значит новая зависимость. Ручной ввод
-          принимают все приложения второго фактора.
-        -->
+        <div class="mb-3">
+          <p class="mb-2 text-sm">{t('1. Scan this QR code with your authenticator app')}</p>
+          <QrCode value={setup.uri} label={t('1. Scan this QR code with your authenticator app')} />
+        </div>
         <p class="mb-2 text-sm">{t('Enter this code manually in your authenticator app:')}</p>
         <p class="mb-3 break-all rounded bg-surface px-3 py-2 font-mono text-sm">{setup.secret}</p>
         <p class="mb-3 break-all text-xs text-text-muted">{setup.uri}</p>
 
         <form onsubmit={confirm}>
-          <Field label={t('2. Enter the 6-digit code from your authenticator')}>
+          <Field label={t('Enter the 6-digit code found in your authenticator app')}>
             <TextInput bind:value={code} placeholder="123456" />
           </Field>
           <Button type="submit" disabled={busy === 'enable'}>
@@ -167,7 +170,7 @@
           )}
         >
           <TextInput
-            bind:value={code}
+            bind:value={renewCode}
             placeholder={t('Enter a 6-digit code or 8-character backup code')}
           />
         </Field>
@@ -184,7 +187,7 @@
           )}
         >
           <TextInput
-            bind:value={code}
+            bind:value={disableCode}
             placeholder={t('Enter a 6-digit code or 8-character backup code')}
           />
         </Field>

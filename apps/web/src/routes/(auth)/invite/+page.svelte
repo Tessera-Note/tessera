@@ -25,7 +25,16 @@
     busy = true;
     failure = null;
     try {
-      await acceptInvite({ invitationId, token, name, password });
+      const answer = await acceptInvite({ invitationId, token, name, password });
+
+      // Приём приглашения проходит тем же входом, что и форма входа, поэтому
+      // и развилка та же: пространство может требовать второй фактор, и тогда
+      // сессии ещё нет.
+      if (answer.userHasMfa || answer.requiresMfaSetup) {
+        await goto(answer.userHasMfa ? '/login/mfa' : '/login/mfa-setup');
+        return;
+      }
+
       await invalidateAll();
       await goto('/home');
     } catch (error) {

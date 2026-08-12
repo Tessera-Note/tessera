@@ -48,6 +48,15 @@ class AuditEvent:
     USER_INVITED = "user.invited"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
+    SPACE_CREATED = "space.created"
+    SPACE_UPDATED = "space.updated"
+    SPACE_DELETED = "space.deleted"
+    SPACE_MEMBER_ADDED = "space.member_added"
+    SPACE_MEMBER_REMOVED = "space.member_removed"
+    SPACE_MEMBER_ROLE_CHANGED = "space.member_role_changed"
+    MFA_ENABLED = "mfa.enabled"
+    MFA_DISABLED = "mfa.disabled"
+    MFA_RESET = "mfa.reset"
     API_KEY_CREATED = "api_key.created"
     API_KEY_UPDATED = "api_key.updated"
     API_KEY_DELETED = "api_key.deleted"
@@ -62,6 +71,7 @@ class AuditResource:
     SPACE = "space"
     PAGE = "page"
     API_KEY = "api_key"
+    MFA = "mfa"
 
 
 class ActorType:

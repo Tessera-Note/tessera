@@ -12,6 +12,6 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ fetch, request }) => {
   const cookie = request.headers.get('cookie');
   const answer = await setupRequired(fetch, cookie ? { cookie } : undefined);
-  if (!answer.requiresSetup) redirect(302, '/login');
+  if (!answer.setupRequired) redirect(302, '/login');
   return {};
 };

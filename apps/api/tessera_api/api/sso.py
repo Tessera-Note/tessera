@@ -32,7 +32,8 @@ from litestar.params import Body
 from litestar.response import Redirect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.guards import AUTH_COOKIE, PUBLIC
+from tessera_api.api.auth import https_only, set_session_cookie
+from tessera_api.api.guards import PUBLIC
 from tessera_api.config import Settings
 from tessera_api.domain.errors import not_found, unauthorized
 from tessera_api.infrastructure.models import AuthProvider, Workspace
@@ -48,7 +49,7 @@ from tessera_api.services.ldap import LdapService
 from tessera_api.services.oidc import FLOW_COOKIE, FLOW_TTL, FlowCodec, OidcService
 from tessera_api.services.saml import SamlService
 from tessera_api.services.sso import SsoIdentityService
-from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
+from tessera_api.services.tokens import TokenService
 
 logger = logging.getLogger(__name__)
 
@@ -115,22 +116,13 @@ async def _provider(
     return found
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
-    """Положить токен в куку.
+def _set_session_cookie(response: Response, token: str, *, secure: bool = False) -> None:
+    """Положить токен в куку тем же способом, что и парольный вход.
 
-    В куку, а не в тело: тело попадает в журналы обвязки и в историю запросов
-    браузера, кука с httponly не попадает. Здесь это тем более обязательно —
-    ответ на обратный вызов провайдера это перенаправление, тела у него нет
-    вовсе.
+    Своя установка здесь была второй копией: разойдясь, они дают вход, у
+    которого признаки куки зависят от того, каким путём человек вошёл.
     """
-    response.set_cookie(
-        AUTH_COOKIE,
-        token,
-        httponly=True,
-        samesite="lax",
-        max_age=int(DEFAULT_EXPIRES.total_seconds()),
-        path="/",
-    )
+    set_session_cookie(response, token, secure=secure)
 
 
 async def _issue_session(
@@ -150,6 +142,10 @@ async def _issue_session(
     Порядок обязателен: сначала сопоставление с учётной записью, которое
     отвергает отключённого и ставит отметку входа, потом выдача сессии. Обратный
     порядок оставил бы в журнале вход, которого не было.
+
+    Второй фактор здесь не спрашивается, и это осознанно: личность подтвердил
+    провайдер, а требование кода поверх провайдера не заведено и в v1. Ветка
+    второго фактора живёт только на парольном входе (`AuthService.login`).
     """
     user = await SsoIdentityService(session).resolve(
         provider=provider,
@@ -285,7 +281,7 @@ class SsoController(Controller):
 
         target = f"{settings.app_url.rstrip('/')}{safe_app_path(flow.redirect)}"
         response = Redirect(target, status_code=302)
-        _set_session_cookie(response, token)
+        _set_session_cookie(response, token, secure=https_only(settings))
         # Состояние потока больше не нужно и не должно пережить вход.
         response.delete_cookie(FLOW_COOKIE, path="/")
         return response
@@ -363,7 +359,7 @@ class SsoController(Controller):
 
         target = f"{settings.app_url.rstrip('/')}{safe_app_path(relay.redirect)}"
         response = Redirect(target, status_code=302)
-        _set_session_cookie(response, token)
+        _set_session_cookie(response, token, secure=https_only(settings))
         return response
 
     @post("/ldap/{provider_id:uuid}/login")
@@ -421,5 +417,5 @@ class SsoController(Controller):
         )
 
         response = Response({"success": True})
-        _set_session_cookie(response, token)
+        _set_session_cookie(response, token, secure=https_only(settings))
         return response

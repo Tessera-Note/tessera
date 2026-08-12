@@ -898,6 +898,9 @@ importers:
       bits-ui:
         specifier: 2.18.1
         version: 2.18.1(@internationalized/date@3.12.3)(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))(typescript@5.9.3)(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))
+      qrcode-generator:
+        specifier: ^2.0.4
+        version: 2.0.4
     devDependencies:
       '@sveltejs/adapter-node':
         specifier: 5.5.7
@@ -9340,6 +9343,9 @@ packages:
 
   pwacompat@2.0.17:
     resolution: {integrity: sha512-6Du7IZdIy7cHiv7AhtDy4X2QRM8IAD5DII69mt5qWibC2d15ZU8DmBG1WdZKekG11cChSu4zkSUGPF9sweOl6w==, tarball: https://registry.npmjs.org/pwacompat/-/pwacompat-2.0.17.tgz}
+
+  qrcode-generator@2.0.4:
+    resolution: {integrity: sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==, tarball: https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-2.0.4.tgz}
 
   qrcode@1.5.4:
     resolution: {integrity: sha512-1ca71Zgiu6ORjHqFBDpnSMTR2ReToX4l1Au1VFLyVeBTFavzQnv5JxMFr3ukHVKpSrSA2MCk0lNJSykjUfz7Zg==, tarball: https://registry.npmjs.org/qrcode/-/qrcode-1.5.4.tgz}
@@ -20505,6 +20511,8 @@ snapshots:
   pure-rand@7.0.1: {}
 
   pwacompat@2.0.17: {}
+
+  qrcode-generator@2.0.4: {}
 
   qrcode@1.5.4:
     dependencies:

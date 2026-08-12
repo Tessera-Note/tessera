@@ -23,7 +23,7 @@ from tessera_api.domain.errors import AppError, app_error_response
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import SpaceMember, User, UserSession
 from tessera_api.services.tokens import TokenService
-from tests.conftest import needs_database
+from tests.conftest import RealtimeDouble, needs_database
 from tests.test_transfer_routes import DatabaseDouble
 
 SECRET = "s" * 32
@@ -38,7 +38,12 @@ def _client(session: AsyncSession) -> AsyncClient:
     app = Litestar(
         route_handlers=[SpaceController],
         guards=[jwt_guard],
-        dependencies={"db_session": Provide(provide_session)},
+        dependencies={
+            "db_session": Provide(provide_session),
+            # Нужна соседним маршрутам того же контроллера: без неё Litestar
+            # отказывается собирать приложение.
+            "realtime": Provide(RealtimeDouble, sync_to_thread=False),
+        },
         state=State({"tokens": TokenService(SECRET), "database": DatabaseDouble(session)}),
         exception_handlers={AppError: app_error_response},
     )

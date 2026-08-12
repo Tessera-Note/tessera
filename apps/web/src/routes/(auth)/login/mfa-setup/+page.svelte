@@ -4,6 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import QrCode from '$lib/components/ui/QrCode.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { ApiError } from '$lib/api/client';
   import { enrollMfaEnable, enrollMfaSetup } from '$lib/features/auth/services/auth';
@@ -79,14 +80,16 @@
     </ul>
     <Button onclick={go}>{t("I've saved my backup codes")}</Button>
   {:else if secret}
-    <!-- Секрет строкой: рисовать QR в v2 нечем, а ручной ввод принимают все
-         приложения второго фактора. -->
+    <div class="mb-3">
+      <p class="mb-2 text-sm">{t('1. Scan this QR code with your authenticator app')}</p>
+      <QrCode value={uri} label={t('1. Scan this QR code with your authenticator app')} />
+    </div>
     <p class="mb-2 text-sm">{t('Enter this code manually in your authenticator app:')}</p>
     <p class="mb-3 break-all rounded bg-surface px-3 py-2 font-mono text-sm">{secret}</p>
     <p class="mb-4 break-all text-xs text-text-muted">{uri}</p>
 
     <form onsubmit={finish}>
-      <Field label={t('2. Enter the 6-digit code from your authenticator')}>
+      <Field label={t('Enter the 6-digit code found in your authenticator app')}>
         <TextInput bind:value={code} placeholder="123456" required />
       </Field>
       <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Continue')}</Button>

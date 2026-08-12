@@ -8,7 +8,7 @@ from litestar import Controller, Request, Response, get, post
 from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.auth import login_response
+from tessera_api.api.auth import https_only, login_response
 from tessera_api.api.dto import (
     AcceptInviteRequest,
     InvitationView,
@@ -114,4 +114,4 @@ class InvitationController(Controller):
             user_agent=request.headers.get("user-agent"),
             ip=request.client.host if request.client else None,
         )
-        return login_response(outcome, workspace)
+        return login_response(outcome, workspace, https_only(settings))

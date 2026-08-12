@@ -24,7 +24,11 @@ from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
-from tessera_api.services.search import AttachmentSearchService, SearchService
+from tessera_api.services.search import (
+    AttachmentSearchService,
+    SearchService,
+    SuggestionService,
+)
 from tessera_api.services.shares import ShareService
 
 
@@ -382,8 +386,36 @@ class PageController(Controller):
         return [_page_view(page) for page in pages]
 
 
+class SuggestRequest(msgspec.Struct):
+    """Подсказки. Имена полей из v1."""
+
+    query: str = ""
+    includeUsers: bool = True  # noqa: N815 — имя поля из v1
+    includeGroups: bool = False  # noqa: N815 — имя поля из v1
+    limit: int = 10
+
+
 class SearchController(Controller):
     path = "/api/search"
+
+    @post("/suggest")
+    async def suggest(
+        self, data: SuggestRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        """Подсказки людей и групп для выбора.
+
+        Виден любому вошедшему — так же, как в v1: без него нельзя ни упомянуть
+        человека, ни выдать доступ. Пустой запрос отвечает пустотой, поэтому
+        перечнем всех работающих маршрут не становится.
+        """
+        principal: Principal = request.scope["principal"]
+        return await SuggestionService(db_session).suggest(
+            data.query,
+            principal.workspace_id,
+            include_users=data.includeUsers,
+            include_groups=data.includeGroups,
+            limit=data.limit,
+        )
 
     @post()
     async def search(
