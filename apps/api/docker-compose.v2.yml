@@ -12,6 +12,20 @@
 name: tessera-v2
 
 services:
+  # Преобразование содержимого страниц. Отдельный процесс на Node, потому что
+  # схема узлов редактора описана расширениями Tiptap: второе описание той же
+  # схемы расходится с первым, а расхождение здесь — порча содержимого, которая
+  # не проявляется отказом.
+  tessera-v2-collab:
+    build:
+      context: ../..
+      dockerfile: services/collab/Dockerfile
+    container_name: tessera-v2-collab
+    environment:
+      PORT: 3001
+      HOST: 0.0.0.0
+    restart: unless-stopped
+
   tessera-v2-api:
     build:
       context: .
@@ -19,6 +33,7 @@ services:
     container_name: tessera-v2-api
     depends_on:
       - tessera-v2-db
+      - tessera-v2-collab
       - tessera-v2-redis
     environment:
       # Окружение перечисляется поимённо, как в v1, и по той же причине: всё,
@@ -65,6 +80,9 @@ services:
       AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
       AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      # Соседний сервис преобразования содержимого. Схема узлов редактора
+      # живёт там, и второй её реализации быть не должно.
+      CONTENT_SERVICE_URL: ${CONTENT_SERVICE_URL:-http://tessera-v2-collab:3001}
     ports:
       - "3100:3000"
     restart: unless-stopped
@@ -114,6 +132,9 @@ services:
       AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
       AI_COMPLETION_MODEL: ${AI_COMPLETION_MODEL:-}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      # Соседний сервис преобразования содержимого. Схема узлов редактора
+      # живёт там, и второй её реализации быть не должно.
+      CONTENT_SERVICE_URL: ${CONTENT_SERVICE_URL:-http://tessera-v2-collab:3001}
     restart: unless-stopped
 
   # Хранилище вложений, совместимое с протоколом S3.
