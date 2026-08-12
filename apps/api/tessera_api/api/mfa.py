@@ -5,15 +5,20 @@ from __future__ import annotations
 import uuid
 
 import msgspec
-from litestar import Controller, Request, post
+from litestar import Controller, Request, Response, post
 from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.guards import Principal
+from tessera_api.api.auth import MFA_COOKIE, login_response, set_session_cookie
+from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.config import Settings
-from tessera_api.domain.errors import bad_request, not_found
+from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.models import User, Workspace
+from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
+from tessera_api.infrastructure.throttle import AUTH_LIMIT, Throttle, client_ip
+from tessera_api.services.auth import AuthService, LoginOutcome
 from tessera_api.services.mfa import MfaService
+from tessera_api.services.tokens import TokenService, TokenType
 
 
 class CodeRequest(msgspec.Struct):
@@ -34,6 +39,142 @@ async def _actor(session: AsyncSession, principal: Principal) -> tuple[User, Wor
 
 class MfaController(Controller):
     path = "/api/mfa"
+
+    @post("/challenge", opt={PUBLIC: True})
+    async def challenge(
+        self,
+        data: CodeRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> Response:
+        """Завершить вход вторым фактором.
+
+        Публичный по необходимости: сессии на этом шаге ещё нет. Учётными
+        данными служит промежуточный токен из куки, выданный после сверки
+        пароля, и код из приложения. Охрана отвергла бы запрос до того, как
+        токен будет прочитан.
+
+        Предел частоты тот же, что у входа: без него шестизначный код
+        подбирается перебором за считаные минуты.
+        """
+        await throttle.check(client_ip(request, settings.trust_proxy_hops), AUTH_LIMIT)
+
+        raw = request.cookies.get(MFA_COOKIE)
+        payload = tokens.read(raw, TokenType.MFA) if raw else None
+        if payload is None:
+            raise unauthorized("error.mfa.challenge_expired")
+
+        user = await db_session.get(User, payload.user_id)
+        workspace = await db_session.get(Workspace, payload.workspace_id)
+        if user is None or workspace is None or user.deactivated_at is not None:
+            raise unauthorized("error.mfa.challenge_expired")
+
+        service = MfaService(db_session, settings.app_secret)
+        if not await service.verify(user, data.code):
+            raise bad_request("error.mfa.invalid_code")
+
+        auth = AuthService(
+            db_session,
+            UserRepo(db_session),
+            WorkspaceRepo(db_session),
+            tokens,
+            app_secret=settings.app_secret,
+        )
+        access = await auth.open_session_for(
+            user,
+            workspace.id,
+            user_agent=request.headers.get("user-agent"),
+            ip=request.client.host if request.client else None,
+        )
+
+        answer = login_response(LoginOutcome(user=user, access_token=access), workspace)
+        # Промежуточный токен больше не нужен и не должен пережить вход.
+        answer.delete_cookie(MFA_COOKIE, path="/")
+        return answer
+
+    async def _pending(
+        self, request: Request, db_session: AsyncSession, tokens: TokenService
+    ) -> tuple[User, Workspace]:
+        """Кто стоит за промежуточным токеном.
+
+        Общий разбор для шагов, которые идут между паролем и сессией. Каждый из
+        них публичен по необходимости, и повторять разбор в каждом значило бы
+        три места, где его можно ослабить по-разному.
+        """
+        raw = request.cookies.get(MFA_COOKIE)
+        payload = tokens.read(raw, TokenType.MFA) if raw else None
+        if payload is None:
+            raise unauthorized("error.mfa.challenge_expired")
+
+        user = await db_session.get(User, payload.user_id)
+        workspace = await db_session.get(Workspace, payload.workspace_id)
+        if user is None or workspace is None or user.deactivated_at is not None:
+            raise unauthorized("error.mfa.challenge_expired")
+        return user, workspace
+
+    @post("/enroll-setup", opt={PUBLIC: True})
+    async def enroll_setup(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> dict:
+        """Завести секрет тому, кого пространство обязало включить фактор.
+
+        Публичный по той же причине, что и завершение входа: сессии ещё нет.
+        Без этого шага требование второго фактора запирало бы человека на
+        экране входа — сессию ему не выдают, а настроить фактор нечем.
+        """
+        await throttle.check(client_ip(request, settings.trust_proxy_hops), AUTH_LIMIT)
+        user, workspace = await self._pending(request, db_session, tokens)
+        return await MfaService(db_session, settings.app_secret).setup(
+            user, workspace.name or "Tessera"
+        )
+
+    @post("/enroll-enable", opt={PUBLIC: True})
+    async def enroll_enable(
+        self,
+        data: CodeRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> Response:
+        """Включить фактор и впустить.
+
+        Сессия выдаётся здесь же: код подтверждён, требование выполнено, и
+        второй проход через форму входа человеку ничего не добавляет.
+        """
+        await throttle.check(client_ip(request, settings.trust_proxy_hops), AUTH_LIMIT)
+        user, workspace = await self._pending(request, db_session, tokens)
+
+        result = await MfaService(db_session, settings.app_secret).enable(user, data.code)
+
+        auth = AuthService(
+            db_session,
+            UserRepo(db_session),
+            WorkspaceRepo(db_session),
+            tokens,
+            app_secret=settings.app_secret,
+        )
+        access = await auth.open_session_for(
+            user,
+            workspace.id,
+            user_agent=request.headers.get("user-agent"),
+            ip=request.client.host if request.client else None,
+        )
+
+        # Резервные коды уходят телом: они видны один раз, и место у них здесь.
+        answer: Response = Response(result)
+        set_session_cookie(answer, access)
+        answer.delete_cookie(MFA_COOKIE, path="/")
+        return answer
 
     @post("/status")
     async def status(

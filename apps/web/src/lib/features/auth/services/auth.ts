@@ -8,10 +8,41 @@
 import { get, post } from '$lib/api/client';
 import type { Session } from '$lib/api/session';
 
-export type LoginResult = Session & { expiresAt: string };
+export type LoginResult = Session & {
+  expiresAt: string;
+  /** Второй фактор заведён: сессии ещё нет, нужен код из приложения. */
+  userHasMfa: boolean;
+  /** Фактора нет, но рабочее пространство его требует: нужна настройка. */
+  requiresMfaSetup: boolean;
+};
 
 export function login(email: string, password: string, fetcher?: typeof fetch) {
   return post<LoginResult>('/api/auth/login', { email, password }, { fetcher });
+}
+
+/**
+ * Завершить вход вторым фактором.
+ *
+ * Промежуточный токен лежит в куке и живёт пять минут: он подтверждает только
+ * то, что пароль сверен, и сам по себе приложение не открывает.
+ */
+export function completeMfaLogin(code: string, fetcher?: typeof fetch) {
+  return post<LoginResult>('/api/mfa/challenge', { code }, { fetcher });
+}
+
+/**
+ * Завести секрет тому, кого пространство обязало включить второй фактор.
+ *
+ * Отдельно от `mfaSetup` в настройках: там человек уже вошёл, здесь сессии
+ * ещё нет и учётными данными служит промежуточный токен из куки.
+ */
+export function enrollMfaSetup(fetcher?: typeof fetch) {
+  return post<{ secret: string; uri: string }>('/api/mfa/enroll-setup', {}, { fetcher });
+}
+
+/** Включить фактор кодом и войти. Резервные коды приходят один раз. */
+export function enrollMfaEnable(code: string, fetcher?: typeof fetch) {
+  return post<{ backupCodes: string[] }>('/api/mfa/enroll-enable', { code }, { fetcher });
 }
 
 export function logout(fetcher?: typeof fetch) {

@@ -48,6 +48,9 @@ class AuditEvent:
     USER_INVITED = "user.invited"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
+    API_KEY_CREATED = "api_key.created"
+    API_KEY_UPDATED = "api_key.updated"
+    API_KEY_DELETED = "api_key.deleted"
     PAGE_IMPORTED = "page.imported"
     PAGE_EXPORTED = "page.exported"
     SPACE_EXPORTED = "space.exported"
@@ -58,6 +61,7 @@ class AuditResource:
     WORKSPACE = "workspace"
     SPACE = "space"
     PAGE = "page"
+    API_KEY = "api_key"
 
 
 class ActorType:

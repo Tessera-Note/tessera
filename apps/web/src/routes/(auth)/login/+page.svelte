@@ -21,7 +21,18 @@
     busy = true;
     failure = null;
     try {
-      await login(email, password);
+      const answer = await login(email, password);
+
+      // Сверка пароля не всегда заканчивается входом: у человека со вторым
+      // фактором сессии ещё нет, и вести его на закрытый экран значит вернуть
+      // его же на эту форму.
+      if (answer.userHasMfa || answer.requiresMfaSetup) {
+        const target = page.url.searchParams.get('redirect');
+        const query = target ? `?redirect=${encodeURIComponent(target)}` : '';
+        await goto(answer.userHasMfa ? `/login/mfa${query}` : `/login/mfa-setup${query}`);
+        return;
+      }
+
       // Вход держится в куке, и данные слоёв надо перечитать: без этого
       // страница остаётся отрисованной для невошедшего.
       await invalidateAll();

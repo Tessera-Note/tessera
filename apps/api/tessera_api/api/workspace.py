@@ -14,7 +14,7 @@ from tessera_api.api.dto import MemberView, WorkspaceView
 from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
-from tessera_api.infrastructure.models import AuthProvider
+from tessera_api.infrastructure.models import AuthProvider, Workspace
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.workspace import WorkspaceService
@@ -55,8 +55,52 @@ class PublicWorkspaceView(msgspec.Struct):
     authProviders: list[AuthProviderView]  # noqa: N815 — имя поля из v1
 
 
+class UpdateWorkspaceRequest(msgspec.Struct):
+    """Общие настройки. Имена полей из v1, поле без значения не трогается."""
+
+    name: str | None = None
+    description: str | None = None
+    trashRetentionDays: int | None = None  # noqa: N815 — имя поля из v1
+    enforceMfa: bool | None = None  # noqa: N815 — имя поля из v1
+    enforceSso: bool | None = None  # noqa: N815 — имя поля из v1
+    disablePublicSharing: bool | None = None  # noqa: N815 — имя поля из v1
+    restrictApiToAdmins: bool | None = None  # noqa: N815 — имя поля из v1
+    allowMemberTemplates: bool | None = None  # noqa: N815 — имя поля из v1
+
+
 class MemberIdRequest(msgspec.Struct):
     userId: str  # noqa: N815 — имя поля из v1
+
+
+class WorkspaceSettingsView(msgspec.Struct):
+    """Общие настройки. Имена полей из v1."""
+
+    id: uuid.UUID
+    name: str | None
+    description: str | None
+    hostname: str | None
+    trashRetentionDays: int | None  # noqa: N815 — имя поля из v1
+    enforceMfa: bool  # noqa: N815 — имя поля из v1
+    enforceSso: bool  # noqa: N815 — имя поля из v1
+    disablePublicSharing: bool  # noqa: N815 — имя поля из v1
+    restrictApiToAdmins: bool  # noqa: N815 — имя поля из v1
+    allowMemberTemplates: bool  # noqa: N815 — имя поля из v1
+
+
+def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
+    flag = WorkspaceService._flag  # noqa: SLF001 — чтение того же признака, что пишет служба
+    return WorkspaceSettingsView(
+        id=workspace.id,
+        name=workspace.name,
+        description=workspace.description,
+        hostname=workspace.hostname,
+        trashRetentionDays=workspace.trash_retention_days,
+        enforceMfa=bool(workspace.enforce_mfa),
+        enforceSso=bool(workspace.enforce_sso),
+        disablePublicSharing=flag(workspace, ("sharing", "disabled")),
+        restrictApiToAdmins=flag(workspace, ("api", "restrictToAdmins")),
+        allowMemberTemplates=flag(workspace, ("templates", "allowMemberTemplates")),
+    )
 
 
 def _member_view(user) -> MemberView:
@@ -152,6 +196,45 @@ class WorkspaceController(Controller):
 
         found = await WorkspaceService(db_session, realtime).members(principal.workspace_id)
         return [_member_view(user) for user in found]
+
+    @post("/update")
+    async def update(
+        self,
+        data: UpdateWorkspaceRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> WorkspaceSettingsView:
+        actor, principal = await self._actor(request, db_session)
+        updated = await WorkspaceService(db_session, realtime).update(
+            actor,
+            principal.workspace_id,
+            name=data.name,
+            description=data.description,
+            trash_retention_days=data.trashRetentionDays,
+            enforce_mfa=data.enforceMfa,
+            enforce_sso=data.enforceSso,
+            flags={
+                "disablePublicSharing": data.disablePublicSharing,
+                "restrictApiToAdmins": data.restrictApiToAdmins,
+                "allowMemberTemplates": data.allowMemberTemplates,
+            },
+        )
+        return _settings_view(updated)
+
+    @get("/settings")
+    async def settings(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> WorkspaceSettingsView:
+        """Настройки для экрана. Видны администратору: обычному участнику
+        нечего с ними делать, а знать про запреты пространства ему незачем."""
+        actor, principal = await self._actor(request, db_session)
+        if not is_workspace_admin(actor.role):
+            raise forbidden("error.common.admin_required")
+        workspace = await db_session.get(Workspace, principal.workspace_id)
+        if workspace is None:
+            raise not_found("error.common.workspace_not_found")
+        return _settings_view(workspace)
 
     @post("/members/change-role")
     async def change_role(

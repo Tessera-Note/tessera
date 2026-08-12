@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -13,6 +14,7 @@ from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.models import User, UserSession
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
+from tessera_api.services.mfa import MfaService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
@@ -32,6 +34,25 @@ def _verify_password(plain: str, hashed: str | None) -> bool:
         return False
 
 
+@dataclass(frozen=True, slots=True)
+class LoginOutcome:
+    """Чем кончилась сверка пароля.
+
+    Либо вход завершён и есть токен доступа, либо нужен второй фактор и есть
+    промежуточный токен. Одновременно не бывает: пароль сам по себе не должен
+    открывать вход там, где заведён второй фактор.
+    """
+
+    user: User
+    access_token: str | None = None
+    mfa_token: str | None = None
+    #: Второй фактор у человека уже заведён — нужен код.
+    has_mfa: bool = False
+    #: Второго фактора нет, но рабочее пространство его требует — нужна
+    #: настройка до выдачи сессии.
+    needs_setup: bool = False
+
+
 class AuthService:
     def __init__(
         self,
@@ -40,11 +61,16 @@ class AuthService:
         workspaces: WorkspaceRepo,
         tokens: TokenService,
         realtime: RealtimeService | None = None,
+        app_secret: str = "",
     ) -> None:
         self._session = session
         self._users = users
         self._workspaces = workspaces
         self._tokens = tokens
+        # Нужен второму фактору: секрет приложения расшифровывает секрет TOTP.
+        # Пустое значение означает сборку без второго фактора — так собирают
+        # службу там, где входа паролем нет вовсе.
+        self._app_secret = app_secret
         self._audit = AuditService(session)
         # `None` означает «канал не трогать». Так собирают службу проверки;
         # контроллеры передают настоящий, иначе выход не закрывает соединение.
@@ -87,21 +113,28 @@ class AuthService:
         if user.deactivated_at is not None:
             raise unauthorized("error.auth.account_deactivated")
 
-        session_id = await self._open_session(user, workspace_id, user_agent)
         await self._session.execute(
             update(User).where(User.id == user.id).values(last_login_at=datetime.now(UTC))
         )
-        await self._audit.log(
-            event=AuditEvent.USER_LOGGED_IN,
-            resource_type=AuditResource.USER,
-            resource_id=user.id,
-            user_id=user.id,
-            workspace_id=workspace_id,
-            ip=ip,
-        )
-        await self._session.commit()
 
-        return self._tokens.issue_access(user.id, workspace_id, session_id), user
+        # Второй фактор проверяется до выдачи сессии. Пропуск этого шага
+        # означает вход по одному паролю у того, кто фактор включил, — то
+        # есть отмену второго фактора без ведома человека.
+        if workspace is not None:
+            mfa = MfaService(self._session, self._app_secret)
+            enrolled = await mfa.is_enrolled(user)
+            if enrolled or workspace.enforce_mfa:
+                return LoginOutcome(
+                    user=user,
+                    mfa_token=self._tokens.issue_mfa(user.id, workspace_id),
+                    has_mfa=enrolled,
+                    needs_setup=not enrolled,
+                )
+
+        token = await self.open_session_for(
+            user, workspace_id, user_agent=user_agent, ip=ip
+        )
+        return LoginOutcome(user=user, access_token=token)
 
     async def open_session_for(
         self,

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import UserRole
-from tessera_api.infrastructure.models import ApiKey, User, Workspace
+from tessera_api.infrastructure.models import ApiKey, AuditLog, User, Workspace
 from tessera_api.services.api_keys import ApiKeyService
 from tessera_api.services.tokens import TokenService, TokenType
 from tests.conftest import needs_database
@@ -262,6 +262,73 @@ class TestAuthentication:
         await service.authenticate(created["token"])
         await session.refresh(await session.get(ApiKey, created["id"]))
         assert (await session.get(ApiKey, created["id"])).last_used_at is not None
+
+
+class TestAudit:
+    """Ключ это вход в обход пароля и второго фактора: след обязателен."""
+
+    async def _events(self, session: AsyncSession, workspace) -> list[tuple[str, str]]:
+        rows = (
+            await session.execute(
+                select(AuditLog.event, AuditLog.resource_type).where(
+                    AuditLog.workspace_id == workspace.id
+                )
+            )
+        ).all()
+        return [(one[0], one[1]) for one in rows]
+
+    async def test_creation_is_recorded(
+        self, session: AsyncSession, workspace, owner, tokens
+    ) -> None:
+        await ApiKeyService(session, tokens).create(
+            user=owner, workspace=workspace, name="Со следом"
+        )
+        assert ("api_key.created", "api_key") in await self._events(session, workspace)
+
+    async def test_revocation_is_recorded(
+        self, session: AsyncSession, workspace, owner, tokens
+    ) -> None:
+        """Отзыв важнее заведения: по нему разбирают происшествие."""
+        service = ApiKeyService(session, tokens)
+        created = await service.create(user=owner, workspace=workspace, name="Отзываемый")
+
+        await service.revoke(created["id"], owner, workspace)
+
+        assert ("api_key.deleted", "api_key") in await self._events(session, workspace)
+
+    async def test_renaming_is_recorded_with_both_names(
+        self, session: AsyncSession, workspace, owner, tokens
+    ) -> None:
+        service = ApiKeyService(session, tokens)
+        created = await service.create(user=owner, workspace=workspace, name="Прежнее")
+
+        await service.rename(created["id"], owner, workspace, "Новое")
+
+        row = (
+            await session.execute(
+                select(AuditLog.changes)
+                .where(AuditLog.workspace_id == workspace.id)
+                .where(AuditLog.event == "api_key.updated")
+                .order_by(AuditLog.created_at.desc())
+                .limit(1)
+            )
+        ).scalar_one()
+        assert row["before"]["name"] == "Прежнее"
+        assert row["after"]["name"] == "Новое"
+
+    async def test_a_refused_creation_leaves_no_trace(
+        self, session: AsyncSession, workspace, owner, tokens
+    ) -> None:
+        """Запись о том, чего не произошло, хуже её отсутствия."""
+        member = await _person(session, workspace, role=UserRole.MEMBER)
+        restricted = await _restrict_to_admins(session, workspace, on=True)
+
+        with pytest.raises(AppError):
+            await ApiKeyService(session, tokens).create(
+                user=member, workspace=restricted, name="Не выйдет"
+            )
+
+        assert ("api_key.created", "api_key") not in await self._events(session, workspace)
 
 
 class TestManagement:

@@ -18,6 +18,10 @@ ALGORITHM = "HS256"
 #: Срок жизни токена доступа. Тот же, что в v1 по умолчанию.
 DEFAULT_EXPIRES = timedelta(days=30)
 
+#: Срок промежуточного токена второго фактора. Пять минут: столько нужно, чтобы
+#: взять код из приложения, и не больше — токен выдан по одному только паролю.
+MFA_EXPIRES = timedelta(minutes=5)
+
 #: Срок токена совместного редактирования. Короче доступа: соединение живёт
 #: сеанс работы, а не месяц, и утёкший токен должен протухнуть быстро.
 COLLAB_EXPIRES = timedelta(hours=24)
@@ -40,6 +44,11 @@ class TokenType:
     #: Ключ API. Отдельный вид, потому что живёт он иначе: срок задаёт
     #: заводивший, отзывается он записью в базе, а сессии у него нет вовсе.
     API_KEY = "api_key"
+    #: Промежуточный токен между паролем и вторым фактором. Сессии за ним нет:
+    #: он подтверждает только то, что пароль сверен. Отдельный вид обязателен —
+    #: принятый как токен доступа, он открыл бы вход по одному паролю, то есть
+    #: отменил бы второй фактор.
+    MFA = "mfa"
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +84,26 @@ class TokenService:
                 "type": TokenType.ACCESS,
                 "iat": int(now.timestamp()),
                 "exp": int((now + expires).timestamp()),
+            },
+            self._secret,
+            algorithm=ALGORITHM,
+        )
+
+    def issue_mfa(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> str:
+        """Промежуточный токен между паролем и вторым фактором.
+
+        Сессии здесь нет намеренно: сессия заводится только после кода. Иначе
+        пароль сам по себе открывал бы вход, а второй фактор оставался бы
+        украшением.
+        """
+        now = datetime.now(UTC)
+        return jwt.encode(
+            {
+                "sub": str(user_id),
+                "workspaceId": str(workspace_id),
+                "type": TokenType.MFA,
+                "iat": int(now.timestamp()),
+                "exp": int((now + MFA_EXPIRES).timestamp()),
             },
             self._secret,
             algorithm=ALGORITHM,

@@ -121,9 +121,10 @@ class TestPasswordLogin:
         )
         await _enforce(session, workspace, False)
 
-        token, user = await _auth(session).login(owner.email, password, workspace.id)
-        assert user.id == owner.id
-        assert TokenService(SECRET).read(token) is not None
+        outcome = await _auth(session).login(owner.email, password, workspace.id)
+        assert outcome.user.id == owner.id
+        assert outcome.access_token is not None
+        assert TokenService(SECRET).read(outcome.access_token) is not None
 
 
 class TestPublicWorkspace:

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import ApiKey, User, Workspace
+from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.tokens import TokenService
 
 #: Путь к настройке «доступ к API только администраторам». Значение из v1.
@@ -50,6 +51,10 @@ class ApiKeyService:
     def __init__(self, session: AsyncSession, tokens: TokenService) -> None:
         self._session = session
         self._tokens = tokens
+        # Ключ API это вход в обход пароля и второго фактора. Его заведение,
+        # переименование и отзыв обязаны оставлять след: без него на вопрос
+        # «кто и когда выдал этот доступ» ответить нечем.
+        self._audit = AuditService(session)
 
     def _require_allowed(self, user: User, workspace: Workspace) -> None:
         """Настройка «только администраторам».
@@ -130,6 +135,16 @@ class ApiKeyService:
             api_key_id=key_id,
             expires_at=expires_at,
         )
+        await self._audit.log(
+            event=AuditEvent.API_KEY_CREATED,
+            resource_type=AuditResource.API_KEY,
+            resource_id=key_id,
+            user_id=user.id,
+            workspace_id=workspace.id,
+            metadata={"name": name.strip()},
+        )
+        await self._session.commit()
+
         created = await self._session.get(ApiKey, key_id)
         return {
             "id": created.id,
@@ -160,8 +175,17 @@ class ApiKeyService:
             raise bad_request("error.api_key.name_too_long")
 
         key = await self._own_or_admin(key_id, user, workspace)
+        previous = key.name
         await self._session.execute(
             update(ApiKey).where(ApiKey.id == key.id).values(name=name.strip())
+        )
+        await self._audit.log(
+            event=AuditEvent.API_KEY_UPDATED,
+            resource_type=AuditResource.API_KEY,
+            resource_id=key.id,
+            user_id=user.id,
+            workspace_id=workspace.id,
+            changes={"before": {"name": previous}, "after": {"name": name.strip()}},
         )
         await self._session.commit()
         return {"id": key.id, "name": name.strip()}
@@ -176,6 +200,14 @@ class ApiKeyService:
         key = await self._own_or_admin(key_id, user, workspace)
         await self._session.execute(
             update(ApiKey).where(ApiKey.id == key.id).values(deleted_at=datetime.now(UTC))
+        )
+        await self._audit.log(
+            event=AuditEvent.API_KEY_DELETED,
+            resource_type=AuditResource.API_KEY,
+            resource_id=key.id,
+            user_id=user.id,
+            workspace_id=workspace.id,
+            metadata={"name": key.name},
         )
         await self._session.commit()
 

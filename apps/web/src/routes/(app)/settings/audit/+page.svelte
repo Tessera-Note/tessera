@@ -1,0 +1,184 @@
+<script lang="ts">
+  import { goto } from '$app/navigation';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Field from '$lib/components/ui/Field.svelte';
+  import Notice from '$lib/components/ui/Notice.svelte';
+  import Panel from '$lib/components/ui/Panel.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
+  import TextInput from '$lib/components/ui/TextInput.svelte';
+  import { ApiError } from '$lib/api/client';
+  import {
+    listAudit,
+    setAuditRetention,
+    type AuditRecord
+  } from '$lib/features/audit/services/audit';
+  import { locale } from '$lib/stores/i18n.svelte';
+  import type { PageData } from './$types';
+  import type { LayoutData } from '../../$types';
+
+  type Props = { data: PageData & LayoutData };
+  const { data }: Props = $props();
+
+  const t = $derived(locale.t);
+
+  let rows = $state<AuditRecord[]>([]);
+  let cursor = $state<string | null>(null);
+  let busy = $state<string | null>(null);
+  let failure = $state<string | null>(null);
+  let days = $state('');
+  let eventFilter = $state('');
+
+  // Первая страница приходит загрузчиком, остальные добираются кнопкой. Поэтому
+  // список держится здесь, а не читается из данных напрямую: иначе дозагрузка
+  // затиралась бы при каждом обновлении слоя.
+  $effect(() => {
+    rows = data.page.items;
+    cursor = data.page.meta.nextCursor;
+  });
+
+  $effect(() => {
+    days = String(data.retention?.retentionDays ?? '');
+  });
+
+  $effect(() => {
+    eventFilter = data.filter.event ?? '';
+  });
+
+  const spaceOptions = $derived([
+    { value: '', label: t('Filter by space') },
+    ...data.spaces.map((one) => ({ value: one.id, label: one.name ?? one.slug }))
+  ]);
+
+  async function act(key: string, action: () => Promise<unknown>) {
+    busy = key;
+    failure = null;
+    try {
+      await action();
+    } catch (error) {
+      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+    } finally {
+      busy = null;
+    }
+  }
+
+  const more = () =>
+    act('more', async () => {
+      if (!cursor) return;
+      const next = await listAudit({ ...data.filter, cursor });
+      rows = [...rows, ...next.items];
+      cursor = next.meta.nextCursor;
+    });
+
+  const applyFilter = (values: { event?: string; spaceId?: string }) => {
+    const params = new URLSearchParams();
+    const event = values.event ?? data.filter.event;
+    const spaceId = values.spaceId ?? data.filter.spaceId;
+    if (event) params.set('event', event);
+    if (spaceId) params.set('spaceId', spaceId);
+    return goto(`/settings/audit${params.size ? `?${params}` : ''}`, { invalidateAll: true });
+  };
+
+  const saveRetention = (event: SubmitEvent) => {
+    event.preventDefault();
+    return act('retention', () => setAuditRetention(Number(days)));
+  };
+
+  const when = (value: string | null) =>
+    value
+      ? new Intl.DateTimeFormat(locale.current, {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        }).format(new Date(value))
+      : '';
+</script>
+
+<svelte:head><title>{t('Audit log')} · Tessera</title></svelte:head>
+
+<section data-route="settings-audit">
+  <h1 class="mb-6 text-2xl font-semibold">{t('Audit log')}</h1>
+
+  {#if failure}<Notice message={failure} />{/if}
+
+  <div class="mb-6 flex flex-wrap items-end gap-3">
+    <form
+      class="w-64"
+      onsubmit={(event) => {
+        event.preventDefault();
+        applyFilter({ event: eventFilter });
+      }}
+    >
+      <Field label={t('Filter by event')}>
+        <TextInput bind:value={eventFilter} placeholder="page.created" />
+      </Field>
+      <Button type="submit" variant="quiet">{t('Apply')}</Button>
+    </form>
+    <div class="w-64">
+      <Field label={t('Filter by space')}>
+        <Select
+          value={data.filter.spaceId ?? ''}
+          options={spaceOptions}
+          onchange={(value) => applyFilter({ spaceId: value })}
+        />
+      </Field>
+    </div>
+    {#if data.filter.event || data.filter.spaceId}
+      <div class="mb-4">
+        <Button variant="quiet" onclick={() => goto('/settings/audit', { invalidateAll: true })}>
+          {t('Reset')}
+        </Button>
+      </div>
+    {/if}
+  </div>
+
+  <div class="mb-4 rounded-lg border border-border bg-surface-raised">
+    <table data-component="AuditTable" class="w-full text-left text-sm">
+      <thead class="border-b border-border text-text-muted">
+        <tr>
+          <th class="p-3 font-medium">{t('Date')}</th>
+          <th class="p-3 font-medium">{t('Actor')}</th>
+          <th class="p-3 font-medium">{t('Event')}</th>
+          <th class="p-3 font-medium">{t('Resource')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each rows as row (row.id)}
+          <tr class="border-b border-border last:border-0">
+            <td class="p-3 text-text-muted">{when(row.createdAt)}</td>
+            <td class="p-3">
+              {row.actor?.name ??
+                row.actor?.email ??
+                t(row.actorType === 'system' ? 'System' : 'Unknown')}
+            </td>
+            <td class="p-3 font-mono text-xs">{row.event}</td>
+            <td class="p-3 text-text-muted">{row.resourceType ?? ''}</td>
+          </tr>
+        {:else}
+          <tr>
+            <td class="p-6 text-center text-text-muted" colspan="4">{t('No results found')}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+
+  {#if cursor}
+    <div class="mb-8">
+      <Button variant="quiet" disabled={busy === 'more'} onclick={more}>
+        {busy === 'more' ? t('Loading...') : t('Load more')}
+      </Button>
+    </div>
+  {/if}
+
+  {#if data.retention}
+    <form onsubmit={saveRetention}>
+      <Panel title={t('Audit settings')}>
+        <Field label={t('Retention')} hint={t('Days')}>
+          <TextInput bind:value={days} />
+        </Field>
+        <Button type="submit" disabled={busy === 'retention'}>
+          {busy === 'retention' ? t('Loading...') : t('Save')}
+        </Button>
+      </Panel>
+    </form>
+  {/if}
+</section>

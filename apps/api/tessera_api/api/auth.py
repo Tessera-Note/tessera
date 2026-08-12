@@ -29,7 +29,7 @@ from tessera_api.services.auth import AuthService
 from tessera_api.services.password_reset import PasswordResetService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.setup import SetupService
-from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
+from tessera_api.services.tokens import DEFAULT_EXPIRES, MFA_EXPIRES, TokenService
 
 
 def _user_view(user) -> UserView:
@@ -66,6 +66,61 @@ def _workspace_view(workspace) -> WorkspaceView:
     )
 
 
+#: Кука промежуточного шага второго фактора. Имя из v1.
+MFA_COOKIE = "mfaToken"
+
+
+def set_session_cookie(response: Response, token: str, *, secure: bool = False) -> None:
+    """Положить токен сессии в cookie.
+
+    Токен в cookie, а не в теле: тело попадает в журналы обвязки и в историю
+    запросов браузера, cookie с httponly не попадает. Одна функция на все
+    места, где сессия выдаётся, — вход, приглашение, второй фактор.
+    """
+    response.set_cookie(
+        AUTH_COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
+        max_age=int(DEFAULT_EXPIRES.total_seconds()),
+        path="/",
+        secure=secure,
+    )
+
+
+def login_response(outcome, workspace, secure: bool = False) -> Response[LoginResponse]:
+    """Ответ на сверку пароля: сессия либо промежуточный шаг.
+
+    Собран одной функцией, потому что вход бывает трёх видов — обычный, приём
+    приглашения и первая настройка, — и второй фактор обязан работать во всех
+    трёх. Своя сборка ответа в каждом месте это ровно тот способ, которым
+    проверка теряется в одном из них.
+    """
+    body = LoginResponse(
+        user=_user_view(outcome.user),
+        workspace=_workspace_view(workspace),
+        expiresAt=datetime.now(UTC) + DEFAULT_EXPIRES,
+        userHasMfa=outcome.has_mfa,
+        requiresMfaSetup=outcome.needs_setup,
+    )
+    response = Response(body)
+
+    if outcome.access_token is not None:
+        set_session_cookie(response, outcome.access_token, secure=secure)
+        return response
+
+    response.set_cookie(
+        MFA_COOKIE,
+        outcome.mfa_token or "",
+        httponly=True,
+        samesite="lax",
+        max_age=int(MFA_EXPIRES.total_seconds()),
+        path="/",
+        secure=secure,
+    )
+    return response
+
+
 class AuthController(Controller):
     path = "/api/auth"
 
@@ -86,33 +141,21 @@ class AuthController(Controller):
         if workspace is None:
             raise not_found("error.common.workspace_not_found")
 
-        service = AuthService(db_session, UserRepo(db_session), workspaces, tokens)
-        token, user = await service.login(
+        service = AuthService(
+            db_session,
+            UserRepo(db_session),
+            workspaces,
+            tokens,
+            app_secret=settings.app_secret,
+        )
+        outcome = await service.login(
             data.email,
             data.password,
             workspace.id,
             user_agent=request.headers.get("user-agent"),
             ip=request.client.host if request.client else None,
         )
-
-        body = LoginResponse(
-            user=_user_view(user),
-            workspace=_workspace_view(workspace),
-            expiresAt=datetime.now(UTC) + DEFAULT_EXPIRES,
-        )
-
-        response = Response(body)
-        # Токен в cookie, а не в теле: тело попадает в журналы обвязки и в
-        # историю запросов браузера, cookie с httponly не попадает.
-        response.set_cookie(
-            AUTH_COOKIE,
-            token,
-            httponly=True,
-            samesite="lax",
-            max_age=int(DEFAULT_EXPIRES.total_seconds()),
-            path="/",
-        )
-        return response
+        return login_response(outcome, workspace)
 
     @post("/setup", opt={PUBLIC: True})
     async def setup(
@@ -143,31 +186,21 @@ class AuthController(Controller):
         )
 
         auth = AuthService(
-            db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
+            db_session,
+            UserRepo(db_session),
+            WorkspaceRepo(db_session),
+            tokens,
+            realtime,
+            app_secret=settings.app_secret,
         )
-        token, user = await auth.login(
+        outcome = await auth.login(
             data.email,
             data.password,
             workspace.id,
             user_agent=request.headers.get("user-agent"),
             ip=request.client.host if request.client else None,
         )
-
-        body = LoginResponse(
-            user=_user_view(user),
-            workspace=_workspace_view(workspace),
-            expiresAt=datetime.now(UTC) + DEFAULT_EXPIRES,
-        )
-        response = Response(body)
-        response.set_cookie(
-            AUTH_COOKIE,
-            token,
-            httponly=True,
-            samesite="lax",
-            max_age=int(DEFAULT_EXPIRES.total_seconds()),
-            path="/",
-        )
-        return response
+        return login_response(outcome, workspace)
 
     @get("/setup-required", opt={PUBLIC: True})
     async def setup_required(

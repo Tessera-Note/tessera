@@ -343,6 +343,15 @@ class MfaService:
         await self._session.commit()
         return True
 
+    async def is_enrolled(self, user: User) -> bool:
+        """Заведён ли у человека второй фактор.
+
+        Отдельно от `is_required`: включённый лично фактор и требование
+        пространства ведут к разным шагам входа — ввод кода против настройки.
+        """
+        record = await self._record(user.id)
+        return bool(record is not None and record.is_enabled)
+
     async def is_required(self, user: User, workspace: Workspace) -> bool:
         """Нужен ли второй фактор этому человеку при входе."""
         record = await self._record(user.id)

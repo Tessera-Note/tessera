@@ -58,6 +58,11 @@ class LoginResponse(msgspec.Struct):
     user: UserView
     workspace: WorkspaceView
     expiresAt: datetime  # noqa: N815 — имя поля из v1
+    #: Второй фактор заведён: сессии ещё нет, экран просит код. Имена полей
+    #: из v1 — их уже понимает написанный клиент.
+    userHasMfa: bool = False  # noqa: N815 — имя поля из v1
+    #: Фактора нет, но пространство его требует: экран ведёт к настройке.
+    requiresMfaSetup: bool = False  # noqa: N815 — имя поля из v1
 
 
 class ChangePasswordRequest(msgspec.Struct):

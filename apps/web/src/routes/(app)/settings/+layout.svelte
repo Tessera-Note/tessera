@@ -9,7 +9,11 @@
   const t = $derived(locale.t);
   const sections = $derived([
     { href: '/settings/account', label: t('My Profile') },
-    { href: '/settings/members', label: t('Members') }
+    { href: '/settings/security', label: t('2-step verification') },
+    { href: '/settings/api-keys', label: t('API keys') },
+    { href: '/settings/members', label: t('Members') },
+    { href: '/settings/workspace', label: t('Workspace settings') },
+    { href: '/settings/audit', label: t('Audit log') }
   ]);
 </script>
 
