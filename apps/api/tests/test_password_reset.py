@@ -165,3 +165,41 @@ class TestReset:
             .all()
         )
         assert live == []
+
+
+@needs_database
+class TestLetter:
+    """Письмо сброса переводится и приходит с разметкой.
+
+    Прежде оно собиралось строкой прямо в службе и было только на русском: у
+    человека с любой из двенадцати локалей письмо приходило на чужом языке, а
+    разметки не было вовсе. Заметить это нечем — письмо уходит и выглядит
+    работающим.
+    """
+
+    async def test_the_subject_follows_the_locale(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        from sqlalchemy import update as _update
+
+        from tessera_api.infrastructure.models import User as _User
+
+        service, queue, _, workspace = await _service(session, workspace, owner)
+        await session.execute(
+            _update(_User).where(_User.id == owner.id).values(locale="en-US")
+        )
+        await session.commit()
+
+        await service.request(owner.email, workspace.id, "http://localhost:3000")
+        assert queue.sent[-1]["subject"] == "Reset your password"
+
+    async def test_the_letter_carries_markup_and_the_link(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        service, queue, _, workspace = await _service(session, workspace, owner)
+        await service.request(owner.email, workspace.id, "http://localhost:3000")
+
+        payload = queue.sent[-1]
+        assert "password-reset?token=" in payload["body"]
+        assert "password-reset?token=" in payload["html"]
+        assert payload["html"].startswith("<!DOCTYPE html>")

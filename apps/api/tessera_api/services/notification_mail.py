@@ -182,6 +182,55 @@ def compose(
     )
 
 
+def compose_plain(
+    *,
+    locale: str | None,
+    recipient_name: str | None,
+    subject_key: str,
+    body_key: str,
+    action_key: str,
+    url: str,
+    note_key: str | None = None,
+    params: dict | None = None,
+) -> Letter:
+    """Письмо, не связанное с уведомлением.
+
+    Сброс пароля и подобные ему приходят не по записи уведомления, а по
+    действию, и таблицы видов у них нет. Собираются они здесь же и тем же
+    способом: иначе у половины писем приложения не было бы ни перевода, ни
+    разметки — ровно то, что и было до этой правки.
+    """
+    subject = mail_text(locale, subject_key, params)
+    body = mail_text(locale, body_key, params)
+    note = mail_text(locale, note_key, params) if note_key else ""
+    action = mail_text(locale, action_key)
+    greeting = (
+        mail_text(locale, "mail.greeting_named", {"name": recipient_name})
+        if recipient_name
+        else mail_text(locale, "mail.greeting")
+    )
+    footer = mail_text(locale, "mail.footer")
+
+    lines = [f"{greeting}!", "", body]
+    if note:
+        lines += ["", note]
+    lines += ["", f"{action}: {url}", "", footer]
+
+    return Letter(
+        to="",
+        subject=subject,
+        body="\n".join(lines),
+        html=letter_html(
+            subject=subject,
+            greeting=f"{greeting}!",
+            body=f"{body} {note}".strip(),
+            action=action,
+            url=url,
+            footer=footer,
+        ),
+    )
+
+
 class NotificationMailer:
     """Отправка писем по заведённым уведомлениям.
 

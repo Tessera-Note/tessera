@@ -15,6 +15,7 @@ from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.repositories import UserRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.auth import hash_password
+from tessera_api.services.notification_mail import compose_plain
 
 #: Вид токена. Проверяется при разборе: токен подтверждения почты не должен
 #: приниматься как токен сброса пароля.
@@ -75,16 +76,21 @@ class PasswordResetService:
         # это двадцать секунд ожидания у человека, который нажал «сбросить
         # пароль». Отказ отправки при этом не теряется: он попадает в журнал
         # исполнителя, и задание повторяется трижды.
+        letter = compose_plain(
+            locale=user.locale,
+            recipient_name=user.name or user.email,
+            subject_key="mail.subject.password_reset",
+            body_key="mail.forgot_password.body",
+            action_key="mail.action.set_password",
+            url=link,
+            note_key="mail.forgot_password.note",
+        )
         await self._queue.enqueue(
             JobName.SEND_EMAIL,
             to=user.email,
-            subject="Сброс пароля",
-            body=(
-                f"Здравствуйте, {user.name or user.email}.\n\n"
-                f"Ссылка для смены пароля: {link}\n\n"
-                "Она действует один час и срабатывает один раз. Если вы её не "
-                "запрашивали, ничего делать не нужно."
-            ),
+            subject=letter.subject,
+            body=letter.body,
+            html=letter.html,
         )
 
     async def reset(self, token: str, new_password: str, workspace_id: uuid.UUID) -> None:
