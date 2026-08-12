@@ -71,9 +71,76 @@ async def index_attachment(ctx: dict, *, attachment_id: str) -> str | None:
 
 INDEX_ATTACHMENT = func(index_attachment, name=JobName.INDEX_ATTACHMENT)
 
+
+@retrying
+async def index_page_embedding(ctx: dict, *, page_id: str) -> int:
+    """Пересчитать векторы одной страницы.
+
+    Вынесено из запроса: обращение к провайдеру идёт секундами, а человек
+    всего лишь сохранил страницу.
+    """
+    from tessera_api.infrastructure.models import Page
+    from tessera_api.services.embeddings import EmbeddingService
+
+    database: Database = ctx["database"]
+    async with database.session() as session:
+        page = await session.get(Page, uuid.UUID(page_id))
+        if page is None:
+            return 0
+        return await EmbeddingService(session, ctx["settings"]).index_page(page)
+
+
+INDEX_PAGE_EMBEDDING = func(index_page_embedding, name=JobName.INDEX_PAGE_EMBEDDING)
+
+
+@retrying
+async def remove_page_embedding(ctx: dict, *, page_id: str) -> int:
+    """Снять векторы страницы.
+
+    Ключ провайдера здесь не нужен и не спрашивается: удаление обязано
+    работать и у пространства, где провайдер не настроен, — иначе удалённые
+    страницы остаются находимыми.
+    """
+    from tessera_api.services.embeddings import EmbeddingService
+
+    database: Database = ctx["database"]
+    async with database.session() as session:
+        return await EmbeddingService(session, ctx["settings"]).remove_page(
+            uuid.UUID(page_id)
+        )
+
+
+REMOVE_PAGE_EMBEDDING = func(remove_page_embedding, name=JobName.REMOVE_PAGE_EMBEDDING)
+
+
+@retrying
+async def reindex_embeddings(ctx: dict, *, workspace_id: str) -> int:
+    """Перестроить весь индекс рабочего пространства.
+
+    Ставится при смене разрешённой идентичности векторного пространства.
+    Ненастроенный провайдер задачу не роняет: она сливается, иначе очередь
+    наполнялась бы повторами ровно там, где её завели ради разгрузки.
+    """
+    from tessera_api.services.embeddings import EmbeddingService
+
+    database: Database = ctx["database"]
+    async with database.session() as session:
+        return await EmbeddingService(session, ctx["settings"]).index_workspace(
+            uuid.UUID(workspace_id)
+        )
+
+
+REINDEX_EMBEDDINGS = func(reindex_embeddings, name=JobName.REINDEX_EMBEDDINGS)
+
 #: Полный состав обработчиков. Список видно целиком, и забытый в нём
 #: обработчик заметен: задание встанет в очередь и не разберётся никем.
-HANDLERS = [SEND_EMAIL, INDEX_ATTACHMENT]
+HANDLERS = [
+    SEND_EMAIL,
+    INDEX_ATTACHMENT,
+    INDEX_PAGE_EMBEDDING,
+    REMOVE_PAGE_EMBEDDING,
+    REINDEX_EMBEDDINGS,
+]
 
 
 async def startup(ctx: dict) -> None:

@@ -343,6 +343,36 @@ class Page(Base, SoftDeleteMixin):
     is_base: Mapped[bool] = mapped_column(Boolean, server_default="false")
 
 
+class PageEmbedding(Base, SoftDeleteMixin):
+    """Вектор куска страницы.
+
+    Сам вектор здесь не отображён: `vector(1536)` — тип расширения, и
+    SQLAlchemy без отдельной зависимости его не знает. Работа с ним идёт сырым
+    SQL с приведением `::vector`, а модель нужна ради остальных колонок и ради
+    сверки со снимком схемы.
+
+    Тройка `driver`, `base_url`, `model_name` — идентичность векторного
+    пространства. Выдача фильтруется по ней, поэтому смена любой составляющей
+    превращает уже посчитанные строки в невидимый мусор.
+    """
+
+    __tablename__ = "page_embeddings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    attachment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    model_name: Mapped[str] = mapped_column(String)
+    model_dimensions: Mapped[int] = mapped_column(Integer)
+    driver: Mapped[str | None] = mapped_column(String)
+    base_url: Mapped[str | None] = mapped_column(String)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    chunk_start: Mapped[int | None] = mapped_column(Integer)
+    chunk_length: Mapped[int | None] = mapped_column(Integer)
+    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+
+
 class PageAccess(Base, TimestampMixin):
     """Отметка о том, что доступ к странице ограничен."""
 

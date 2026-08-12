@@ -55,6 +55,11 @@ class JobName:
     INDEX_ATTACHMENT = "attachment-index-content"
     #: Пересчёт векторов рабочего пространства после смены провайдера.
     REINDEX_EMBEDDINGS = "workspace-create-embeddings"
+    #: Пересчёт векторов одной страницы после её правки.
+    INDEX_PAGE_EMBEDDING = "page-updated-embedding"
+    #: Снятие векторов. Отдельное имя, потому что работает без ключа
+    #: провайдера: удаление обязано идти и у ненастроенного пространства.
+    REMOVE_PAGE_EMBEDDING = "page-deleted-embedding"
 
 
 def retrying(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

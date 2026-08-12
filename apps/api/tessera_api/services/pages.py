@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden
 from tessera_api.infrastructure.models import Page
+from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import PageAccessService
@@ -59,13 +60,41 @@ def extract_text(content: dict | None) -> str:
 
 
 class PageService:
-    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        realtime: RealtimeService | None = None,
+        queue: JobQueue | None = None,
+    ) -> None:
         self._session = session
         self._access = PageAccessService(session)
         self._history = PageHistoryService(session)
         # `None` означает «не рассылать». Так собирают службу проверки, где
         # канала событий нет вовсе; контроллеры обязаны передавать настоящий.
         self._realtime = realtime
+        # `None` означает «не пересчитывать векторы». Пересчёт вынесен в
+        # очередь: обращение к провайдеру идёт секундами, а человек всего лишь
+        # сохранил страницу.
+        self._queue = queue
+
+    async def _reindex(self, page: Page) -> None:
+        if self._queue is not None:
+            await self._queue.enqueue(
+                JobName.INDEX_PAGE_EMBEDDING, page_id=str(page.id)
+            )
+
+    async def _drop_index(self, page_ids: list[uuid.UUID]) -> None:
+        """Снять векторы. Ключ провайдера для этого не нужен.
+
+        Иначе страница, убранная в корзину, продолжает находиться смысловым
+        поиском — и находится по содержимому, которого в вики уже нет.
+        """
+        if self._queue is None:
+            return
+        for page_id in page_ids:
+            await self._queue.enqueue(
+                JobName.REMOVE_PAGE_EMBEDDING, page_id=str(page_id)
+            )
 
     async def _refresh_tree(self, page: Page) -> None:
         """Сообщить, что дерево изменилось.
@@ -145,6 +174,7 @@ class PageService:
 
         await self._session.commit()
         await self._refresh_tree(created)
+        await self._reindex(created)
         return created
 
     async def update(
@@ -191,6 +221,10 @@ class PageService:
         # дороже лишнего перезапроса.
         if title is not None or icon is not None or content is not None:
             await self._refresh_tree(updated)
+        if content is not None or title is not None:
+            # Заголовок приписывается к каждому куску при построении векторов,
+            # поэтому его правка меняет их так же, как правка текста.
+            await self._reindex(updated)
         return updated
 
     async def children(
@@ -238,6 +272,7 @@ class PageService:
         )
         await self._session.commit()
         await self._refresh_tree(page)
+        await self._drop_index([page.id, *ids])
 
     async def _descendants(self, page_id: uuid.UUID) -> list[uuid.UUID]:
         from sqlalchemy import text as sql_text

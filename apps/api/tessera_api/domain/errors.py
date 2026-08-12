@@ -41,6 +41,10 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.audit.invalid_retention": "Retention must be between 0 and 3650 days",
     "error.ai.unknown_driver": "Unknown AI provider",
     "error.ai.not_configured": "The AI provider is not configured",
+    "error.ai.embedding_dimension": (
+        "The embedding model returns a different vector width than the index expects"
+    ),
+    "error.ai.embedding_failed": "The embedding provider refused the request",
     "error.auth.this_workspace_has_enforced_sso_login": (
         "This workspace requires signing in through a provider"
     ),

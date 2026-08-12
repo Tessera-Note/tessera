@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
+from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachment_index import AttachmentIndexService
@@ -129,9 +130,10 @@ class PageController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        page = await PageService(db_session, realtime).create(
+        page = await PageService(db_session, realtime, queue).create(
             user_id=principal.user_id,
             workspace_id=principal.workspace_id,
             space_id=data.spaceId,
@@ -148,10 +150,11 @@ class PageController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        updated = await PageService(db_session, realtime).update(
+        updated = await PageService(db_session, realtime, queue).update(
             page=page,
             user_id=principal.user_id,
             title=data.title,
@@ -167,10 +170,11 @@ class PageController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        await PageService(db_session, realtime).move_to_trash(page, principal.user_id)
+        await PageService(db_session, realtime, queue).move_to_trash(page, principal.user_id)
         return {"status": "ok"}
 
     @post("/tree")
@@ -180,9 +184,10 @@ class PageController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        pages = await PageService(db_session, realtime).children(
+        pages = await PageService(db_session, realtime, queue).children(
             data.parentPageId, data.spaceId, principal.user_id
         )
         return [_page_view(page) for page in pages]
