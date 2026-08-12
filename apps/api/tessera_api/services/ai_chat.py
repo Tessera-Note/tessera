@@ -27,7 +27,6 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 import re
 import uuid
 from collections.abc import AsyncIterator
@@ -39,7 +38,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.config import Settings
-from tessera_api.domain.errors import AppError, bad_request, not_found
+from tessera_api.domain.errors import bad_request, not_found
 from tessera_api.infrastructure.ai_client import AiClient, ChatTarget
 from tessera_api.infrastructure.models import AiChat, AiChatMessage, Page
 from tessera_api.infrastructure.queue import JobQueue
@@ -50,8 +49,6 @@ from tessera_api.services.ai_settings import AiSettingsService, require_model
 from tessera_api.services.mcp import McpService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
-
-logger = logging.getLogger(__name__)
 
 #: Степень риска инструмента. Разрешительный список, а не свойство самого
 #: инструмента: у MCP их сорок пять, чат берёт подмножество, и классификация по
@@ -708,7 +705,6 @@ __all__ = [
     "READ",
     "WRITE",
     "AiChatService",
-    "AppError",
     "PlanStep",
     "detect_language",
 ]

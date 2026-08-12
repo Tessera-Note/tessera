@@ -855,3 +855,44 @@ class TestDocxRoute:
                 cookies={AUTH_COOKIE: token},
             )
         assert answer.status_code == 403
+
+
+@needs_database
+class TestExportLimits:
+    """Предел стоит на всех трёх выгрузках, а не только на самой лёгкой.
+
+    Расхождение с v1 намеренное: там предел был только у выгрузки в Word, тогда
+    как архив пространства весит больше всех остальных — он собирается в памяти
+    вместе с приложенными файлами.
+    """
+
+    async def test_a_page_export_is_counted(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "Страница")
+        token = await _token(session, owner.id, workspace.id)
+        throttle = ThrottleDouble()
+        async with _client(
+            session, StorageDouble(), QueueDouble(), throttle=throttle
+        ) as client:
+            await client.post(
+                "/api/pages/export",
+                json={"pageId": str(page.id), "format": "markdown"},
+                cookies={AUTH_COOKIE: token},
+            )
+        assert [one[1].name for one in throttle.calls] == ["export"]
+
+    async def test_a_space_export_is_counted(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        token = await _token(session, owner.id, workspace.id)
+        throttle = ThrottleDouble()
+        async with _client(
+            session, StorageDouble(), QueueDouble(), throttle=throttle
+        ) as client:
+            await client.post(
+                "/api/spaces/export",
+                json={"spaceId": str(space.id), "format": "markdown"},
+                cookies={AUTH_COOKIE: token},
+            )
+        assert [one[1].name for one in throttle.calls] == ["export"]

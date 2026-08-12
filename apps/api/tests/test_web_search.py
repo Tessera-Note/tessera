@@ -322,3 +322,18 @@ def test_every_driver_is_handled(driver: str) -> None:
     from tessera_api.infrastructure.web_search import DRIVERS
 
     assert driver in DRIVERS
+
+
+@pytest.mark.parametrize("value", ["openai", "google", "яндекс"])
+async def test_an_unknown_source_is_refused_on_save(value: str) -> None:
+    """Несверенное значение молча превращалось бы в свой сервис.
+
+    Администратор выбрал бы одно, а работало бы другое, и увидеть это можно
+    только по выдаче, которой не будет.
+    """
+    from tessera_api.domain.errors import AppError
+    from tessera_api.services.ai_settings import AiSettingsService
+
+    with pytest.raises(AppError) as error:
+        await AiSettingsService(None, None).update(None, {"webSearchDriver": value})
+    assert error.value.code == "error.ai.unknown_web_search_driver"

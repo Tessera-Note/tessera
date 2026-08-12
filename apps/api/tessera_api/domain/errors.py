@@ -111,6 +111,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.collaboration.document_invalid": "The document could not be read",
     "error.ai.tools_unsupported": "This AI provider cannot use tools",
     "error.ai.model_not_configured": "No model name is set for this AI provider",
+    "error.ai.unknown_web_search_driver": "Unknown web search provider",
     "error.ai_chat.chat_not_found": "Conversation not found",
     "error.ai_chat.disabled": "The assistant is turned off for this workspace",
     "error.ai_chat.message_not_found": "Message not found",

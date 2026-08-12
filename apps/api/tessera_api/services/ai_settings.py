@@ -31,6 +31,7 @@ from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request
 from tessera_api.infrastructure.models import Workspace, WorkspaceAiSettings
 from tessera_api.infrastructure.secrets import decrypt_secret, encrypt_secret
+from tessera_api.infrastructure.web_search import DRIVERS as WEB_SEARCH_DRIVERS
 from tessera_api.infrastructure.web_search import WebSearchConfig
 
 
@@ -409,6 +410,14 @@ class AiSettingsService:
             and embedding_driver not in DRIVERS
         ):
             raise bad_request("error.ai.unknown_driver")
+
+        # Источник поиска сверяется своим перечнем: он другой, и общий с
+        # провайдерами модели список пропустил бы `openai` в поле поиска.
+        # Несверенное значение молча превращалось бы в свой сервис, то есть
+        # администратор выбрал бы одно, а работало бы другое.
+        web_driver = changes.get("webSearchDriver")
+        if web_driver is not None and web_driver != "" and web_driver not in WEB_SEARCH_DRIVERS:
+            raise bad_request("error.ai.unknown_web_search_driver")
 
         before = (await self.resolve_embedding(workspace_id)).identity
 

@@ -37,8 +37,24 @@ TELEMETRY_INTERVAL = timedelta(days=1)
 #: незачем.
 TIMEOUT = 10.0
 
-#: Версия, с которой уходят счётчики. Совпадает с версией приложения.
-VERSION = "2.0.0"
+def _version() -> str:
+    """Версия приложения для события.
+
+    Берётся из метаданных установленного пакета, а не из константы рядом:
+    константа расходится с `pyproject.toml` молча, и счётчики начинают
+    приходить с версией, которой нет.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("tessera-api")
+    except PackageNotFoundError:
+        # Пакет не установлен (запуск из исходников). Версия неизвестна, и
+        # выдумывать её нельзя: событие с чужой версией хуже события без неё.
+        return "unknown"
+
+
+VERSION = _version()
 
 
 def instance_id(workspace_id: str, secret: str) -> str:

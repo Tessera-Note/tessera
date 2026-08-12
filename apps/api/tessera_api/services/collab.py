@@ -22,7 +22,7 @@ import base64
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -389,9 +389,3 @@ def decode_ydoc(raw: str | None) -> bytes:
     if not raw:
         raise ValueError("состояние документа пусто")
     return base64.b64decode(raw, validate=True)
-
-
-def as_dict(value: Any) -> dict:
-    if not isinstance(value, dict):
-        raise ValueError("документ обязан быть объектом")
-    return value

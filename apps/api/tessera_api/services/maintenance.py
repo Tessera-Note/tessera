@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.infrastructure.models import Page, UserSession, Workspace
 from tessera_api.infrastructure.scheduler import PeriodicTask, TaskResources
 from tessera_api.services.attachments import AttachmentService
+from tessera_api.services.telemetry import TELEMETRY_INTERVAL
 
 #: Ключи блокировок. Своя тысяча, не пересекающаяся с v1: там заняты
 #: 815_042_001 и 815_042_002, и на время перехода обе версии могут смотреть в
@@ -238,10 +239,6 @@ AUDIT_PURGE = PeriodicTask(
     run=purge_audit,
 )
 
-#: Как часто уходят счётчики установки. Раз в сутки, как в v1.
-TELEMETRY_INTERVAL = timedelta(days=1)
-
-
 async def send_telemetry(session: AsyncSession, resources: TaskResources) -> int:
     """Отправить счётчики установки соседнему приёмнику.
 
@@ -258,6 +255,9 @@ async def send_telemetry(session: AsyncSession, resources: TaskResources) -> int
 
 TELEMETRY = PeriodicTask(
     name="telemetry",
+    # Срок берётся у самой службы: два объявления одного значения расходятся,
+    # и расхождение здесь означало бы, что счётчики уходят не с тем тактом,
+    # который записан рядом с ними.
     interval=TELEMETRY_INTERVAL,
     lock_key=LOCK_TELEMETRY,
     run=send_telemetry,

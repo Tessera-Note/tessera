@@ -221,14 +221,15 @@ TOOLS: list[ToolDefinition] = [
         },
     ),
     ToolDefinition(
+        # Только входящие. Исходящие видны в самом содержимом страницы, и
+        # отдельного обхода для них нет ни здесь, ни в остальном приложении;
+        # объявленный и молча игнорируемый выбор направления означал бы, что
+        # модель просит одно, а получает другое.
         "get_page_backlinks",
-        "Pages linking to this one, or linked from it.",
+        "Pages linking to this one.",
         {
             "type": "object",
-            "properties": {
-                "pageId": _text("Page id or slug"),
-                "direction": _text("incoming or outgoing"),
-            },
+            "properties": {"pageId": _text("Page id or slug")},
             "required": ["pageId"],
         },
     ),
@@ -368,9 +369,12 @@ TOOLS: list[ToolDefinition] = [
         {"type": "object", "properties": {}},
     ),
     ToolDefinition(
+        # Отбора по пространству у списка шаблонов нет ни здесь, ни в самой
+        # службе. Объявить аргумент и не применить его значит заставить модель
+        # заполнять поле, которое ни на что не влияет.
         "list_templates",
         "Templates available to the caller.",
-        {"type": "object", "properties": {"spaceId": _text("Space id")}},
+        {"type": "object", "properties": {}},
     ),
     ToolDefinition(
         "use_template",

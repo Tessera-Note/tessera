@@ -30,6 +30,11 @@ from tessera_api.services.page_access import PageAccessService
 #: Предел выгрузок. Тот же, что в v1: десять в минуту на человека. Считается по
 #: человеку, а не по адресу: за корпоративным NAT счёт по адресу делится всеми
 #: сотрудниками сразу.
+#:
+#: Расхождение с v1: там предел стоял только на выгрузке в Word, а выгрузка
+#: страницы и пространства шли без него. Здесь он на всех трёх, и именно
+#: пространство весит больше остальных — архив собирается в памяти вместе с
+#: приложенными файлами.
 EXPORT_LIMIT = Limit("export", limit=10, window=60)
 
 
@@ -93,8 +98,10 @@ class ExportController(Controller):
         content: NamedDependency[ContentClient],
         storage: NamedDependency[Storage],
         settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
     ) -> Response:
         principal: Principal = request.scope["principal"]
+        await throttle.check(f"user:{principal.user_id}", EXPORT_LIMIT)
 
         # Страница ищется и по адресу, и по идентификатору: ссылка в браузере
         # содержит адрес, а внутренние вызовы — идентификатор.
@@ -186,6 +193,7 @@ class ExportController(Controller):
         content: NamedDependency[ContentClient],
         storage: NamedDependency[Storage],
         settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
     ) -> Response:
         """Выгрузить пространство целиком.
 
@@ -194,6 +202,7 @@ class ExportController(Controller):
         пространство.
         """
         principal: Principal = request.scope["principal"]
+        await throttle.check(f"user:{principal.user_id}", EXPORT_LIMIT)
 
         space_id = _page_id(data.spaceId)
         if space_id is None:
