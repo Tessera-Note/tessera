@@ -60,6 +60,8 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.common.user_not_found": "User not found",
     "error.space.space_not_found": "Space not found",
     "error.space.space_id_required": "A space must be given",
+    "error.user.name_invalid": "The name must not be empty and no longer than {{limit}}",
+    "error.user.locale_invalid": "This is not a language code",
     "error.space.access_denied": "You do not have access to this space",
     "error.page.page_not_found": "Page not found",
     "error.page.access_denied": "You do not have access to this page",

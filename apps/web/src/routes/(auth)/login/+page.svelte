@@ -1,5 +1,10 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Field from '$lib/components/ui/Field.svelte';
+  import Notice from '$lib/components/ui/Notice.svelte';
+  import TextInput from '$lib/components/ui/TextInput.svelte';
   import { ApiError } from '$lib/api/client';
   import { login } from '$lib/features/auth/services/auth';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -20,7 +25,9 @@
       // Вход держится в куке, и данные слоёв надо перечитать: без этого
       // страница остаётся отрисованной для невошедшего.
       await invalidateAll();
-      await goto('/home');
+      // Человек шёл на закрытый экран, и охрана запомнила куда: возвращаем его
+      // туда, а не на общий экран.
+      await goto(page.url.searchParams.get('redirect') ?? '/home');
     } catch (error) {
       failure =
         error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
@@ -39,37 +46,16 @@
 >
   <h1 class="mb-6 text-xl font-semibold">{t('Login')}</h1>
 
-  <label class="mb-4 block">
-    <span class="mb-1 block text-sm text-text-muted">{t('Email')}</span>
-    <input
-      class="w-full rounded border border-border bg-surface px-3 py-2"
-      type="email"
-      autocomplete="username"
-      bind:value={email}
-      required
-    />
-  </label>
+  <Field label={t('Email')}>
+    <TextInput bind:value={email} type="email" autocomplete="username" required />
+  </Field>
+  <Field label={t('Password')}>
+    <TextInput bind:value={password} type="password" autocomplete="current-password" required />
+  </Field>
 
-  <label class="mb-6 block">
-    <span class="mb-1 block text-sm text-text-muted">{t('Password')}</span>
-    <input
-      class="w-full rounded border border-border bg-surface px-3 py-2"
-      type="password"
-      autocomplete="current-password"
-      bind:value={password}
-      required
-    />
-  </label>
+  {#if failure}<Notice message={failure} />{/if}
 
-  {#if failure}
-    <p data-component="LoginError" class="mb-4 text-sm text-danger">{failure}</p>
-  {/if}
+  <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Sign In')}</Button>
 
-  <button
-    class="w-full rounded bg-accent px-3 py-2 font-medium text-accent-text disabled:opacity-60"
-    type="submit"
-    disabled={busy}
-  >
-    {busy ? t('Loading...') : t('Sign In')}
-  </button>
+  <a class="mt-4 block text-sm underline" href="/forgot-password">{t('Forgot password')}</a>
 </form>
