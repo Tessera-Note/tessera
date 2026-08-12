@@ -51,6 +51,8 @@ class JobName:
     SEND_EMAIL = "send-email"
     DELETE_PAGE_ATTACHMENTS = "delete-page-attachments"
     PAGE_BACKLINKS = "page-backlinks"
+    #: Разбор загруженного вложения ради поиска по его тексту.
+    INDEX_ATTACHMENT = "attachment-index-content"
 
 
 def retrying(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

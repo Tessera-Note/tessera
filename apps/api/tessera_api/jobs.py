@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 
 from arq.worker import func
 
@@ -46,9 +47,33 @@ async def send_email(ctx: dict, *, to: str, subject: str, body: str) -> str:
 #: именем, а исполнитель искал бы новое.
 SEND_EMAIL = func(send_email, name=JobName.SEND_EMAIL)
 
+
+@retrying
+async def index_attachment(ctx: dict, *, attachment_id: str) -> str | None:
+    """Разобрать загруженное вложение ради поиска по его тексту.
+
+    Вынесено из запроса: PDF на сотню страниц разбирается заметное время, а
+    человек всего лишь приложил файл к странице и ждёт ответа.
+
+    Отказ разбора не считается отказом задания повторно: недоступное хранилище
+    даёт повтор, а неразбираемый файл — отметку «тип не поддерживается», и то и
+    другое возвращается сюда как обычный исход. Единственное, что здесь
+    действительно повторяется, — отказ соединения с базой.
+    """
+    from tessera_api.services.attachment_index import AttachmentIndexService
+
+    database: Database = ctx["database"]
+    async with database.session() as session:
+        return await AttachmentIndexService(session, ctx["storage"]).index(
+            uuid.UUID(attachment_id)
+        )
+
+
+INDEX_ATTACHMENT = func(index_attachment, name=JobName.INDEX_ATTACHMENT)
+
 #: Полный состав обработчиков. Список видно целиком, и забытый в нём
 #: обработчик заметен: задание встанет в очередь и не разберётся никем.
-HANDLERS = [SEND_EMAIL]
+HANDLERS = [SEND_EMAIL, INDEX_ATTACHMENT]
 
 
 async def startup(ctx: dict) -> None:

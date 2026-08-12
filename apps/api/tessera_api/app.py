@@ -28,6 +28,7 @@ from tessera_api.api.notifications import NotificationController
 from tessera_api.api.page_permissions import PagePermissionController
 from tessera_api.api.page_verification import PageVerificationController
 from tessera_api.api.pages import (
+    AttachmentSearchController,
     CommentController,
     FavoriteController,
     HistoryController,
@@ -170,6 +171,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             FileController,
             ImageController,
             SearchController,
+            AttachmentSearchController,
             CommentController,
             LabelController,
             FavoriteController,

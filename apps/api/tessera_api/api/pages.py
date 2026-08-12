@@ -10,6 +10,11 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import PUBLIC, Principal
+from tessera_api.domain.errors import forbidden, not_found
+from tessera_api.domain.roles import is_workspace_admin
+from tessera_api.infrastructure.repositories import UserRepo
+from tessera_api.infrastructure.storage import Storage
+from tessera_api.services.attachment_index import AttachmentIndexService
 from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.comments import CommentService
 from tessera_api.services.history import PageHistoryService
@@ -18,7 +23,7 @@ from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
-from tessera_api.services.search import SearchService
+from tessera_api.services.search import AttachmentSearchService, SearchService
 from tessera_api.services.shares import ShareService
 
 
@@ -209,6 +214,65 @@ class SearchController(Controller):
             }
             for hit in hits
         ]
+
+
+class AttachmentSearchController(Controller):
+    """Поиск по тексту, извлечённому из вложений.
+
+    Отдельный маршрут, а не расширение поиска по страницам: у выдачи другой
+    состав полей и другой смысл — находится файл, а не страница.
+    """
+
+    path = "/api/search-attachments"
+
+    @post()
+    async def search(
+        self, data: SearchRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        principal: Principal = request.scope["principal"]
+        hits = await AttachmentSearchService(db_session).search(
+            data.query,
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            space_id=data.spaceId,
+            limit=min(data.limit, 50),
+        )
+        return [
+            {
+                "id": hit.attachment_id,
+                "fileName": hit.file_name,
+                "pageId": hit.page_id,
+                "spaceId": hit.space_id,
+                "highlight": hit.highlight,
+                "rank": hit.rank,
+            }
+            for hit in hits
+        ]
+
+    @post("/indexing")
+    async def start_indexing(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        storage: NamedDependency[Storage],
+    ) -> dict:
+        """Разобрать вложения, которые ещё не разбирались.
+
+        Право администратора: проход читает файлы всего рабочего пространства,
+        включая приложенные к закрытым страницам. Обычному участнику этого не
+        полагается, даже при том, что наружу отдаётся одно число.
+        """
+        principal: Principal = request.scope["principal"]
+        actor = await UserRepo(db_session).by_id(principal.user_id, principal.workspace_id)
+        if actor is None:
+            raise not_found("error.common.user_not_found")
+        if not is_workspace_admin(actor.role):
+            raise forbidden("error.common.admin_required")
+
+        processed = await AttachmentIndexService(db_session, storage).backfill(
+            principal.workspace_id
+        )
+        return {"processed": processed}
 
 
 class CommentController(Controller):

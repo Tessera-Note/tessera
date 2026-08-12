@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import Attachment, Space, User, Workspace
+from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import (
     Storage,
     attachment_key,
@@ -67,10 +68,16 @@ def _mime_type(file_name: str) -> str:
 
 
 class AttachmentService:
-    def __init__(self, session: AsyncSession, storage: Storage) -> None:
+    def __init__(
+        self, session: AsyncSession, storage: Storage, queue: JobQueue | None = None
+    ) -> None:
         self._session = session
         self._storage = storage
         self._access = PageAccessService(session)
+        # `None` означает «не индексировать». Так собирают службу проверки;
+        # контроллеры передают настоящую очередь, иначе загруженный файл
+        # навсегда остаётся ненаходимым.
+        self._queue = queue
 
     async def upload_page_file(
         self,
@@ -122,6 +129,17 @@ class AttachmentService:
             )
         )
         await self._session.commit()
+
+        # Задание ставится на **каждое** загруженное вложение, а не только на
+        # разбираемые типы: отметку «тип не поддерживается» тоже кто-то должен
+        # проставить, иначе картинки и архивы навсегда остаются в состоянии «не
+        # обработано» и неотличимы от ещё не дошедших до разбора. Решение о
+        # поддержке принимает разбор, а не приём.
+        if self._queue is not None:
+            await self._queue.enqueue(
+                JobName.INDEX_ATTACHMENT, attachment_id=str(attachment_id)
+            )
+
         return await self._session.get(Attachment, attachment_id)
 
     async def _load(self, attachment_id: uuid.UUID, workspace_id: uuid.UUID) -> Attachment:

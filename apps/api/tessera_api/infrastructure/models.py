@@ -371,6 +371,13 @@ class Attachment(Base, SoftDeleteMixin):
     space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     text_content: Mapped[str | None] = mapped_column(Text)
+    # Состояние разбора: не обработано, разобрано, разбору не подлежит. Третье
+    # значение обязательно — без него пустой текст неотличим от ещё не
+    # дошедшего до разбора, и повторный проход бесконечно перебирал бы одни и
+    # те же картинки.
+    index_status: Mapped[str] = mapped_column(String, server_default="'not_processed'")
+    # Вложение может принадлежать беседе с ИИ, а не странице.
+    ai_chat_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
 class Label(Base, TimestampMixin):

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, not_found
+from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService, StoredFile
@@ -58,6 +59,7 @@ class FileController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
         settings: NamedDependency[Settings],
     ) -> dict:
         principal: Principal = request.scope["principal"]
@@ -68,7 +70,7 @@ class FileController(Controller):
             raise bad_request("error.attachment.file_required")
 
         content = await upload.read()
-        attachment = await AttachmentService(db_session, storage).upload_page_file(
+        attachment = await AttachmentService(db_session, storage, queue).upload_page_file(
             page_id_or_slug=str(page_id),
             file_name=upload.filename or "file",
             data=content,
@@ -92,6 +94,7 @@ class FileController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
     ) -> Response:
         """Выдать вложение.
 
@@ -100,7 +103,7 @@ class FileController(Controller):
         так же, и проверка ничего не защищала бы: идентификатор и есть ключ.
         """
         principal: Principal = request.scope["principal"]
-        stored = await AttachmentService(db_session, storage).read(
+        stored = await AttachmentService(db_session, storage, queue).read(
             file_id, principal.user_id, principal.workspace_id
         )
         return _file_response(stored, cache="private, max-age=3600")
@@ -112,12 +115,13 @@ class FileController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         principal: Principal = request.scope["principal"]
         raw = data.get("attachmentId") or data.get("fileId")
         if not raw:
             raise bad_request("error.attachment.not_found")
-        return await AttachmentService(db_session, storage).info(
+        return await AttachmentService(db_session, storage, queue).info(
             uuid.UUID(str(raw)), principal.user_id, principal.workspace_id
         )
 
@@ -132,6 +136,7 @@ class ImageController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
     ) -> dict:
         principal: Principal = request.scope["principal"]
 
@@ -143,7 +148,7 @@ class ImageController(Controller):
         raw_space = data.get("spaceId")
         space_id = uuid.UUID(str(raw_space)) if raw_space else None
 
-        stored_name = await AttachmentService(db_session, storage).upload_image(
+        stored_name = await AttachmentService(db_session, storage, queue).upload_image(
             kind=kind,
             file_name=upload.filename or "image",
             data=await upload.read(),
@@ -164,6 +169,7 @@ class ImageController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
     ) -> Response:
         """Выдать аватар или логотип.
 
@@ -189,7 +195,7 @@ class ImageController(Controller):
                 raise not_found("error.workspace.not_found")
             workspace_id = workspace.id
 
-        stored = await AttachmentService(db_session, storage).read_image(
+        stored = await AttachmentService(db_session, storage, queue).read_image(
             kind, file_name, workspace_id
         )
         return _file_response(stored, cache="private, max-age=86400")
