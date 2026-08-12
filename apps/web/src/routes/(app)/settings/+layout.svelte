@@ -7,7 +7,10 @@
   const { children }: Props = $props();
 
   const t = $derived(locale.t);
-  const sections = $derived([{ href: '/settings/account', label: t('My Profile') }]);
+  const sections = $derived([
+    { href: '/settings/account', label: t('My Profile') },
+    { href: '/settings/members', label: t('Members') }
+  ]);
 </script>
 
 <div data-section="settings" class="mx-auto flex max-w-4xl gap-8">

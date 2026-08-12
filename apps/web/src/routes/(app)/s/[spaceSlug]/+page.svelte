@@ -42,7 +42,15 @@
         <p class="text-text-muted">{data.space.description}</p>
       {/if}
     </div>
-    <Button disabled={busy} onclick={addPage}>{busy ? t('Loading...') : t('New page')}</Button>
+    <div class="flex shrink-0 gap-2">
+      <a
+        class="rounded border border-border bg-surface px-3 py-2 font-medium hover:bg-surface-muted"
+        href="/s/{data.space.slug}/trash"
+      >
+        {t('Trash')}
+      </a>
+      <Button disabled={busy} onclick={addPage}>{busy ? t('Loading...') : t('New page')}</Button>
+    </div>
   </div>
 
   {#if failure}<Notice message={failure} />{/if}

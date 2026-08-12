@@ -74,6 +74,22 @@ export function deletePage(pageId: string, fetcher?: typeof fetch) {
   return post<{ status: string }>('/api/pages/delete', { pageId }, { fetcher });
 }
 
+export type TrashedPage = PageSummary & { deletedAt: string; deletedById: string | null };
+
+/**
+ * Что лежит в корзине пространства.
+ *
+ * Пространство обязательно: общая корзина рабочего пространства перечисляла бы
+ * названия страниц из тех пространств, куда человек не входит.
+ */
+export function trashedPages(
+  spaceId: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<TrashedPage[]>('/api/pages/trash', { spaceId }, { fetcher, headers });
+}
+
 export function restorePage(pageId: string, fetcher?: typeof fetch) {
   return post<{ status: string }>('/api/pages/restore', { pageId }, { fetcher });
 }

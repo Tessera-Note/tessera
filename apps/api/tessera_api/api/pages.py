@@ -55,6 +55,11 @@ class UpdatePageRequest(msgspec.Struct):
     icon: str | None = None
 
 
+class TrashRequest(msgspec.Struct):
+    spaceId: uuid.UUID  # noqa: N815 — имя поля из v1
+    limit: int = 50
+
+
 class PageIdRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
 
@@ -295,6 +300,34 @@ class PageController(Controller):
         return await PageService(db_session, realtime, queue).breadcrumbs(
             page, principal.user_id
         )
+
+    @post("/trash")
+    async def trash(
+        self,
+        data: TrashRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        queue: NamedDependency[JobQueue],
+    ) -> list[dict]:
+        """Что лежит в корзине пространства.
+
+        Пространство обязательно: общая корзина рабочего пространства
+        перечисляла бы названия страниц из тех пространств, куда человек не
+        входит.
+        """
+        principal: Principal = request.scope["principal"]
+        pages = await PageService(db_session, realtime, queue).deleted_in_space(
+            data.spaceId, principal.user_id, limit=data.limit
+        )
+        return [
+            {
+                **_page_view(page),
+                "deletedAt": page.deleted_at,
+                "deletedById": page.deleted_by_id,
+            }
+            for page in pages
+        ]
 
     @post("/tree")
     async def tree(

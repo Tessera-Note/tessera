@@ -249,3 +249,66 @@ class TestTrash:
 
         tree = await service.children(None, world["space"].id, world["owner"].id)
         assert all(item.id != page.id for item in tree)
+
+    async def test_a_deleted_page_is_listed(self, session: AsyncSession, world) -> None:
+        """Корзина перечисляет корни удалённых ветвей."""
+        service = PageService(session)
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="В корзину",
+        )
+        await service.move_to_trash(page, world["owner"].id)
+
+        found = await service.deleted_in_space(world["space"].id, world["owner"].id)
+        assert page.id in [one.id for one in found]
+
+    async def test_a_live_page_is_not_listed(self, session: AsyncSession, world) -> None:
+        service = PageService(session)
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Живая",
+        )
+
+        found = await service.deleted_in_space(world["space"].id, world["owner"].id)
+        assert page.id not in [one.id for one in found]
+
+    async def test_only_the_root_of_a_deleted_branch_is_listed(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Потомок вернётся вместе с родителем.
+
+        Отдельной строкой он означал бы восстановление куска ветви без её
+        основания.
+        """
+        service = PageService(session)
+        parent = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Родитель",
+        )
+        child = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Потомок",
+            parent_page_id=parent.id,
+        )
+        await service.move_to_trash(parent, world["owner"].id)
+
+        listed = [
+            one.id
+            for one in await service.deleted_in_space(world["space"].id, world["owner"].id)
+        ]
+        assert parent.id in listed
+        assert child.id not in listed
+
+    async def test_a_stranger_gets_nothing(self, session: AsyncSession, world) -> None:
+        """Чужое пространство не отвечает вовсе: список названий это тоже сведения."""
+        with pytest.raises(AppError) as error:
+            await PageService(session).deleted_in_space(world["space"].id, uuid.uuid4())
+        assert error.value.code == "error.space.space_not_found"

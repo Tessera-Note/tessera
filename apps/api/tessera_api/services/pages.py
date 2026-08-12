@@ -7,8 +7,9 @@ import string
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import Page, PageAccess, Space
@@ -275,6 +276,45 @@ class PageService:
         await self._session.commit()
         await self._refresh_tree(page)
         await self._drop_index([page.id, *ids])
+
+    async def deleted_in_space(
+        self, space_id: uuid.UUID, user_id: uuid.UUID, limit: int = 50
+    ) -> list[Page]:
+        """Что лежит в корзине пространства.
+
+        Отдаются только корни удалённых ветвей: страница, чей родитель тоже в
+        корзине, вернётся вместе с ним, и отдельной строкой она означала бы
+        восстановление куска ветви без её основания.
+
+        Право проверяется по каждой странице, а не по членству в пространстве:
+        закрытая страница остаётся закрытой и в корзине, и перечислять её
+        названия тем, кому она не открыта, нельзя.
+        """
+        if await self._members.role_in_space(user_id, space_id) is None:
+            raise not_found("error.space.space_not_found")
+
+        parent = aliased(Page)
+        found = (
+            (
+                await self._session.execute(
+                    select(Page)
+                    .outerjoin(parent, parent.id == Page.parent_page_id)
+                    .where(Page.space_id == space_id)
+                    .where(Page.deleted_at.isnot(None))
+                    .where(or_(Page.parent_page_id.is_(None), parent.deleted_at.is_(None)))
+                    .order_by(Page.deleted_at.desc())
+                    .limit(min(limit, 100))
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        allowed: list[Page] = []
+        for one in found:
+            if (await self._access.rights(one, user_id)).can_view:
+                allowed.append(one)
+        return allowed
 
     async def restore(self, page_id: uuid.UUID, user_id: uuid.UUID) -> Page:
         """Вернуть страницу из корзины вместе с ветвью.
