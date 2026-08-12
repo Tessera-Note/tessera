@@ -60,6 +60,8 @@ class JobName:
     #: Снятие векторов. Отдельное имя, потому что работает без ключа
     #: провайдера: удаление обязано идти и у ненастроенного пространства.
     REMOVE_PAGE_EMBEDDING = "page-deleted-embedding"
+    #: Разбор принятого архива.
+    IMPORT_ARCHIVE = "import-task"
 
 
 def retrying(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

@@ -69,6 +69,8 @@ services:
       # MinIO не умеет виртуальные хосты бакетов.
       AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-true}
       FILE_UPLOAD_SIZE_LIMIT: ${FILE_UPLOAD_SIZE_LIMIT:-50mb}
+      # Ввозимый архив крупнее обычного вложения: в нём целое пространство.
+      FILE_IMPORT_SIZE_LIMIT: ${FILE_IMPORT_SIZE_LIMIT:-200mb}
       # Провайдер ИИ. Применяется только к пространству, которое не выбрало
       # провайдера само: как только выбрало, отсюда не наследуется ничего,
       # включая имена моделей — они у провайдеров несовместимы.
@@ -121,6 +123,8 @@ services:
       AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD обязателен}
       AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-true}
       FILE_UPLOAD_SIZE_LIMIT: ${FILE_UPLOAD_SIZE_LIMIT:-50mb}
+      # Ввозимый архив крупнее обычного вложения: в нём целое пространство.
+      FILE_IMPORT_SIZE_LIMIT: ${FILE_IMPORT_SIZE_LIMIT:-200mb}
       # Провайдер ИИ. Применяется только к пространству, которое не выбрало
       # провайдера само: как только выбрало, отсюда не наследуется ничего,
       # включая имена моделей — они у провайдеров несовместимы.

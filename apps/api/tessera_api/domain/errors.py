@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from litestar import Request, Response
 from litestar.exceptions import HTTPException
 from litestar.status_codes import (
     HTTP_400_BAD_REQUEST,
@@ -58,6 +59,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.common.workspace_not_found": "Workspace not found",
     "error.common.user_not_found": "User not found",
     "error.space.space_not_found": "Space not found",
+    "error.space.space_id_required": "A space must be given",
     "error.space.access_denied": "You do not have access to this space",
     "error.page.page_not_found": "Page not found",
     "error.page.access_denied": "You do not have access to this page",
@@ -87,6 +89,22 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.mcp.tool_failed": "The tool could not complete",
     "error.content.transform_unavailable": "The content service is not responding",
     "error.content.transform_failed": "This content could not be converted",
+    "error.import.unsupported_format": "This file format cannot be imported",
+    "error.import.no_text": "No text could be read from this document",
+    "error.import.no_text_layer": "This PDF has no text layer, only images",
+    "error.import.broken_archive": "This archive could not be opened",
+    "error.import.archive_too_large": "This archive unpacks to too much data",
+    "error.import.nothing_to_import": "The archive has no importable files",
+    "error.import.unknown_source": "Unknown archive kind",
+    "error.import.unavailable": "Archive import is not available in this deployment",
+    "error.import.failed": "The import could not be completed",
+    "error.import.file_required": "No file was uploaded",
+    "error.import.file_too_large": "This file is too large to import",
+    "error.import.unsupported_archive": "Only zip archives can be imported",
+    "error.import.task_not_found": "Import task not found",
+    "error.export.unknown_format": "Unknown export format",
+    "error.export.nothing_to_export": "There is nothing to export",
+    "error.export.attachments_unavailable": "Attachments cannot be bundled in this deployment",
     "error.ai.tools_unsupported": "This AI provider cannot use tools",
     "error.ai_chat.chat_not_found": "Conversation not found",
     "error.ai_chat.disabled": "The assistant is turned off for this workspace",
@@ -101,7 +119,9 @@ class AppError(HTTPException):
     """Отказ с кодом.
 
     Тело ответа повторяет v1: `code` для перевода, `message` как запасной
-    вариант для тех отказов, у которых перевода ещё нет.
+    вариант для тех отказов, у которых перевода ещё нет. Форму собирает
+    `app_error_response`: своё представление Litestar кладёт код внутрь `extra`,
+    и клиент, ищущий его наверху, не находит ничего.
     """
 
     def __init__(self, code: str, status_code: int, params: dict | None = None) -> None:
@@ -132,3 +152,22 @@ def not_found(code: str, params: dict | None = None) -> AppError:
 
 def conflict(code: str, params: dict | None = None) -> AppError:
     return AppError(code, HTTP_409_CONFLICT, params)
+
+
+def app_error_response(request: Request, exception: AppError) -> Response:
+    """Тело отказа в том же виде, что в v1.
+
+    Своё представление Litestar даёт `{status_code, detail, extra}`, то есть
+    прячет код внутрь `extra` и называет текст иначе. Клиент переводит по коду
+    и ищет его наверху: без этой сборки перевода нет ни у одного отказа, и
+    видно это только в интерфейсе, а не в проверках.
+
+    Обрабатывается именно `AppError`, а не всякий `HTTPException`. У отказов
+    разбора запроса и у ненайденного маршрута кода нет, и выдумывать его
+    здесь — значит завести вторую таблицу кодов.
+    """
+    extra = exception.extra if isinstance(exception.extra, dict) else {}
+    body: dict = {"message": exception.detail, "code": extra.get("code", "")}
+    if extra.get("params"):
+        body["params"] = extra["params"]
+    return Response(body, status_code=exception.status_code)

@@ -48,12 +48,16 @@ class AuditEvent:
     USER_INVITED = "user.invited"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
+    PAGE_IMPORTED = "page.imported"
+    PAGE_EXPORTED = "page.exported"
+    SPACE_EXPORTED = "space.exported"
 
 
 class AuditResource:
     USER = "user"
     WORKSPACE = "workspace"
     SPACE = "space"
+    PAGE = "page"
 
 
 class ActorType:

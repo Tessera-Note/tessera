@@ -16,6 +16,7 @@
  */
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 import {
   addUniqueIdsToDoc,
@@ -123,7 +124,12 @@ export function createTransformServer() {
   });
 }
 
-if (process.env.NODE_ENV !== 'test') {
+// Сервер поднимается, только когда этот файл и есть точка входа. Прежде здесь
+// стояла проверка `NODE_ENV !== 'test'`: она опирается на переменную, которую
+// запуск проверок не выставляет, поэтому импорт файла в проверке занимал
+// настоящий порт. На машине, где порт уже занят соседом, это роняло весь файл
+// проверок ошибкой, к самим проверкам отношения не имеющей.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   createTransformServer().listen(PORT, HOST, () => {
     console.log(`Преобразование содержимого слушает ${HOST}:${PORT}`);
   });

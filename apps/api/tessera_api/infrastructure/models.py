@@ -415,6 +415,32 @@ class BaseView(Base, TimestampMixin):
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
+class FileTask(Base, SoftDeleteMixin):
+    """Отложенная работа с файлом: ввоз архива или выгрузка.
+
+    Строка нужна не ради учёта, а ради опроса: клиент по ней узнаёт, чем
+    кончилось дело. Поэтому отказ хранится текстом здесь же — иначе человек
+    видит «не получилось» без причины и приходит спрашивать.
+    """
+
+    __tablename__ = "file_tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    type: Mapped[str | None] = mapped_column(String)
+    source: Mapped[str | None] = mapped_column(String)
+    status: Mapped[str | None] = mapped_column(String)
+    file_name: Mapped[str] = mapped_column(String)
+    file_path: Mapped[str] = mapped_column(String)
+    file_size: Mapped[int | None] = mapped_column(BigInteger)
+    file_ext: Mapped[str | None] = mapped_column(String)
+    error_message: Mapped[str | None] = mapped_column(String)
+    creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    space_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    task_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", NullableJsonb)
+
+
 class AiChat(Base, SoftDeleteMixin):
     """Беседа с агентом.
 

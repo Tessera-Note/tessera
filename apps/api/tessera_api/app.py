@@ -24,8 +24,10 @@ from tessera_api.api.attachments import FileController, ImageController
 from tessera_api.api.audit import AuditController
 from tessera_api.api.auth import AuthController
 from tessera_api.api.bases import BaseController
+from tessera_api.api.exports import ExportController
 from tessera_api.api.guards import PUBLIC, jwt_guard
 from tessera_api.api.health import HealthController
+from tessera_api.api.imports import FileTaskController, ImportController
 from tessera_api.api.invitations import InvitationController
 from tessera_api.api.mcp import McpController
 from tessera_api.api.mfa import MfaController
@@ -49,7 +51,9 @@ from tessera_api.api.sso import SsoController
 from tessera_api.api.templates import TemplateController
 from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
+from tessera_api.domain.errors import AppError, app_error_response
 from tessera_api.infrastructure.cache import Cache
+from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.database import Database
 from tessera_api.infrastructure.mail import MailService, MailSettings
 from tessera_api.infrastructure.queue import JobQueue
@@ -88,6 +92,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
 
     storage = create_storage(resolved)
     throttle = Throttle(cache.client)
+    content = ContentClient(resolved.content_service_url)
 
     realtime_server = RealtimeServer(resolved.redis_url)
     realtime = RealtimeService(
@@ -157,6 +162,9 @@ def create_app(settings: Settings | None = None) -> Litestar:
     async def provide_realtime() -> RealtimeService:
         return realtime
 
+    async def provide_content() -> ContentClient:
+        return content
+
     async def provide_mailer(db_session: AsyncSession) -> NotificationMailer:
         # На той же сессии, что и уведомления: страницы и людей отправитель
         # читает из той же транзакции, где уведомления только что заведены.
@@ -194,6 +202,9 @@ def create_app(settings: Settings | None = None) -> Litestar:
             BaseController,
             McpController,
             SsoController,
+            ImportController,
+            FileTaskController,
+            ExportController,
             socket_io,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный
@@ -212,8 +223,12 @@ def create_app(settings: Settings | None = None) -> Litestar:
             "queue": Provide(provide_queue),
             "throttle": Provide(provide_throttle),
             "realtime": Provide(provide_realtime),
+            "content": Provide(provide_content),
             "mailer": Provide(provide_mailer),
         },
+        # Форма тела отказа v1: код наверху, а не внутри `extra`. Клиент
+        # переводит по коду и ищет его там.
+        exception_handlers={AppError: app_error_response},
         lifespan=[lifespan],
         # Разбор токена нужен охране, а она зависимостей не получает.
         state=State({"tokens": tokens, "database": database, "realtime": realtime}),

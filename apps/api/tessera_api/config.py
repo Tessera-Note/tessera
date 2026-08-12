@@ -61,6 +61,9 @@ class Settings:
     s3_secret_access_key: str | None = None
     s3_force_path_style: bool = True
     file_upload_size_limit: int = 50 * 1024 * 1024
+    # Ввозимый архив крупнее обычного вложения: в нём не один файл, а целое
+    # пространство. Предел тот же, что в v1.
+    file_import_size_limit: int = 200 * 1024 * 1024
     # Настройки ИИ из окружения. Применяются только к пространству, которое не
     # выбрало провайдера само: как только выбрало, наследуется отсюда ничего,
     # включая имена моделей — они у провайдеров несовместимы.
@@ -131,7 +134,12 @@ class Settings:
             # MinIO не умеет виртуальные хосты бакетов, и в v1 здесь тоже
             # `true`. Значение по умолчанию именно такое, а не «как у AWS».
             s3_force_path_style=_env("AWS_S3_FORCE_PATH_STYLE", "true").lower() == "true",
-            file_upload_size_limit=_parse_size(_env("FILE_UPLOAD_SIZE_LIMIT", "50mb")),
+            file_upload_size_limit=_parse_size(
+                _env("FILE_UPLOAD_SIZE_LIMIT", "50mb"), "FILE_UPLOAD_SIZE_LIMIT"
+            ),
+            file_import_size_limit=_parse_size(
+                _env("FILE_IMPORT_SIZE_LIMIT", "200mb"), "FILE_IMPORT_SIZE_LIMIT"
+            ),
         )
 
 
@@ -140,7 +148,7 @@ class Settings:
 _SIZE_UNITS = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
 
 
-def _parse_size(value: str) -> int:
+def _parse_size(value: str, name: str = "FILE_UPLOAD_SIZE_LIMIT") -> int:
     """Разобрать размер вида `50mb`.
 
     Голое число трактуется как байты. Неразбираемое значение — отказ на старте,
@@ -156,4 +164,4 @@ def _parse_size(value: str) -> int:
             if not number.replace(".", "", 1).isdigit():
                 break
             return int(float(number) * multiplier)
-    raise RuntimeError(f"FILE_UPLOAD_SIZE_LIMIT не разбирается: {value!r}")
+    raise RuntimeError(f"{name} не разбирается: {value!r}")

@@ -234,3 +234,46 @@ class TestBlockingCalls:
 
         source = inspect.getsource(LdapService.login)
         assert source.count("asyncio.to_thread") == 2
+
+
+class TestHandlerInventory:
+    """Опись заданий: у каждого имени либо обработчик, либо запись, почему нет.
+
+    Имя без обработчика — это задание, которое встаёт в очередь и не
+    разбирается никем. Отказа при этом нет: постановка проходит, работа не
+    делается, и заметно это только по тому, что чего-то не произошло.
+    """
+
+    #: Имена, у которых обработчика пока нет и это осознанно. Оба перенесены из
+    #: перечня v1 вместе с остальными, а сами подсистемы в v2 ещё не написаны
+    #: (`docs/future-roadmap.md`). Постановки этих заданий в коде тоже нет:
+    #: проверка ниже это подтверждает.
+    WITHOUT_HANDLER = {"delete-page-attachments", "page-backlinks"}
+
+    def test_every_name_is_handled_or_listed(self) -> None:
+        from tessera_api.jobs import HANDLERS
+
+        names = {
+            value
+            for key, value in vars(JobName).items()
+            if not key.startswith("_") and isinstance(value, str)
+        }
+        handled = {handler.name for handler in HANDLERS}
+        assert names - handled == self.WITHOUT_HANDLER
+
+    def test_a_name_without_a_handler_is_never_enqueued(self) -> None:
+        """Иначе задание уходит в очередь и остаётся там навсегда."""
+        import pathlib
+
+        constants = {
+            key
+            for key, value in vars(JobName).items()
+            if isinstance(value, str) and value in self.WITHOUT_HANDLER
+        }
+        root = pathlib.Path(__file__).resolve().parents[1] / "tessera_api"
+        for path in root.rglob("*.py"):
+            if path.name == "queue.py":
+                continue
+            text = path.read_text(encoding="utf-8")
+            for name in constants:
+                assert f"JobName.{name}" not in text, f"{path.name} ставит {name}"

@@ -16,7 +16,7 @@ from arq.worker import func
 from tessera_api.config import Settings
 from tessera_api.infrastructure.database import Database
 from tessera_api.infrastructure.mail import MailService, MailSettings
-from tessera_api.infrastructure.queue import JobName, retrying
+from tessera_api.infrastructure.queue import JobName, JobQueue, retrying
 from tessera_api.infrastructure.storage import create_storage
 
 logger = logging.getLogger(__name__)
@@ -132,6 +132,35 @@ async def reindex_embeddings(ctx: dict, *, workspace_id: str) -> int:
 
 REINDEX_EMBEDDINGS = func(reindex_embeddings, name=JobName.REINDEX_EMBEDDINGS)
 
+
+@retrying
+async def import_archive(ctx: dict, *, task_id: str) -> int:
+    """Разобрать принятый архив.
+
+    Сюда попадает уже принятый и проверенный архив: право писать в
+    пространство проверено в запросе, где человек ещё был. Задание своего
+    представления о правах не имеет и иметь не должно.
+
+    Событий об изменившемся дереве отсюда не уходит: канал событий живёт в
+    приложении, а не в исполнителе. Клиент опрашивает само задание и
+    перечитывает дерево, когда оно закончилось, — так же, как в v1.
+    """
+    from tessera_api.infrastructure.content import ContentClient
+    from tessera_api.services.imports import ImportService
+
+    database: Database = ctx["database"]
+    settings: Settings = ctx["settings"]
+    async with database.session() as session:
+        return await ImportService(
+            session,
+            ContentClient(settings.content_service_url),
+            storage=ctx["storage"],
+            queue=ctx["queue"],
+        ).run_archive(uuid.UUID(task_id))
+
+
+IMPORT_ARCHIVE = func(import_archive, name=JobName.IMPORT_ARCHIVE)
+
 #: Полный состав обработчиков. Список видно целиком, и забытый в нём
 #: обработчик заметен: задание встанет в очередь и не разберётся никем.
 HANDLERS = [
@@ -140,6 +169,7 @@ HANDLERS = [
     INDEX_PAGE_EMBEDDING,
     REMOVE_PAGE_EMBEDDING,
     REINDEX_EMBEDDINGS,
+    IMPORT_ARCHIVE,
 ]
 
 
@@ -148,6 +178,11 @@ async def startup(ctx: dict) -> None:
     ctx["settings"] = settings
     ctx["database"] = Database(settings.database_url)
     ctx["storage"] = create_storage(settings)
+    # Очередь нужна самим заданиям: ввоз архива заводит страницы, а заведённая
+    # страница ставит задание на пересчёт векторов. Без неё ввезённые страницы
+    # оставались бы вне поиска по смыслу.
+    ctx["queue"] = JobQueue(settings.redis_url)
+    await ctx["queue"].connect()
     ctx["mail"] = MailService(
         MailSettings(
             driver=settings.mail_driver,
@@ -164,6 +199,9 @@ async def startup(ctx: dict) -> None:
 
 
 async def shutdown(ctx: dict) -> None:
+    queue: JobQueue | None = ctx.get("queue")
+    if queue is not None:
+        await queue.dispose()
     database: Database | None = ctx.get("database")
     if database is not None:
         await database.dispose()

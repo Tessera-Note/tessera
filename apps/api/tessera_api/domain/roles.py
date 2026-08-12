@@ -49,6 +49,11 @@ def can_write_space(role: str | None) -> bool:
     return SPACE_RANK.get(role or "", 0) >= SPACE_RANK[SpaceRole.WRITER]
 
 
+def can_manage_space(role: str | None) -> bool:
+    """Право распоряжаться пространством, а не только писать в нём."""
+    return SPACE_RANK.get(role or "", 0) >= SPACE_RANK[SpaceRole.ADMIN]
+
+
 def outranks(actor: str | None, target: str | None) -> bool:
     """Может ли актор действовать над обладателем целевой роли.
 
