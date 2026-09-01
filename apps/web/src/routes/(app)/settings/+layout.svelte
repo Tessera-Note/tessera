@@ -14,6 +14,7 @@
     { href: '/settings/members', label: t('Members') },
     { href: '/settings/groups', label: t('Groups') },
     { href: '/settings/workspace', label: t('Workspace settings') },
+    { href: '/settings/ai', label: t('AI') },
     { href: '/settings/audit', label: t('Audit log') }
   ]);
 </script>

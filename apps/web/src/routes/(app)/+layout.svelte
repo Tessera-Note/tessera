@@ -62,6 +62,10 @@
       <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/favorites">
         {t('Favorites')}
       </a>
+      <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/templates">
+        {t('Templates')}
+      </a>
+      <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/ai">{t('AI Chat')}</a>
       <a
         class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-surface-muted"
         href="/notifications"
