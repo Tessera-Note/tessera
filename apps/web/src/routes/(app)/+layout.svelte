@@ -27,7 +27,12 @@
     </a>
 
     <nav data-component="SpaceList" class="space-y-1">
-      <p class="px-2 pb-1 text-xs uppercase tracking-wide text-text-muted">{t('Spaces')}</p>
+      <a
+        class="block px-2 pb-1 text-xs uppercase tracking-wide text-text-muted hover:underline"
+        href="/spaces"
+      >
+        {t('Spaces')}
+      </a>
       {#each data.spaces as space (space.id)}
         <a
           class="block truncate rounded px-2 py-1.5 text-sm hover:bg-surface-muted"
@@ -54,6 +59,9 @@
 
     <nav class="mt-6 space-y-1 border-t border-border pt-4 text-sm">
       <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/search">{t('Search')}</a>
+      <a class="block rounded px-2 py-1.5 hover:bg-surface-muted" href="/favorites">
+        {t('Favorites')}
+      </a>
       <a
         class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-surface-muted"
         href="/notifications"

@@ -10,12 +10,13 @@ from litestar.di import NamedDependency
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.api.dto import GroupView, SpaceView
+from tessera_api.api.dto import GroupDetailView, GroupView, SpaceView
 from tessera_api.api.guards import Principal
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import User
 from tessera_api.infrastructure.repositories import GroupRepo, SpaceMemberRepo, SpaceRepo
+from tessera_api.services.groups import GroupService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.spaces import SpaceService
 
@@ -57,6 +58,32 @@ class MemberRoleRequest(msgspec.Struct):
     groupId: uuid.UUID | None = None  # noqa: N815 — имя поля из v1
 
 
+class GroupIdRequest(msgspec.Struct):
+    groupId: str  # noqa: N815 — имя поля из v1
+
+
+class CreateGroupRequest(msgspec.Struct):
+    name: str
+    description: str | None = None
+    userIds: list[uuid.UUID] | None = None  # noqa: N815 — имя поля из v1
+
+
+class UpdateGroupRequest(msgspec.Struct):
+    groupId: str  # noqa: N815 — имя поля из v1
+    name: str | None = None
+    description: str | None = None
+
+
+class GroupMembersRequest(msgspec.Struct):
+    groupId: str  # noqa: N815 — имя поля из v1
+    userIds: list[uuid.UUID]  # noqa: N815 — имя поля из v1
+
+
+class GroupMemberRequest(msgspec.Struct):
+    groupId: str  # noqa: N815 — имя поля из v1
+    userId: uuid.UUID  # noqa: N815 — имя поля из v1
+
+
 class SpaceMemberView(msgspec.Struct):
     id: uuid.UUID
     name: str | None
@@ -73,6 +100,14 @@ def _space_uuid(raw: str) -> uuid.UUID:
         return uuid.UUID(str(raw))
     except (TypeError, ValueError) as error:
         raise not_found("error.space.space_not_found") from error
+
+
+def _group_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор группы из тела запроса. Негодное значение — «не найдено»."""
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.group.group_not_found") from error
 
 
 async def _actor(request: Request, db_session: AsyncSession) -> tuple[User, Principal]:
@@ -318,6 +353,17 @@ class SpaceController(Controller):
         return {"success": True}
 
 
+def _group_view(group, people: int) -> GroupDetailView:
+    return GroupDetailView(
+        id=group.id,
+        name=group.name,
+        description=group.description,
+        isDefault=group.is_default,
+        directorySource=group.directory_source,
+        memberCount=people,
+    )
+
+
 class GroupController(Controller):
     path = "/api/groups"
 
@@ -337,3 +383,124 @@ class GroupController(Controller):
             )
             for group in groups
         ]
+
+    @get()
+    async def list_groups(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[GroupDetailView]:
+        """Группы рабочего пространства со счётчиком людей.
+
+        Видны любому участнику: без них нельзя выбрать группу при выдаче
+        доступа. Имён и адресов людей здесь нет, только имя группы и счётчик.
+        """
+        principal: Principal = request.scope["principal"]
+        found = await GroupService(db_session).list(principal.workspace_id)
+        return [_group_view(group, people) for group, people in found]
+
+    @post("/info")
+    async def group_info(
+        self, data: GroupIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> GroupDetailView:
+        principal: Principal = request.scope["principal"]
+        group, people = await GroupService(db_session).info(
+            _group_uuid(data.groupId), principal.workspace_id
+        )
+        return _group_view(group, people)
+
+    @post("/members")
+    async def group_members(
+        self, data: GroupIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[SpaceMemberView]:
+        principal: Principal = request.scope["principal"]
+        people = await GroupService(db_session).members(
+            principal.user_id, _group_uuid(data.groupId), principal.workspace_id
+        )
+        return [SpaceMemberView(id=one.id, name=one.name, email=one.email) for one in people]
+
+    @post("/create")
+    async def create_group(
+        self,
+        data: CreateGroupRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> GroupDetailView:
+        principal: Principal = request.scope["principal"]
+        service = GroupService(db_session, realtime)
+        group = await service.create(
+            principal.user_id,
+            principal.workspace_id,
+            name=data.name,
+            description=data.description,
+            user_ids=data.userIds or [],
+        )
+        _, people = await service.info(group.id, principal.workspace_id)
+        return _group_view(group, people)
+
+    @post("/update")
+    async def update_group(
+        self,
+        data: UpdateGroupRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> GroupDetailView:
+        principal: Principal = request.scope["principal"]
+        service = GroupService(db_session, realtime)
+        group = await service.update(
+            principal.user_id,
+            _group_uuid(data.groupId),
+            principal.workspace_id,
+            name=data.name,
+            description=data.description,
+        )
+        _, people = await service.info(group.id, principal.workspace_id)
+        return _group_view(group, people)
+
+    @post("/delete")
+    async def delete_group(
+        self,
+        data: GroupIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        await GroupService(db_session, realtime).delete(
+            principal.user_id, _group_uuid(data.groupId), principal.workspace_id
+        )
+        return {"success": True}
+
+    @post("/members/add")
+    async def add_group_members(
+        self,
+        data: GroupMembersRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        added = await GroupService(db_session, realtime).add_members(
+            principal.user_id,
+            _group_uuid(data.groupId),
+            principal.workspace_id,
+            data.userIds,
+        )
+        return {"added": added}
+
+    @post("/members/remove")
+    async def remove_group_member(
+        self,
+        data: GroupMemberRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        await GroupService(db_session, realtime).remove_member(
+            principal.user_id,
+            _group_uuid(data.groupId),
+            principal.workspace_id,
+            data.userId,
+        )
+        return {"success": True}

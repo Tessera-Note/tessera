@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, not_found
-from tessera_api.infrastructure.models import Favorite, Label, Page, PageLabel
+from tessera_api.infrastructure.models import Favorite, Label, Page, PageLabel, Space
 from tessera_api.services.page_access import PageAccessService
 
 
@@ -135,6 +135,38 @@ class FavoriteService:
             .order_by(Favorite.created_at.desc())
         )
         return list((await self._session.execute(stmt)).scalars().all())
+
+    async def list_pages(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Favorite, Page, Space]]:
+        """Избранное вместе со страницами и их пространствами.
+
+        Отдельно от `list_for_user`, который отдаёт одни идентификаторы: тому
+        достаточно знать, отмечена ли открытая страница, а экрану избранного
+        нужны названия.
+
+        Право проверяется по каждой странице. Отметка переживает и удаление
+        страницы, и снятие доступа к ней, и перечислять такие названия нельзя:
+        избранное стало бы обходным путём к закрытому.
+        """
+        rows = (
+            await self._session.execute(
+                select(Favorite, Page, Space)
+                .join(Page, Page.id == Favorite.page_id)
+                .join(Space, Space.id == Page.space_id)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.workspace_id == workspace_id)
+                .where(Page.deleted_at.is_(None))
+                .where(Space.deleted_at.is_(None))
+                .order_by(Favorite.created_at.desc())
+            )
+        ).all()
+
+        allowed: list[tuple[Favorite, Page, Space]] = []
+        for favorite, page, space in rows:
+            if (await self._access.rights(page, user_id)).can_view:
+                allowed.append((favorite, page, space))
+        return allowed
 
     async def add_page(self, page: Page, user_id: uuid.UUID) -> None:
         # В избранное берётся только то, что человек видит: иначе избранное

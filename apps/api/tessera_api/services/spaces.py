@@ -539,17 +539,20 @@ class SpaceService:
         return found
 
     async def _assert_not_last_admin(self, space_id: uuid.UUID, besides: uuid.UUID) -> None:
-        other = (
-            await self._session.execute(
-                select(SpaceMember.id)
-                .where(SpaceMember.space_id == space_id)
-                .where(SpaceMember.role == SpaceRole.ADMIN)
-                .where(SpaceMember.id != besides)
-                .where(SpaceMember.deleted_at.is_(None))
-                .limit(1)
-            )
-        ).first()
-        if other is None:
+        """Отказать, если после действия администраторов не останется.
+
+        Считаются люди, а не строки состава: роль приходит и через группу, и
+        счёт по строкам сказал бы, что администратор есть, когда единственная
+        оставшаяся строка — группа без людей.
+
+        Сравнивается «было» с «станет». Пространство, где администраторов нет
+        и так, этим правилом не запирается: иначе починить его стало бы нельзя.
+        """
+        before = await self._members.admin_user_ids(space_id)
+        if not before:
+            return
+        after = await self._members.admin_user_ids(space_id, without_membership=besides)
+        if not after:
             raise bad_request("error.space.last_admin")
 
     async def _members_of(

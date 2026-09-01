@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.infrastructure.models import (
@@ -174,6 +174,53 @@ class SpaceMemberRepo:
         from tessera_api.domain.roles import SPACE_RANK
 
         return max(roles, key=lambda role: SPACE_RANK.get(role, 0))
+
+    async def admin_user_ids(
+        self,
+        space_id: uuid.UUID,
+        *,
+        without_membership: uuid.UUID | None = None,
+        without_member: tuple[uuid.UUID, uuid.UUID] | None = None,
+    ) -> set[uuid.UUID]:
+        """Люди с ролью администратора в пространстве, прямо или через группу.
+
+        Именно люди, а не строки состава. Роль администратора приходит и
+        группой, и счёт по строкам сказал бы, что администратор есть, когда
+        единственная такая строка — группа, из которой сейчас выводят
+        последнего человека.
+
+        Оба исключения отвечают на один вопрос: что останется после действия,
+        которое ещё не совершено. `without_membership` считает так, будто
+        названной строки состава уже нет; `without_member` — будто названный
+        человек уже выведен из названной группы.
+        """
+        from tessera_api.domain.roles import SpaceRole
+
+        direct = (
+            select(SpaceMember.user_id)
+            .where(SpaceMember.space_id == space_id)
+            .where(SpaceMember.role == SpaceRole.ADMIN)
+            .where(SpaceMember.user_id.isnot(None))
+            .where(SpaceMember.deleted_at.is_(None))
+        )
+        via_group = (
+            select(GroupUser.user_id)
+            .join(SpaceMember, SpaceMember.group_id == GroupUser.group_id)
+            .where(SpaceMember.space_id == space_id)
+            .where(SpaceMember.role == SpaceRole.ADMIN)
+            .where(SpaceMember.deleted_at.is_(None))
+        )
+        if without_membership is not None:
+            direct = direct.where(SpaceMember.id != without_membership)
+            via_group = via_group.where(SpaceMember.id != without_membership)
+        if without_member is not None:
+            person, group_id = without_member
+            via_group = via_group.where(
+                or_(GroupUser.user_id != person, GroupUser.group_id != group_id)
+            )
+
+        rows = await self._session.execute(direct.union(via_group))
+        return {row[0] for row in rows.all() if row[0] is not None}
 
     async def members_of(self, space_id: uuid.UUID) -> set[uuid.UUID]:
         """Все, кто состоит в пространстве, прямо или через группу.

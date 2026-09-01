@@ -606,11 +606,30 @@ class FavoriteController(Controller):
     async def list_favorites(
         self, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> list[dict]:
+        """Избранное со страницами и пространствами.
+
+        Название и адрес отдаются рядом с идентификатором, чтобы экран
+        избранного не запрашивал каждую страницу отдельно. Страница, к которой
+        доступ снят или которая удалена, в список не попадает: отметка её
+        переживает, а перечислять названия закрытого нельзя.
+        """
         principal: Principal = request.scope["principal"]
-        found = await FavoriteService(db_session).list_for_user(
+        found = await FavoriteService(db_session).list_pages(
             principal.user_id, principal.workspace_id
         )
-        return [{"id": f.id, "pageId": f.page_id, "type": f.type} for f in found]
+        return [
+            {
+                "id": favorite.id,
+                "pageId": favorite.page_id,
+                "type": favorite.type,
+                "title": page.title,
+                "slugId": page.slug_id,
+                "icon": page.icon,
+                "spaceSlug": space.slug,
+                "spaceName": space.name,
+            }
+            for favorite, page, space in found
+        ]
 
     @post("/add")
     async def add(
@@ -628,7 +647,12 @@ class FavoriteController(Controller):
         principal: Principal = request.scope["principal"]
         # Права намеренно не проверяются: снять свою запись человек должен
         # мочь и после того, как доступ к странице у него отобрали.
-        await FavoriteService(db_session).remove_page(uuid.UUID(data.pageId), principal.user_id)
+        # Разбор через общий помощник: голое `uuid.UUID` отвечало бы пятисотым
+        # на опечатку, тогда как весь файл на негодный идентификатор отвечает
+        # «не найдено».
+        await FavoriteService(db_session).remove_page(
+            _page_uuid(data.pageId), principal.user_id
+        )
         return {"status": "ok"}
 
 

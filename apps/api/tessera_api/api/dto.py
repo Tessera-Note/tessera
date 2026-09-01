@@ -49,6 +49,17 @@ class GroupView(msgspec.Struct):
     directorySource: str | None  # noqa: N815 — имя поля из v1
 
 
+class GroupDetailView(msgspec.Struct):
+    """Группа для экрана управления. Людей здесь нет, только их число."""
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    isDefault: bool  # noqa: N815 — имя поля из v1
+    directorySource: str | None  # noqa: N815 — имя поля из v1
+    memberCount: int  # noqa: N815 — имя поля из v1
+
+
 class SessionView(msgspec.Struct):
     user: UserView
     workspace: WorkspaceView

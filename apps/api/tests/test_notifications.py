@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import (
+    Group,
+    GroupUser,
     Notification,
     PageAccess,
     PagePermission,
@@ -457,6 +459,86 @@ class TestListing:
         )
         await session.flush()
 
+        assert await service.unread_count(user_id, workspace.id) == 0
+
+    async def test_access_through_a_group_keeps_the_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Доступ приходит и через группу.
+
+        Проверка одного лишь прямого членства прятала бы от человека его же
+        уведомления: ни упоминания, ни ответа на свой комментарий он не
+        увидел бы, а причину этого из интерфейса не понять.
+        """
+        _, user_id = await self._some(session, workspace, owner, space)
+        service = NotificationService(session)
+
+        group_id = uuid.uuid4()
+        await session.execute(
+            insert(Group).values(
+                id=group_id,
+                name=f"Группа {group_id.hex[:4]}",
+                is_default=False,
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(GroupUser).values(id=uuid.uuid4(), user_id=user_id, group_id=group_id)
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                space_id=space.id,
+                group_id=group_id,
+                role=SpaceRole.READER,
+                added_by_id=owner.id,
+            )
+        )
+        # Прямое членство снимается: остаётся только доступ через группу.
+        await session.execute(
+            delete(SpaceMember)
+            .where(SpaceMember.user_id == user_id)
+            .where(SpaceMember.space_id == space.id)
+        )
+        await session.flush()
+
+        assert len(await service.list(user_id, workspace.id)) == 1
+        assert await service.unread_count(user_id, workspace.id) == 1
+
+    async def test_a_page_closed_afterwards_leaves_the_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Членства в пространстве мало: страницу могли закрыть после того,
+        как уведомление завели, а строка несёт её название."""
+        world, user_id = await self._some(session, workspace, owner, space)
+        service = NotificationService(session)
+        assert len(await service.list(user_id, workspace.id)) == 1
+
+        access_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=access_id,
+                page_id=world["root"].id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(PagePermission).values(
+                id=uuid.uuid4(),
+                page_access_id=access_id,
+                user_id=owner.id,
+                role=SpaceRole.ADMIN,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+        assert await service.list(user_id, workspace.id) == []
+        # Значок считает по тем же правилам: иначе он обещает непрочитанное,
+        # которого в списке нет, и снять его нечем.
         assert await service.unread_count(user_id, workspace.id) == 0
 
     async def test_the_list_is_bounded(

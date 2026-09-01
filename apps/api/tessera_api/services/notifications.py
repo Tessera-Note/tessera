@@ -16,12 +16,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import func, insert, or_, select, update
+from sqlalchemy import insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from tessera_api.infrastructure.models import (
     Comment,
+    GroupUser,
     Notification,
     Page,
     Space,
@@ -447,13 +448,23 @@ class NotificationService:
         могли исключить из пространства после того, как уведомление завели, и
         строка списка несёт название страницы, то есть содержимое.
         """
+        direct = (
+            select(SpaceMember.space_id)
+            .where(SpaceMember.user_id == user_id)
+            .where(SpaceMember.deleted_at.is_(None))
+        )
+        # Доступ приходит и через группу. Без этой половины человек, состоящий
+        # в пространстве только группой, не видел бы собственных уведомлений —
+        # ни упоминаний, ни ответов на свои комментарии.
+        via_group = (
+            select(SpaceMember.space_id)
+            .join(GroupUser, GroupUser.group_id == SpaceMember.group_id)
+            .where(GroupUser.user_id == user_id)
+            .where(SpaceMember.deleted_at.is_(None))
+        )
         return or_(
             Notification.space_id.is_(None),
-            Notification.space_id.in_(
-                select(SpaceMember.space_id)
-                .where(SpaceMember.user_id == user_id)
-                .where(SpaceMember.deleted_at.is_(None))
-            ),
+            Notification.space_id.in_(direct.union(via_group)),
         )
 
     async def list(
@@ -500,6 +511,14 @@ class NotificationService:
             stmt = stmt.where(Notification.type.in_(UPDATE_TYPES))
 
         rows = (await self._session.execute(stmt)).all()
+        # Название страницы это её содержание. Членства в пространстве для него
+        # мало: страницу могли закрыть после того, как уведомление завели, и
+        # тогда строка списка отдавала бы закрытое. Проверяется постранично,
+        # как в корзине; строк здесь не больше полусотни.
+        hidden = await self._closed_pages(
+            user_id, {row[4] for row in rows if row[4] is not None}
+        )
+        rows = [row for row in rows if row[4] not in hidden]
         return [
             {
                 "id": one.id,
@@ -547,18 +566,41 @@ class NotificationService:
             ) in rows
         ]
 
+    async def _closed_pages(
+        self, user_id: uuid.UUID, page_ids: set[uuid.UUID]
+    ) -> set[uuid.UUID]:
+        """Из перечисленных страниц те, что человеку сейчас закрыты."""
+        if not page_ids:
+            return set()
+
+        closed: set[uuid.UUID] = set()
+        for page_id in page_ids:
+            page = await self._session.get(Page, page_id)
+            if page is None or not (await self._access.rights(page, user_id)).can_view:
+                closed.add(page_id)
+        return closed
+
     async def unread_count(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> int:
-        return (
+        """Сколько непрочитанного показывать на значке.
+
+        Считается по тем же правилам, что и список, вплоть до прав на саму
+        страницу. Иначе значок обещает непрочитанное, которого в списке нет, и
+        снять его человеку нечем: открыть он может только то, что видит.
+        """
+        rows = (
             await self._session.execute(
-                select(func.count())
-                .select_from(Notification)
+                select(Notification.id, Notification.page_id)
                 .where(Notification.user_id == user_id)
                 .where(Notification.workspace_id == workspace_id)
                 .where(Notification.read_at.is_(None))
                 .where(Notification.archived_at.is_(None))
                 .where(self._visible(user_id))
             )
-        ).scalar_one()
+        ).all()
+        hidden = await self._closed_pages(
+            user_id, {page_id for _, page_id in rows if page_id is not None}
+        )
+        return sum(1 for _, page_id in rows if page_id not in hidden)
 
     async def mark_read(
         self, notification_ids: list[uuid.UUID], user_id: uuid.UUID

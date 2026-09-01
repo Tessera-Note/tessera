@@ -12,6 +12,7 @@
     { href: '/settings/security', label: t('2-step verification') },
     { href: '/settings/api-keys', label: t('API keys') },
     { href: '/settings/members', label: t('Members') },
+    { href: '/settings/groups', label: t('Groups') },
     { href: '/settings/workspace', label: t('Workspace settings') },
     { href: '/settings/audit', label: t('Audit log') }
   ]);
