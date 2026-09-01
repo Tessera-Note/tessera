@@ -25,6 +25,10 @@ class UserView(msgspec.Struct):
     avatarUrl: str | None  # noqa: N815 — имя поля из v1, менять нельзя
     role: str | None
     locale: str | None
+    #: Предпочтения показа и переключатели уведомлений. Отдаются вместе с
+    #: человеком, потому что экран настроек рисуется из них же, а отдельный
+    #: запрос за ними означал бы второй источник правды.
+    settings: dict | None = None
 
 
 class WorkspaceView(msgspec.Struct):
@@ -32,6 +36,9 @@ class WorkspaceView(msgspec.Struct):
     name: str | None
     hostname: str | None
     logo: str | None
+    #: Сколько живых людей в пространстве. Нужен экрану лицензии: там условия
+    #: считаются по числу людей, и брать его на глаз нельзя.
+    memberCount: int | None = None  # noqa: N815 — имя поля из v1
 
 
 class SpaceView(msgspec.Struct):

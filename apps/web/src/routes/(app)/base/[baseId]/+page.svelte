@@ -164,7 +164,7 @@
     </div>
   {/if}
 
-  <div class="mb-4 overflow-x-auto rounded border border-border bg-surface-raised">
+  <div class="mb-4 overflow-x-auto card-soft rounded-md border border-border bg-surface-raised">
     <table data-component="BaseTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>
@@ -255,7 +255,7 @@
 
   {#if canEdit}
     <form
-      class="rounded border border-border bg-surface-raised p-4"
+      class="card-soft rounded-md border border-border bg-surface-raised p-5"
       onsubmit={(event) => {
         event.preventDefault();
         if (!newProperty.trim()) return;

@@ -49,6 +49,8 @@ class JobName:
     """
 
     SEND_EMAIL = "send-email"
+    #: Печать страницы в PDF: браузер рисует, сервер складывает результат.
+    PDF_EXPORT = "pdf-export-task"
     DELETE_PAGE_ATTACHMENTS = "delete-page-attachments"
     PAGE_BACKLINKS = "page-backlinks"
     #: Разбор загруженного вложения ради поиска по его тексту.

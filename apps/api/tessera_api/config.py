@@ -86,6 +86,14 @@ class Settings:
     # Адрес соседнего сервиса преобразования содержимого. Схема узлов
     # редактора живёт там, и второй её реализации быть не должно.
     content_service_url: str = "http://tessera-v2-collab:3001"
+    #: Печать в PDF. Пустой адрес Gotenberg выключает выгрузку: развёртывание
+    #: без него должно подниматься, а не падать.
+    gotenberg_url: str = ""
+    #: Откуда Gotenberg берёт страницу отрисовки. Пустое значение означает
+    #: `app_url`: обычно это один адрес, а различаются они там, где браузер
+    #: печати ходит внутренним именем сети.
+    pdf_render_base_url: str = ""
+    pdf_export_timeout: float = 120.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -134,6 +142,9 @@ class Settings:
             hub_internal_url=_env("HUB_INTERNAL_URL", ""),
             disable_telemetry=_env("DISABLE_TELEMETRY", "false").lower() == "true",
             collab_internal_token=_env("COLLAB_INTERNAL_TOKEN", ""),
+            gotenberg_url=_env("GOTENBERG_URL", ""),
+            pdf_render_base_url=_env("PDF_RENDER_BASE_URL", ""),
+            pdf_export_timeout=float(_env("PDF_EXPORT_TIMEOUT", "120")),
             content_service_url=_env(
                 "CONTENT_SERVICE_URL", "http://tessera-v2-collab:3001"
             ),

@@ -25,6 +25,7 @@
   // содержимого: панель одна на приложение и меняет состав по разделу.
   const settingsSections = $derived([
     { href: '/settings/account', label: t('My Profile') },
+    { href: '/settings/preferences', label: t('Reading') },
     { href: '/settings/security', label: t('2-step verification') },
     { href: '/settings/api-keys', label: t('API keys') },
     { href: '/settings/members', label: t('Members') },
@@ -33,7 +34,8 @@
     { href: '/settings/ai', label: t('AI') },
     { href: '/settings/sharing', label: t('Public sharing') },
     { href: '/settings/verifications', label: t('Page verification') },
-    { href: '/settings/audit', label: t('Audit log') }
+    { href: '/settings/audit', label: t('Audit log') },
+    { href: '/settings/license', label: t('License') }
   ]);
 
   // Разговоры: догруженные и то, что переименовывают прямо сейчас. Правки

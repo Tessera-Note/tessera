@@ -6,10 +6,12 @@
   import PageBody from '$lib/components/page/PageBody.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
+  import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
   import { deletePage, updatePage } from '$lib/features/page/services/pages';
   import { createTemplate } from '$lib/features/template/services/templates';
+  import { downloadPdf, exportPagePdf, listFileTasks } from '$lib/features/page/services/pdf';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -57,6 +59,44 @@
     });
 
   let savedTemplate = $state(false);
+  /** Задание печати: пока оно идёт, человеку сообщается, что оно идёт. */
+  let printing = $state(false);
+
+  /**
+   * Отправить страницу на печать.
+   *
+   * Печатает браузер на стороне сервера, и это занимает время: ответ приходит
+   * заданием, а не файлом. Готовый документ забирается по его идентификатору.
+   */
+  const exportPdf = () =>
+    act(async () => {
+      printing = true;
+      try {
+        const task = await exportPagePdf({ pageId: data.page.id });
+        await waitForPdf(task.fileTaskId);
+      } finally {
+        printing = false;
+      }
+    });
+
+  async function waitForPdf(fileTaskId: string): Promise<void> {
+    // Опрос, а не ожидание одного ответа: печать ветви занимает десятки секунд,
+    // и держать запрос всё это время нельзя.
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await new Promise((done) => setTimeout(done, 1000));
+      const tasks = await listFileTasks();
+      const task = tasks.items.find((one) => one.id === fileTaskId);
+      if (!task) continue;
+      if (task.status === 'failed') {
+        throw new ApiError(400, 'error.pdf_export.export_not_found', task.errorMessage ?? '', {});
+      }
+      if (task.status === 'success') {
+        await downloadPdf(fileTaskId, task.fileName);
+        return;
+      }
+    }
+    throw new ApiError(408, 'error.pdf_export.export_is_not_ready_yet', '', {});
+  }
 
   /**
    * Сохранить страницу шаблоном.
@@ -122,6 +162,9 @@
             <Button variant="quiet" onclick={() => (renaming = true)}>{t('Rename')}</Button>
             <Button variant="quiet" disabled={busy} onclick={saveAsTemplate}>
               {t('New template')}
+            </Button>
+            <Button variant="quiet" disabled={busy || printing} onclick={exportPdf}>
+              {printing ? t('Loading...') : t('PDF')}
             </Button>
             <Button variant="quiet" disabled={busy} onclick={remove}>{t('Delete')}</Button>
           {/if}

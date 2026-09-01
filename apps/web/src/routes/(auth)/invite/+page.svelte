@@ -49,7 +49,7 @@
 
 <form
   data-route="invite"
-  class="rounded border border-border bg-surface-raised p-8 shadow-sm"
+  class="card-soft rounded-md border border-border bg-surface-raised p-8 shadow-sm"
   onsubmit={submit}
 >
   <h1 class="mb-6 text-xl font-semibold">{t('Accept invitation')}</h1>

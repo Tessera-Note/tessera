@@ -26,7 +26,7 @@
 {#if type === 'password'}
   <input
     data-component="TextInput"
-    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent disabled:opacity-70"
+    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:opacity-70"
     type="password"
     {autocomplete}
     {placeholder}
@@ -37,7 +37,7 @@
 {:else if type === 'email'}
   <input
     data-component="TextInput"
-    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent disabled:opacity-70"
+    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:opacity-70"
     type="email"
     {autocomplete}
     {placeholder}
@@ -48,7 +48,7 @@
 {:else if type === 'search'}
   <input
     data-component="TextInput"
-    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent disabled:opacity-70"
+    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:opacity-70"
     type="search"
     {autocomplete}
     {placeholder}
@@ -59,7 +59,7 @@
 {:else}
   <input
     data-component="TextInput"
-    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent disabled:opacity-70"
+    class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:opacity-70"
     type="text"
     {autocomplete}
     {placeholder}

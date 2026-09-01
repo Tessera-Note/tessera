@@ -42,7 +42,7 @@
   <ul data-component="TrashList" class="space-y-2">
     {#each data.pages as page (page.id)}
       <li
-        class="flex items-center justify-between gap-4 rounded border border-border bg-surface-raised p-3"
+        class="flex items-center justify-between gap-4 card-soft rounded-md border border-border bg-surface-raised p-3"
       >
         <div class="min-w-0">
           <p class="truncate font-medium">

@@ -182,6 +182,35 @@ async def page_update_digest(ctx: dict, *, user_id: str, workspace_id: str) -> i
         ).send(uuid.UUID(user_id), uuid.UUID(workspace_id))
 
 
+@retrying
+async def pdf_export(ctx: dict, *, task_id: str) -> None:
+    """Напечатать страницу в PDF.
+
+    Печатает браузер, а не сервер: разметка страницы живёт на клиенте. Задание
+    здесь потому, что ветвь из сотни страниц рисуется десятки секунд, а запрос
+    столько держать нельзя.
+
+    Состав документа решён в запросе, где человек ещё был: задание своего
+    представления о правах не имеет.
+    """
+    from tessera_api.services.pdf_export import PdfExportService
+
+    database: Database = ctx["database"]
+    settings: Settings = ctx["settings"]
+    async with database.session() as session:
+        await PdfExportService(
+            session,
+            secret=settings.app_secret,
+            gotenberg_url=settings.gotenberg_url,
+            render_base_url=settings.pdf_render_base_url or settings.app_url,
+            timeout=settings.pdf_export_timeout,
+            storage=ctx["storage"],
+            queue=ctx["queue"],
+        ).run(uuid.UUID(task_id))
+
+
+PDF_EXPORT = func(pdf_export, name=JobName.PDF_EXPORT)
+
 PAGE_UPDATE_DIGEST = func(page_update_digest, name=JobName.PAGE_UPDATE_DIGEST)
 
 #: Полный состав обработчиков. Список видно целиком, и забытый в нём
@@ -194,6 +223,7 @@ HANDLERS = [
     REINDEX_EMBEDDINGS,
     IMPORT_ARCHIVE,
     PAGE_UPDATE_DIGEST,
+    PDF_EXPORT,
 ]
 
 

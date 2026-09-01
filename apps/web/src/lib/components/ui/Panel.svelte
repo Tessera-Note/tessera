@@ -10,7 +10,10 @@
   const { title, hint, children }: Props = $props();
 </script>
 
-<section data-component="Panel" class="mb-4 rounded border border-border bg-surface-raised p-4">
+<section
+  data-component="Panel"
+  class="card-soft mb-4 rounded-md border border-border bg-surface-raised p-5"
+>
   {#if title}
     <h2 class="mb-1 text-lg font-medium">{title}</h2>
   {/if}

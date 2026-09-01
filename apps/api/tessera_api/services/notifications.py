@@ -40,6 +40,26 @@ if TYPE_CHECKING:
     from tessera_api.services.notification_mail import NotificationMailer
 
 
+#: Какой переключатель настроек отвечает за какой вид уведомления.
+#:
+#: Ключи переключателей записаны так, как их пишет v1: база одна на обе версии,
+#: и человек, выключивший упоминания в одной, не должен получать их в другой.
+#: Виды проверки страницы собраны под один переключатель — в v1 он тоже один.
+SETTING_OF_TYPE = {
+    "comment.created": "comment.created",
+    "comment.user_mention": "comment.userMention",
+    "comment.resolved": "comment.resolved",
+    "page.user_mention": "page.userMention",
+    "page.permission_granted": "page.permissionGranted",
+    "page.updated": "page.updated",
+    "page.approval_requested": "page.approvalRequested",
+    "page.verified": "page.verificationUpdates",
+    "page.approval_rejected": "page.verificationUpdates",
+    "page.verification_expiring": "page.verificationUpdates",
+    "page.verification_expired": "page.verificationUpdates",
+}
+
+
 class NotificationType:
     """Виды уведомлений. Значения совпадают с v1: одна база на обе версии."""
 
@@ -225,6 +245,12 @@ class NotificationService:
                     allowed.append(candidate)
             recipients = allowed
 
+        # Отказ от вида уведомлений выключает и запись, и письмо: получать
+        # письма о том, чего нет в списке, хуже, чем не получать ничего.
+        recipients = await self._wanted(kind, recipients)
+        if not recipients:
+            return 0
+
         for user_id in recipients:
             notification_id = uuid.uuid4()
             await self._session.execute(
@@ -247,6 +273,29 @@ class NotificationService:
                 (kind, list(recipients), page, actor_id, access, expires_at)
             )
         return len(recipients)
+
+    async def _wanted(self, kind: str, recipients: list[uuid.UUID]) -> list[uuid.UUID]:
+        """Оставить тех, кто такие уведомления не выключал.
+
+        Отсутствие переключателя означает согласие: настройки заводятся при
+        первом отказе, и трактовать пустоту как отказ значило бы замолчать для
+        всех, кто в них не заходил.
+        """
+        key = SETTING_OF_TYPE.get(kind)
+        if key is None or not recipients:
+            return recipients
+
+        rows = (
+            await self._session.execute(
+                select(User.id, User.settings).where(User.id.in_(recipients))
+            )
+        ).all()
+        refused = {
+            user_id
+            for user_id, settings in rows
+            if ((settings or {}).get("notifications") or {}).get(key) is False
+        }
+        return [one for one in recipients if one not in refused]
 
     async def flush(self) -> None:
         """Разослать сигналы о заведённых уведомлениях.

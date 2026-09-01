@@ -89,7 +89,7 @@
       {@const parts = text(one)}
       {@const href = linkTo(one)}
       <li
-        class="rounded border border-border bg-surface-raised p-3"
+        class="card-soft rounded-md border border-border bg-surface-raised p-3"
         class:border-accent={!one.readAt}
       >
         <div class="flex items-start justify-between gap-3">
@@ -118,7 +118,9 @@
         </div>
       </li>
     {:else}
-      <li class="rounded border border-border bg-surface-raised p-6 text-center text-text-muted">
+      <li
+        class="card-soft rounded-md border border-border bg-surface-raised p-6 text-center text-text-muted"
+      >
         {t('No notifications')}
       </li>
     {/each}

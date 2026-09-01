@@ -55,7 +55,7 @@
 
   <ul data-component="SearchResults" class="space-y-2">
     {#each hits as hit (hit.id)}
-      <li class="rounded border border-border bg-surface-raised p-3">
+      <li class="card-soft rounded-md border border-border bg-surface-raised p-3">
         <a class="font-medium hover:underline" href="/s/{slugs.get(hit.spaceId)}/p/{hit.slugId}">
           {hit.title ?? t('Untitled')}
         </a>

@@ -133,7 +133,7 @@
     </p>
   {/if}
 
-  <div class="mb-8 rounded border border-border bg-surface-raised">
+  <div class="mb-8 card-soft rounded-md border border-border bg-surface-raised">
     <table data-component="ApiKeyTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>

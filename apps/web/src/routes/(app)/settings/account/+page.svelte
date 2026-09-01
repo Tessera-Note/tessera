@@ -77,7 +77,10 @@
 <section data-route="settings-account">
   <h1 class="mb-6 text-2xl font-semibold">{t('My Profile')}</h1>
 
-  <form class="mb-10 rounded border border-border bg-surface-raised p-4" onsubmit={saveProfile}>
+  <form
+    class="mb-10 card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={saveProfile}
+  >
     <Field label={t('Name')}>
       <TextInput bind:value={name} autocomplete="name" required />
     </Field>
@@ -101,7 +104,10 @@
     >
   </form>
 
-  <form class="rounded border border-border bg-surface-raised p-4" onsubmit={savePassword}>
+  <form
+    class="card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={savePassword}
+  >
     <h2 class="mb-4 text-lg font-medium">{t('Change password')}</h2>
 
     <Field label={t('Current password')}>

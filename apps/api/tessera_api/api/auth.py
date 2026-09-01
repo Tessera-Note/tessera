@@ -40,6 +40,7 @@ def _user_view(user) -> UserView:
         avatarUrl=user.avatar_url,
         role=user.role,
         locale=user.locale,
+        settings=user.settings,
     )
 
 

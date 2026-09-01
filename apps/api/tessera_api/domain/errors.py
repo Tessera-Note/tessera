@@ -104,6 +104,13 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.import.file_too_large": "This file is too large to import",
     "error.import.unsupported_archive": "Only zip archives can be imported",
     "error.import.task_not_found": "Import task not found",
+    "error.import.task_not_ready": "The file is not ready yet",
+    "error.pdf_export.invalid_or_expired_render_token": (
+        "The render token is invalid or has expired"
+    ),
+    "error.pdf_export.pdf_export_needs_gotenberg_url_to": (
+        "PDF export needs GOTENBERG_URL to be set"
+    ),
     "error.export.unknown_format": "Unknown export format",
     "error.export.nothing_to_export": "There is nothing to export",
     "error.export.attachments_unavailable": "Attachments cannot be bundled in this deployment",

@@ -173,7 +173,7 @@
       {/each}
 
       {#if streaming}
-        <article class="rounded border border-border bg-surface-raised p-4">
+        <article class="card-soft rounded-md border border-border bg-surface-raised p-5">
           <p class="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('AI')}</p>
           <p class="whitespace-pre-wrap text-sm">{streaming}</p>
         </article>

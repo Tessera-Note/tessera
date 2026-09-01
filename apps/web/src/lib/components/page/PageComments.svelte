@@ -39,7 +39,7 @@
 
   <ul class="mb-6 space-y-3">
     {#each comments as comment (comment.id)}
-      <li class="rounded border border-border bg-surface-raised p-3">
+      <li class="card-soft rounded-md border border-border bg-surface-raised p-3">
         <p class="whitespace-pre-wrap text-sm">{plainText(comment.content)}</p>
         <p class="mt-1 text-xs text-text-muted">
           {new Date(comment.createdAt).toLocaleString(locale.current)}

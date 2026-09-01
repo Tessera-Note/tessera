@@ -18,16 +18,16 @@
 </script>
 
 <!--
-  Вид кнопки повторяет Mantine из v1: высота 36, боковой отступ 18, шрифт 14,
-  насыщенность 600, скругление 4. Основная — заливка основным цветом, тихая —
-  вариант `default`: рамка и цвет тела.
+  Основная кнопка — заливка сиреневым, тихая — та же форма без заливки, с едва
+  заметной границей. Высота и отступы прежние: они выверены расстановкой, менять
+  их вместе с цветом незачем.
 -->
 <button
   data-component="Button"
-  class="inline-flex h-9 items-center justify-center rounded px-[18px] text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 {variant ===
+  class="inline-flex h-9 items-center justify-center rounded px-[18px] text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 {variant ===
   'primary'
     ? 'bg-accent text-accent-text hover:bg-accent-hover'
-    : 'border border-border bg-surface text-text hover:bg-surface-hover'}"
+    : 'border border-border bg-surface-raised text-text hover:bg-surface-hover'}"
   {type}
   {disabled}
   {onclick}

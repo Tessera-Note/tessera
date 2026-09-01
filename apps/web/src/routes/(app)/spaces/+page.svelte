@@ -68,7 +68,10 @@
   {#if failure}<Notice message={failure} />{/if}
 
   {#if admin}
-    <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={submit}>
+    <form
+      class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+      onsubmit={submit}
+    >
       <h2 class="mb-4 text-lg font-medium">{t('Create space')}</h2>
 
       <Field label={t('Space name')}>
@@ -88,7 +91,7 @@
   <ul data-component="SpaceCards" class="space-y-2">
     {#each data.spaces as space (space.id)}
       {@const label = roleLabel(space.role)}
-      <li class="rounded border border-border bg-surface-raised p-4">
+      <li class="card-soft rounded-md border border-border bg-surface-raised p-5">
         <a class="block" href="/s/{space.slug}">
           <span class="block font-medium">{space.name ?? space.slug}</span>
           {#if space.description}

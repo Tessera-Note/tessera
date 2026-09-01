@@ -39,7 +39,7 @@
   <ul data-component="FavoriteList" class="space-y-2">
     {#each data.favorites as favorite (favorite.id)}
       <li
-        class="flex items-center justify-between gap-4 rounded border border-border bg-surface-raised p-4"
+        class="flex items-center justify-between gap-4 card-soft rounded-md border border-border bg-surface-raised p-5"
       >
         <a class="min-w-0" href="/s/{favorite.spaceSlug}/p/{favorite.slugId}">
           <span class="block truncate font-medium">

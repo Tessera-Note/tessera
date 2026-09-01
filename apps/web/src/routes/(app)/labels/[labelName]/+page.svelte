@@ -16,7 +16,7 @@
 
   <ul data-component="LabelledPages" class="space-y-2">
     {#each data.pages as page (page.id)}
-      <li class="rounded border border-border bg-surface-raised p-4">
+      <li class="card-soft rounded-md border border-border bg-surface-raised p-5">
         <a class="block" href="/s/{page.spaceSlug}/p/{page.slugId}">
           <span class="block truncate font-medium">
             {#if page.icon}<span class="mr-1">{page.icon}</span>{/if}

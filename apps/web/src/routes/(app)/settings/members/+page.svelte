@@ -69,7 +69,10 @@
 
   {#if failure}<Notice message={failure} />{/if}
 
-  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={sendInvites}>
+  <form
+    class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={sendInvites}
+  >
     <h2 class="mb-4 text-lg font-medium">{t('Invite members')}</h2>
 
     <Field label={t('Email')}>
@@ -92,7 +95,7 @@
     </Button>
   </form>
 
-  <div class="mb-8 rounded border border-border bg-surface-raised">
+  <div class="mb-8 card-soft rounded-md border border-border bg-surface-raised">
     <table data-component="MemberTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>
@@ -143,7 +146,7 @@
   </div>
 
   {#if data.invitations.length > 0}
-    <div class="rounded border border-border bg-surface-raised p-4">
+    <div class="card-soft rounded-md border border-border bg-surface-raised p-5">
       <h2 class="mb-4 text-lg font-medium">{t('Pending')}</h2>
       <ul class="space-y-2">
         {#each data.invitations as invitation (invitation.id)}

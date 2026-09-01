@@ -71,7 +71,7 @@
   <ul data-component="TemplateList" class="space-y-2">
     {#each data.templates as template (template.id)}
       {@const target = spaceFor(template.spaceId)}
-      <li class="rounded border border-border bg-surface-raised p-4">
+      <li class="card-soft rounded-md border border-border bg-surface-raised p-5">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <p class="truncate font-medium">

@@ -144,7 +144,10 @@
     {/if}
   </Panel>
 
-  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={saveProvider}>
+  <form
+    class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={saveProvider}
+  >
     <h2 class="mb-4 text-lg font-medium">{t('Provider')}</h2>
 
     <Field label={t('Provider')}>
@@ -184,7 +187,10 @@
     </Button>
   </form>
 
-  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={saveEmbedding}>
+  <form
+    class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={saveEmbedding}
+  >
     <h2 class="mb-4 text-lg font-medium">{t('Embeddings (semantic search)')}</h2>
 
     <Field label={t('Provider')}>
@@ -222,7 +228,10 @@
     </Button>
   </form>
 
-  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={saveSearch}>
+  <form
+    class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={saveSearch}
+  >
     <h2 class="mb-4 text-lg font-medium">{t('Web search')}</h2>
 
     <Field label={t('Provider')}>

@@ -45,6 +45,7 @@ from tessera_api.api.pages import (
     SearchController,
     ShareController,
 )
+from tessera_api.api.pdf_export import PdfExportController
 from tessera_api.api.realtime import attach
 from tessera_api.api.scim import ScimController
 from tessera_api.api.spaces import GroupController, SpaceController
@@ -218,6 +219,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             ImportController,
             FileTaskController,
             ExportController,
+            PdfExportController,
             socket_io,
         ],
         # Охрана общая: закрыто всё, кроме явно объявленного публичным. Обратный

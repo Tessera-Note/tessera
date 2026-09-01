@@ -15,6 +15,11 @@ export type User = {
   avatarUrl: string | null;
   role: string | null;
   locale: string | null;
+  /** Предпочтения показа и переключатели уведомлений, как их хранит сервер. */
+  settings: {
+    preferences?: { fullPageWidth?: boolean; pageEditMode?: string; editorToolbar?: boolean };
+    notifications?: Record<string, boolean>;
+  } | null;
 };
 
 export type Workspace = {

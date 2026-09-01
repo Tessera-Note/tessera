@@ -57,7 +57,10 @@
   {#if failure}<Notice message={failure} />{/if}
 
   {#if admin}
-    <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={submit}>
+    <form
+      class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+      onsubmit={submit}
+    >
       <h2 class="mb-4 text-lg font-medium">{t('Create group')}</h2>
 
       <Field label={t('Group name')}>
@@ -74,7 +77,7 @@
     </form>
   {/if}
 
-  <div class="rounded border border-border bg-surface-raised">
+  <div class="card-soft rounded-md border border-border bg-surface-raised">
     <table data-component="GroupTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>

@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 import msgspec
 from litestar import Controller, Request, post
 from litestar.di import NamedDependency
-from sqlalchemy import update
+from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.dto import UserView
@@ -40,6 +41,33 @@ class UpdateUserRequest(msgspec.Struct):
 
     name: str | None = None
     locale: str | None = None
+    #: Предпочтения показа. Имена полей из v1: одна база на обе версии, и
+    #: человек, переключивший ширину в одной, видит её и в другой.
+    fullPageWidth: bool | None = None  # noqa: N815 — имя поля из v1
+    pageEditMode: str | None = None  # noqa: N815 — имя поля из v1
+    editorToolbar: bool | None = None  # noqa: N815 — имя поля из v1
+    #: Переключатели уведомлений. Каждый отвечает за свой вид.
+    notificationPageUpdates: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationPageUserMention: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationCommentUserMention: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationCommentCreated: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationCommentResolved: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationPagePermissionGranted: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationPageApprovalRequested: bool | None = None  # noqa: N815 — имя поля из v1
+    notificationPageVerificationUpdates: bool | None = None  # noqa: N815 — имя поля из v1
+
+
+#: Поле запроса и ключ настроек, за который оно отвечает. Ключи из v1.
+NOTIFICATION_KEYS = {
+    "notificationPageUpdates": "page.updated",
+    "notificationPageUserMention": "page.userMention",
+    "notificationCommentUserMention": "comment.userMention",
+    "notificationCommentCreated": "comment.created",
+    "notificationCommentResolved": "comment.resolved",
+    "notificationPagePermissionGranted": "page.permissionGranted",
+    "notificationPageApprovalRequested": "page.approvalRequested",
+    "notificationPageVerificationUpdates": "page.verificationUpdates",
+}
 
 
 class UserController(Controller):
@@ -74,10 +102,75 @@ class UserController(Controller):
                 raise bad_request("error.user.locale_invalid")
             values["locale"] = locale
 
+        preferences = {
+            "fullPageWidth": data.fullPageWidth,
+            "editorToolbar": data.editorToolbar,
+        }
+        if data.pageEditMode is not None:
+            mode = data.pageEditMode.strip().lower()
+            if mode not in ("read", "edit"):
+                raise bad_request("error.user.page_edit_mode_invalid")
+            preferences["pageEditMode"] = mode
+
+        notifications = {
+            NOTIFICATION_KEYS[field]: value
+            for field, value in (
+                ("notificationPageUpdates", data.notificationPageUpdates),
+                ("notificationPageUserMention", data.notificationPageUserMention),
+                ("notificationCommentUserMention", data.notificationCommentUserMention),
+                ("notificationCommentCreated", data.notificationCommentCreated),
+                ("notificationCommentResolved", data.notificationCommentResolved),
+                (
+                    "notificationPagePermissionGranted",
+                    data.notificationPagePermissionGranted,
+                ),
+                (
+                    "notificationPageApprovalRequested",
+                    data.notificationPageApprovalRequested,
+                ),
+                (
+                    "notificationPageVerificationUpdates",
+                    data.notificationPageVerificationUpdates,
+                ),
+            )
+            if value is not None
+        }
+        settings_patch = {
+            name: value for name, value in preferences.items() if value is not None
+        }
+
+        if settings_patch or notifications:
+            # Слияние делает база: чтение, слияние в приложении и запись целиком
+            # затирали бы соседний переключатель, если два экрана открыты разом.
+            await db_session.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET settings = coalesce(settings, '{}'::jsonb)
+                        || jsonb_build_object(
+                            'preferences',
+                            coalesce(settings->'preferences', '{}'::jsonb)
+                                || cast(:preferences AS jsonb),
+                            'notifications',
+                            coalesce(settings->'notifications', '{}'::jsonb)
+                                || cast(:notifications AS jsonb)
+                        )
+                    WHERE id = :user_id
+                    """
+                ),
+                {
+                    "preferences": json.dumps(settings_patch),
+                    "notifications": json.dumps(notifications),
+                    "user_id": principal.user_id,
+                },
+            )
+
         if values:
             await db_session.execute(
                 update(User).where(User.id == principal.user_id).values(**values)
             )
+
+        if values or settings_patch or notifications:
             await db_session.commit()
 
         user = await UserRepo(db_session).by_id(principal.user_id, principal.workspace_id)
@@ -91,4 +184,5 @@ class UserController(Controller):
             avatarUrl=user.avatar_url,
             role=user.role,
             locale=user.locale,
+            settings=user.settings,
         )

@@ -42,7 +42,7 @@
     </select>
   </label>
 
-  <div class="rounded border border-border bg-surface-raised">
+  <div class="card-soft rounded-md border border-border bg-surface-raised">
     <table data-component="VerificationTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>

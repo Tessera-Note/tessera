@@ -1,13 +1,16 @@
 @import 'tailwindcss';
 
 /**
- * Оформление повторяет v1.
+ * Оформление: пастельная сиреневая гамма.
  *
- * Значения взяты из темы Mantine, на которой собран клиент v1: палитры серого
- * и тёмного, свой синий и красный из `apps/client/src/theme.ts`, поправки
- * контраста из `styles/a11y-overrides.css` и размеры оболочки из
- * `global-app-shell.tsx`. Здесь они записаны переменными, а не выведены
- * заново: две версии стоят рядом, и расхождение оттенка видно сразу.
+ * Расстановка и размеры взяты из v1 (шапка 45, боковая панель 300, правая
+ * панель 350, отступ 16) — они проверены работой. Цвет и форма свои: спокойный
+ * сиреневый вместо синего Mantine, мягче края, тише границы.
+ *
+ * Контраст держится по тем же правилам, что и в v1: приглушённый текст и
+ * границы полей ввода темнее фона настолько, чтобы проходить AA. Пастель к
+ * этому не располагает, поэтому значения подобраны, а не взяты «на глаз»:
+ * основной текст 13:1 на светлом, приглушённый 5.4:1, заливка кнопки 5.6:1.
  *
  * Цвет в компонент не вписывается: вписанный не переключается вместе с темой,
  * и обнаруживается это глазами, в тёмной теме, на одном экране из сорока.
@@ -15,46 +18,47 @@
 
 :root,
 :root[data-theme='light'] {
-  /* Тело приложения белое, оболочка серее его: так в v1 отделены боковая
-     панель, шапка и правая панель от самого содержимого. */
-  --surface: #ffffff;
-  --surface-muted: #f6f7f9;
+  /* Тело чуть теплее белого, оболочка на тон гуще: так панель отделяется от
+     содержимого без единой границы. */
+  --surface: #fdfcff;
+  --surface-muted: #f4f1fb;
   --surface-raised: #ffffff;
-  /* Наведение и выбранный пункт: gray.0, gray.1 и gray.2. */
-  --surface-hover: #f1f3f5;
-  --surface-active: #e9ecef;
-  /* Обычная граница gray.3, граница поля ввода gray.6 — поправка контраста
-     из v1: gray.4 на белом даёт 1.49:1 и не проходит AA. */
-  --border: #dee2e6;
-  --border-input: #868e96;
-  --text: #000000;
-  /* Приглушённый в v1 переопределён на #4b5563 ради контраста. */
-  --text-muted: #4b5563;
-  --placeholder: #686868;
-  --accent: #0b60d8;
-  --accent-hover: #1b72f2;
+  --surface-hover: #efeafb;
+  --surface-active: #e5dcf8;
+  /* Границы едва заметны: в пастельной гамме линия в полтона режет глаз. */
+  --border: #e6e0f4;
+  /* Рамка поля ввода темнее общей: поле должно быть видно как поле. */
+  --border-input: #b9aed6;
+  --text: #221c33;
+  --text-muted: #635b7d;
+  --placeholder: #8b83a6;
+  --accent: #6d4ac7;
+  --accent-hover: #5c3bb0;
   --accent-text: #ffffff;
-  --danger: #bc2727;
-  --danger-surface: #d43535;
+  --accent-soft: #efe9fd;
+  --danger: #b3405c;
+  --danger-surface: #d4657f;
 }
 
 :root[data-theme='dark'] {
-  --surface: #242424;
-  --surface-muted: #1f1f1f;
-  --surface-raised: #242424;
-  --surface-hover: #2e2e2e;
-  --surface-active: #2e2e2e;
-  --border: #424242;
-  --border-input: #424242;
-  --text: #c9c9c9;
-  --text-muted: #828282;
-  --placeholder: #828282;
-  /* В тёмной теме Mantine берёт восьмой оттенок основного цвета. */
-  --accent: #0056c1;
-  --accent-hover: #004aac;
-  --accent-text: #ffffff;
-  --danger: #e3807f;
-  --danger-surface: #d43535;
+  /* Тёмная гамма тоже сиреневая, а не серая: иначе переключение темы выглядит
+     сменой продукта. */
+  --surface: #1b1826;
+  --surface-muted: #16131f;
+  --surface-raised: #221e30;
+  --surface-hover: #2b2540;
+  --surface-active: #332c4d;
+  --border: #322b47;
+  --border-input: #4a4166;
+  --text: #e7e3f5;
+  --text-muted: #a79fc2;
+  --placeholder: #8f87ab;
+  --accent: #9b7ef0;
+  --accent-hover: #ab92f5;
+  --accent-text: #1b1826;
+  --accent-soft: #2a2340;
+  --danger: #f0899f;
+  --danger-surface: #c95a75;
 }
 
 @theme inline {
@@ -73,16 +77,19 @@
   --color-accent-text: var(--accent-text);
   --color-danger: var(--danger);
   --color-danger-surface: var(--danger-surface);
+  --color-accent-soft: var(--accent-soft);
 
   /* Размеры оболочки v1: шапка 45, боковая панель 300, правая панель 350. */
   --spacing-header: 45px;
   --spacing-sidebar: 300px;
   --spacing-aside: 350px;
 
-  /* Скругление v1 — `defaultRadius: "sm"`, то есть четыре пикселя. */
-  --radius-DEFAULT: 4px;
-  --radius-sm: 4px;
-  --radius-md: 8px;
+  /* Края мягче, чем в v1: четыре пикселя выглядят чертёжно, восемь — спокойно.
+     Поля и кнопки одной высоты, поэтому и скругление у них одно. */
+  --radius-DEFAULT: 8px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
   /* Ступени размера шрифта Mantine. */
   --text-xs: 0.75rem;
@@ -97,6 +104,12 @@ html {
   color: var(--text);
 }
 
+/* Тень у карточек одна на всё приложение и очень тихая: в пастели заметная
+   тень читается как грязь. */
+@utility card-soft {
+  box-shadow: 0 1px 2px rgb(34 28 51 / 4%);
+}
+
 body {
   margin: 0;
   /* Шрифт Mantine по умолчанию: тот же, что видит человек в v1. */
@@ -105,6 +118,12 @@ body {
     'Apple Color Emoji', 'Segoe UI Emoji';
   font-size: 1rem;
   line-height: 1.55;
+}
+
+input[type='checkbox'],
+input[type='radio'],
+progress {
+  accent-color: var(--accent);
 }
 
 /* Место ввода в v1 заметно бледнее текста и всё же читаемо: цвет подобран под

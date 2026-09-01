@@ -107,6 +107,30 @@ services:
       - "3100:3000"
     restart: unless-stopped
 
+  # Экраны. Отдельный процесс, а не часть приложения: это сервер отрисовки на
+  # Node, и в одном процессе с Python ему делать нечего.
+  #
+  # Он же отдаёт страницу отрисовки, которую печатает Gotenberg: разметка
+  # страницы живёт здесь, и второй её рисовальщик расходился бы с тем, что
+  # человек видит на экране.
+  tessera-v2-web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: tessera-v2-web
+    depends_on:
+      - tessera-v2-api
+    environment:
+      # Два адреса, а не один. Браузер ходит на то же происхождение, что и
+      # страница, поэтому здесь пусто; сервер отрисовки ходит к приложению
+      # внутренним именем — относительный адрес там уводит запрос обратно в
+      # себя и кончается переполнением памяти.
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://tessera-v2-api:3000}
+      HOST: 0.0.0.0
+      PORT: 3000
+    restart: unless-stopped
+
   # Разбор очереди заданий. Отдельный процесс: задание может выполняться
   # минутами, и выполнение его внутри веб-процесса означает, что выкладка
   # обрывает его на середине.
@@ -157,6 +181,12 @@ services:
       # Соседний сервис преобразования содержимого. Схема узлов редактора
       # живёт там, и второй её реализации быть не должно.
       CONTENT_SERVICE_URL: ${CONTENT_SERVICE_URL:-http://tessera-v2-collab:3001}
+      # Печать в PDF. Пустой адрес Gotenberg выключает выгрузку целиком.
+      GOTENBERG_URL: ${GOTENBERG_URL:-http://tessera-v2-gotenberg:3000}
+      # Откуда браузер печати берёт страницу отрисовки. Внутреннее имя, а не
+      # внешний адрес: наружу он не ходит.
+      PDF_RENDER_BASE_URL: ${PDF_RENDER_BASE_URL:-http://tessera-v2-web:3000}
+      PDF_EXPORT_TIMEOUT: ${PDF_EXPORT_TIMEOUT:-120}
     restart: unless-stopped
 
   # Хранилище вложений, совместимое с протоколом S3.
@@ -208,6 +238,22 @@ services:
       SEARXNG_SECRET: ${SEARXNG_SECRET:-tessera-v2-searxng-secret}
     volumes:
       - ../../deploy/searxng:/etc/searxng:ro
+    restart: unless-stopped
+
+  # Безголовый Chromium: им и только им печатаются страницы в PDF. Разметка
+  # страницы живёт на клиенте, и второй её рисовальщик на сервере расходился бы
+  # с тем, что человек видит на экране.
+  #
+  # Список разрешённых адресов сужен до собственного маршрута отрисовки: браузер
+  # печати не должен ходить никуда, кроме него, — иначе ссылка внутри страницы
+  # превращает его в средство обхода сети развёртывания.
+  tessera-v2-gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: tessera-v2-gotenberg
+    command:
+      - "gotenberg"
+      - "--chromium-allow-list=^http://tessera-v2-web:3000/pdf-render/.*"
+      - "--chromium-disable-javascript=false"
     restart: unless-stopped
 
   tessera-v2-db:

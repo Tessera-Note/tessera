@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.roles import SpaceRole
@@ -20,6 +20,7 @@ from tessera_api.infrastructure.models import (
     PageAccess,
     PagePermission,
     SpaceMember,
+    User,
     Watcher,
 )
 from tessera_api.services.comments import CommentService
@@ -393,6 +394,92 @@ class TestReading:
         assert len(await service.list(user_id, workspace.id, tab="direct")) == 1
         assert await service.list(user_id, workspace.id, tab="updates") == []
         assert len(await service.list(user_id, workspace.id, tab="all")) == 1
+
+
+class TestPreferences:
+    """Переключатели уведомлений.
+
+    Ключи хранятся так, как их пишет v1: база одна на обе версии, и человек,
+    выключивший упоминания в одной, не должен получать их в другой.
+    """
+
+    async def _watcher(self, session, workspace, owner, space):
+        world = await _world(session, workspace, owner, space)
+        await WatcherService(session).watch_page(
+            user_id=world["outsider_id"], page=world["root"]
+        )
+        return world
+
+    async def _switch(self, session, user_id, key, value) -> None:
+        await session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(settings={"notifications": {key: value}})
+        )
+        await session.flush()
+
+    async def test_a_switched_off_kind_does_not_reach_the_person(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await self._watcher(session, workspace, owner, space)
+        await self._switch(session, world["outsider_id"], "comment.created", False)
+
+        await CommentService(session).create(
+            page=world["root"], user_id=owner.id, content=_doc()
+        )
+
+        left = (
+            await session.execute(
+                select(Notification.id).where(Notification.user_id == world["outsider_id"])
+            )
+        ).all()
+        assert left == []
+
+    async def test_another_kind_still_reaches_them(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Выключение одного вида не выключает остальные."""
+        world = await self._watcher(session, workspace, owner, space)
+        await self._switch(session, world["outsider_id"], "page.updated", False)
+
+        await CommentService(session).create(
+            page=world["root"], user_id=owner.id, content=_doc()
+        )
+
+        left = (
+            await session.execute(
+                select(Notification.id).where(Notification.user_id == world["outsider_id"])
+            )
+        ).all()
+        assert len(left) == 1
+
+    async def test_absence_of_a_switch_means_consent(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Настройки заводятся при первом отказе: пустота — не отказ."""
+        world = await self._watcher(session, workspace, owner, space)
+
+        await CommentService(session).create(
+            page=world["root"], user_id=owner.id, content=_doc()
+        )
+
+        left = (
+            await session.execute(
+                select(Notification.id).where(Notification.user_id == world["outsider_id"])
+            )
+        ).all()
+        assert len(left) == 1
+
+    def test_every_kind_has_a_switch(self) -> None:
+        """Иначе экран настроек обещает управление тем, чем не управляет."""
+        from tessera_api.services.notifications import SETTING_OF_TYPE
+
+        kinds = {
+            value
+            for name, value in vars(NotificationType).items()
+            if not name.startswith("_") and isinstance(value, str)
+        }
+        assert kinds <= set(SETTING_OF_TYPE)
 
 
 class TestListing:

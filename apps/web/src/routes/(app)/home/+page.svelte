@@ -77,7 +77,7 @@
     {#each data.spaces as space (space.id)}
       <a
         data-component="SpaceCard"
-        class="rounded border border-border bg-surface-raised p-4 hover:border-text-muted"
+        class="card-soft rounded-md border border-border bg-surface-raised p-5 hover:border-text-muted"
         href="/s/{space.slug}"
       >
         <p class="font-medium">{space.name ?? space.slug}</p>

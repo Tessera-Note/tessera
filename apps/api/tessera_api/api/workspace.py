@@ -7,14 +7,14 @@ import uuid
 import msgspec
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.dto import MemberView, WorkspaceView
 from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
-from tessera_api.infrastructure.models import AuthProvider, Workspace
+from tessera_api.infrastructure.models import AuthProvider, User, Workspace
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.workspace import WorkspaceService
@@ -173,11 +173,23 @@ class WorkspaceController(Controller):
         workspace = await WorkspaceRepo(db_session).by_id(principal.workspace_id)
         if workspace is None:
             raise not_found("error.common.workspace_not_found")
+        # Считаются живые и не отключённые: удалённые обезличены, а отключённые
+        # войти не могут, и в условиях лицензии ни те, ни другие не считаются.
+        members = (
+            await db_session.execute(
+                select(func.count())
+                .select_from(User)
+                .where(User.workspace_id == workspace.id)
+                .where(User.deleted_at.is_(None))
+                .where(User.deactivated_at.is_(None))
+            )
+        ).scalar_one()
         return WorkspaceView(
             id=workspace.id,
             name=workspace.name,
             hostname=workspace.hostname,
             logo=workspace.logo,
+            memberCount=int(members),
         )
 
     @get("/members")

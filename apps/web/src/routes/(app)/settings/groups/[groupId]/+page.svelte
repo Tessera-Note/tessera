@@ -88,7 +88,10 @@
     />
   {/if}
 
-  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={save}>
+  <form
+    class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5"
+    onsubmit={save}
+  >
     <Field label={t('Group name')}>
       <TextInput bind:value={name} disabled={locked} />
     </Field>
@@ -117,7 +120,7 @@
     </div>
   </form>
 
-  <div class="rounded border border-border bg-surface-raised p-4">
+  <div class="card-soft rounded-md border border-border bg-surface-raised p-5">
     <h2 class="mb-4 text-lg font-medium">{t('Members')}</h2>
 
     {#if !data.group.isDefault}
