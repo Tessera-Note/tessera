@@ -11,7 +11,7 @@
 </script>
 
 <label data-component="Field" class="mb-4 block">
-  <span class="mb-1 block text-sm text-text-muted">{label}</span>
+  <span class="mb-1 block text-sm font-medium text-text">{label}</span>
   {@render children()}
   {#if hint}
     <span class="mt-1 block text-xs text-text-muted">{hint}</span>

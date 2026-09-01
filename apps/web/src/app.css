@@ -1,55 +1,115 @@
 @import 'tailwindcss';
 
 /**
- * Цвета объявлены переменными и переключаются по `data-theme` на корне.
+ * Оформление повторяет v1.
  *
- * Значения в компонентах не пишутся: цвет, вписанный в компонент, не
- * переключается вместе с темой, и обнаруживается это только глазами, в тёмной
- * теме, на одном экране из сорока.
+ * Значения взяты из темы Mantine, на которой собран клиент v1: палитры серого
+ * и тёмного, свой синий и красный из `apps/client/src/theme.ts`, поправки
+ * контраста из `styles/a11y-overrides.css` и размеры оболочки из
+ * `global-app-shell.tsx`. Здесь они записаны переменными, а не выведены
+ * заново: две версии стоят рядом, и расхождение оттенка видно сразу.
+ *
+ * Цвет в компонент не вписывается: вписанный не переключается вместе с темой,
+ * и обнаруживается это глазами, в тёмной теме, на одном экране из сорока.
  */
+
 :root,
 :root[data-theme='light'] {
+  /* Тело приложения белое, оболочка серее его: так в v1 отделены боковая
+     панель, шапка и правая панель от самого содержимого. */
   --surface: #ffffff;
-  --surface-muted: #f6f6f7;
+  --surface-muted: #f6f7f9;
   --surface-raised: #ffffff;
-  --border: #e4e4e7;
-  --text: #18181b;
-  --text-muted: #71717a;
-  --accent: #18181b;
+  /* Наведение и выбранный пункт: gray.0, gray.1 и gray.2. */
+  --surface-hover: #f1f3f5;
+  --surface-active: #e9ecef;
+  /* Обычная граница gray.3, граница поля ввода gray.6 — поправка контраста
+     из v1: gray.4 на белом даёт 1.49:1 и не проходит AA. */
+  --border: #dee2e6;
+  --border-input: #868e96;
+  --text: #000000;
+  /* Приглушённый в v1 переопределён на #4b5563 ради контраста. */
+  --text-muted: #4b5563;
+  --placeholder: #686868;
+  --accent: #0b60d8;
+  --accent-hover: #1b72f2;
   --accent-text: #ffffff;
-  --danger: #b91c1c;
+  --danger: #bc2727;
+  --danger-surface: #d43535;
 }
 
 :root[data-theme='dark'] {
-  --surface: #18181b;
-  --surface-muted: #101012;
-  --surface-raised: #232327;
-  --border: #33333a;
-  --text: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --accent: #f4f4f5;
-  --accent-text: #18181b;
-  --danger: #f87171;
+  --surface: #242424;
+  --surface-muted: #1f1f1f;
+  --surface-raised: #242424;
+  --surface-hover: #2e2e2e;
+  --surface-active: #2e2e2e;
+  --border: #424242;
+  --border-input: #424242;
+  --text: #c9c9c9;
+  --text-muted: #828282;
+  --placeholder: #828282;
+  /* В тёмной теме Mantine берёт восьмой оттенок основного цвета. */
+  --accent: #0056c1;
+  --accent-hover: #004aac;
+  --accent-text: #ffffff;
+  --danger: #e3807f;
+  --danger-surface: #d43535;
 }
 
 @theme inline {
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
   --color-border: var(--border);
+  --color-border-input: var(--border-input);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
+  --color-placeholder: var(--placeholder);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
   --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+
+  /* Размеры оболочки v1: шапка 45, боковая панель 300, правая панель 350. */
+  --spacing-header: 45px;
+  --spacing-sidebar: 300px;
+  --spacing-aside: 350px;
+
+  /* Скругление v1 — `defaultRadius: "sm"`, то есть четыре пикселя. */
+  --radius-DEFAULT: 4px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* Ступени размера шрифта Mantine. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
 }
 
 html {
-  background: var(--surface-muted);
+  background: var(--surface);
   color: var(--text);
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Шрифт Mantine по умолчанию: тот же, что видит человек в v1. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+/* Место ввода в v1 заметно бледнее текста и всё же читаемо: цвет подобран под
+   требование контраста, и повторяется здесь тем же значением. */
+::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
 }

@@ -88,8 +88,8 @@
 
 <svelte:head><title>{data.page.title ?? t('Untitled')} · Tessera</title></svelte:head>
 
-<div class="mx-auto flex max-w-6xl gap-8">
-  <article data-route="page" class="min-w-0 flex-1">
+<div class="mr-aside">
+  <article data-route="page" class="mx-auto max-w-3xl">
     {#if data.crumbs.length > 1}
       <nav data-component="Breadcrumbs" class="mb-4 flex flex-wrap gap-1 text-sm text-text-muted">
         {#each data.crumbs as crumb, index (crumb.id)}
@@ -144,6 +144,7 @@
     labels={data.labels}
     backlinks={data.backlinks}
     permission={data.permission}
+    verification={data.verification}
     share={data.share}
     spaceSlug={data.space?.slug ?? ''}
   />

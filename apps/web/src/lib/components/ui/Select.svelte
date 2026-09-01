@@ -22,7 +22,9 @@
 
 <select
   data-component="Select"
-  class="rounded border border-border bg-surface {compact ? 'px-2 py-1' : 'w-full px-3 py-2'}"
+  class="rounded border border-border-input bg-surface text-sm text-text outline-none focus:border-accent disabled:opacity-70 {compact
+    ? 'h-7 px-2'
+    : 'h-9 w-full px-3'}"
   aria-label={label}
   {disabled}
   bind:value

@@ -17,11 +17,17 @@
   }: Props = $props();
 </script>
 
+<!--
+  Вид кнопки повторяет Mantine из v1: высота 36, боковой отступ 18, шрифт 14,
+  насыщенность 600, скругление 4. Основная — заливка основным цветом, тихая —
+  вариант `default`: рамка и цвет тела.
+-->
 <button
   data-component="Button"
-  class="rounded px-3 py-2 font-medium disabled:opacity-60 {variant === 'primary'
-    ? 'bg-accent text-accent-text'
-    : 'border border-border bg-surface hover:bg-surface-muted'}"
+  class="inline-flex h-9 items-center justify-center rounded px-[18px] text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 {variant ===
+  'primary'
+    ? 'bg-accent text-accent-text hover:bg-accent-hover'
+    : 'border border-border bg-surface text-text hover:bg-surface-hover'}"
   {type}
   {disabled}
   {onclick}

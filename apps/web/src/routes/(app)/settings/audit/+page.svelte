@@ -130,7 +130,7 @@
     {/if}
   </div>
 
-  <div class="mb-4 rounded-lg border border-border bg-surface-raised">
+  <div class="mb-4 rounded border border-border bg-surface-raised">
     <table data-component="AuditTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>

@@ -8,6 +8,16 @@
   import { getVersion, type Version } from '$lib/features/page/services/history';
   import { plainText } from '$lib/features/page/document';
   import { createShare, revokeShare, type Share } from '$lib/features/share/services/share';
+  import {
+    PERIOD_UNITS,
+    configureVerification,
+    markObsolete,
+    rejectApproval,
+    removeVerification,
+    submitForApproval,
+    verifyPage,
+    type VerificationInfo
+  } from '$lib/features/verification/services/page';
   import type { Backlink } from '$lib/features/page/services/backlinks';
   import type { PagePermission, PermissionInfo } from '$lib/features/page/services/permissions';
   import {
@@ -27,15 +37,25 @@
     labels: Label[];
     backlinks: Backlink[];
     permission: PermissionInfo | null;
+    verification: VerificationInfo | null;
     share: Share | null;
     spaceSlug: string;
   };
-  const { pageId, spaceId, versions, labels, backlinks, permission, share, spaceSlug }: Props =
-    $props();
+  const {
+    pageId,
+    spaceId,
+    versions,
+    labels,
+    backlinks,
+    permission,
+    verification,
+    share,
+    spaceSlug
+  }: Props = $props();
 
   const t = $derived(locale.t);
 
-  let tab = $state<'history' | 'labels' | 'links' | 'access'>('history');
+  let tab = $state<'history' | 'labels' | 'links' | 'access' | 'check'>('history');
   let busy = $state(false);
   let failure = $state<string | null>(null);
   let newLabel = $state('');
@@ -48,7 +68,8 @@
   ];
 
   let granted = $state<PagePermission[] | null>(null);
-  let candidates = $state<SpaceMember[]>([]);
+  /** Состав пространства: пустой массив это «ещё не спрашивали». */
+  let candidates = $state<SpaceMember[] | null>(null);
   let chosen = $state('');
   let role = $state('reader');
 
@@ -59,6 +80,13 @@
    * ним идёт на каждый показ страницы: у открытой страницы список пуст по
    * определению.
    */
+  $effect(() => {
+    if (tab !== 'check' || candidates !== null) return;
+    void act(async () => {
+      candidates = await spaceMembers(spaceId);
+    });
+  });
+
   $effect(() => {
     if (tab !== 'access' || !permission?.hasDirectRestriction || granted !== null) return;
     granted = [];
@@ -130,6 +158,30 @@
       await invalidateAll();
     });
 
+  // Срок проверки: сколько и в чём. Умолчание из v1 — год.
+  let periodAmount = $state(1);
+  let periodUnit = $state('year');
+  let rejectComment = $state('');
+  /** Кому подтверждать. Без них подтвердить страницу будет некому. */
+  let verifierIds = $state<string[]>([]);
+
+  const configure = () =>
+    act(async () => {
+      await configureVerification({
+        pageId,
+        periodAmount,
+        periodUnit,
+        verifierIds
+      });
+      await invalidateAll();
+    });
+
+  const runVerification = (action: () => Promise<unknown>) =>
+    act(async () => {
+      await action();
+      await invalidateAll();
+    });
+
   const toggleShare = () =>
     act(async () => {
       await (share ? revokeShare(pageId) : createShare({ pageId }));
@@ -137,9 +189,12 @@
     });
 </script>
 
-<aside data-component="PageSidePanel" class="w-72 shrink-0 border-l border-border pl-6">
+<aside
+  data-component="PageSidePanel"
+  class="fixed bottom-0 right-0 top-header w-aside overflow-y-auto bg-surface-muted p-4"
+>
   <nav class="mb-4 flex flex-wrap gap-1 text-sm">
-    {#each [['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')]] as [key, title] (key)}
+    {#each [['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')]] as [key, title] (key)}
       <button
         class="rounded px-2 py-1 hover:bg-surface"
         class:bg-surface={tab === key}
@@ -223,6 +278,120 @@
         <li class="px-2 text-text-muted">{t('No pages link here yet.')}</li>
       {/each}
     </ul>
+  {:else if tab === 'check'}
+    <div class="space-y-3 text-sm">
+      {#if !verification}
+        <!-- Сведений нет: запрос мог и не дойти, и утверждать вместо него
+             «проверка не заведена» значит выдавать неизвестность за факт. -->
+        <p class="text-text-muted">{t('Loading...')}</p>
+      {:else if !verification.configured}
+        <p class="text-text-muted">{t('No approval has been requested yet.')}</p>
+        {#if verification.canManage}
+          <div class="flex items-end gap-2">
+            <label class="w-16">
+              <span class="mb-1 block text-xs text-text-muted">{t('Number')}</span>
+              <input
+                class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+                type="number"
+                min="1"
+                bind:value={periodAmount}
+              />
+            </label>
+            <label class="flex-1">
+              <span class="mb-1 block text-xs text-text-muted">{t('Period')}</span>
+              <select
+                class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+                bind:value={periodUnit}
+              >
+                {#each PERIOD_UNITS as one (one.value)}
+                  <option value={one.value}>{t(one.label)}</option>
+                {/each}
+              </select>
+            </label>
+          </div>
+          <label class="block">
+            <span class="mb-1 block text-xs text-text-muted">{t('Verifiers')}</span>
+            <select
+              class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+              multiple
+              size="4"
+              bind:value={verifierIds}
+            >
+              {#each candidates ?? [] as person (person.id)}
+                <option value={person.id}>{person.name ?? person.email}</option>
+              {/each}
+            </select>
+          </label>
+          <Button disabled={busy || verifierIds.length === 0} onclick={configure}>
+            {t('Set up verification')}
+          </Button>
+        {/if}
+      {:else}
+        <p>
+          <span class="font-medium">{t('Status')}:</span>
+          {verification.status}
+        </p>
+        {#if verification.expiresAt}
+          <p class="text-text-muted">
+            {t('Expires')}: {new Date(verification.expiresAt).toLocaleDateString(locale.current)}
+          </p>
+        {/if}
+        {#if verification.rejectionComment}
+          <p class="text-text-muted">{verification.rejectionComment}</p>
+        {/if}
+
+        <div class="flex flex-wrap gap-2">
+          {#if verification.canVerify}
+            <Button disabled={busy} onclick={() => runVerification(() => verifyPage(pageId))}>
+              {t('Verify')}
+            </Button>
+          {/if}
+          {#if verification.canSubmit}
+            <Button
+              variant="quiet"
+              disabled={busy}
+              onclick={() => runVerification(() => submitForApproval(pageId))}
+            >
+              {t('Submit for approval')}
+            </Button>
+          {/if}
+          {#if verification.canVerify}
+            <Button
+              variant="quiet"
+              disabled={busy}
+              onclick={() =>
+                runVerification(() => rejectApproval(pageId, rejectComment || undefined))}
+            >
+              {t('Reject')}
+            </Button>
+          {/if}
+          {#if verification.canManage}
+            <Button
+              variant="quiet"
+              disabled={busy}
+              onclick={() => runVerification(() => markObsolete(pageId))}
+            >
+              {t('Mark obsolete')}
+            </Button>
+            <Button
+              variant="quiet"
+              disabled={busy}
+              onclick={() => runVerification(() => removeVerification(pageId))}
+            >
+              {t('Remove verification')}
+            </Button>
+          {/if}
+        </div>
+
+        {#if verification.canVerify}
+          <input
+            class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+            bind:value={rejectComment}
+            placeholder={t('Reason for returning this document...')}
+          />
+        {/if}
+      {/if}
+    </div>
   {:else}
     <div class="space-y-4 text-sm">
       <div>
@@ -283,7 +452,7 @@
                 aria-label={t('Add members')}
               >
                 <option value="">{t('Add members')}</option>
-                {#each candidates.filter((one) => !(granted ?? []).some((row) => row.userId === one.id)) as member (member.id)}
+                {#each (candidates ?? []).filter((one) => !(granted ?? []).some((row) => row.userId === one.id)) as member (member.id)}
                   <option value={member.id}>{member.name ?? member.email}</option>
                 {/each}
               </select>

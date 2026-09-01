@@ -55,7 +55,7 @@
 
 <section
   data-route="login-mfa-setup"
-  class="rounded-lg border border-border bg-surface-raised p-8 shadow-sm"
+  class="rounded border border-border bg-surface-raised p-8 shadow-sm"
 >
   <h1 class="mb-2 text-xl font-semibold">{t('Set up two-factor authentication')}</h1>
   <p class="mb-6 text-sm text-text-muted">

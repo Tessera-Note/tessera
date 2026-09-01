@@ -6,6 +6,7 @@ import { listFavorites } from '$lib/features/page/services/favorites';
 import { listVersions } from '$lib/features/page/services/history';
 import { labelsOfPage } from '$lib/features/page/services/labels';
 import { permissionInfo } from '$lib/features/page/services/permissions';
+import { verificationInfo } from '$lib/features/verification/services/page';
 import { breadcrumbs, pageInfo } from '$lib/features/page/services/pages';
 import { shareForPage } from '$lib/features/share/services/share';
 import type { PageServerLoad } from './$types';
@@ -22,17 +23,27 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
     // Всё разом, а не по очереди: запросы независимы, и последовательные
     // ждали бы друг друга без причины. Отказ бокового содержимого не должен
     // ронять саму страницу, поэтому каждый со своим запасным значением.
-    const [crumbs, comments, favorites, versions, labels, backlinks, permission, share] =
-      await Promise.all([
-        breadcrumbs(page.id, fetch, headers),
-        listComments(page.id, fetch, headers),
-        listFavorites(fetch, headers),
-        listVersions(page.id, fetch, headers).catch(() => []),
-        labelsOfPage(page.id, fetch, headers).catch(() => []),
-        backlinksOf(page.id, fetch, headers).catch(() => []),
-        permissionInfo(page.id, fetch, headers).catch(() => null),
-        shareForPage(page.id, fetch, headers).catch(() => null)
-      ]);
+    const [
+      crumbs,
+      comments,
+      favorites,
+      versions,
+      labels,
+      backlinks,
+      permission,
+      share,
+      verification
+    ] = await Promise.all([
+      breadcrumbs(page.id, fetch, headers),
+      listComments(page.id, fetch, headers),
+      listFavorites(fetch, headers),
+      listVersions(page.id, fetch, headers).catch(() => []),
+      labelsOfPage(page.id, fetch, headers).catch(() => []),
+      backlinksOf(page.id, fetch, headers).catch(() => []),
+      permissionInfo(page.id, fetch, headers).catch(() => null),
+      shareForPage(page.id, fetch, headers).catch(() => null),
+      verificationInfo(page.id, fetch, headers).catch(() => null)
+    ]);
 
     // Пространство берётся из слоя приложения: оно уже загружено там, и второй
     // запрос за тем же списком был бы лишним.
@@ -46,6 +57,7 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       backlinks,
       permission,
       share,
+      verification,
       space: spaces.find((one) => one.slug === params.spaceSlug),
       favorite: favorites.some((one) => one.pageId === page.id)
     };

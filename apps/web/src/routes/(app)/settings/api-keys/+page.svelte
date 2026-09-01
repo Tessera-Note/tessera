@@ -110,7 +110,7 @@
 
       <Field label={t('Expiration')} hint={t('No expiration')}>
         <input
-          class="w-full rounded border border-border bg-surface px-3 py-2"
+          class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
           type="date"
           bind:value={expiresAt}
         />
@@ -133,7 +133,7 @@
     </p>
   {/if}
 
-  <div class="mb-8 rounded-lg border border-border bg-surface-raised">
+  <div class="mb-8 rounded border border-border bg-surface-raised">
     <table data-component="ApiKeyTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>

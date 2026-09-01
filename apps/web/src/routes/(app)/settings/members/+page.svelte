@@ -69,7 +69,7 @@
 
   {#if failure}<Notice message={failure} />{/if}
 
-  <form class="mb-8 rounded-lg border border-border bg-surface-raised p-6" onsubmit={sendInvites}>
+  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={sendInvites}>
     <h2 class="mb-4 text-lg font-medium">{t('Invite members')}</h2>
 
     <Field label={t('Email')}>
@@ -78,7 +78,7 @@
 
     <Field label={t('Role')}>
       <select
-        class="w-full rounded border border-border bg-surface px-3 py-2"
+        class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
         bind:value={inviteRole}
       >
         {#each WORKSPACE_ROLES as role (role)}
@@ -92,7 +92,7 @@
     </Button>
   </form>
 
-  <div class="mb-8 rounded-lg border border-border bg-surface-raised">
+  <div class="mb-8 rounded border border-border bg-surface-raised">
     <table data-component="MemberTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>
@@ -111,7 +111,7 @@
             </td>
             <td class="p-3">
               <select
-                class="rounded border border-border bg-surface px-2 py-1"
+                class="h-7 rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
                 value={member.role ?? 'member'}
                 disabled={busy === member.id}
                 onchange={(event) =>
@@ -143,7 +143,7 @@
   </div>
 
   {#if data.invitations.length > 0}
-    <div class="rounded-lg border border-border bg-surface-raised p-6">
+    <div class="rounded border border-border bg-surface-raised p-4">
       <h2 class="mb-4 text-lg font-medium">{t('Pending')}</h2>
       <ul class="space-y-2">
         {#each data.invitations as invitation (invitation.id)}

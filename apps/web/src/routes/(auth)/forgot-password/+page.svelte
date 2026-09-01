@@ -35,7 +35,7 @@
 
 <form
   data-route="forgot-password"
-  class="rounded-lg border border-border bg-surface-raised p-8 shadow-sm"
+  class="rounded border border-border bg-surface-raised p-8 shadow-sm"
   onsubmit={submit}
 >
   <h1 class="mb-6 text-xl font-semibold">{t('Forgot password')}</h1>

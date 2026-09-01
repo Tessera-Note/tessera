@@ -31,7 +31,7 @@
   <label class="mb-4 block">
     <span class="mb-1 block text-sm text-text-muted">{t('Status')}</span>
     <select
-      class="w-full rounded border border-border bg-surface px-3 py-2"
+      class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
       value={data.status ?? ''}
       onchange={choose}
     >
@@ -42,7 +42,7 @@
     </select>
   </label>
 
-  <div class="rounded-lg border border-border bg-surface-raised">
+  <div class="rounded border border-border bg-surface-raised">
     <table data-component="VerificationTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>

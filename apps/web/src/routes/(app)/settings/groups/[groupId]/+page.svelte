@@ -88,7 +88,7 @@
     />
   {/if}
 
-  <form class="mb-8 rounded-lg border border-border bg-surface-raised p-6" onsubmit={save}>
+  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={save}>
     <Field label={t('Group name')}>
       <TextInput bind:value={name} disabled={locked} />
     </Field>
@@ -117,7 +117,7 @@
     </div>
   </form>
 
-  <div class="rounded-lg border border-border bg-surface-raised p-6">
+  <div class="rounded border border-border bg-surface-raised p-4">
     <h2 class="mb-4 text-lg font-medium">{t('Members')}</h2>
 
     {#if !data.group.isDefault}
@@ -125,7 +125,7 @@
         <label class="flex-1">
           <span class="mb-1 block text-sm text-text-muted">{t('Add members')}</span>
           <select
-            class="w-full rounded border border-border bg-surface px-3 py-2"
+            class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
             bind:value={chosen}
           >
             <option value="">{t('Select a user')}</option>

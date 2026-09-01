@@ -154,7 +154,7 @@
           }}
         >
           <input
-            class="rounded border border-border bg-surface px-2 py-1 text-sm"
+            class="h-8 rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
             bind:value={newView}
             placeholder={t('View name')}
           />
@@ -164,7 +164,7 @@
     </div>
   {/if}
 
-  <div class="mb-4 overflow-x-auto rounded-lg border border-border bg-surface-raised">
+  <div class="mb-4 overflow-x-auto rounded border border-border bg-surface-raised">
     <table data-component="BaseTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
         <tr>
@@ -255,7 +255,7 @@
 
   {#if canEdit}
     <form
-      class="rounded-lg border border-border bg-surface-raised p-6"
+      class="rounded border border-border bg-surface-raised p-4"
       onsubmit={(event) => {
         event.preventDefault();
         if (!newProperty.trim()) return;

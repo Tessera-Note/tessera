@@ -38,7 +38,7 @@
 
   <ul data-component="ShareList" class="space-y-2">
     {#each data.shares as share (share.id)}
-      <li class="rounded-lg border border-border bg-surface-raised p-4">
+      <li class="rounded border border-border bg-surface-raised p-4">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <a

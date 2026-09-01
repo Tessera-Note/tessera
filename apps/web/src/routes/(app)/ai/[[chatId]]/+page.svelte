@@ -5,15 +5,7 @@
   import Textarea from '$lib/components/ui/Textarea.svelte';
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
-  import {
-    deleteChat,
-    listChats,
-    renameChat,
-    resolvePlan,
-    sendMessage,
-    type Chat,
-    type ChatMessage
-  } from '$lib/features/ai/services/chat';
+  import { resolvePlan, sendMessage, type ChatMessage } from '$lib/features/ai/services/chat';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -28,14 +20,6 @@
 
   /** Чем остановить идущий поток. Ход длится десятки секунд. */
   let stopper: AbortController | null = null;
-
-  /** Догруженные разговоры и курсор следующей страницы. */
-  let more = $state<Chat[]>([]);
-  let cursor = $state<string | null>(null);
-
-  /** Что переименовывают прямо сейчас. */
-  let renaming = $state<string | null>(null);
-  let newTitle = $state('');
 
   /**
    * План необратимых действий, ждущий решения.
@@ -54,7 +38,6 @@
   let tool = $state<string | null>(null);
 
   const messages = $derived([...(data.chat?.messages ?? []), ...live]);
-  const chats = $derived([...data.chats.items, ...more]);
 
   // Сохранённый план перечитывается из последней реплики: разговор могли
   // открыть заново, а решение по нему всё ещё ждут.
@@ -84,10 +67,6 @@
     streaming = '';
     tool = null;
     plan = null;
-    more = [];
-    // Курсор приходит с сервера и обновляется вместе со списком: снимок при
-    // объявлении остался бы от первой загрузки.
-    cursor = data.chats.nextCursor;
   });
 
   function draft(role: string, content: string): ChatMessage {
@@ -170,112 +149,12 @@
       failure = errorText(error, t);
     }
   }
-
-  async function loadMore() {
-    if (!cursor) return;
-    try {
-      const next = await listChats(cursor);
-      more = [...more, ...next.items];
-      cursor = next.nextCursor;
-    } catch (error) {
-      failure = errorText(error, t);
-    }
-  }
-
-  async function rename(chatId: string) {
-    const title = newTitle.trim();
-    if (!title) return;
-    try {
-      await renameChat(chatId, title);
-      renaming = null;
-      newTitle = '';
-      await invalidateAll();
-    } catch (error) {
-      failure = errorText(error, t);
-    }
-  }
-
-  async function drop(chatId: string) {
-    failure = null;
-    try {
-      await deleteChat(chatId);
-      if (data.chat?.id === chatId) await goto('/ai');
-      else await invalidateAll();
-    } catch (error) {
-      failure = errorText(error, t);
-    }
-  }
 </script>
 
 <svelte:head><title>{data.chat?.title ?? t('AI Chat')} · Tessera</title></svelte:head>
 
-<div data-route="ai-chat" class="mx-auto flex max-w-5xl gap-8">
-  <aside class="w-56 shrink-0">
-    <a
-      class="mb-3 block rounded border border-border px-3 py-2 text-center text-sm hover:bg-surface"
-      href="/ai"
-    >
-      {t('New chat')}
-    </a>
-    <ul data-component="ChatList" class="space-y-1">
-      {#each chats as chat (chat.id)}
-        <li class="flex items-center justify-between gap-1">
-          {#if renaming === chat.id}
-            <input
-              class="min-w-0 flex-1 rounded border border-border bg-surface px-2 py-1 text-sm"
-              bind:value={newTitle}
-              onkeydown={(event) => {
-                if (event.key === 'Enter') rename(chat.id);
-                if (event.key === 'Escape') renaming = null;
-              }}
-            />
-            <button
-              class="rounded px-2 py-1 text-xs text-text-muted hover:bg-surface"
-              onclick={() => rename(chat.id)}
-            >
-              {t('Save')}
-            </button>
-          {:else}
-            <a
-              class="min-w-0 flex-1 truncate rounded px-2 py-1.5 text-sm hover:bg-surface"
-              class:font-medium={chat.id === data.chat?.id}
-              href="/ai/{chat.id}"
-            >
-              {chat.title ?? t('Untitled')}
-            </a>
-            <button
-              class="rounded px-2 py-1 text-xs text-text-muted hover:bg-surface"
-              onclick={() => {
-                renaming = chat.id;
-                newTitle = chat.title ?? '';
-              }}
-            >
-              {t('Rename')}
-            </button>
-            <button
-              class="rounded px-2 py-1 text-xs text-text-muted hover:bg-surface"
-              onclick={() => drop(chat.id)}
-            >
-              {t('Delete')}
-            </button>
-          {/if}
-        </li>
-      {:else}
-        <li class="px-2 text-sm text-text-muted">{t('No chats found')}</li>
-      {/each}
-    </ul>
-
-    {#if cursor}
-      <button
-        class="mt-2 w-full rounded px-2 py-1.5 text-sm text-text-muted hover:bg-surface"
-        onclick={loadMore}
-      >
-        {t('Load more')}
-      </button>
-    {/if}
-  </aside>
-
-  <section class="min-w-0 flex-1">
+<div data-route="ai-chat" class="mx-auto max-w-3xl">
+  <section class="min-w-0">
     <h1 class="mb-6 text-2xl font-semibold">{data.chat?.title ?? t('AI Chat')}</h1>
 
     {#if failure}<Notice message={failure} />{/if}
@@ -283,26 +162,26 @@
     <div data-component="ChatThread" class="mb-6 space-y-4">
       {#each messages as message (message.id)}
         <article
-          class="rounded-lg border border-border p-4"
+          class="rounded border border-border p-4"
           class:bg-surface-raised={message.role !== 'user'}
         >
           <p class="mb-1 text-xs uppercase tracking-wide text-text-muted">
-            {message.role === 'user' ? t('You') : t('Assistant said:')}
+            {message.role === 'user' ? t('You') : t('AI')}
           </p>
           <p class="whitespace-pre-wrap text-sm">{message.content}</p>
         </article>
       {/each}
 
       {#if streaming}
-        <article class="rounded-lg border border-border bg-surface-raised p-4">
-          <p class="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('Assistant said:')}</p>
+        <article class="rounded border border-border bg-surface-raised p-4">
+          <p class="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('AI')}</p>
           <p class="whitespace-pre-wrap text-sm">{streaming}</p>
         </article>
       {/if}
 
       {#if plan ?? storedPlan}
         {@const waiting = plan ?? storedPlan}
-        <article data-component="PendingPlan" class="rounded-lg border border-border p-4">
+        <article data-component="PendingPlan" class="rounded border border-border p-4">
           <p class="mb-2 text-sm font-medium">{t('Confirm these changes')}</p>
           <ul class="mb-3 space-y-1 text-sm text-text-muted">
             {#each waiting?.steps ?? [] as step, index (index)}

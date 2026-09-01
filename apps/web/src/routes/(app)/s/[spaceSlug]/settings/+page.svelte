@@ -136,7 +136,7 @@
             <TextInput bind:value={query} type="search" placeholder={t('Search')} />
           </Field>
         </div>
-        <div class="mb-4 w-44"><Select bind:value={role} options={roleOptions} /></div>
+        <div class="mb-4 w-56"><Select bind:value={role} options={roleOptions} /></div>
         <div class="mb-4">
           <Button type="submit" disabled={busy === 'search'}>{t('Search')}</Button>
         </div>

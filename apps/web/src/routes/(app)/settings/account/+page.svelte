@@ -77,7 +77,7 @@
 <section data-route="settings-account">
   <h1 class="mb-6 text-2xl font-semibold">{t('My Profile')}</h1>
 
-  <form class="mb-10 rounded-lg border border-border bg-surface-raised p-6" onsubmit={saveProfile}>
+  <form class="mb-10 rounded border border-border bg-surface-raised p-4" onsubmit={saveProfile}>
     <Field label={t('Name')}>
       <TextInput bind:value={name} autocomplete="name" required />
     </Field>
@@ -85,7 +85,7 @@
     <Field label={t('Language')}>
       <select
         data-component="LocaleSelect"
-        class="w-full rounded border border-border bg-surface px-3 py-2"
+        class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
         bind:value={chosenLocale}
       >
         {#each Object.entries(LOCALE_NAMES) as [code, title] (code)}
@@ -101,7 +101,7 @@
     >
   </form>
 
-  <form class="rounded-lg border border-border bg-surface-raised p-6" onsubmit={savePassword}>
+  <form class="rounded border border-border bg-surface-raised p-4" onsubmit={savePassword}>
     <h2 class="mb-4 text-lg font-medium">{t('Change password')}</h2>
 
     <Field label={t('Current password')}>

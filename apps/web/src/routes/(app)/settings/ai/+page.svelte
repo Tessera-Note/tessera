@@ -144,11 +144,14 @@
     {/if}
   </Panel>
 
-  <form class="mb-8 rounded-lg border border-border bg-surface-raised p-6" onsubmit={saveProvider}>
+  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={saveProvider}>
     <h2 class="mb-4 text-lg font-medium">{t('Provider')}</h2>
 
     <Field label={t('Provider')}>
-      <select class="w-full rounded border border-border bg-surface px-3 py-2" bind:value={driver}>
+      <select
+        class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
+        bind:value={driver}
+      >
         <option value="">{t('Use server environment (default)')}</option>
         {#each AI_DRIVERS as one (one.value)}
           <option value={one.value}>{t(one.label)}</option>
@@ -181,12 +184,12 @@
     </Button>
   </form>
 
-  <form class="mb-8 rounded-lg border border-border bg-surface-raised p-6" onsubmit={saveEmbedding}>
+  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={saveEmbedding}>
     <h2 class="mb-4 text-lg font-medium">{t('Embeddings (semantic search)')}</h2>
 
     <Field label={t('Provider')}>
       <select
-        class="w-full rounded border border-border bg-surface px-3 py-2"
+        class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
         bind:value={embeddingDriver}
       >
         <option value="">{t('Same as chat provider')}</option>
@@ -219,12 +222,12 @@
     </Button>
   </form>
 
-  <form class="mb-8 rounded-lg border border-border bg-surface-raised p-6" onsubmit={saveSearch}>
+  <form class="mb-8 rounded border border-border bg-surface-raised p-4" onsubmit={saveSearch}>
     <h2 class="mb-4 text-lg font-medium">{t('Web search')}</h2>
 
     <Field label={t('Provider')}>
       <select
-        class="w-full rounded border border-border bg-surface px-3 py-2"
+        class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
         bind:value={webSearchDriver}
       >
         {#each WEB_SEARCH_DRIVERS as one (one.value)}

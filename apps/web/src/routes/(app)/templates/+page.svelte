@@ -58,7 +58,7 @@
   <label class="mb-6 block">
     <span class="mb-1 block text-sm text-text-muted">{t('Space')}</span>
     <select
-      class="w-full rounded border border-border bg-surface px-3 py-2"
+      class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
       bind:value={chosenSpace}
     >
       <option value="">{t('Select scope')}</option>
@@ -71,7 +71,7 @@
   <ul data-component="TemplateList" class="space-y-2">
     {#each data.templates as template (template.id)}
       {@const target = spaceFor(template.spaceId)}
-      <li class="rounded-lg border border-border bg-surface-raised p-4">
+      <li class="rounded border border-border bg-surface-raised p-4">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <p class="truncate font-medium">
