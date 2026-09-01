@@ -14,7 +14,6 @@
   } from '@tabler/icons-svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
-  import PageBody from '$lib/components/page/PageBody.svelte';
   import Editor from '$lib/features/editor/Editor.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
@@ -236,24 +235,23 @@
     {#if failure}<Notice message={failure} />{/if}
     {#if savedTemplate}<Notice tone="info" message={t('Template created successfully')} />{/if}
 
-    {#if editing}
-      <!--
-        Редактор подключается к каналу совместной правки, и открывать его тем,
-        кто правит не вправе, незачем: канал всё равно переведёт соединение в
-        режим чтения, а страница успеет мигнуть.
-      -->
-      <Editor
-        pageId={data.page.id}
-        content={data.page.content}
-        editable={canEdit}
-        author={{
-          name: data.session?.user.name ?? data.session?.user.email ?? '',
-          color: caretColor(data.session?.user.id ?? '')
-        }}
-      />
-    {:else}
-      <PageBody content={data.page.content} />
-    {/if}
+    <!--
+      Один и тот же редактор и на чтение, и на правку. Второй рисовальщик для
+      чтения показывал бы страницу иначе: картинки, метки состояния и перечни
+      подстраниц он не знает, и они пропадали бы при выходе из правки.
+
+      Соединение канала открывается и на чтении: правка соседа видна сразу, а не
+      после перезагрузки.
+    -->
+    <Editor
+      pageId={data.page.id}
+      content={data.page.content}
+      editable={canEdit && editing}
+      author={{
+        name: data.session?.user.name ?? data.session?.user.email ?? '',
+        color: caretColor(data.session?.user.id ?? '')
+      }}
+    />
 
     <PageComments pageId={data.page.id} comments={data.comments} />
   </article>

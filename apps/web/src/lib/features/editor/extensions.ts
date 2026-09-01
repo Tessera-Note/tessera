@@ -66,47 +66,77 @@ import {
 } from '@tessera/editor-ext';
 import { common, createLowlight } from 'lowlight';
 import type { AnyExtension } from '@tiptap/core';
+import type { Component } from 'svelte';
+import { svelteNodeView, type NodeViewProps } from './node-view.svelte';
+import BaseEmbedView from './views/BaseEmbedView.svelte';
+import DiagramView from './views/DiagramView.svelte';
+import MediaView from './views/MediaView.svelte';
+import MentionView from './views/MentionView.svelte';
+import StatusView from './views/StatusView.svelte';
+import SubpagesView from './views/SubpagesView.svelte';
+
+/**
+ * Один компонент показывает четыре вида вложений: разница между ними в теге, а
+ * не в поведении, и четыре почти одинаковых файла разъехались бы.
+ */
+function mediaView(kind: 'image' | 'video' | 'audio' | 'pdf'): Component<NodeViewProps> {
+  return ((anchor: never, props: NodeViewProps) =>
+    (MediaView as never as (a: never, p: object) => unknown)(anchor, {
+      ...props,
+      kind
+    })) as never;
+}
+
+function diagramView(kind: 'drawio' | 'excalidraw'): Component<NodeViewProps> {
+  return ((anchor: never, props: NodeViewProps) =>
+    (DiagramView as never as (a: never, p: object) => unknown)(anchor, {
+      ...props,
+      kind
+    })) as never;
+}
+
+/**
+ * Подменить отображение узла своим.
+ *
+ * В общем пакете `addNodeView` возвращает представление на React. Здесь оно
+ * заменяется на Svelte: схема узла остаётся той же — меняется только рисование.
+ */
+function withView<T extends { extend: (config: object) => T }>(
+  extension: T,
+  view: Component<NodeViewProps>,
+  options: { inline?: boolean } = {}
+): T {
+  return extension.extend({ addNodeView: () => svelteNodeView(view, options) });
+}
 
 /**
  * Снять отображение узла.
  *
- * `addNodeView` в общем пакете возвращает React-представление. Присвоение
- * `undefined` убирает сам хук, и Tiptap рисует узел разметкой из `renderHTML`.
+ * Присвоение `undefined` убирает сам хук, и Tiptap рисует узел разметкой из
+ * `renderHTML`. Так остаются узлы, которым отдельное рисование не нужно.
  */
 function withoutNodeView<T extends { extend: (config: object) => T }>(extension: T): T {
   return extension.extend({ addNodeView: undefined });
 }
 
-/** Расширения, у которых отображение написано на React. */
-const REACT_VIEWS = [
-  TiptapImage,
-  TiptapVideo,
-  TiptapAudio,
-  TiptapPdf,
-  Drawio,
-  Excalidraw,
-  Embed,
-  Mention,
-  Subpages,
-  Status,
-  BaseEmbed,
-  TransclusionReference
-];
+/** Узлы со своим отображением: без него они не показывают содержимого. */
+const Image = withView(TiptapImage as never, mediaView('image'));
+const Video = withView(TiptapVideo as never, mediaView('video'));
+const Audio = withView(TiptapAudio as never, mediaView('audio'));
+const Pdf = withView(TiptapPdf as never, mediaView('pdf'));
+const DrawioNode = withView(Drawio as never, diagramView('drawio'));
+const ExcalidrawNode = withView(Excalidraw as never, diagramView('excalidraw'));
+const MentionNode = withView(Mention as never, MentionView as never, { inline: true });
+const SubpagesNode = withView(Subpages as never, SubpagesView as never);
+const StatusNode = withView(Status as never, StatusView as never, { inline: true });
+const BaseEmbedNode = withView(BaseEmbed as never, BaseEmbedView as never);
 
-const [
-  Image,
-  Video,
-  Audio,
-  Pdf,
-  DrawioNode,
-  ExcalidrawNode,
-  EmbedNode,
-  MentionNode,
-  SubpagesNode,
-  StatusNode,
-  BaseEmbedNode,
-  TransclusionReferenceNode
-] = REACT_VIEWS.map((one) => withoutNodeView(one as never)) as never[];
+/**
+ * Встраивание внешнего ролика и ссылка на кусок чужой страницы рисуются своей
+ * разметкой: показывать там нечего сверх того, что записано в узле.
+ */
+const EmbedNode = withoutNodeView(Embed as never);
+const TransclusionReferenceNode = withoutNodeView(TransclusionReference as never);
 
 /**
  * Полный состав расширений.

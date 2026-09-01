@@ -65,6 +65,8 @@
   }
 
   let editor: { destroy: () => void } | null = null;
+  /** Переключатель права правки. Ставится, когда редактор собран. */
+  let setEditable: ((value: boolean) => void) | null = null;
   let provider: { destroy: () => void } | null = null;
 
   onMount(() => {
@@ -124,6 +126,13 @@
           ticks += 1;
         });
 
+        // Режим меняет переключатель на странице: редактор остаётся тем же,
+        // пересоздание потеряло бы и соединение, и место курсора.
+        setEditable = (value: boolean) => {
+          if (!made.isDestroyed) made.setEditable(value);
+        };
+        setEditable(editable);
+
         // Содержимое приходит из документа Yjs. Первым подключившимся его надо
         // засеять: пустой документ означал бы, что страница потеряла текст.
         connection.on('synced', () => {
@@ -144,6 +153,10 @@
     return () => {
       cancelled = true;
     };
+  });
+
+  $effect(() => {
+    setEditable?.(editable);
   });
 
   onDestroy(() => {
