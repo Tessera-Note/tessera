@@ -17,11 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.config import Settings
-from tessera_api.domain.errors import bad_request, not_found
+from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService, StoredFile
+from tessera_api.services.tokens import TokenService
 
 #: Что отдаётся браузеру внутри страницы, а не файлом на скачивание. Всё
 #: остальное уходит вложением: содержимое загружают люди, и показать чужой
@@ -121,6 +122,39 @@ class FileController(Controller):
         )
         return _file_response(stored, cache="private, max-age=3600")
 
+    @get("/public/{file_id:uuid}/{file_name:str}", opt={PUBLIC: True})
+    async def download_public(
+        self,
+        file_id: uuid.UUID,
+        file_name: str,
+        jwt: str | None,
+        db_session: NamedDependency[AsyncSession],
+        storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
+        tokens: NamedDependency[TokenService],
+    ) -> Response:
+        """Выдать вложение страницы, открытой по ссылке.
+
+        **Маршрут открыт без входа, и это осознанно.** Иначе картинки и файлы
+        в опубликованной странице не показываются вовсе: у того, кто пришёл по
+        ссылке, ни сессии, ни учётной записи нет.
+
+        Учётные данные здесь — токен в запросе. Он подписан нами, живёт час,
+        имеет свой вид и выписан на пару «вложение и страница». Совпадение
+        обеих сверяется: без сверки страницы токен, полученный из открытой
+        ветви, открывал бы любое вложение рабочего пространства.
+        """
+        claims = tokens.read_attachment(jwt)
+        if claims is None or claims.attachment_id != file_id:
+            raise unauthorized("error.attachment.expired_or_invalid_attachment_access_token")
+
+        stored = await AttachmentService(db_session, storage, queue).read_public(
+            claims.attachment_id, claims.page_id, claims.workspace_id
+        )
+        # Кеш частный и короткий: адрес несёт токен, и общий кеш посредника
+        # раздавал бы файл по чужому токену уже после его истечения.
+        return _file_response(stored, cache="private, max-age=600")
+
     @post("/info")
     async def info(
         self,
@@ -170,6 +204,26 @@ class ImageController(Controller):
             space_id=space_id,
         )
         return {"fileName": stored_name}
+
+    @post("/remove-icon")
+    async def remove_icon(
+        self,
+        data: dict,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
+    ) -> dict:
+        """Снять аватар, логотип пространства или значок раздела."""
+        principal: Principal = request.scope["principal"]
+        raw_space = data.get("spaceId")
+        await AttachmentService(db_session, storage, queue).remove_icon(
+            kind=str(data.get("type") or ""),
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            space_id=uuid.UUID(str(raw_space)) if raw_space else None,
+        )
+        return {"success": True}
 
     @get(
         "/img/{kind:str}/{file_name:str}",

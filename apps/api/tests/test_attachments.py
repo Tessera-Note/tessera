@@ -15,10 +15,13 @@ from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
-from tessera_api.infrastructure.models import Attachment, PageAccess, User
-from tessera_api.infrastructure.storage import LocalStorage
+from tessera_api.infrastructure.models import Attachment, PageAccess, Space, User
+from tessera_api.infrastructure.storage import LocalStorage, image_key
 from tessera_api.services.attachments import (
+    TYPE_AVATAR,
     TYPE_CHAT,
+    TYPE_SPACE_ICON,
+    TYPE_WORKSPACE_ICON,
     AttachmentService,
 )
 from tessera_api.services.page_access import ACCESS_RESTRICTED
@@ -561,3 +564,238 @@ class TestCleanup:
         service = AttachmentService(session, storage)
         assert await service.delete_page_attachments([]) == 0
         assert await service.delete_page_attachments([uuid.uuid4()]) == 0
+
+
+class TestIcons:
+    """Аватары и логотипы.
+
+    Аватар человек ставит себе сам. Логотип пространства и значок раздела видны
+    всем, и менять их вправе не всякий: без проверки любой участник переставлял
+    бы их кому угодно, а обнаружилось бы это по картинке, а не по журналу.
+    """
+
+    async def test_a_person_sets_their_own_avatar(
+        self, session: AsyncSession, workspace, owner, storage
+    ) -> None:
+        name = await AttachmentService(session, storage).upload_image(
+            kind=TYPE_AVATAR,
+            file_name="a.png",
+            data=b"picture",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        assert name.endswith(".png")
+        person = await session.get(User, owner.id)
+        assert person.avatar_url == name
+
+    async def test_an_ordinary_member_does_not_change_the_workspace_logo(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        reader_id = await _reader(session, workspace, space, owner)
+
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).upload_image(
+                kind=TYPE_WORKSPACE_ICON,
+                file_name="logo.png",
+                data=b"picture",
+                user_id=reader_id,
+                workspace_id=workspace.id,
+            )
+        assert failure.value.code == "error.common.admin_required"
+
+    async def test_a_reader_does_not_change_the_space_icon(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        reader_id = await _reader(session, workspace, space, owner)
+
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).upload_image(
+                kind=TYPE_SPACE_ICON,
+                file_name="icon.png",
+                data=b"picture",
+                user_id=reader_id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        assert failure.value.code == "error.space.access_denied"
+
+    async def test_an_outsider_does_not_learn_the_space_exists(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        stranger_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger_id,
+                email=f"out-{uuid.uuid4().hex[:8]}@example.com",
+                name="Посторонний",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).upload_image(
+                kind=TYPE_SPACE_ICON,
+                file_name="icon.png",
+                data=b"picture",
+                user_id=stranger_id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        assert failure.value.code == "error.space.space_not_found"
+
+    async def test_removing_clears_the_reference_and_the_object(
+        self, session: AsyncSession, workspace, owner, storage
+    ) -> None:
+        service = AttachmentService(session, storage)
+        name = await service.upload_image(
+            kind=TYPE_AVATAR,
+            file_name="a.png",
+            data=b"picture",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        key = image_key(workspace.id, TYPE_AVATAR, name)
+        assert await storage.exists(key)
+
+        await service.remove_icon(
+            kind=TYPE_AVATAR, user_id=owner.id, workspace_id=workspace.id
+        )
+
+        person = await session.get(User, owner.id)
+        assert person.avatar_url is None
+        assert not await storage.exists(key)
+        left = (
+            await session.execute(
+                select(func.count()).select_from(Attachment).where(Attachment.file_path == key)
+            )
+        ).scalar_one()
+        assert left == 0
+
+    async def test_removing_nothing_is_not_an_error(
+        self, session: AsyncSession, workspace, owner, storage
+    ) -> None:
+        """Кнопка «убрать» доступна и тогда, когда картинки нет."""
+        await AttachmentService(session, storage).remove_icon(
+            kind=TYPE_AVATAR, user_id=owner.id, workspace_id=workspace.id
+        )
+        person = await session.get(User, owner.id)
+        assert person.avatar_url is None
+
+    async def test_a_reader_does_not_remove_the_space_icon(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        service = AttachmentService(session, storage)
+        await service.upload_image(
+            kind=TYPE_SPACE_ICON,
+            file_name="icon.png",
+            data=b"picture",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+        reader_id = await _reader(session, workspace, space, owner)
+
+        with pytest.raises(AppError) as failure:
+            await service.remove_icon(
+                kind=TYPE_SPACE_ICON,
+                user_id=reader_id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        assert failure.value.code == "error.space.access_denied"
+        left = await session.get(Space, space.id)
+        assert left.logo is not None
+
+    async def test_an_unknown_kind_is_refused(
+        self, session: AsyncSession, workspace, owner, storage
+    ) -> None:
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).remove_icon(
+                kind="файл", user_id=owner.id, workspace_id=workspace.id
+            )
+        assert failure.value.code == "error.attachment.unknown_type"
+
+
+class TestPublicRead:
+    """Вложение опубликованной страницы.
+
+    Человека здесь нет: файл запрашивает браузер того, у кого есть ссылка.
+    Право задаётся токеном, и сверяются обе его части — какое вложение и чьей
+    страницы. Без сверки страницы токен, полученный из открытой ветви, открывал
+    бы любое вложение рабочего пространства.
+    """
+
+    async def _uploaded(self, session, workspace, owner, space, storage):
+        world = await _world(session, workspace, owner, space)
+        attachment = await AttachmentService(session, storage).upload_page_file(
+            page_id_or_slug=str(world["root"].id),
+            file_name="картинка.png",
+            data=b"picture",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            size_limit=SIZE_LIMIT,
+        )
+        return world, attachment
+
+    async def test_the_file_is_served_for_its_own_page(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        world, attachment = await self._uploaded(session, workspace, owner, space, storage)
+
+        stored = await AttachmentService(session, storage).read_public(
+            attachment.id, world["root"].id, workspace.id
+        )
+        assert stored.data == b"picture"
+
+    async def test_a_token_for_another_page_does_not_open_it(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        """Главная проверка этого маршрута: вложение обязано принадлежать той
+        странице, на которую выписан токен."""
+        world, attachment = await self._uploaded(session, workspace, owner, space, storage)
+
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).read_public(
+                attachment.id, world["child"].id, workspace.id
+            )
+        assert failure.value.code == "error.attachment.not_found"
+
+    async def test_a_foreign_workspace_does_not_open_it(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        world, attachment = await self._uploaded(session, workspace, owner, space, storage)
+
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).read_public(
+                attachment.id, world["root"].id, uuid.uuid4()
+            )
+        assert failure.value.code == "error.attachment.not_found"
+
+    async def test_a_chat_attachment_has_no_page_and_is_refused(
+        self, session: AsyncSession, workspace, owner, storage
+    ) -> None:
+        """Вложение разговора страницы не имеет вовсе, и публичной выдачи у
+        него быть не может ни при каком токене."""
+        attachment_id = uuid.uuid4()
+        await session.execute(
+            insert(Attachment).values(
+                id=attachment_id,
+                file_name="файл.txt",
+                file_path="chat/файл.txt",
+                file_size=1,
+                file_ext=".txt",
+                mime_type="text/plain",
+                type=TYPE_CHAT,
+                creator_id=owner.id,
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await AttachmentService(session, storage).read_public(
+                attachment_id, uuid.uuid4(), workspace.id
+            )
+        assert failure.value.code == "error.attachment.not_found"

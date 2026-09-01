@@ -1,4 +1,11 @@
-"""Ссылки общего доступа."""
+"""Ссылки общего доступа.
+
+Содержимое, уходящее по ссылке, проходит подготовку, и она обязательна.
+Вложениям выписываются отдельные токены — иначе картинки в открытой странице
+не показываются вовсе, — а пометки комментариев снимаются: комментарии это
+внутреннее обсуждение, и постороннему не полагается знать ни где они, ни
+сколько их.
+"""
 
 from __future__ import annotations
 
@@ -6,17 +13,34 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import Page, Share, Space, Workspace
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.tokens import TokenService
 
 #: Длина ключа ссылки. Ключ и есть учётные данные того, кто открывает страницу
 #: без входа, поэтому берётся у криптографического источника.
 KEY_BYTES = 24
+
+#: Узлы, у которых есть вложение. Совпадают с перечнем выгрузки: там тот же
+#: вопрос — какие узлы ссылаются на файлы в хранилище.
+ATTACHMENT_NODES = ("attachment", "image", "video", "audio", "pdf", "excalidraw", "drawio")
+
+#: Пометка обсуждения. Снимается перед выдачей наружу.
+COMMENT_MARK = "comment"
+
+#: Начала адресов, которые считаются нашими вложениями. Остальное не трогается:
+#: в документе бывают внешние картинки, и подписывать чужой адрес незачем.
+FILE_PREFIXES = ("/files/", "/api/files/")
+
+#: Сколько страниц отдаётся в дереве открытой ветви. Тот же предел, что у
+#: печати: ветвь на тысячу страниц не столько показывается, сколько роняет
+#: браузер.
+MAX_TREE_PAGES = 200
 
 
 class ShareService:
@@ -188,6 +212,12 @@ class ShareService:
         if not await self.sharing_allowed(page):
             raise not_found("error.share.share_not_found")
 
+        # Ограничение, поставленное после публикации, закрывает ссылку. Проверка
+        # при заведении сама по себе ничего не даёт: страницу закрывают именно
+        # тогда, когда содержимое стало чувствительным, а ссылка уже роздана.
+        if await self._access.has_restricted_ancestor(page):
+            raise not_found("error.share.share_not_found")
+
         return share, page
 
     async def shared_page(self, key: str, page_id_or_slug: str) -> Page:
@@ -207,6 +237,10 @@ class ShareService:
             raise not_found("error.share.share_not_found")
 
         if not await self._is_descendant(page.id, root.id):
+            raise not_found("error.share.share_not_found")
+
+        # Закрытая подстраница не отдаётся, даже если ветвь опубликована целиком.
+        if await self._access.has_restricted_ancestor(page):
             raise not_found("error.share.share_not_found")
         return page
 
@@ -230,3 +264,212 @@ class ShareService:
             {"page_id": page_id, "root_id": root_id},
         )
         return rows.first() is not None
+
+    async def update(
+        self,
+        *,
+        share_id: uuid.UUID,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        include_sub_pages: bool | None = None,
+        search_indexing: bool | None = None,
+    ) -> Share:
+        """Изменить настройки ссылки.
+
+        Право то же, что у заведения: правка страницы. Читателю здесь делать
+        нечего — распространить ссылку на подстраницы значит открыть наружу то,
+        чего в исходной ссылке не было.
+        """
+        share = await self._session.get(Share, share_id)
+        if share is None or share.deleted_at is not None or share.workspace_id != workspace_id:
+            raise not_found("error.share.share_not_found")
+
+        page = await self._session.get(Page, share.page_id)
+        if page is None or page.deleted_at is not None:
+            raise not_found("error.share.shared_page_not_found")
+        await self._access.validate_can_edit(page, user_id)
+
+        values: dict = {}
+        if include_sub_pages is not None:
+            values["include_sub_pages"] = include_sub_pages
+        if search_indexing is not None:
+            values["search_indexing"] = search_indexing
+        if not values:
+            return share
+
+        await self._session.execute(
+            update(Share).where(Share.id == share.id).values(**values)
+        )
+        await self._session.commit()
+        return await self._session.get(Share, share.id)
+
+    async def tree(self, key: str) -> tuple[Share, Page, list[Page]]:
+        """Ветвь, открытая ссылкой: корень и его потомки.
+
+        Ограниченные страницы в дерево не попадают, и вместе с ними — их
+        потомки: страница, закрытая от пространства, не должна становиться
+        видимой снаружи из-за того, что открыт её предок.
+
+        Ссылка без распространения на подстраницы отдаёт один корень. Дерево в
+        этом случае не пустое, а состоит из одной страницы: пустое читалось бы
+        клиентом как «ветвь недоступна».
+        """
+        share, root = await self.resolve(key)
+        if not share.include_sub_pages:
+            return share, root, [root]
+
+        rows = (
+            (
+                await self._session.execute(
+                    select(Page)
+                    .where(Page.space_id == root.space_id)
+                    .where(Page.workspace_id == share.workspace_id)
+                    .where(Page.deleted_at.is_(None))
+                    .order_by(Page.position.asc(), Page.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        by_parent: dict[uuid.UUID | None, list[Page]] = {}
+        for one in rows:
+            by_parent.setdefault(one.parent_page_id, []).append(one)
+
+        branch: list[Page] = []
+        queue: list[Page] = [root]
+        while queue and len(branch) < MAX_TREE_PAGES:
+            current = queue.pop(0)
+            if await self._access.has_restricted_ancestor(current):
+                # Ветка целиком: потомки закрытой страницы наружу не идут.
+                continue
+            branch.append(current)
+            queue.extend(by_parent.get(current.id, []))
+
+        return share, root, branch
+
+    async def search(self, key: str, query: str, *, limit: int = 20) -> list[dict]:
+        """Поиск внутри открытой ветви.
+
+        Отдельно от общего поиска, и обязательно отдельно: у того отбор идёт по
+        пространствам человека, а здесь человека нет. Отбор задаётся ссылкой —
+        только страницы её ветви, только пока ссылка цела, и ничего сверх того.
+        """
+        from tessera_api.services.search import SEARCH_CONFIG, build_tsquery
+
+        expression = build_tsquery(query)
+        if not expression:
+            return []
+
+        share, _root, branch = await self.tree(key)
+        allowed = [one.id for one in branch]
+        if not allowed:
+            return []
+
+        rows = await self._session.execute(
+            text(
+                f"""
+                SELECT id, slug_id, title,
+                       ts_rank(tsv, to_tsquery('{SEARCH_CONFIG}', f_unaccent(:q))) AS rank,
+                       ts_headline('{SEARCH_CONFIG}', coalesce(text_content, ''),
+                           to_tsquery('{SEARCH_CONFIG}', f_unaccent(:q)),
+                           'MinWords=9, MaxWords=10, MaxFragments=3') AS highlight
+                FROM pages
+                WHERE workspace_id = :workspace_id
+                  AND deleted_at IS NULL
+                  AND id = ANY(:allowed)
+                  AND tsv @@ to_tsquery('{SEARCH_CONFIG}', f_unaccent(:q))
+                ORDER BY rank DESC
+                LIMIT :limit
+                """  # noqa: S608 — имя конфигурации из константы, не из ввода
+            ),
+            {
+                "q": expression,
+                "workspace_id": share.workspace_id,
+                "allowed": allowed,
+                "limit": limit,
+            },
+        )
+        return [
+            {
+                "id": row[0],
+                "slugId": row[1],
+                "title": row[2],
+                "rank": float(row[3] or 0),
+                "highlight": row[4],
+            }
+            for row in rows.all()
+        ]
+
+    async def public_content(self, page: Page, tokens: TokenService) -> dict | None:
+        """Содержимое страницы в виде, пригодном для выдачи наружу.
+
+        Две правки, и обе обязательны. Вложениям выписываются токены, иначе
+        картинки и файлы в открытой странице просто не показываются: маршрут
+        выдачи закрыт, а вошедшего нет. Пометки обсуждений снимаются, потому
+        что комментарии — внутренняя переписка: постороннему не полагается
+        знать ни где они стоят, ни сколько их, ни их идентификаторы.
+        """
+        content = page.content
+        if not isinstance(content, dict):
+            return content
+
+        minted: dict[str, str] = {}
+
+        def token_for(raw: object) -> str | None:
+            key = str(raw or "")
+            if not key:
+                return None
+            if key not in minted:
+                try:
+                    attachment_id = uuid.UUID(key)
+                except ValueError:
+                    return None
+                minted[key] = tokens.issue_attachment(
+                    attachment_id=attachment_id,
+                    page_id=page.id,
+                    workspace_id=page.workspace_id,
+                )
+            return minted[key]
+
+        def visit(node: object) -> object:
+            if isinstance(node, list):
+                return [visit(one) for one in node]
+            if not isinstance(node, dict):
+                return node
+
+            copy = dict(node)
+            marks = copy.get("marks")
+            if isinstance(marks, list):
+                left = [
+                    mark
+                    for mark in marks
+                    if not (isinstance(mark, dict) and mark.get("type") == COMMENT_MARK)
+                ]
+                if left:
+                    copy["marks"] = left
+                else:
+                    copy.pop("marks", None)
+
+            if copy.get("type") in ATTACHMENT_NODES:
+                attrs = dict(copy.get("attrs") or {})
+                token = token_for(attrs.get("attachmentId"))
+                if token:
+                    for field in ("src", "url"):
+                        attrs[field] = _public_url(attrs.get(field), token)
+                copy["attrs"] = attrs
+
+            if isinstance(copy.get("content"), list):
+                copy["content"] = [visit(one) for one in copy["content"]]
+            return copy
+
+        return visit(content)
+
+
+def _public_url(value: object, token: str) -> object:
+    """Адрес вложения в публичной форме. Чужие адреса не трогаются."""
+    if not isinstance(value, str) or not value.startswith(FILE_PREFIXES):
+        return value
+    public = value.replace("/files/", "/files/public/", 1)
+    separator = "&" if "?" in public else "?"
+    return f"{public}{separator}jwt={token}"

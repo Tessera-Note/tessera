@@ -26,6 +26,10 @@ MFA_EXPIRES = timedelta(minutes=5)
 #: сеанс работы, а не месяц, и утёкший токен должен протухнуть быстро.
 COLLAB_EXPIRES = timedelta(hours=24)
 
+#: Срок токена вложения. Час, как в v1: страницу читают за один присест, а
+#: токен виден в адресе картинки и сохраняется вместе со ссылкой на неё.
+ATTACHMENT_EXPIRES = timedelta(hours=1)
+
 
 class TokenType:
     """Вид токена.
@@ -49,6 +53,24 @@ class TokenType:
     #: принятый как токен доступа, он открыл бы вход по одному паролю, то есть
     #: отменил бы второй фактор.
     MFA = "mfa"
+    #: Доступ к одному вложению опубликованной страницы. Отдельный вид, потому
+    #: что человека за ним нет вовсе: токен уезжает в адрес картинки внутри
+    #: страницы, открытой по ссылке, и предъявляет его браузер постороннего.
+    ATTACHMENT = "attachment"
+
+
+@dataclass(frozen=True, slots=True)
+class AttachmentClaims:
+    """Разобранный токен вложения.
+
+    Человека здесь нет и быть не может. Право задаётся тремя вещами: какое
+    вложение, чьей страницы и какого рабочего пространства — и все три
+    сверяются получателем.
+    """
+
+    attachment_id: uuid.UUID
+    page_id: uuid.UUID
+    workspace_id: uuid.UUID
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +179,49 @@ class TokenService:
         if expires_at is not None:
             claims["exp"] = int(expires_at.timestamp())
         return jwt.encode(claims, self._secret, algorithm=ALGORITHM)
+
+    def issue_attachment(
+        self, *, attachment_id: uuid.UUID, page_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> str:
+        """Токен на одно вложение опубликованной страницы.
+
+        Страница отдельным полем, и это главное здесь. Получатель сверяет, что
+        вложение принадлежит именно этой странице: без такой сверки токен,
+        выписанный на картинку из открытой ветви, открывал бы любое вложение
+        рабочего пространства.
+        """
+        now = datetime.now(UTC)
+        return jwt.encode(
+            {
+                "attachmentId": str(attachment_id),
+                "pageId": str(page_id),
+                "workspaceId": str(workspace_id),
+                "type": TokenType.ATTACHMENT,
+                "iat": int(now.timestamp()),
+                "exp": int((now + ATTACHMENT_EXPIRES).timestamp()),
+            },
+            self._secret,
+            algorithm=ALGORITHM,
+        )
+
+    def read_attachment(self, token: str | None) -> AttachmentClaims | None:
+        """Разобрать токен вложения. `None` на любом негодном значении."""
+        if not token:
+            return None
+        try:
+            claims = jwt.decode(token, self._secret, algorithms=[ALGORITHM])
+        except jwt.PyJWTError:
+            return None
+        if claims.get("type") != TokenType.ATTACHMENT:
+            return None
+        try:
+            return AttachmentClaims(
+                attachment_id=uuid.UUID(str(claims["attachmentId"])),
+                page_id=uuid.UUID(str(claims["pageId"])),
+                workspace_id=uuid.UUID(str(claims["workspaceId"])),
+            )
+        except (KeyError, ValueError):
+            return None
 
     def read(self, token: str, expected_type: str = TokenType.ACCESS) -> TokenPayload | None:
         """Разобрать токен.

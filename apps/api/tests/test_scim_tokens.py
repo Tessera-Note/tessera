@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import UserRole
-from tessera_api.infrastructure.models import ScimToken, User, Workspace
+from tessera_api.infrastructure.models import AuditLog, ScimToken, User, Workspace
 from tessera_api.services.scim_filter import (
     DEFAULT_COUNT,
     MAX_COUNT,
@@ -201,6 +201,31 @@ class TestManagement:
 
         assert all("token" not in one for one in listed)
         assert any(one["lastFour"] == created["lastFour"] for one in listed)
+
+    async def test_the_life_of_a_token_is_written_to_the_log(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Токен синхронизации заводит и отзывает человека в пространстве
+        целиком. Кто это сделал и когда, должно оставаться в журнале."""
+        service = ScimTokenService(session)
+        created = await service.create(owner, workspace, "Каталог")
+        await service.rename(created["id"], owner, workspace, "Иначе")
+        await service.revoke(created["id"], owner, workspace)
+
+        events = (
+            (
+                await session.execute(
+                    select(AuditLog.event).where(AuditLog.resource_id == created["id"])
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert set(events) == {
+            "scim_token.created",
+            "scim_token.updated",
+            "scim_token.deleted",
+        }
 
     async def test_only_an_administrator_manages_tokens(
         self, session: AsyncSession, workspace, owner

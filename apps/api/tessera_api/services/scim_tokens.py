@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import ScimToken, User, Workspace
+from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 
 #: Опознавательный префикс. Совпадает с v1: токены, выданные до перехода,
 #: обязаны продолжать работать.
@@ -76,6 +77,7 @@ def bearer_of(header: str | None) -> str | None:
 class ScimTokenService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._audit = AuditService(session)
 
     async def authenticate(self, workspace: Workspace, header: str | None) -> ScimToken | None:
         """Проверить предъявленный токен.
@@ -167,6 +169,14 @@ class ScimTokenService:
                 workspace_id=workspace.id,
             )
         )
+        await self._audit.log(
+            event=AuditEvent.SCIM_TOKEN_CREATED,
+            resource_type=AuditResource.SCIM_TOKEN,
+            resource_id=token_id,
+            user_id=actor.id,
+            workspace_id=workspace.id,
+            metadata={"name": name.strip()},
+        )
         await self._session.commit()
         return {
             "id": token_id,
@@ -190,8 +200,17 @@ class ScimTokenService:
         if not name or not name.strip():
             raise bad_request("error.scim.name_required")
         token = await self._own(token_id, actor, workspace)
+        previous = token.name
         await self._session.execute(
             update(ScimToken).where(ScimToken.id == token.id).values(name=name.strip())
+        )
+        await self._audit.log(
+            event=AuditEvent.SCIM_TOKEN_UPDATED,
+            resource_type=AuditResource.SCIM_TOKEN,
+            resource_id=token.id,
+            user_id=actor.id,
+            workspace_id=workspace.id,
+            changes={"before": {"name": previous}, "after": {"name": name.strip()}},
         )
         await self._session.commit()
         return {"id": token.id, "name": name.strip()}
@@ -208,5 +227,12 @@ class ScimTokenService:
             update(ScimToken)
             .where(ScimToken.id == token.id)
             .values(is_enabled=False, deleted_at=datetime.now(UTC))
+        )
+        await self._audit.log(
+            event=AuditEvent.SCIM_TOKEN_DELETED,
+            resource_type=AuditResource.SCIM_TOKEN,
+            resource_id=token.id,
+            user_id=actor.id,
+            workspace_id=workspace.id,
         )
         await self._session.commit()

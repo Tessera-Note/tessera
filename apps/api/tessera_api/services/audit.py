@@ -65,6 +65,13 @@ class AuditEvent:
     API_KEY_CREATED = "api_key.created"
     API_KEY_UPDATED = "api_key.updated"
     API_KEY_DELETED = "api_key.deleted"
+    SCIM_TOKEN_CREATED = "scim_token.created"
+    SCIM_TOKEN_UPDATED = "scim_token.updated"
+    SCIM_TOKEN_DELETED = "scim_token.deleted"
+    SSO_PROVIDER_CREATED = "sso.provider_created"
+    SSO_PROVIDER_UPDATED = "sso.provider_updated"
+    SSO_PROVIDER_DELETED = "sso.provider_deleted"
+    USER_SSO_UNLINKED = "user.sso_unlinked"
     PAGE_IMPORTED = "page.imported"
     PAGE_EXPORTED = "page.exported"
     SPACE_EXPORTED = "space.exported"
@@ -78,6 +85,8 @@ class AuditResource:
     PAGE = "page"
     API_KEY = "api_key"
     MFA = "mfa"
+    SSO_PROVIDER = "sso_provider"
+    SCIM_TOKEN = "scim_token"
 
 
 class ActorType:

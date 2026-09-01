@@ -45,19 +45,19 @@ v2. Разница в 90 строк — не 90 пропаж: часть из н
 
 ### Ссылки общего доступа
 
-- [ ] `shares/update` — правка настроек ссылки (подстраницы, индексация).
-- [ ] `shares/tree` — дерево страниц внутри опубликованной ветви.
-- [ ] `shares/page-info`, `shares/info` — сведения об опубликованной странице.
+- [x] `shares/update` — правка настроек ссылки (подстраницы, индексация).
+- [x] `shares/tree` — дерево страниц внутри опубликованной ветви.
+- [x] `shares/page-info`, `shares/info` — сведения об опубликованной странице.
 - [ ] `shares/transclusion/lookup` — включения внутри опубликованной страницы.
-- [ ] `search/share-search` — поиск внутри опубликованной ветви.
+- [x] `search/share-search` — поиск внутри опубликованной ветви.
 
 ### Учётные записи и охрана
 
 - [x] `sessions`, `sessions/revoke`, `sessions/revoke-all` — свои сеансы и их
       отзыв.
-- [ ] `sso/providers`, `sso/create`, `sso/update`, `sso/delete`, `sso/info`,
+- [x] `sso/providers`, `sso/create`, `sso/update`, `sso/delete`, `sso/info`,
       `sso/unlink` — управление провайдерами входа. Сам вход через них работает.
-- [ ] `scim-tokens`, `/create`, `/revoke`, `/update` — токены синхронизации
+- [x] `scim-tokens`, `/create`, `/revoke`, `/update` — токены синхронизации
       каталога. Служба в v2 есть, маршрутов нет.
 - [ ] `mfa/validate-access` — проверка второго фактора перед опасным действием.
 - [ ] `groups/attach-directory`, `groups/detach-directory` — передача группы
@@ -78,8 +78,8 @@ v2. Разница в 90 строк — не 90 пропаж: часть из н
 
 ### Прочее
 
-- [ ] `attachments/remove-icon` — снятие значка пространства или страницы.
-- [ ] `files/public/{id}/{name}` — файл опубликованной страницы без входа.
+- [x] `attachments/remove-icon` — снятие значка пространства или страницы.
+- [x] `files/public/{id}/{name}` — файл опубликованной страницы без входа.
 - [ ] `version` — сведения о выпуске.
 - [ ] `health/live` — проверка живости отдельно от готовности.
 - [ ] `robots.txt` — правила обхода.

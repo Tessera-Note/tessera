@@ -31,6 +31,7 @@ from tessera_api.services.search import (
     SuggestionService,
 )
 from tessera_api.services.shares import ShareService
+from tessera_api.services.tokens import TokenService
 
 
 def _label_uuid(raw: str) -> uuid.UUID:
@@ -910,6 +911,17 @@ class ShareKeyRequest(msgspec.Struct):
     pageId: str | None = None  # noqa: N815 — имя поля из v1
 
 
+class ShareUpdateRequest(msgspec.Struct):
+    shareId: uuid.UUID  # noqa: N815 — имя поля из v1
+    includeSubPages: bool | None = None  # noqa: N815 — имя поля из v1
+    searchIndexing: bool | None = None  # noqa: N815 — имя поля из v1
+
+
+class ShareSearchRequest(msgspec.Struct):
+    key: str
+    query: str
+
+
 class HistoryController(Controller):
     path = "/api/pages/history"
 
@@ -1031,7 +1043,10 @@ class ShareController(Controller):
 
     @post("/open", opt={PUBLIC: True})
     async def open_shared(
-        self, data: ShareKeyRequest, db_session: NamedDependency[AsyncSession]
+        self,
+        data: ShareKeyRequest,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
     ) -> dict:
         """Открыть страницу по ссылке без входа.
 
@@ -1046,10 +1061,84 @@ class ShareController(Controller):
         else:
             _, page = await service.resolve(data.key)
 
+        share, _ = await service.resolve(data.key)
         return {
             "id": page.id,
             "slugId": page.slug_id,
             "title": page.title,
-            "content": page.content,
+            "icon": page.icon,
+            # Содержимое проходит подготовку: вложениям выписываются токены,
+            # пометки обсуждений снимаются. Выдавать его как есть нельзя —
+            # картинки не покажутся, а комментарии уедут постороннему.
+            "content": await service.public_content(page, tokens),
             "updatedAt": page.updated_at,
+            "share": {
+                "id": share.id,
+                "key": share.key,
+                "includeSubPages": share.include_sub_pages,
+                "searchIndexing": share.search_indexing,
+                "pageId": share.page_id,
+            },
         }
+
+    @post("/update")
+    async def update_share(
+        self,
+        data: ShareUpdateRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> dict:
+        """Изменить настройки ссылки: подстраницы и индексацию."""
+        principal: Principal = request.scope["principal"]
+        share = await ShareService(db_session).update(
+            share_id=data.shareId,
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            include_sub_pages=data.includeSubPages,
+            search_indexing=data.searchIndexing,
+        )
+        return {
+            "id": share.id,
+            "key": share.key,
+            "includeSubPages": share.include_sub_pages,
+            "searchIndexing": share.search_indexing,
+        }
+
+    @post("/tree", opt={PUBLIC: True})
+    async def tree(
+        self, data: ShareKeyRequest, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        """Дерево открытой ветви. Открыт по той же причине, что и `open`."""
+        share, root, branch = await ShareService(db_session).tree(data.key)
+        return {
+            "share": {
+                "id": share.id,
+                "key": share.key,
+                "includeSubPages": share.include_sub_pages,
+                "searchIndexing": share.search_indexing,
+                "pageId": share.page_id,
+            },
+            "rootId": root.id,
+            "pageTree": [
+                {
+                    "id": one.id,
+                    "slugId": one.slug_id,
+                    "title": one.title,
+                    "icon": one.icon,
+                    "parentPageId": one.parent_page_id,
+                    "position": one.position,
+                }
+                for one in branch
+            ],
+        }
+
+    @post("/search", opt={PUBLIC: True})
+    async def search_in_share(
+        self, data: ShareSearchRequest, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Поиск внутри открытой ветви.
+
+        Открыт по той же причине, что и сама ссылка, и отбор задаётся ею же:
+        ключ определяет ветвь, за её пределы поиск не выходит.
+        """
+        return await ShareService(db_session).search(data.key, data.query)

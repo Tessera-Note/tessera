@@ -20,8 +20,10 @@ from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
+from tessera_api.domain.roles import can_manage_space, is_workspace_admin
 from tessera_api.infrastructure.models import Attachment, Page, Space, User, Workspace
 from tessera_api.infrastructure.queue import JobName, JobQueue
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.infrastructure.storage import (
     Storage,
     attachment_key,
@@ -248,6 +250,96 @@ class AttachmentService:
             data=data,
         )
 
+    async def read_public(
+        self, attachment_id: uuid.UUID, page_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> StoredFile:
+        """Выдать вложение опубликованной страницы.
+
+        Человека здесь нет: файл запрашивает браузер того, у кого есть ссылка.
+        Право задаётся токеном, а этот метод сверяет, что токен и вложение
+        говорят об одном и том же. Сверка страницы обязательна — без неё токен,
+        выписанный на картинку из открытой ветви, открывал бы любое вложение
+        рабочего пространства.
+
+        Ссылка при этом не перепроверяется. Токен живёт час, и отзыв ссылки
+        закрывает саму страницу немедленно; час на уже выданную картинку —
+        та же цена, что и в v1.
+        """
+        found = await self._load(attachment_id, workspace_id)
+        if found.page_id is None or found.page_id != page_id:
+            raise not_found("error.attachment.not_found")
+
+        data = await self._storage.get(found.file_path)
+        return StoredFile(
+            file_name=found.file_name,
+            mime_type=found.mime_type or "application/octet-stream",
+            data=data,
+        )
+
+    async def _assert_can_change_image(
+        self,
+        kind: str,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        space_id: uuid.UUID | None,
+    ) -> None:
+        """Кто вправе менять эту картинку.
+
+        Аватар человек меняет себе сам, и спрашивать тут нечего. Логотип
+        пространства и значок раздела — нет: они видны всем, и без проверки
+        любой участник переставлял бы их кому угодно.
+        """
+        if kind == TYPE_AVATAR:
+            return
+
+        actor = await self._session.get(User, user_id)
+        if actor is None or actor.workspace_id != workspace_id:
+            raise not_found("error.common.user_not_found")
+
+        if kind == TYPE_WORKSPACE_ICON:
+            if not is_workspace_admin(actor.role):
+                raise forbidden("error.common.admin_required")
+            return
+
+        if space_id is None:
+            raise bad_request("error.attachment.space_required")
+        space = await self._session.get(Space, space_id)
+        if space is None or space.workspace_id != workspace_id:
+            raise not_found("error.space.space_not_found")
+        role = await SpaceMemberRepo(self._session).role_in_space(user_id, space_id)
+        if role is None:
+            # «Не найдено», а не «отказано»: посторонний не должен по ответу
+            # узнавать, что такое пространство существует.
+            raise not_found("error.space.space_not_found")
+        if not can_manage_space(role):
+            raise forbidden("error.space.access_denied")
+
+    async def remove_icon(
+        self,
+        *,
+        kind: str,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        space_id: uuid.UUID | None = None,
+    ) -> None:
+        """Снять аватар или логотип.
+
+        Владелец картинки перестаёт на неё ссылаться, а сам объект убирается из
+        хранилища и из учёта — тем же порядком, что и при замене: сначала
+        фиксируется снятая ссылка, потом убирается файл. Обратный порядок при
+        сбое оставил бы ссылку на несуществующий файл, то есть битую картинку
+        вместо прежней.
+        """
+        if kind not in IMAGE_TYPES:
+            raise bad_request("error.attachment.unknown_type")
+        await self._assert_can_change_image(kind, user_id, workspace_id, space_id)
+
+        previous = await self._point_owner_at(kind, None, user_id, workspace_id, space_id)
+        await self._session.commit()
+
+        if previous:
+            await self._forget_previous_image(kind, previous, workspace_id)
+
     async def upload_image(
         self,
         *,
@@ -277,6 +369,7 @@ class AttachmentService:
 
         if kind == TYPE_SPACE_ICON and space_id is None:
             raise bad_request("error.attachment.space_required")
+        await self._assert_can_change_image(kind, user_id, workspace_id, space_id)
 
         stored_name = f"{uuid.uuid4().hex}{extension}"
         key = image_key(workspace_id, kind, stored_name)
@@ -308,7 +401,7 @@ class AttachmentService:
     async def _point_owner_at(
         self,
         kind: str,
-        stored_name: str,
+        stored_name: str | None,
         user_id: uuid.UUID,
         workspace_id: uuid.UUID,
         space_id: uuid.UUID | None,

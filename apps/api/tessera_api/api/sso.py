@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Annotated
+from urllib.parse import urlparse
 
 import msgspec
 from litestar import Controller, Request, Response, get, post
@@ -36,7 +37,7 @@ from tessera_api.api.auth import https_only, set_session_cookie
 from tessera_api.api.guards import PUBLIC
 from tessera_api.config import Settings
 from tessera_api.domain.errors import not_found, unauthorized
-from tessera_api.infrastructure.models import AuthProvider, Workspace
+from tessera_api.infrastructure.models import AuthProvider, User, Workspace
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.throttle import (
     AUTH_LIMIT,
@@ -49,6 +50,7 @@ from tessera_api.services.ldap import LdapService
 from tessera_api.services.oidc import FLOW_COOKIE, FLOW_TTL, FlowCodec, OidcService
 from tessera_api.services.saml import SamlService
 from tessera_api.services.sso import SsoIdentityService
+from tessera_api.services.sso_providers import SsoProviderService
 from tessera_api.services.tokens import TokenService
 
 logger = logging.getLogger(__name__)
@@ -419,3 +421,220 @@ class SsoController(Controller):
         response = Response({"success": True})
         _set_session_cookie(response, token, secure=https_only(settings))
         return response
+
+
+async def _actor(session: AsyncSession, principal) -> tuple[User, Workspace]:
+    user = await session.get(User, principal.user_id)
+    workspace = await session.get(Workspace, principal.workspace_id)
+    if user is None or workspace is None:
+        raise not_found("error.auth.account_unavailable")
+    return user, workspace
+
+
+class ProviderIdRequest(msgspec.Struct):
+    providerId: uuid.UUID  # noqa: N815 — имя поля из v1
+
+
+class UnlinkRequest(msgspec.Struct):
+    userId: uuid.UUID  # noqa: N815 — имя поля из v1
+
+
+class CreateProviderRequest(msgspec.Struct):
+    """Поля провайдера. Имена из v1: их шлёт уже написанный экран настроек."""
+
+    name: str
+    type: str
+    isEnabled: bool | None = None  # noqa: N815 — имя поля из v1
+    allowSignup: bool | None = None  # noqa: N815 — имя поля из v1
+    groupSync: bool | None = None  # noqa: N815 — имя поля из v1
+    groupClaimName: str | None = None  # noqa: N815 — имя поля из v1
+    oidcIssuer: str | None = None  # noqa: N815 — имя поля из v1
+    oidcClientId: str | None = None  # noqa: N815 — имя поля из v1
+    oidcClientSecret: str | None = None  # noqa: N815 — имя поля из v1
+    samlUrl: str | None = None  # noqa: N815 — имя поля из v1
+    samlCertificate: str | None = None  # noqa: N815 — имя поля из v1
+    ldapUrl: str | None = None  # noqa: N815 — имя поля из v1
+    ldapBaseDn: str | None = None  # noqa: N815 — имя поля из v1
+    ldapBindDn: str | None = None  # noqa: N815 — имя поля из v1
+    ldapBindPassword: str | None = None  # noqa: N815 — имя поля из v1
+    ldapUserSearchFilter: str | None = None  # noqa: N815 — имя поля из v1
+    ldapUserAttributes: dict | None = None  # noqa: N815 — имя поля из v1
+    ldapTlsEnabled: bool | None = None  # noqa: N815 — имя поля из v1
+    ldapTlsCaCert: str | None = None  # noqa: N815 — имя поля из v1
+
+
+class UpdateProviderRequest(CreateProviderRequest):
+    """То же, но всё необязательно: экран шлёт только изменённое.
+
+    Тип здесь не читается. Поля разных протоколов не пересекаются, и смена типа
+    оставила бы провайдера с заполненными полями прежнего.
+    """
+
+    providerId: uuid.UUID = msgspec.field(default_factory=uuid.uuid4)  # noqa: N815
+    name: str = ""
+    type: str = ""
+
+
+#: Имя поля запроса и колонка, которой оно соответствует.
+_FIELDS = {
+    "name": "name",
+    "isEnabled": "is_enabled",
+    "allowSignup": "allow_signup",
+    "groupSync": "group_sync",
+    "groupClaimName": "group_claim_name",
+    "oidcIssuer": "oidc_issuer",
+    "oidcClientId": "oidc_client_id",
+    "oidcClientSecret": "oidc_client_secret",
+    "samlUrl": "saml_url",
+    "samlCertificate": "saml_certificate",
+    "ldapUrl": "ldap_url",
+    "ldapBaseDn": "ldap_base_dn",
+    "ldapBindDn": "ldap_bind_dn",
+    "ldapBindPassword": "ldap_bind_password",
+    "ldapUserSearchFilter": "ldap_user_search_filter",
+    "ldapUserAttributes": "ldap_user_attributes",
+    "ldapTlsEnabled": "ldap_tls_enabled",
+    "ldapTlsCaCert": "ldap_tls_ca_cert",
+}
+
+
+def _values(data: CreateProviderRequest, *, with_type: bool) -> dict:
+    """Поля запроса в виде, понятном службе. Отсутствующие не подставляются."""
+    values = {
+        column: getattr(data, field)
+        for field, column in _FIELDS.items()
+        if getattr(data, field) is not None
+    }
+    if with_type:
+        values["type"] = data.type
+    return values
+
+
+def _origin(request: Request) -> str | None:
+    """Адрес, по которому администратор открыл интерфейс.
+
+    Нужен для сверки с `APP_URL`. Берётся из `Origin`, а при его отсутствии из
+    `Referer`: часть браузеров не шлёт `Origin` на однодоменные запросы.
+    """
+    origin = request.headers.get("origin")
+    if origin:
+        return origin
+    referer = request.headers.get("referer")
+    if not referer:
+        return None
+    parsed = urlparse(referer)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+class SsoProviderController(Controller):
+    """Управление провайдерами входа.
+
+    Отдельно от `SsoController`: тот открытый, человек приходит туда до входа.
+    Здесь наоборот — только администратор пространства.
+    """
+
+    path = "/api/sso"
+
+    async def _service(
+        self, db_session: AsyncSession, settings: Settings
+    ) -> SsoProviderService:
+        return SsoProviderService(
+            db_session, app_secret=settings.app_secret, app_url=settings.app_url
+        )
+
+    @post("/providers")
+    async def list_providers(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        return await service.list(actor, workspace)
+
+    @post("/info")
+    async def provider_info(
+        self,
+        data: ProviderIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        return await service.info(data.providerId, actor, workspace)
+
+    @post("/create")
+    async def create_provider(
+        self,
+        data: CreateProviderRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        return await service.create(
+            actor,
+            workspace,
+            _values(data, with_type=True),
+            origin=_origin(request),
+            ip=client_ip(request, settings.trust_proxy_hops),
+        )
+
+    @post("/update")
+    async def update_provider(
+        self,
+        data: UpdateProviderRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        return await service.update(
+            data.providerId,
+            actor,
+            workspace,
+            _values(data, with_type=False),
+            origin=_origin(request),
+            ip=client_ip(request, settings.trust_proxy_hops),
+        )
+
+    @post("/delete")
+    async def delete_provider(
+        self,
+        data: ProviderIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        await service.delete(
+            data.providerId,
+            actor,
+            workspace,
+            ip=client_ip(request, settings.trust_proxy_hops),
+        )
+        return {"success": True}
+
+    @post("/unlink")
+    async def unlink(
+        self,
+        data: UnlinkRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        return await service.unlink_user(
+            data.userId,
+            actor,
+            workspace,
+            ip=client_ip(request, settings.trust_proxy_hops),
+        )

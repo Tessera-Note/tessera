@@ -49,8 +49,9 @@ from tessera_api.api.pages import (
 from tessera_api.api.pdf_export import PdfExportController
 from tessera_api.api.realtime import attach
 from tessera_api.api.scim import ScimController
+from tessera_api.api.scim_tokens import ScimTokenController
 from tessera_api.api.spaces import GroupController, SpaceController
-from tessera_api.api.sso import SsoController
+from tessera_api.api.sso import SsoController, SsoProviderController
 from tessera_api.api.templates import TemplateController
 from tessera_api.api.users import UserController
 from tessera_api.api.workspace import WorkspaceController
@@ -209,6 +210,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             ApiKeyController,
             MfaController,
             ScimController,
+            ScimTokenController,
             AuditController,
             AiSettingsController,
             AiController,
@@ -216,6 +218,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             BaseController,
             McpController,
             SsoController,
+            SsoProviderController,
             UserController,
             CollabInternalController,
             ImportController,
