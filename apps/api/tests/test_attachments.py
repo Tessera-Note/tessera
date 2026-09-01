@@ -155,6 +155,97 @@ class TestUpload:
         assert list(tmp_path.rglob("*.txt")) == []
 
 
+class TestReplace:
+    """Замена вложения на месте.
+
+    Нужна диаграммам: они сохраняются десятки раз за правку. Новое вложение на
+    каждое сохранение оставляло бы в хранилище мёртвые файлы, а ссылка в
+    документе указывала бы на прежний.
+    """
+
+    async def test_the_identifier_survives_the_replacement(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        service = AttachmentService(session, storage)
+        first = await service.upload_page_file(
+            page_id_or_slug=str(world["root"].id),
+            file_name="diagram.drawio.svg",
+            data=b"<svg>one</svg>",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            size_limit=SIZE_LIMIT,
+        )
+
+        second = await service.upload_page_file(
+            page_id_or_slug=str(world["root"].id),
+            file_name="diagram.drawio.svg",
+            data=b"<svg>two, longer</svg>",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            size_limit=SIZE_LIMIT,
+            replaces=first.id,
+        )
+
+        assert second.id == first.id
+        assert second.file_size == len(b"<svg>two, longer</svg>")
+        assert await storage.get(second.file_path) == b"<svg>two, longer</svg>"
+
+    async def test_a_foreign_attachment_is_not_replaced(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        """Право проверено по странице: замена файла соседней страницы этой
+        проверкой не покрыта."""
+        world = await _world(session, workspace, owner, space)
+        service = AttachmentService(session, storage)
+        other = await service.upload_page_file(
+            page_id_or_slug=str(world["child"].id),
+            file_name="a.txt",
+            data=b"x",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            size_limit=SIZE_LIMIT,
+        )
+
+        with pytest.raises(AppError) as failure:
+            await service.upload_page_file(
+                page_id_or_slug=str(world["root"].id),
+                file_name="a.txt",
+                data=b"y",
+                user_id=owner.id,
+                workspace_id=workspace.id,
+                size_limit=SIZE_LIMIT,
+                replaces=other.id,
+            )
+        assert failure.value.code == "error.attachment.attachment_not_found"
+
+    async def test_a_reader_cannot_replace(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        service = AttachmentService(session, storage)
+        first = await service.upload_page_file(
+            page_id_or_slug=str(world["root"].id),
+            file_name="a.txt",
+            data=b"x",
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            size_limit=SIZE_LIMIT,
+        )
+        reader_id = await _reader(session, workspace, space, owner)
+
+        with pytest.raises(AppError):
+            await service.upload_page_file(
+                page_id_or_slug=str(world["root"].id),
+                file_name="a.txt",
+                data=b"y",
+                user_id=reader_id,
+                workspace_id=workspace.id,
+                size_limit=SIZE_LIMIT,
+                replaces=first.id,
+            )
+
+
 class TestRead:
     async def _uploaded(self, session, workspace, owner, space, storage):
         world = await _world(session, workspace, owner, space)

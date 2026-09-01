@@ -14,12 +14,13 @@ from __future__ import annotations
 import mimetypes
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
-from tessera_api.infrastructure.models import Attachment, Space, User, Workspace
+from tessera_api.infrastructure.models import Attachment, Page, Space, User, Workspace
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import (
     Storage,
@@ -79,6 +80,54 @@ class AttachmentService:
         # навсегда остаётся ненаходимым.
         self._queue = queue
 
+    async def _replace(
+        self,
+        attachment_id: uuid.UUID,
+        *,
+        page: Page,
+        file_name: str,
+        data: bytes,
+    ) -> Attachment:
+        """Перезаписать вложение, оставив ему тот же идентификатор.
+
+        Тот же — намеренно: на вложение ссылается узел документа, и новый
+        идентификатор означал бы, что ссылка в тексте указывает на прежний файл,
+        а правка ушла в новый.
+
+        Вложение обязано принадлежать той же странице: право проверено по ней, и
+        замена файла соседней страницы этой проверкой не покрыта.
+        """
+        found = await self._session.get(Attachment, attachment_id)
+        if found is None or found.deleted_at is not None or found.page_id != page.id:
+            raise not_found("error.attachment.attachment_not_found")
+
+        safe_name = sanitize_file_name(file_name)
+        key = attachment_key(page.workspace_id, attachment_id, safe_name)
+        await self._storage.put(key, data, _mime_type(safe_name))
+
+        # Прежний объект удаляется только после записи нового и только если имя
+        # изменилось: иначе неудачная запись оставляет вложение без файла.
+        if found.file_path and found.file_path != key:
+            await self._storage.delete(found.file_path)
+
+        await self._session.execute(
+            update(Attachment)
+            .where(Attachment.id == attachment_id)
+            .values(
+                file_name=safe_name,
+                file_path=key,
+                file_size=len(data),
+                file_ext=file_extension(safe_name),
+                mime_type=_mime_type(safe_name),
+                # Столбца «кто правил последним» у вложения нет: правку отмечает
+                # только время, и по нему же клиент обходит кеш браузера.
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await self._session.commit()
+        await self._session.refresh(found)
+        return found
+
     async def upload_page_file(
         self,
         *,
@@ -88,12 +137,18 @@ class AttachmentService:
         user_id: uuid.UUID,
         workspace_id: uuid.UUID,
         size_limit: int,
+        replaces: uuid.UUID | None = None,
     ) -> Attachment:
         """Загрузить вложение страницы.
 
         Право правки страницы, а не членство в пространстве: вложение попадает
         в содержимое, и загрузить его в закрытую страницу должен только тот,
         кто эту страницу правит.
+
+        `replaces` перезаписывает уже существующее вложение той же страницы.
+        Нужен диаграммам: они сохраняются десятки раз за правку, и каждое
+        сохранение новым вложением оставляло бы в хранилище десятки мёртвых
+        файлов, на которые никто не ссылается.
         """
         if not data:
             raise bad_request("error.attachment.empty_file")
@@ -102,6 +157,11 @@ class AttachmentService:
 
         page = await self._access.load_page(page_id_or_slug, workspace_id)
         await self._access.validate_can_edit(page, user_id)
+
+        if replaces is not None:
+            return await self._replace(
+                replaces, page=page, file_name=file_name, data=data
+            )
 
         attachment_id = uuid.uuid4()
         safe_name = sanitize_file_name(file_name)

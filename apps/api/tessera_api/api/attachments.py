@@ -69,6 +69,15 @@ class FileController(Controller):
         if not page_id or upload is None:
             raise bad_request("error.attachment.file_required")
 
+        # Замена вложения на месте. Нужна диаграммам: они сохраняются десятки раз
+        # за правку, и каждое сохранение новым вложением оставляло бы в хранилище
+        # мёртвые файлы, а ссылка в документе указывала бы на прежний.
+        replaces = data.get("attachmentId")
+        try:
+            replaced = uuid.UUID(str(replaces)) if replaces else None
+        except (TypeError, ValueError) as error:
+            raise bad_request("error.attachment.attachment_not_found") from error
+
         content = await upload.read()
         attachment = await AttachmentService(db_session, storage, queue).upload_page_file(
             page_id_or_slug=str(page_id),
@@ -77,6 +86,7 @@ class FileController(Controller):
             user_id=principal.user_id,
             workspace_id=principal.workspace_id,
             size_limit=settings.file_upload_size_limit,
+            replaces=replaced,
         )
         return {
             "id": attachment.id,
@@ -84,6 +94,9 @@ class FileController(Controller):
             "fileSize": attachment.file_size,
             "mimeType": attachment.mime_type,
             "pageId": attachment.page_id,
+            # Время правки уходит в адрес файла: без него браузер показывает
+            # прежнюю картинку диаграммы из своего кеша.
+            "updatedAt": attachment.updated_at,
         }
 
     @get("/{file_id:uuid}/{file_name:str}")
