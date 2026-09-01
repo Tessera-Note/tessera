@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from sqlalchemy import insert, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
@@ -270,6 +270,87 @@ class AuthService:
         )
         await self._session.commit()
         await self._close_channel([session_id])
+
+    async def sessions(self, user_id: uuid.UUID, current_id: uuid.UUID | None) -> list[dict]:
+        """Живые сеансы человека.
+
+        Показываются только свои и только живые: отозванные и просроченные не
+        дают человеку ничего, кроме длинного списка, в котором не найти нужное.
+        Текущий помечается — по нему видно, какой сеанс не надо закрывать.
+        """
+        rows = (
+            await self._session.execute(
+                select(UserSession)
+                .where(UserSession.user_id == user_id)
+                .where(UserSession.revoked_at.is_(None))
+                .where(UserSession.expires_at > datetime.now(UTC))
+                .order_by(UserSession.last_active_at.desc())
+            )
+        ).scalars().all()
+        return [
+            {
+                "id": one.id,
+                "deviceName": one.device_name,
+                "userAgent": one.user_agent,
+                "lastActiveAt": one.last_active_at,
+                "createdAt": one.created_at,
+                "expiresAt": one.expires_at,
+                "isCurrent": one.id == current_id,
+            }
+            for one in rows
+        ]
+
+    async def revoke_session(
+        self, session_id: uuid.UUID, user_id: uuid.UUID, current_id: uuid.UUID | None
+    ) -> None:
+        """Отозвать свой сеанс.
+
+        Только свой: чужие сеансы закрывает отключение человека, а не это
+        действие. Текущий отзывать нельзя — для выхода есть выход, и отзыв
+        собственного сеанса здесь читался бы как выход по ошибке.
+        """
+        if current_id is not None and session_id == current_id:
+            raise bad_request("error.auth.cannot_revoke_current_session")
+
+        found = await self._session.get(UserSession, session_id)
+        if found is None or found.user_id != user_id or found.revoked_at is not None:
+            raise not_found("error.auth.session_not_found")
+
+        await self._session.execute(
+            update(UserSession)
+            .where(UserSession.id == session_id)
+            .values(revoked_at=datetime.now(UTC))
+        )
+        await self._session.commit()
+        await self._close_channel([session_id])
+
+    async def revoke_other_sessions(
+        self, user_id: uuid.UUID, current_id: uuid.UUID | None
+    ) -> int:
+        """Закрыть все сеансы, кроме текущего.
+
+        Текущий сохраняется намеренно: человек нажимает это, чтобы выгнать
+        чужого, а не чтобы выйти самому.
+        """
+        stmt = (
+            select(UserSession.id)
+            .where(UserSession.user_id == user_id)
+            .where(UserSession.revoked_at.is_(None))
+        )
+        if current_id is not None:
+            stmt = stmt.where(UserSession.id != current_id)
+        ids = list((await self._session.execute(stmt)).scalars())
+        if not ids:
+            return 0
+
+        await self._session.execute(
+            update(UserSession)
+            .where(UserSession.id.in_(ids))
+            .values(revoked_at=datetime.now(UTC))
+        )
+        await self._session.commit()
+        await self._close_channel(ids)
+        return len(ids)
 
     async def session_is_live(self, session_id: uuid.UUID) -> bool:
         """Действует ли сессия прямо сейчас.

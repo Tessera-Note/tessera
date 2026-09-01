@@ -128,6 +128,19 @@ class CommentService:
         )
         return created
 
+    async def info(self, comment_id: uuid.UUID, user_id: uuid.UUID) -> Comment:
+        """Один комментарий.
+
+        Право проверяется по его странице, а не по самому комментарию: закрытая
+        страница закрывает и обсуждение на ней.
+        """
+        comment = await self._require(comment_id)
+        page = await self._session.get(Page, comment.page_id)
+        if page is None:
+            raise not_found("error.page.page_not_found")
+        await self._access.validate_can_view(page, user_id)
+        return comment
+
     async def update(
         self,
         comment_id: uuid.UUID,

@@ -17,6 +17,7 @@ from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import User
 from tessera_api.infrastructure.repositories import GroupRepo, SpaceMemberRepo, SpaceRepo
 from tessera_api.services.groups import GroupService
+from tessera_api.services.notifications import WatcherService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.spaces import SpaceService
 
@@ -220,6 +221,57 @@ class SpaceController(Controller):
             SpaceMemberView(id=one.id, name=one.name, email=one.email) for one in rows
         ]
 
+
+    @post("/watch")
+    async def watch(
+        self, data: SpaceIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        """Подписаться на пространство.
+
+        Подписан на пространство — значит получаешь всё, что в нём происходит.
+        Право то же, что на чтение: подписка не даёт видеть больше, чем видно.
+        """
+        principal: Principal = request.scope["principal"]
+        space_id = _space_uuid(data.spaceId)
+        space = await SpaceRepo(db_session).by_id(space_id, principal.workspace_id)
+        if space is None:
+            raise not_found("error.space.space_not_found")
+        if await SpaceMemberRepo(db_session).role_in_space(principal.user_id, space.id) is None:
+            raise forbidden("error.space.access_denied")
+
+        await WatcherService(db_session).watch_space(
+            principal.user_id, space, principal.workspace_id
+        )
+        return {"isWatching": True}
+
+    @post("/unwatch")
+    async def unwatch(
+        self, data: SpaceIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        # Право не проверяется: отписаться человек должен мочь и после того, как
+        # доступ к пространству у него отобрали.
+        await WatcherService(db_session).unwatch_space(
+            principal.user_id, _space_uuid(data.spaceId)
+        )
+        return {"isWatching": False}
+
+    @post("/watch-status")
+    async def watch_status(
+        self, data: SpaceIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        watched = await WatcherService(db_session).watched_space_ids(principal.user_id)
+        return {"isWatching": _space_uuid(data.spaceId) in watched}
+
+    @post("/watched-ids")
+    async def watched_ids(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[str]:
+        """Пространства, на которые человек подписан. Нужен боковой панели."""
+        principal: Principal = request.scope["principal"]
+        found = await WatcherService(db_session).watched_space_ids(principal.user_id)
+        return [str(one) for one in found]
 
     @post("/create")
     async def create(

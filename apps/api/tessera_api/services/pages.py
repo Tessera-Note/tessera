@@ -277,6 +277,85 @@ class PageService:
         await self._refresh_tree(page)
         await self._drop_index([page.id, *ids])
 
+    async def recent(
+        self,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        space_id: uuid.UUID | None = None,
+        limit: int = 20,
+    ) -> list[tuple[Page, Space]]:
+        """Недавно изменённые страницы, доступные человеку.
+
+        Отбор по правам идёт постранично: строка несёт название, и страница,
+        закрытая после последней правки, попадать сюда не должна. Пространства
+        берутся те, где человек состоит, — иначе выборка обошла бы всю базу
+        ради строк, которые всё равно отсеются.
+        """
+        space_ids = await self._members.space_ids_for(user_id)
+        if not space_ids:
+            return []
+        if space_id is not None:
+            if space_id not in space_ids:
+                raise not_found("error.space.space_not_found")
+            space_ids = [space_id]
+
+        rows = (
+            await self._session.execute(
+                select(Page, Space)
+                .join(Space, Space.id == Page.space_id)
+                .where(Page.workspace_id == workspace_id)
+                .where(Page.space_id.in_(space_ids))
+                .where(Page.deleted_at.is_(None))
+                .where(Space.deleted_at.is_(None))
+                .order_by(Page.updated_at.desc())
+                .limit(max(1, min(limit, 100)))
+            )
+        ).all()
+
+        visible: list[tuple[Page, Space]] = []
+        for page, space in rows:
+            if (await self._access.rights(page, user_id)).can_view:
+                visible.append((page, space))
+        return visible
+
+    async def created_by(
+        self,
+        author_id: uuid.UUID,
+        viewer_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        limit: int = 50,
+    ) -> list[tuple[Page, Space]]:
+        """Страницы, заведённые человеком.
+
+        Право проверяется по смотрящему, а не по автору: перечень своих страниц
+        человек видит целиком, а чужих — ровно в той части, которая ему открыта.
+        """
+        space_ids = await self._members.space_ids_for(viewer_id)
+        if not space_ids:
+            return []
+
+        rows = (
+            await self._session.execute(
+                select(Page, Space)
+                .join(Space, Space.id == Page.space_id)
+                .where(Page.workspace_id == workspace_id)
+                .where(Page.creator_id == author_id)
+                .where(Page.space_id.in_(space_ids))
+                .where(Page.deleted_at.is_(None))
+                .where(Space.deleted_at.is_(None))
+                .order_by(Page.created_at.desc())
+                .limit(max(1, min(limit, 100)))
+            )
+        ).all()
+
+        visible: list[tuple[Page, Space]] = []
+        for page, space in rows:
+            if (await self._access.rights(page, viewer_id)).can_view:
+                visible.append((page, space))
+        return visible
+
     async def deleted_in_space(
         self, space_id: uuid.UUID, user_id: uuid.UUID, limit: int = 50
     ) -> list[Page]:

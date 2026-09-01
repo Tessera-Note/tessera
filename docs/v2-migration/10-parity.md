@@ -28,16 +28,16 @@ v2. Разница в 90 строк — не 90 пропаж: часть из н
 
 ### Содержимое страниц
 
-- [ ] `comments/update`, `comments/delete`, `comments/resolve`, `comments/info` —
+- [x] `comments/update`, `comments/delete`, `comments/resolve`, `comments/info` —
       правка, удаление и пометка обсуждения решённым. Заведение и чтение есть.
-- [ ] `pages/watch`, `pages/unwatch`, `pages/watch-status` — подписка на
+- [x] `pages/watch`, `pages/unwatch`, `pages/watch-status` — подписка на
       страницу. Служба подписок в v2 есть, маршрутов нет.
-- [ ] `spaces/watch`, `spaces/unwatch`, `spaces/watch-status`,
+- [x] `spaces/watch`, `spaces/unwatch`, `spaces/watch-status`,
       `spaces/watched-ids` — то же для пространства.
-- [ ] `pages/recent` — недавние страницы.
-- [ ] `pages/created-by-user` — страницы, заведённые человеком.
+- [x] `pages/recent` — недавние страницы.
+- [x] `pages/created-by-user` — страницы, заведённые человеком.
 - [ ] `pages/sidebar-pages` — ветвь дерева для боковой панели.
-- [ ] `pages/backlinks-count` — счётчик обратных ссылок.
+- [x] `pages/backlinks-count` — счётчик обратных ссылок.
 - [ ] `pages/transclusion/lookup`, `/references`, `/unsync-reference` —
       включение куска чужой страницы. Узлы схемы есть, маршрутов нет.
 - [ ] `labels/info` — метка и число страниц с ней.
@@ -53,7 +53,7 @@ v2. Разница в 90 строк — не 90 пропаж: часть из н
 
 ### Учётные записи и охрана
 
-- [ ] `sessions`, `sessions/revoke`, `sessions/revoke-all` — свои сеансы и их
+- [x] `sessions`, `sessions/revoke`, `sessions/revoke-all` — свои сеансы и их
       отзыв.
 - [ ] `sso/providers`, `sso/create`, `sso/update`, `sso/delete`, `sso/info`,
       `sso/unlink` — управление провайдерами входа. Сам вход через них работает.

@@ -134,6 +134,69 @@ class TestWatchers:
         assert await service.watcher_ids(world["root"].id) == [owner.id]
 
 
+class TestWatchState:
+    """Подписка и отписка.
+
+    Отписка снимает строку, а не ставит отметку «отключено»: отметка означает
+    «получал и отказался», и отписавшийся сам не должен отличаться от никогда
+    не подписанного — иначе следующее действие подпишет его снова.
+    """
+
+    async def test_watching_is_reported(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        service = WatcherService(session)
+
+        assert (await service.watches_page(owner.id, world["root"].id))["isWatching"] is False
+        await service.watch_page(user_id=owner.id, page=world["root"])
+        await session.flush()
+        assert (await service.watches_page(owner.id, world["root"].id))["isWatching"] is True
+
+    async def test_unwatching_removes_the_row(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        service = WatcherService(session)
+        await service.watch_page(user_id=owner.id, page=world["root"])
+        await session.flush()
+
+        assert await service.unwatch_page(owner.id, world["root"].id) is True
+        assert (await service.watches_page(owner.id, world["root"].id))["isWatching"] is False
+        # Повторная подписка после отписки работает: строки не осталось.
+        assert await service.watch_page(user_id=owner.id, page=world["root"]) is True
+
+    async def test_a_muted_watch_is_reported_as_muted(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отключённая подписка это не отписка: человек остаётся подписчиком,
+        но писем не получает."""
+        world = await _world(session, workspace, owner, space)
+        service = WatcherService(session)
+        await service.watch_page(user_id=owner.id, page=world["root"])
+        await service.mute(owner.id, world["root"].id)
+        await session.flush()
+
+        state = await service.watches_page(owner.id, world["root"].id)
+        assert state == {"isWatching": True, "isMuted": True}
+
+    async def test_space_watch_is_separate_from_page_watch(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Подписка на пространство и на страницу это разные строки: снятие
+        одной не должно уносить другую."""
+        world = await _world(session, workspace, owner, space)
+        service = WatcherService(session)
+        await service.watch_page(user_id=owner.id, page=world["root"])
+        await session.flush()
+        await service.watch_space(owner.id, space, workspace.id)
+
+        assert space.id in await service.watched_space_ids(owner.id)
+        await service.unwatch_space(owner.id, space.id)
+        assert space.id not in await service.watched_space_ids(owner.id)
+        assert (await service.watches_page(owner.id, world["root"].id))["isWatching"] is True
+
+
 class TestCommentNotifications:
     async def test_watcher_is_notified_about_a_new_comment(
         self, session: AsyncSession, workspace, owner, space

@@ -44,6 +44,7 @@ from tessera_api.api.pages import (
     PageController,
     SearchController,
     ShareController,
+    WatcherController,
 )
 from tessera_api.api.pdf_export import PdfExportController
 from tessera_api.api.realtime import attach
@@ -199,6 +200,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             AttachmentSearchController,
             CommentController,
             LabelController,
+            WatcherController,
             FavoriteController,
             HistoryController,
             ShareController,

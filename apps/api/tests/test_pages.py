@@ -199,6 +199,70 @@ class TestUpdate:
         assert updated.text_content == "текст"
 
 
+class TestListings:
+    """Перечни страниц: недавние и заведённые человеком.
+
+    Строка перечня несёт название страницы, поэтому право проверяется
+    постранично: закрытая страница не должна называться в списке.
+    """
+
+    async def test_recent_shows_the_newest_first(
+        self, session: AsyncSession, world
+    ) -> None:
+        service = PageService(session)
+        first = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Раньше",
+        )
+        second = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Позже",
+        )
+
+        found = await service.recent(world["owner"].id, world["workspace"].id, limit=50)
+        order = [one[0].id for one in found]
+        assert second.id in order
+        assert order.index(second.id) < order.index(first.id)
+
+    async def test_recent_of_a_foreign_space_is_refused(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Пространство, в котором человек не состоит, — «не найдено», а не
+        пустой список: пустой не отличить от «там ничего нет»."""
+        service = PageService(session)
+        with pytest.raises(AppError) as failure:
+            await service.recent(
+                world["owner"].id, world["workspace"].id, space_id=uuid.uuid4()
+            )
+        assert failure.value.code == "error.space.space_not_found"
+
+    async def test_created_by_lists_only_that_persons_pages(
+        self, session: AsyncSession, world
+    ) -> None:
+        service = PageService(session)
+        mine = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Моя",
+        )
+
+        found = await service.created_by(
+            world["owner"].id, world["owner"].id, world["workspace"].id
+        )
+        assert mine.id in [one[0].id for one in found]
+
+        stranger = uuid.uuid4()
+        theirs = await service.created_by(
+            stranger, world["owner"].id, world["workspace"].id
+        )
+        assert theirs == []
+
+
 class TestTrash:
     async def test_branch_goes_together(self, session: AsyncSession, world) -> None:
         """Удаление уносит ветвь целиком.

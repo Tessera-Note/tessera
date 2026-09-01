@@ -225,6 +225,15 @@ class BacklinkService:
 
         return len(targets)
 
+    async def count(self, page: Page, user_id: uuid.UUID) -> int:
+        """Сколько страниц ссылается сюда.
+
+        Считается по тому же перечню, что и сам список: отдельный счётчик
+        запросом без проверки прав показывал бы число, которое не сходится с
+        видимыми строками.
+        """
+        return len(await self.incoming(page, user_id))
+
     async def incoming(self, page: Page, user_id: uuid.UUID) -> list[dict]:
         """Страницы, ссылающиеся на эту.
 

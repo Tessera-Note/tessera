@@ -21,6 +21,7 @@ from tessera_api.services.comments import CommentService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.labels import FavoriteService, LabelService
 from tessera_api.services.notification_mail import NotificationMailer
+from tessera_api.services.notifications import WatcherService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
@@ -501,6 +502,160 @@ class AttachmentSearchController(Controller):
         return {"processed": processed}
 
 
+def _comment_view(comment) -> dict:  # noqa: ANN001 — модель базы
+    """Комментарий так, как его ждёт панель. Один вид на все маршруты."""
+    return {
+        "id": comment.id,
+        "content": comment.content,
+        "creatorId": comment.creator_id,
+        "parentCommentId": comment.parent_comment_id,
+        "selection": comment.selection,
+        "resolvedAt": comment.resolved_at,
+        "resolvedById": comment.resolved_by_id,
+        "editedAt": comment.edited_at,
+        "createdAt": comment.created_at,
+        "pageId": comment.page_id,
+    }
+
+
+class CommentIdRequest(msgspec.Struct):
+    commentId: str  # noqa: N815 — имя поля из v1
+
+
+class UpdateCommentRequest(msgspec.Struct):
+    commentId: str  # noqa: N815 — имя поля из v1
+    content: dict
+
+
+class ResolveCommentRequest(msgspec.Struct):
+    commentId: str  # noqa: N815 — имя поля из v1
+    resolved: bool = True
+
+
+def _comment_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор комментария. Негодное значение — «не найдено»."""
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.comment.comment_not_found") from error
+
+
+def _listing_view(page, space) -> dict:  # noqa: ANN001 — модели базы
+    """Строка перечня страниц: название, адрес и пространство."""
+    return {
+        "id": page.id,
+        "slugId": page.slug_id,
+        "title": page.title,
+        "icon": page.icon,
+        "spaceId": page.space_id,
+        "spaceSlug": space.slug,
+        "spaceName": space.name,
+        "updatedAt": page.updated_at,
+        "createdAt": page.created_at,
+    }
+
+
+class RecentPagesRequest(msgspec.Struct):
+    spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    limit: int | None = None
+
+
+class CreatedByRequest(msgspec.Struct):
+    userId: str | None = None  # noqa: N815 — имя поля из v1
+    limit: int | None = None
+
+
+class WatcherController(Controller):
+    """Подписка на страницу.
+
+    Отдельным контроллером, а не в страницах: подписка это не содержимое, и
+    правила у неё свои — подписаться может тот, кто страницу видит, а не тот,
+    кто её правит.
+    """
+
+    path = "/api/pages"
+
+    @post("/recent")
+    async def recent(
+        self,
+        data: RecentPagesRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> list[dict]:
+        """Недавно изменённые страницы. Пустое пространство — по всем своим."""
+        principal: Principal = request.scope["principal"]
+        found = await PageService(db_session).recent(
+            principal.user_id,
+            principal.workspace_id,
+            space_id=_page_uuid(data.spaceId) if data.spaceId else None,
+            limit=data.limit or 20,
+        )
+        return [_listing_view(page, space) for page, space in found]
+
+    @post("/created-by-user")
+    async def created_by_user(
+        self,
+        data: CreatedByRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> list[dict]:
+        """Страницы, заведённые человеком. Пустой — свои."""
+        principal: Principal = request.scope["principal"]
+        author = _page_uuid(data.userId) if data.userId else principal.user_id
+        found = await PageService(db_session).created_by(
+            author, principal.user_id, principal.workspace_id, limit=data.limit or 50
+        )
+        return [_listing_view(page, space) for page, space in found]
+
+    @post("/backlinks-count")
+    async def backlinks_count(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        access = PageAccessService(db_session)
+        page = await access.load_page(data.pageId, principal.workspace_id)
+        await access.validate_can_view(page, principal.user_id)
+        return {"count": await BacklinkService(db_session).count(page, principal.user_id)}
+
+    @post("/watch")
+    async def watch(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        access = PageAccessService(db_session)
+        page = await access.load_page(data.pageId, principal.workspace_id)
+        await access.validate_can_view(page, principal.user_id)
+
+        service = WatcherService(db_session)
+        added = await service.watch_page(user_id=principal.user_id, page=page)
+        if added:
+            await db_session.commit()
+        return await service.watches_page(principal.user_id, page.id)
+
+    @post("/unwatch")
+    async def unwatch(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        page = await PageAccessService(db_session).load_page(
+            data.pageId, principal.workspace_id
+        )
+        # Право здесь не проверяется намеренно: отписаться человек должен мочь и
+        # после того, как доступ к странице у него отобрали.
+        await WatcherService(db_session).unwatch_page(principal.user_id, page.id)
+        return {"isWatching": False, "isMuted": False}
+
+    @post("/watch-status")
+    async def watch_status(
+        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        access = PageAccessService(db_session)
+        page = await access.load_page(data.pageId, principal.workspace_id)
+        await access.validate_can_view(page, principal.user_id)
+        return await WatcherService(db_session).watches_page(principal.user_id, page.id)
+
+
 class CommentController(Controller):
     path = "/api/comments"
 
@@ -518,18 +673,69 @@ class CommentController(Controller):
         found = await CommentService(db_session, realtime, mailer).list_for_page(
             page, principal.user_id
         )
-        return [
-            {
-                "id": c.id,
-                "content": c.content,
-                "creatorId": c.creator_id,
-                "parentCommentId": c.parent_comment_id,
-                "selection": c.selection,
-                "resolvedAt": c.resolved_at,
-                "createdAt": c.created_at,
-            }
-            for c in found
-        ]
+        return [_comment_view(one) for one in found]
+
+    @post("/info")
+    async def info(
+        self,
+        data: CommentIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
+    ) -> dict:
+        """Один комментарий. Право проверяется по его странице."""
+        principal: Principal = request.scope["principal"]
+        found = await CommentService(db_session, realtime, mailer).info(
+            _comment_uuid(data.commentId), principal.user_id
+        )
+        return _comment_view(found)
+
+    @post("/update")
+    async def update_comment(
+        self,
+        data: UpdateCommentRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        changed = await CommentService(db_session, realtime, mailer).update(
+            _comment_uuid(data.commentId), principal.user_id, data.content
+        )
+        return _comment_view(changed)
+
+    @post("/delete")
+    async def delete_comment(
+        self,
+        data: CommentIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        await CommentService(db_session, realtime, mailer).delete(
+            _comment_uuid(data.commentId), principal.user_id
+        )
+        return {"success": True}
+
+    @post("/resolve")
+    async def resolve_comment(
+        self,
+        data: ResolveCommentRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
+    ) -> dict:
+        """Пометить обсуждение решённым или снять пометку."""
+        principal: Principal = request.scope["principal"]
+        changed = await CommentService(db_session, realtime, mailer).resolve(
+            _comment_uuid(data.commentId), principal.user_id, data.resolved
+        )
+        return _comment_view(changed)
 
     @post("/create")
     async def create(

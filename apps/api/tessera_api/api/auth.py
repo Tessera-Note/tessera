@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 
+import msgspec
 from litestar import Controller, Request, Response, get, post
 from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,6 +134,10 @@ def login_response(outcome, workspace, secure: bool = False) -> Response[LoginRe
     return response
 
 
+class SessionIdRequest(msgspec.Struct):
+    sessionId: str  # noqa: N815 — имя поля из v1
+
+
 class AuthController(Controller):
     path = "/api/auth"
 
@@ -229,6 +235,58 @@ class AuthController(Controller):
         """
         await _limit(request, throttle, settings)
         return {"setupRequired": not await SetupService(db_session).is_done()}
+
+    @post("/sessions")
+    async def sessions(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        tokens: NamedDependency[TokenService],
+    ) -> list[dict]:
+        """Свои живые сеансы. Текущий помечен: его не закрывают этим экраном."""
+        principal: Principal = request.scope["principal"]
+        service = AuthService(
+            db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
+        )
+        return await service.sessions(principal.user_id, principal.session_id)
+
+    @post("/sessions/revoke")
+    async def revoke_session(
+        self,
+        data: SessionIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        tokens: NamedDependency[TokenService],
+    ) -> dict:
+        principal: Principal = request.scope["principal"]
+        service = AuthService(
+            db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
+        )
+        try:
+            session_id = uuid.UUID(str(data.sessionId))
+        except (TypeError, ValueError) as error:
+            raise not_found("error.auth.session_not_found") from error
+
+        await service.revoke_session(session_id, principal.user_id, principal.session_id)
+        return {"success": True}
+
+    @post("/sessions/revoke-all")
+    async def revoke_other_sessions(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        tokens: NamedDependency[TokenService],
+    ) -> dict:
+        """Закрыть все сеансы, кроме текущего."""
+        principal: Principal = request.scope["principal"]
+        service = AuthService(
+            db_session, UserRepo(db_session), WorkspaceRepo(db_session), tokens, realtime
+        )
+        closed = await service.revoke_other_sessions(principal.user_id, principal.session_id)
+        return {"revoked": closed}
 
     @post("/logout")
     async def logout(

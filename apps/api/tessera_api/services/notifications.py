@@ -16,7 +16,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import insert, or_, select, update
+from sqlalchemy import delete, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -99,9 +99,10 @@ UPDATE_TYPES = (NotificationType.PAGE_UPDATED,)
 #: получает всю её разом, и экран собирает мегабайты ради первого десятка строк.
 MAX_LIST = 200
 
-#: Подписка на страницу. Второй вид, `space`, заведён в базе и здесь не
-#: используется: подписки на пространство в v2 пока нет.
+#: Виды подписки. Оба заведены в базе и оба используются: на страницу человек
+#: подписывается сам, на пространство — чтобы получать о нём всё.
 WATCHER_PAGE = "page"
+WATCHER_SPACE = "space"
 
 
 class WatcherService:
@@ -162,6 +163,92 @@ class WatcherService:
             .where(Watcher.type == WATCHER_PAGE)
             .values(muted_at=None)
         )
+
+    async def unwatch_page(self, user_id: uuid.UUID, page_id: uuid.UUID) -> bool:
+        """Снять подписку со страницы. Отвечает, была ли она.
+
+        Снимается строкой, а не отметкой «отключено»: отметка означает «получал
+        и отказался», и человек, отписавшийся сам, не должен отличаться от
+        никогда не подписанного — иначе следующее действие подпишет его снова.
+        """
+        result = await self._session.execute(
+            delete(Watcher)
+            .where(Watcher.user_id == user_id)
+            .where(Watcher.page_id == page_id)
+            .where(Watcher.type == WATCHER_PAGE)
+        )
+        await self._session.commit()
+        return bool(result.rowcount)
+
+    async def watches_page(self, user_id: uuid.UUID, page_id: uuid.UUID) -> dict:
+        """Состояние подписки: есть ли она и не отключена ли."""
+        found = (
+            await self._session.execute(
+                select(Watcher)
+                .where(Watcher.user_id == user_id)
+                .where(Watcher.page_id == page_id)
+                .where(Watcher.type == WATCHER_PAGE)
+            )
+        ).scalar_one_or_none()
+        return {
+            "isWatching": found is not None,
+            "isMuted": bool(found and found.muted_at is not None),
+        }
+
+    async def watch_space(self, user_id: uuid.UUID, space: Space, workspace_id: uuid.UUID) -> bool:
+        """Подписать на пространство.
+
+        Отдельная строка того же вида, но без страницы: подписка на
+        пространство означает «всё, что в нём происходит», и складывать её со
+        страничными в одну запись значило бы терять одну при снятии другой.
+        """
+        existing = (
+            await self._session.execute(
+                select(Watcher.id)
+                .where(Watcher.user_id == user_id)
+                .where(Watcher.space_id == space.id)
+                .where(Watcher.type == WATCHER_SPACE)
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return False
+
+        await self._session.execute(
+            insert(Watcher).values(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                page_id=None,
+                space_id=space.id,
+                workspace_id=workspace_id,
+                type=WATCHER_SPACE,
+            )
+        )
+        await self._session.commit()
+        return True
+
+    async def unwatch_space(self, user_id: uuid.UUID, space_id: uuid.UUID) -> bool:
+        result = await self._session.execute(
+            delete(Watcher)
+            .where(Watcher.user_id == user_id)
+            .where(Watcher.space_id == space_id)
+            .where(Watcher.type == WATCHER_SPACE)
+        )
+        await self._session.commit()
+        return bool(result.rowcount)
+
+    async def watched_space_ids(self, user_id: uuid.UUID) -> list[uuid.UUID]:
+        """Пространства, на которые человек подписан."""
+        return [
+            one
+            for one in (
+                await self._session.execute(
+                    select(Watcher.space_id)
+                    .where(Watcher.user_id == user_id)
+                    .where(Watcher.type == WATCHER_SPACE)
+                )
+            ).scalars()
+            if one is not None
+        ]
 
     async def watcher_ids(self, page_id: uuid.UUID) -> list[uuid.UUID]:
         """Кто подписан на страницу и не отключил подписку."""
