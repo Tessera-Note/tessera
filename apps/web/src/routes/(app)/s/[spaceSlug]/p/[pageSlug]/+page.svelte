@@ -1,6 +1,17 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import IconButton from '$lib/components/ui/IconButton.svelte';
+  import {
+    IconEdit,
+    IconEye,
+    IconFileTypePdf,
+    IconStar,
+    IconStarFilled,
+    IconTemplate,
+    IconTextCaption,
+    IconTrash
+  } from '@tabler/icons-svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import PageBody from '$lib/components/page/PageBody.svelte';
@@ -180,22 +191,43 @@
           {data.page.title ?? t('Untitled')}
         </h1>
 
-        <div class="flex shrink-0 gap-2">
-          <Button variant="quiet" disabled={busy} onclick={toggleFavorite}>
-            {data.favorite ? t('Remove from favorites') : t('Add to favorites')}
-          </Button>
+        <!--
+          Действия страницы значками, как в v1: шесть подписей подряд забирают
+          половину ширины заголовка и читаются как перечень, а не как действия.
+          Подпись остаётся во всплывающей и в имени для чтения с экрана.
+        -->
+        <div class="flex shrink-0 items-center gap-0.5">
+          <IconButton
+            icon={data.favorite ? IconStarFilled : IconStar}
+            label={data.favorite ? t('Remove from favorites') : t('Add to favorites')}
+            disabled={busy}
+            onclick={toggleFavorite}
+          />
           {#if canEdit}
-            <Button variant="quiet" onclick={() => (editing = !editing)}>
-              {editing ? t('Read') : t('Edit')}
-            </Button>
-            <Button variant="quiet" onclick={() => (renaming = true)}>{t('Rename')}</Button>
-            <Button variant="quiet" disabled={busy} onclick={saveAsTemplate}>
-              {t('New template')}
-            </Button>
-            <Button variant="quiet" disabled={busy || printing} onclick={exportPdf}>
-              {printing ? t('Loading...') : t('PDF')}
-            </Button>
-            <Button variant="quiet" disabled={busy} onclick={remove}>{t('Delete')}</Button>
+            <IconButton
+              icon={editing ? IconEye : IconEdit}
+              label={editing ? t('Read') : t('Edit')}
+              active={editing}
+              onclick={() => (editing = !editing)}
+            />
+            <IconButton
+              icon={IconTextCaption}
+              label={t('Rename')}
+              onclick={() => (renaming = true)}
+            />
+            <IconButton
+              icon={IconTemplate}
+              label={t('New template')}
+              disabled={busy}
+              onclick={saveAsTemplate}
+            />
+            <IconButton
+              icon={IconFileTypePdf}
+              label={t('PDF')}
+              disabled={busy || printing}
+              onclick={exportPdf}
+            />
+            <IconButton icon={IconTrash} label={t('Delete')} disabled={busy} onclick={remove} />
           {/if}
         </div>
       {/if}

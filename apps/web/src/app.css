@@ -136,42 +136,41 @@ progress {
 /**
  * Оформление документа.
  *
- * Правила пишутся здесь, а не классами в разметке: содержимое приходит из
- * редактора готовым деревом узлов, и классы к нему приписать негде. Отбор идёт
- * по `.tessera-doc`, чтобы не задеть остальные экраны.
+ * Значения перенесены из `apps/client/src/features/editor/styles/core.css`,
+ * `table.css`, `code.css` и `task-list.css`: размеры, отступы и толщина линий
+ * там выверены работой, и придумывать их заново значило бы получить документ,
+ * который читается иначе, чем в первой версии.
+ *
+ * Цвета взяты не оттуда, а из здешних токенов: гамма своя, роли те же.
+ * Отбор идёт по `.tessera-doc`, чтобы не задеть остальные экраны.
  */
 .tessera-doc {
   color: var(--text);
-  line-height: 1.6;
+  font-size: 1rem;
+  /* `--mantine-line-height-xl` в v1 равен 1.65. */
+  line-height: 1.65;
+  font-weight: 400;
+  width: 100%;
+}
+
+.tessera-doc:focus {
+  outline: none;
 }
 
 .tessera-doc > * + * {
-  margin-top: 0.75rem;
+  margin-top: 0.75em;
 }
 
-.tessera-doc h1,
-.tessera-doc h2,
-.tessera-doc h3 {
-  font-weight: 600;
-  line-height: 1.3;
-  margin-top: 1.5rem;
-}
-
-.tessera-doc h1 {
-  font-size: 1.75rem;
-}
-
-.tessera-doc h2 {
-  font-size: 1.375rem;
-}
-
-.tessera-doc h3 {
-  font-size: 1.125rem;
+.tessera-doc p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .tessera-doc ul,
 .tessera-doc ol {
-  padding-left: 1.5rem;
+  padding: 0 1rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 
 .tessera-doc ul {
@@ -182,64 +181,140 @@ progress {
   list-style: decimal;
 }
 
-/* Список задач размечается своими узлами: маркер там заменяет флажок. */
-.tessera-doc ul[data-type='taskList'] {
-  list-style: none;
-  padding-left: 0;
+.tessera-doc ul p,
+.tessera-doc ol p {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
-.tessera-doc ul[data-type='taskList'] li {
-  display: flex;
-  gap: 0.5rem;
+.tessera-doc h1,
+.tessera-doc h2,
+.tessera-doc h3 {
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.tessera-doc h1 {
+  font-size: 1.875rem;
+  margin-top: 1.875rem;
+}
+
+.tessera-doc h2 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.tessera-doc h3 {
+  font-size: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.tessera-doc h4,
+.tessera-doc h5,
+.tessera-doc h6 {
+  line-height: 1.1;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.tessera-doc a {
+  color: var(--text);
+  border-bottom: 0.07em solid var(--border-input);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .tessera-doc blockquote {
-  border-left: 3px solid var(--border);
-  padding-left: 0.875rem;
-  color: var(--text-muted);
+  padding-left: 1rem;
+  border-left: 3px solid var(--border-input);
+  margin: 0;
+}
+
+.tessera-doc hr {
+  border: none;
+  border-top: 1px solid var(--border-input);
 }
 
 .tessera-doc code {
-  background: var(--surface-hover);
+  background-color: var(--surface-muted);
   border-radius: 4px;
   padding: 0.1em 0.3em;
   font-size: 0.9em;
 }
 
 .tessera-doc pre {
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
+  padding: 0.625rem 1rem;
+  margin: 4px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background-color: var(--surface-muted);
   border-radius: 8px;
-  padding: 0.875rem;
+  tab-size: 4;
   overflow-x: auto;
 }
 
 .tessera-doc pre code {
-  background: transparent;
+  color: inherit;
   padding: 0;
+  background: none;
+  font-size: 0.875rem;
 }
 
-.tessera-doc a {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
+/* Таблица в v1 фиксированной раскладки: без этого широкая таблица растягивает
+   страницу. */
 .tessera-doc table {
   border-collapse: collapse;
+  margin: 0;
+  table-layout: fixed;
   width: 100%;
 }
 
 .tessera-doc th,
 .tessera-doc td {
-  border: 1px solid var(--border);
-  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border-input);
+  box-sizing: border-box;
+  min-width: 1em;
+  padding: 3px 5px;
+  position: relative;
   vertical-align: top;
 }
 
 .tessera-doc th {
-  background: var(--surface-hover);
+  background: var(--surface-muted);
   font-weight: 600;
   text-align: left;
+}
+
+.tessera-doc th p,
+.tessera-doc td p {
+  margin: 0;
+}
+
+/* Список задач: маркер заменяет флажок, поэтому своя раскладка. */
+.tessera-doc ul[data-type='taskList'] {
+  list-style: none;
+  padding: 0;
+}
+
+.tessera-doc ul[data-type='taskList'] p {
+  margin: 0;
+}
+
+.tessera-doc ul[data-type='taskList'] li {
+  display: flex;
+}
+
+.tessera-doc ul[data-type='taskList'] li > label {
+  padding-top: 0.2rem;
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+}
+
+.tessera-doc ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
 }
 
 .tessera-doc img,
@@ -248,12 +323,6 @@ progress {
   border-radius: 8px;
 }
 
-.tessera-doc hr {
-  border: 0;
-  border-top: 1px solid var(--border);
-}
-
-/* Выноска и раскрывающийся блок: свои узлы схемы, у обоих своя рамка. */
 .tessera-doc [data-type='callout'] {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -262,9 +331,16 @@ progress {
 }
 
 .tessera-doc [data-type='details'] {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
+  display: flex;
+  padding: 0.5em;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: border 0.3s;
+  width: 100%;
+}
+
+.tessera-doc [data-type='details']:hover {
+  border-color: var(--border);
 }
 
 /* Чужой курсор в совместной правке: имя подписывается над меткой. */

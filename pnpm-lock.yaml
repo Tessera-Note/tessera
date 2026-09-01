@@ -986,6 +986,9 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: 7.3.0
         version: 7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3))
+      '@tabler/icons-svelte':
+        specifier: ^3.46.0
+        version: 3.46.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3))
@@ -4633,8 +4636,16 @@ packages:
     peerDependencies:
       react: '>= 16'
 
+  '@tabler/icons-svelte@3.46.0':
+    resolution: {integrity: sha512-p9wY/5OW8UYw/wChefYlmzPi16dPC8EvwH53PRVar9HeCL7TVKRH1L7Wd5Zgic+wv+AlJdNRXlnq81zKDye0Nw==, tarball: https://registry.npmjs.org/@tabler/icons-svelte/-/icons-svelte-3.46.0.tgz}
+    peerDependencies:
+      svelte: '>=3 <6 || >=5.0.0-next.0'
+
   '@tabler/icons@3.40.0':
     resolution: {integrity: sha512-V/Q4VgNPKubRTiLdmWjV/zscYcj5IIk+euicUtaVVqF6luSC9rDngYWgST5/yh3Mrg/mYUwRv1YVTk71Jp0twQ==, tarball: https://registry.npmjs.org/@tabler/icons/-/icons-3.40.0.tgz}
+
+  '@tabler/icons@3.46.0':
+    resolution: {integrity: sha512-f2RYFl3fzPwj5WO82x6en0dmkjefxEfOm16D1ByM6cj/McNiwOkL4VaPUoP9VVIrXAD9WnTSVFr70px703b//A==, tarball: https://registry.npmjs.org/@tabler/icons/-/icons-3.46.0.tgz}
 
   '@tailwindcss/node@4.3.3':
     resolution: {integrity: sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg==, tarball: https://registry.npmjs.org/@tailwindcss/node/-/node-4.3.3.tgz}
@@ -15126,7 +15137,14 @@ snapshots:
       '@tabler/icons': 3.40.0
       react: 19.2.7
 
+  '@tabler/icons-svelte@3.46.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))':
+    dependencies:
+      '@tabler/icons': 3.46.0
+      svelte: 5.56.8(@typescript-eslint/types@8.57.1)
+
   '@tabler/icons@3.40.0': {}
+
+  '@tabler/icons@3.46.0': {}
 
   '@tailwindcss/node@4.3.3':
     dependencies:

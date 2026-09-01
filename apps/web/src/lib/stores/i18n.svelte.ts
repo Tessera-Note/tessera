@@ -16,6 +16,11 @@ class LocaleStore {
   apply(locale: string, dictionary: Dictionary) {
     this.current = normalizeLocale(locale);
     this.dictionary = dictionary;
+    if (typeof document !== 'undefined') {
+      // Язык страницы отвечает выбранному: без него проверка доступности и
+      // перенос слов читают русский текст английскими правилами.
+      document.documentElement.lang = this.current;
+    }
   }
 
   /** Сменить язык на лету. Словарь подгружается своим файлом. */

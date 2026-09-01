@@ -1,5 +1,21 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import {
+    IconBlockquote,
+    IconBold,
+    IconCode,
+    IconH1,
+    IconH2,
+    IconH3,
+    IconItalic,
+    IconList,
+    IconListCheck,
+    IconListNumbers,
+    IconMinus,
+    IconSourceCode,
+    IconStrikethrough
+  } from '@tabler/icons-svelte';
+  import type { ComponentType } from 'svelte';
   import { locale } from '$lib/stores/i18n.svelte';
   import { collabAddress, collabToken, documentName } from './collab';
   import { editorExtensions } from './extensions';
@@ -137,6 +153,9 @@
 </script>
 
 {#snippet action(
+  // Значки из набора Tabler — того же, что в v1. Пакет собран для прежнего
+  // вида компонентов Svelte, поэтому и тип прежний.
+  Icon: ComponentType,
   label: string,
   name: string,
   run: () => void,
@@ -144,13 +163,16 @@
 )}
   {@const active = readActive(ticks, name, attributes)}
   <button
-    class="rounded px-2 py-1 text-sm hover:bg-surface-hover"
+    class="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-text"
     class:bg-surface-active={active}
-    class:font-semibold={active}
+    class:text-text={active}
     type="button"
+    title={label}
+    aria-label={label}
+    aria-pressed={active}
     onclick={run}
   >
-    {label}
+    <Icon size={17} stroke={1.7} />
   </button>
 {/snippet}
 
@@ -158,49 +180,62 @@
   {#if ready && editable}
     <div
       data-component="EditorToolbar"
-      class="mb-3 flex flex-wrap gap-1 rounded-md border border-border bg-surface-raised p-1"
+      class="mb-3 flex flex-wrap items-center gap-0.5 border-b border-border pb-2"
     >
-      {@render action(t('Bold'), 'bold', () => ready?.chain().focus().toggleBold().run())}
-      {@render action(t('Italic'), 'italic', () => ready?.chain().focus().toggleItalic().run())}
-      {@render action(t('Strike'), 'strike', () => ready?.chain().focus().toggleStrike().run())}
-      {@render action(t('Code'), 'code', () => ready?.chain().focus().toggleCode().run())}
-      <span class="mx-1 w-px bg-border"></span>
+      {@render action(IconBold, t('Bold'), 'bold', () => ready?.chain().focus().toggleBold().run())}
+      {@render action(IconItalic, t('Italic'), 'italic', () =>
+        ready?.chain().focus().toggleItalic().run()
+      )}
+      {@render action(IconStrikethrough, t('Strike'), 'strike', () =>
+        ready?.chain().focus().toggleStrike().run()
+      )}
+      {@render action(IconCode, t('Code'), 'code', () => ready?.chain().focus().toggleCode().run())}
+
+      <span class="mx-1 h-5 w-px bg-border"></span>
+
       {@render action(
-        'H1',
+        IconH1,
+        t('Heading 1'),
         'heading',
         () => ready?.chain().focus().toggleHeading({ level: 1 }).run(),
         { level: 1 }
       )}
       {@render action(
-        'H2',
+        IconH2,
+        t('Heading 2'),
         'heading',
         () => ready?.chain().focus().toggleHeading({ level: 2 }).run(),
         { level: 2 }
       )}
       {@render action(
-        'H3',
+        IconH3,
+        t('Heading 3'),
         'heading',
         () => ready?.chain().focus().toggleHeading({ level: 3 }).run(),
         { level: 3 }
       )}
-      <span class="mx-1 w-px bg-border"></span>
-      {@render action(t('Bullet list'), 'bulletList', () =>
+
+      <span class="mx-1 h-5 w-px bg-border"></span>
+
+      {@render action(IconList, t('Bullet list'), 'bulletList', () =>
         ready?.chain().focus().toggleBulletList().run()
       )}
-      {@render action(t('Numbered list'), 'orderedList', () =>
+      {@render action(IconListNumbers, t('Numbered list'), 'orderedList', () =>
         ready?.chain().focus().toggleOrderedList().run()
       )}
-      {@render action(t('To-do list'), 'taskList', () =>
+      {@render action(IconListCheck, t('To-do list'), 'taskList', () =>
         ready?.chain().focus().toggleTaskList().run()
       )}
-      <span class="mx-1 w-px bg-border"></span>
-      {@render action(t('Quote'), 'blockquote', () =>
+
+      <span class="mx-1 h-5 w-px bg-border"></span>
+
+      {@render action(IconBlockquote, t('Quote'), 'blockquote', () =>
         ready?.chain().focus().toggleBlockquote().run()
       )}
-      {@render action(t('Code block'), 'codeBlock', () =>
+      {@render action(IconSourceCode, t('Code block'), 'codeBlock', () =>
         ready?.chain().focus().toggleCodeBlock().run()
       )}
-      {@render action(t('Divider'), 'horizontalRule', () =>
+      {@render action(IconMinus, t('Divider'), 'horizontalRule', () =>
         ready?.chain().focus().setHorizontalRule().run()
       )}
     </div>

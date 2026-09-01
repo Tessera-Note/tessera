@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="%tessera.locale%" data-theme="%tessera.theme%">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,9 +9,10 @@
       // виден вспышкой светлого экрана у того, кто работает в тёмной теме.
       (function () {
         try {
+          // Умолчание светлое, а не «как в системе»: тёмная тема включается
+          // выбором человека, и системная настройка её не навязывает.
           var saved = localStorage.getItem('tessera.theme');
-          var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var theme = saved === 'light' || saved === 'dark' ? saved : dark ? 'dark' : 'light';
+          var theme = saved === 'dark' ? 'dark' : 'light';
           document.documentElement.setAttribute('data-theme', theme);
         } catch (error) {
           // Хранилище недоступно в закрытом окне или при запрете сторонних
