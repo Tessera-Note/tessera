@@ -5,16 +5,9 @@
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { ApiError } from '$lib/api/client';
-  import { createSpace } from '$lib/features/space/services/spaces';
+  import { SPACE_ROLES, createSpace } from '$lib/features/space/services/spaces';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
-
-  /** Подписи ролей те же, что на экране доступа к пространству. */
-  const ROLE_LABELS: Record<string, string> = {
-    admin: 'Full access',
-    writer: 'Can edit',
-    reader: 'Can view'
-  };
 
   type Props = { data: PageData };
   const { data }: Props = $props();
@@ -25,6 +18,14 @@
   const admin = $derived(
     data.session?.user.role === 'admin' || data.session?.user.role === 'owner'
   );
+
+  // Подписи ролей берутся оттуда же, откуда их берёт экран доступа: три
+  // объявления одного и того же текста разъезжаются при первой же правке.
+  // Незнакомая роль остаётся без подписи: показать сырое `writer` хуже, чем
+  // не показать ничего.
+  function roleLabel(role: string | null): string | null {
+    return SPACE_ROLES.find((one) => one.value === role)?.label ?? null;
+  }
 
   let name = $state('');
   let description = $state('');
@@ -87,6 +88,7 @@
 
   <ul data-component="SpaceCards" class="space-y-2">
     {#each data.spaces as space (space.id)}
+      {@const label = roleLabel(space.role)}
       <li class="rounded-lg border border-border bg-surface-raised p-4">
         <a class="block" href="/s/{space.slug}">
           <span class="block font-medium">{space.name ?? space.slug}</span>
@@ -94,9 +96,9 @@
             <span class="mt-1 block text-sm text-text-muted">{space.description}</span>
           {/if}
         </a>
-        <p class="mt-2 text-xs text-text-muted">
-          {space.role ? t(ROLE_LABELS[space.role] ?? space.role) : ''}
-        </p>
+        {#if label}
+          <p class="mt-2 text-xs text-text-muted">{t(label)}</p>
+        {/if}
       </li>
     {:else}
       <li class="text-sm text-text-muted">{t('No spaces found')}</li>
