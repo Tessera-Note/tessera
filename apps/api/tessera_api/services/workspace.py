@@ -5,12 +5,22 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
-from tessera_api.domain.roles import UserRole, is_workspace_admin, outranks
-from tessera_api.infrastructure.models import AuthProvider, User, UserSession, Workspace
+from tessera_api.domain.roles import UserRole, is_workspace_admin
+from tessera_api.infrastructure.models import (
+    AuthAccount,
+    AuthProvider,
+    Favorite,
+    GroupUser,
+    SpaceMember,
+    User,
+    UserSession,
+    Watcher,
+    Workspace,
+)
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.realtime import RealtimeService
 
@@ -184,12 +194,19 @@ class WorkspaceService:
         иначе он отбирает пространство у того, кто его завёл. Никто не трогает
         себя: самодеактивация оставляет пространство без администратора, и
         починить это изнутри уже нечем.
+
+        Владельцы при этом равны между собой, и это тоже правило v1. Запрет
+        «равный не трогает равного» выглядит осторожнее, но запирает
+        пространство: двух владельцев, из которых один ушёл, некому развести —
+        удалить друг друга они не могут, а третьего назначить может только
+        владелец. Последнего владельца бережёт отдельная проверка, и её
+        достаточно.
         """
         if not is_workspace_admin(actor.role):
             raise forbidden("error.common.admin_required")
         if actor.id == target.id:
             raise bad_request("error.workspace.you_cannot_change_yourself")
-        if not outranks(actor.role, target.role):
+        if actor.role == UserRole.ADMIN and target.role == UserRole.OWNER:
             raise forbidden("error.workspace.owner_required")
 
     async def change_role(
@@ -270,6 +287,102 @@ class WorkspaceService:
         if revoked and self._realtime is not None:
             await self._realtime.drop_sessions(revoked)
         return await self._target(user_id, workspace_id)
+
+    async def delete_member(
+        self, actor: User, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> None:
+        """Удалить участника из рабочего пространства.
+
+        Не строка в базе, а обезличивание. Записи ссылаются на человека со всех
+        сторон: страницы, правки, комментарии, журнал. Стереть строку значило бы
+        либо разорвать эти ссылки, либо унести с собой чужие страницы. Поэтому
+        имя и почта заменяются, а сама запись остаётся якорем ссылок.
+
+        Заодно снимается всё, что даёт доступ: членство в пространствах, состав
+        групп, связи с провайдерами входа, подписки и отметки. Отключение
+        закрывает вход, но участник, у которого осталось членство, продолжает
+        числиться в списках и получать письма.
+
+        Почта делается заведомо невозможной для входа и при этом уникальной:
+        сохранить прежнюю нельзя — по ней человека нашли бы поиском участников,
+        а очистить нельзя — уникальность почты в пространстве не даст удалить
+        второго.
+        """
+        target = await self._target(user_id, workspace_id)
+        self._assert_can_manage(actor, target)
+
+        # Отдельной проверки «не последний владелец» здесь нет намеренно.
+        # Она не может сработать: администратора к владельцу не пускает правило
+        # выше, а сам себя никто не удаляет — значит, удаляющий владелец в
+        # пространстве всегда второй. Проверка, которая не срабатывает никогда,
+        # выглядит как защита, но ничего не защищает.
+
+        before = {"name": target.name, "email": target.email, "role": target.role}
+        now = datetime.now(UTC)
+
+        await self._session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                name="Удалённый участник",
+                email=f"{uuid.uuid4()}@deleted.invalid",
+                avatar_url=None,
+                settings=None,
+                deleted_at=now,
+                # Связь с каталогом снимается вместе с обезличиванием: удержанный
+                # удалённой строкой внешний идентификатор не даст завести того же
+                # человека заново по синхронизации.
+                scim_external_id=None,
+            )
+        )
+        await self._session.execute(delete(GroupUser).where(GroupUser.user_id == user_id))
+        await self._session.execute(
+            delete(SpaceMember).where(SpaceMember.user_id == user_id)
+        )
+        await self._session.execute(
+            delete(AuthAccount)
+            .where(AuthAccount.user_id == user_id)
+            .where(AuthAccount.workspace_id == workspace_id)
+        )
+        await self._session.execute(
+            delete(Watcher)
+            .where(Watcher.user_id == user_id)
+            .where(Watcher.workspace_id == workspace_id)
+        )
+        await self._session.execute(
+            delete(Favorite)
+            .where(Favorite.user_id == user_id)
+            .where(Favorite.workspace_id == workspace_id)
+        )
+
+        revoked = list(
+            (
+                await self._session.execute(
+                    update(UserSession)
+                    .where(UserSession.user_id == user_id)
+                    .where(UserSession.workspace_id == workspace_id)
+                    .where(UserSession.revoked_at.is_(None))
+                    .values(revoked_at=now)
+                    .returning(UserSession.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        await self._audit.log(
+            event=AuditEvent.USER_DELETED,
+            resource_type=AuditResource.USER,
+            resource_id=user_id,
+            user_id=actor.id,
+            workspace_id=workspace_id,
+            changes={"before": before},
+        )
+        await self._session.commit()
+        if revoked and self._realtime is not None:
+            # Отзыв сессии закрывает вход, но открытое соединение канала живёт
+            # само: без разрыва удалённый остаётся на связи.
+            await self._realtime.drop_sessions(revoked)
 
     async def _count_owners(self, workspace_id: uuid.UUID) -> int:
         stmt = (

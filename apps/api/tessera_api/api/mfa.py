@@ -122,6 +122,50 @@ class MfaController(Controller):
             raise unauthorized("error.mfa.challenge_expired")
         return user, workspace
 
+    @post("/validate-access", opt={PUBLIC: True})
+    async def validate_access(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        tokens: NamedDependency[TokenService],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        """Состояние промежуточного сеанса для экрана ввода кода.
+
+        Экран второго фактора рисуется до того, как появилась сессия, и без
+        этого ответа он не знает, что показывать: ввод кода тому, у кого фактор
+        настроен, или настройку тому, кого к ней принуждает пространство.
+
+        Публичный по той же причине, что и сам ввод кода: сессии на этом шаге
+        ещё нет. Учётными данными служит промежуточный токен из куки.
+
+        Негодный токен — это `valid: false`, а не отказ. Экран на отказе
+        показал бы ошибку, тогда как верное поведение здесь — вернуть человека
+        ко входу.
+        """
+        raw = request.cookies.get(MFA_COOKIE)
+        payload = tokens.read(raw, TokenType.MFA) if raw else None
+        if payload is None:
+            return {"valid": False}
+
+        user = await db_session.get(User, payload.user_id)
+        workspace = await db_session.get(Workspace, payload.workspace_id)
+        if user is None or workspace is None or user.deactivated_at is not None:
+            return {"valid": False}
+
+        enrolled = await MfaService(db_session, settings.app_secret).is_enrolled(user)
+        enforced = bool(workspace.enforce_mfa)
+        return {
+            "valid": True,
+            "isTransferToken": True,
+            "userHasMfa": enrolled,
+            # Настройка требуется тому, у кого фактора нет, а пространство его
+            # требует: без этого признака экран предложил бы ввести код,
+            # которого взять неоткуда.
+            "requiresMfaSetup": not enrolled and enforced,
+            "isMfaEnforced": enforced,
+        }
+
     @post("/enroll-setup", opt={PUBLIC: True})
     async def enroll_setup(
         self,

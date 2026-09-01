@@ -79,6 +79,9 @@ class Settings:
     # развёртывании без `tessera-hub` она каждые сутки писала бы в журнал
     # отказ соединения.
     hub_internal_url: str = ""
+    #: Публичный адрес соседа. Отличается от внутреннего: по внутреннему ходит
+    #: сервер внутри сети развёртывания, а этот открывается в браузере человека.
+    hub_url: str = "http://localhost:4000"
     disable_telemetry: bool = False
     # Общий секрет для внутренних маршрутов совместного редактирования. Ими
     # пользуется только сосед на Node; пустое значение выключает их вовсе.
@@ -140,6 +143,7 @@ class Settings:
             ai_completion_model=_env("AI_COMPLETION_MODEL") or None,
             ai_embedding_model=_env("AI_EMBEDDING_MODEL") or None,
             hub_internal_url=_env("HUB_INTERNAL_URL", ""),
+            hub_url=_env("HUB_URL", "http://localhost:4000"),
             disable_telemetry=_env("DISABLE_TELEMETRY", "false").lower() == "true",
             collab_internal_token=_env("COLLAB_INTERNAL_TOKEN", ""),
             gotenberg_url=_env("GOTENBERG_URL", ""),

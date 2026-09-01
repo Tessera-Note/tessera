@@ -270,6 +270,23 @@ class WorkspaceController(Controller):
         )
         return _member_view(updated)
 
+    @post("/members/delete")
+    async def delete_member(
+        self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService]
+    ) -> dict:
+        """Удалить участника.
+
+        Отличие от отключения существенное. Отключение закрывает вход и
+        обратимо; удаление обезличивает запись и снимает всё, что даёт доступ.
+        Запись при этом остаётся: на неё ссылаются страницы, правки и журнал.
+        """
+        actor, principal = await self._actor(request, db_session)
+        await WorkspaceService(db_session, realtime).delete_member(
+            actor, uuid.UUID(data.userId), principal.workspace_id
+        )
+        return {"success": True}
+
     @post("/members/activate")
     async def activate(
         self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession],

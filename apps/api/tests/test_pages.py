@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import insert
@@ -223,6 +224,16 @@ class TestListings:
             title="Позже",
         )
 
+        # Отметку времени ставит база, и у записей одной транзакции она
+        # одинакова: `now()` в PostgreSQL — время начала транзакции, а не
+        # вызова. Без явного расхождения проверялся бы не порядок, а случай.
+        await session.execute(
+            Page.__table__.update()
+            .where(Page.id == first.id)
+            .values(updated_at=datetime.now(UTC) - timedelta(hours=1))
+        )
+        await session.flush()
+
         found = await service.recent(world["owner"].id, world["workspace"].id, limit=50)
         order = [one[0].id for one in found]
         assert second.id in order
@@ -376,3 +387,103 @@ class TestTrash:
         with pytest.raises(AppError) as error:
             await PageService(session).deleted_in_space(world["space"].id, uuid.uuid4())
         assert error.value.code == "error.space.space_not_found"
+
+
+class TestSidebar:
+    """Ветка дерева для боковой панели.
+
+    Сверх самих страниц панели нужны два признака: право правки и наличие
+    потомков. Без первого она показывает действия правки тому, кто править не
+    может; без второго рисует значок раскрытия у каждой строки, и половина
+    раскрывается в пустоту.
+    """
+
+    async def _branch(self, session: AsyncSession, world) -> tuple[Page, Page]:
+        service = PageService(session)
+        root = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Корень",
+        )
+        child = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Ветка",
+            parent_page_id=root.id,
+        )
+        return root, child
+
+    async def test_a_page_with_children_is_marked(
+        self, session: AsyncSession, world
+    ) -> None:
+        root, _ = await self._branch(session, world)
+
+        rows = await PageService(session).sidebar(
+            None, world["space"].id, world["owner"].id
+        )
+
+        by_id = {row["id"]: row for row in rows}
+        assert by_id[root.id]["hasChildren"] is True
+
+    async def test_a_leaf_is_marked_as_such(self, session: AsyncSession, world) -> None:
+        root, child = await self._branch(session, world)
+
+        rows = await PageService(session).sidebar(
+            root.id, world["space"].id, world["owner"].id
+        )
+
+        assert [(row["id"], row["hasChildren"]) for row in rows] == [(child.id, False)]
+
+    async def test_the_right_to_edit_comes_along(
+        self, session: AsyncSession, world
+    ) -> None:
+        root, _ = await self._branch(session, world)
+
+        rows = await PageService(session).sidebar(
+            None, world["space"].id, world["owner"].id
+        )
+        by_id = {row["id"]: row for row in rows}
+        assert by_id[root.id]["canEdit"] is True
+
+    async def test_a_reader_is_told_they_cannot_edit(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Иначе панель предлагает читателю правку, и она отваливается при
+        нажатии."""
+        root, _ = await self._branch(session, world)
+        reader_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=reader_id,
+                email=f"sb-{uuid.uuid4().hex[:8]}@example.com",
+                name="Читатель",
+                role="member",
+                workspace_id=world["workspace"].id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=reader_id,
+                space_id=world["space"].id,
+                role=SpaceRole.READER,
+                added_by_id=world["owner"].id,
+            )
+        )
+        await session.flush()
+
+        rows = await PageService(session).sidebar(None, world["space"].id, reader_id)
+        by_id = {row["id"]: row for row in rows}
+        assert by_id[root.id]["canEdit"] is False
+
+    async def test_an_empty_branch_asks_nothing_more(
+        self, session: AsyncSession, world
+    ) -> None:
+        assert (
+            await PageService(session).sidebar(
+                uuid.uuid4(), world["space"].id, world["owner"].id
+            )
+            == []
+        )

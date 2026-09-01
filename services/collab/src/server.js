@@ -106,12 +106,20 @@ function send(response, status, payload) {
   response.end(body);
 }
 
-export function createTransformServer() {
+export function createTransformServer(stats = () => ({ connections: 0, documents: 0 })) {
   return createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/health') {
       // Готовность проверяет оркестратор, у которого нет ни токена, ни
       // содержимого: ответ не несёт ничего, кроме признака жизни.
       send(response, 200, { status: 'ok' });
+      return;
+    }
+
+    if (request.method === 'GET' && request.url === '/stats') {
+      // Счётчики канала редактирования. Живут здесь, а не на серверной
+      // половине: соединения и документы держит этот процесс, и спрашивать о
+      // них соседа значило бы отвечать по памяти чужого процесса.
+      send(response, 200, stats());
       return;
     }
 
@@ -140,12 +148,15 @@ export function createTransformServer() {
 // настоящий порт. На машине, где порт уже занят соседом, это роняло весь файл
 // проверок ошибкой, к самим проверкам отношения не имеющей.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const server = createTransformServer();
-
   // Канал совместного редактирования поднимается на том же порту: у него та же
   // схема узлов редактора и тот же процесс, а второй порт означал бы второй
   // сервис с тем же кодом внутри.
   const { hocuspocus } = createCollabServer();
+
+  const server = createTransformServer(() => ({
+    connections: hocuspocus.getConnectionsCount(),
+    documents: hocuspocus.getDocumentsCount(),
+  }));
   attachCollab(server, hocuspocus);
   const stopSweep = startSweep(hocuspocus);
 

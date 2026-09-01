@@ -349,3 +349,52 @@ class TestPageIdParsing:
     def test_a_good_id_passes(self) -> None:
         value = uuid.uuid4()
         assert _page_uuid(str(value)) == value
+
+
+class TestFavoriteIds:
+    """Только идентификаторы отмеченного.
+
+    Экрану дерева нужна одна вещь: закрашивать ли звезду. Полный список с
+    названиями ради этого — лишний обход прав на каждую строку и лишний объём
+    на каждое открытие пространства.
+    """
+
+    async def test_the_ids_of_my_marks_are_returned(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Отмеченная",
+        )
+        await FavoriteService(session).add_page(page, owner.id)
+
+        found = await FavoriteService(session).list_for_user(owner.id, workspace.id)
+        assert page.id in [one.page_id for one in found]
+
+    async def test_marks_of_another_person_are_not_returned(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Отмеченная",
+        )
+        await FavoriteService(session).add_page(page, owner.id)
+
+        stranger_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger_id,
+                email=f"fav-{uuid.uuid4().hex[:8]}@example.com",
+                name="Другой",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        found = await FavoriteService(session).list_for_user(stranger_id, workspace.id)
+        assert page.id not in [one.page_id for one in found]

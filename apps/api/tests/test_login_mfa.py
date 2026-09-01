@@ -494,3 +494,101 @@ async def test_an_empty_code_is_refused(
         )
 
     assert answer.status_code == 400
+
+
+class TestValidateAccess:
+    """Состояние промежуточного сеанса для экрана ввода кода.
+
+    Экран рисуется до того, как появилась сессия, и без этого ответа он не
+    знает, что показывать: ввод кода тому, у кого фактор настроен, или
+    настройку тому, кого к ней принуждает пространство.
+    """
+
+    async def test_no_token_is_not_a_failure(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Отказ показал бы человеку ошибку, тогда как верно вернуть его ко входу."""
+        async with _client(session) as client:
+            answer = await client.post("/api/mfa/validate-access")
+
+        assert answer.status_code == 201
+        assert answer.json() == {"valid": False}
+
+    async def test_a_session_token_is_not_accepted_here(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Вид токена сверяется: токен доступа здесь не промежуточный."""
+        access = TokenService(SECRET).issue_access(owner.id, workspace.id, uuid.uuid4())
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/mfa/validate-access", cookies={MFA_COOKIE: access}
+            )
+
+        assert answer.json() == {"valid": False}
+
+    async def test_an_enrolled_person_is_asked_for_a_code(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        password = await _with_password(session, owner)
+        await _enrol(session, owner)
+
+        async with _client(session) as client:
+            login = await client.post(
+                "/api/auth/login", json={"email": owner.email, "password": password}
+            )
+            answer = await client.post(
+                "/api/mfa/validate-access",
+                cookies={MFA_COOKIE: login.cookies[MFA_COOKIE]},
+            )
+
+        body = answer.json()
+        assert body["valid"] is True
+        assert body["userHasMfa"] is True
+        assert body["requiresMfaSetup"] is False
+
+    async def test_a_person_without_a_factor_is_sent_to_setup(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе экран предложит ввести код, которого взять неоткуда."""
+        password = await _with_password(session, owner)
+        await _enforce(session, workspace, True)
+
+        async with _client(session) as client:
+            login = await client.post(
+                "/api/auth/login", json={"email": owner.email, "password": password}
+            )
+            answer = await client.post(
+                "/api/mfa/validate-access",
+                cookies={MFA_COOKIE: login.cookies[MFA_COOKIE]},
+            )
+
+        body = answer.json()
+        assert body["valid"] is True
+        assert body["userHasMfa"] is False
+        assert body["requiresMfaSetup"] is True
+        assert body["isMfaEnforced"] is True
+
+    async def test_a_deactivated_person_gets_nothing(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        password = await _with_password(session, owner)
+        await _enrol(session, owner)
+
+        async with _client(session) as client:
+            login = await client.post(
+                "/api/auth/login", json={"email": owner.email, "password": password}
+            )
+            await session.execute(
+                update(User)
+                .where(User.id == owner.id)
+                .values(deactivated_at=datetime.now(UTC))
+            )
+            await session.commit()
+
+            answer = await client.post(
+                "/api/mfa/validate-access",
+                cookies={MFA_COOKIE: login.cookies[MFA_COOKIE]},
+            )
+
+        assert answer.json() == {"valid": False}

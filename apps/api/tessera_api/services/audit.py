@@ -44,8 +44,10 @@ class AuditEvent:
     USER_ROLE_CHANGED = "user.role_changed"
     USER_DEACTIVATED = "user.deactivated"
     USER_ACTIVATED = "user.activated"
+    USER_DELETED = "user.deleted"
     USER_INVITE_ACCEPTED = "user.invite_accepted"
     USER_INVITED = "user.invited"
+    WORKSPACE_INVITE_RESENT = "workspace.invite_resent"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
     SPACE_CREATED = "space.created"
@@ -85,6 +87,7 @@ class AuditResource:
     PAGE = "page"
     API_KEY = "api_key"
     MFA = "mfa"
+    WORKSPACE_INVITATION = "workspace_invitation"
     SSO_PROVIDER = "sso_provider"
     SCIM_TOKEN = "scim_token"
 

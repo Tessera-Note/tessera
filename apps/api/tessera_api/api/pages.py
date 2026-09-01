@@ -382,10 +382,9 @@ class PageController(Controller):
         queue: NamedDependency[JobQueue],
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
-        pages = await PageService(db_session, realtime, queue).children(
+        return await PageService(db_session, realtime, queue).sidebar(
             data.parentPageId, data.spaceId, principal.user_id
         )
-        return [_page_view(page) for page in pages]
 
 
 class SuggestRequest(msgspec.Struct):
@@ -874,6 +873,22 @@ class FavoriteController(Controller):
             }
             for favorite, page, space in found
         ]
+
+    @get("/ids")
+    async def favorite_ids(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[uuid.UUID]:
+        """Только идентификаторы отмеченного.
+
+        Экрану дерева нужна одна вещь: закрашивать ли звезду. Полный список с
+        названиями ради этого — лишний обход прав на каждую строку и лишний
+        объём на каждое открытие пространства.
+        """
+        principal: Principal = request.scope["principal"]
+        found = await FavoriteService(db_session).list_for_user(
+            principal.user_id, principal.workspace_id
+        )
+        return [one.page_id for one in found if one.page_id is not None]
 
     @post("/add")
     async def add(

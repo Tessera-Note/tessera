@@ -8,14 +8,26 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import insert, select, update
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
-from tessera_api.domain.roles import UserRole
-from tessera_api.infrastructure.models import AuthProvider, User, Workspace
+from tessera_api.domain.roles import SpaceRole, UserRole
+from tessera_api.infrastructure.models import (
+    AuditLog,
+    AuthAccount,
+    AuthProvider,
+    Group,
+    GroupUser,
+    Space,
+    SpaceMember,
+    User,
+    UserSession,
+    Workspace,
+)
 from tessera_api.services.workspace import MAX_NAME, MAX_TRASH_DAYS, WorkspaceService
 from tests.conftest import needs_database
 
@@ -230,3 +242,236 @@ class TestFlags:
             admin, workspace.id, flags={"disablePublicSharing": False}
         )
         assert updated.settings["sharing"]["disabled"] is False
+
+
+class TestDeleteMember:
+    """Удаление участника.
+
+    Не строка в базе, а обезличивание: на человека ссылаются страницы, правки,
+    комментарии и журнал. Стереть строку значило бы либо разорвать эти ссылки,
+    либо унести с собой чужие страницы.
+
+    Отличие от отключения существенное. Отключение закрывает вход и обратимо;
+    удаление снимает всё, что даёт доступ, — членство, группы, связи с
+    провайдерами, подписки и отметки.
+    """
+
+    async def _member_with_everything(
+        self, session: AsyncSession, workspace, owner
+    ) -> User:
+        person = await _person(session, workspace, UserRole.MEMBER)
+        space_id = uuid.uuid4()
+        await session.execute(
+            insert(Space).values(
+                id=space_id,
+                name="Раздел",
+                slug=f"s{uuid.uuid4().hex[:8]}",
+                workspace_id=workspace.id,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=person.id,
+                space_id=space_id,
+                role=SpaceRole.WRITER,
+                added_by_id=owner.id,
+            )
+        )
+        group_id = uuid.uuid4()
+        await session.execute(
+            insert(Group).values(
+                id=group_id,
+                name=f"Группа {group_id.hex[:4]}",
+                is_default=False,
+                workspace_id=workspace.id,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(GroupUser).values(
+                id=uuid.uuid4(), group_id=group_id, user_id=person.id
+            )
+        )
+        await session.execute(
+            insert(AuthAccount).values(
+                id=uuid.uuid4(),
+                user_id=person.id,
+                provider_user_id="внешний",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(UserSession).values(
+                id=uuid.uuid4(),
+                user_id=person.id,
+                workspace_id=workspace.id,
+                expires_at=datetime.now(UTC) + timedelta(days=1),
+            )
+        )
+        await session.flush()
+        return person
+
+    async def test_the_record_survives_but_is_anonymised(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        person = await self._member_with_everything(session, workspace, owner)
+        person_id, previous = person.id, person.email
+
+        await WorkspaceService(session).delete_member(owner, person_id, workspace.id)
+
+        # Запись меняли запросом, минуя загруженный объект: без сброса читалось
+        # бы его прежнее состояние из карты сессии, а не из базы.
+        session.expire(person)
+        left = await session.get(User, person_id)
+        assert left is not None, "запись унесла бы с собой чужие страницы"
+        assert left.deleted_at is not None
+        assert left.email != previous
+        assert left.email.endswith("@deleted.invalid")
+
+    async def test_everything_that_grants_access_is_removed(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Отключение закрывает вход, но оставшееся членство продолжает
+        числиться в списках и получать письма."""
+        person = await self._member_with_everything(session, workspace, owner)
+
+        await WorkspaceService(session).delete_member(owner, person.id, workspace.id)
+
+        for model in (SpaceMember, GroupUser, AuthAccount):
+            left = (
+                await session.execute(
+                    select(func.count()).select_from(model).where(model.user_id == person.id)
+                )
+            ).scalar_one()
+            assert left == 0, f"осталось членство: {model.__name__}"
+
+    async def test_sessions_are_revoked(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе удалённый работает по уже выданному токену до конца срока."""
+        person = await self._member_with_everything(session, workspace, owner)
+
+        await WorkspaceService(session).delete_member(owner, person.id, workspace.id)
+
+        live = (
+            await session.execute(
+                select(func.count())
+                .select_from(UserSession)
+                .where(UserSession.user_id == person.id)
+                .where(UserSession.revoked_at.is_(None))
+            )
+        ).scalar_one()
+        assert live == 0
+
+    async def test_the_link_with_the_directory_is_dropped(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Удержанный удалённой строкой внешний идентификатор не даст завести
+        того же человека заново по синхронизации."""
+        person = await _person(session, workspace, UserRole.MEMBER)
+        await session.execute(
+            update(User).where(User.id == person.id).values(scim_external_id="внешний-1")
+        )
+        await session.flush()
+
+        person_id = person.id
+        await WorkspaceService(session).delete_member(owner, person_id, workspace.id)
+
+        session.expire(person)
+        left = await session.get(User, person_id)
+        assert left.scim_external_id is None
+
+    async def test_a_person_cannot_delete_themselves(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        with pytest.raises(AppError) as failure:
+            await WorkspaceService(session).delete_member(owner, owner.id, workspace.id)
+        assert "you_cannot_change_yourself" in str(failure.value.extra)
+
+    async def test_an_administrator_does_not_delete_an_owner(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе администратор отбирает пространство у того, кто его завёл."""
+        admin = await _person(session, workspace, UserRole.ADMIN)
+
+        with pytest.raises(AppError) as failure:
+            await WorkspaceService(session).delete_member(admin, owner.id, workspace.id)
+        assert "owner_required" in str(failure.value.extra)
+
+    async def test_an_ordinary_member_deletes_nobody(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        member = await _person(session, workspace, UserRole.MEMBER)
+        other = await _person(session, workspace, UserRole.MEMBER)
+
+        with pytest.raises(AppError) as failure:
+            await WorkspaceService(session).delete_member(member, other.id, workspace.id)
+        assert "admin_required" in str(failure.value.extra)
+
+    async def test_owners_are_equal_to_each_other(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе двух владельцев, из которых один ушёл, некому развести:
+        удалить друг друга они не могут, а третьего назначает только владелец."""
+        second_owner = await _person(session, workspace, UserRole.OWNER)
+        second_id = second_owner.id
+
+        await WorkspaceService(session).delete_member(owner, second_id, workspace.id)
+
+        session.expire(second_owner)
+        left = await session.get(User, second_id)
+        assert left.deleted_at is not None
+
+    async def test_a_deactivated_owner_can_still_be_deleted(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Счётчик живых владельцев здесь не годится: отключённый в него не
+        входит, и его удаление при живом втором выглядело бы как удаление
+        последнего."""
+        second = await _person(session, workspace, UserRole.OWNER)
+        second_id = second.id
+        await WorkspaceService(session).set_active(owner, second_id, False, workspace.id)
+
+        await WorkspaceService(session).delete_member(owner, second_id, workspace.id)
+
+        left = await session.get(User, second_id)
+        assert left.deleted_at is not None
+
+    async def test_the_workspace_never_loses_its_last_owner(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Правило держится двумя проверками выше, а не третьей.
+
+        Администратора к владельцу не пускает одна, себя удалить не даёт
+        другая. Значит, удаляющий владелец в пространстве всегда второй, и
+        последний остаётся на месте.
+        """
+        admin = await _person(session, workspace, UserRole.ADMIN)
+
+        with pytest.raises(AppError) as by_admin:
+            await WorkspaceService(session).delete_member(admin, owner.id, workspace.id)
+        assert "owner_required" in str(by_admin.value.extra)
+
+        with pytest.raises(AppError) as by_self:
+            await WorkspaceService(session).delete_member(owner, owner.id, workspace.id)
+        assert "you_cannot_change_yourself" in str(by_self.value.extra)
+
+    async def test_deletion_is_written_to_the_log(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        person = await _person(session, workspace, UserRole.MEMBER)
+
+        await WorkspaceService(session).delete_member(owner, person.id, workspace.id)
+
+        events = (
+            (
+                await session.execute(
+                    select(AuditLog.event).where(AuditLog.resource_id == person.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert "user.deleted" in events

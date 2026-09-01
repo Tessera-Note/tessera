@@ -54,6 +54,7 @@ from tessera_api.api.spaces import GroupController, SpaceController
 from tessera_api.api.sso import SsoController, SsoProviderController
 from tessera_api.api.templates import TemplateController
 from tessera_api.api.users import UserController
+from tessera_api.api.version import VersionController
 from tessera_api.api.workspace import WorkspaceController
 from tessera_api.config import Settings
 from tessera_api.domain.errors import AppError, app_error_response
@@ -220,6 +221,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             SsoController,
             SsoProviderController,
             UserController,
+            VersionController,
             CollabInternalController,
             ImportController,
             FileTaskController,

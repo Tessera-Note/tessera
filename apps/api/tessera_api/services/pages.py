@@ -257,6 +257,57 @@ class PageService:
                 visible.append(page)
         return visible
 
+    async def sidebar(
+        self, parent_page_id: uuid.UUID | None, space_id: uuid.UUID, user_id: uuid.UUID
+    ) -> list[dict]:
+        """Ветка дерева со всем, что нужно боковой панели.
+
+        Сверх самих страниц отдаются два признака. Право правки — иначе панель
+        показывает действия правки тому, кто править не может, и они отваливаются
+        при нажатии. Наличие потомков — иначе у каждой страницы рисуется значок
+        раскрытия, и половина из них раскрывается в пустоту.
+
+        Наличие потомков считается одним запросом на всю ветку, а не запросом на
+        строку: панель показывает десятки строк разом, и запрос на каждую
+        превращает раскрытие узла в десятки обращений к базе.
+        """
+        pages = await self.children(parent_page_id, space_id, user_id)
+        if not pages:
+            return []
+
+        ids = [page.id for page in pages]
+        parents = {
+            row[0]
+            for row in (
+                await self._session.execute(
+                    select(Page.parent_page_id)
+                    .where(Page.parent_page_id.in_(ids))
+                    .where(Page.deleted_at.is_(None))
+                    .distinct()
+                )
+            ).all()
+        }
+
+        rows: list[dict] = []
+        for page in pages:
+            rights = await self._access.rights(page, user_id)
+            rows.append(
+                {
+                    "id": page.id,
+                    "slugId": page.slug_id,
+                    "title": page.title,
+                    "icon": page.icon,
+                    "position": page.position,
+                    "parentPageId": page.parent_page_id,
+                    "spaceId": page.space_id,
+                    "creatorId": page.creator_id,
+                    "hasChildren": page.id in parents,
+                    "canEdit": rights.can_edit,
+                    "restricted": rights.restricted,
+                }
+            )
+        return rows
+
     async def move_to_trash(self, page: Page, user_id: uuid.UUID) -> None:
         """Убрать страницу в корзину вместе с ветвью.
 
@@ -308,7 +359,7 @@ class PageService:
                 .where(Page.space_id.in_(space_ids))
                 .where(Page.deleted_at.is_(None))
                 .where(Space.deleted_at.is_(None))
-                .order_by(Page.updated_at.desc())
+                .order_by(Page.updated_at.desc(), Page.id.desc())
                 .limit(max(1, min(limit, 100)))
             )
         ).all()
@@ -345,7 +396,7 @@ class PageService:
                 .where(Page.space_id.in_(space_ids))
                 .where(Page.deleted_at.is_(None))
                 .where(Space.deleted_at.is_(None))
-                .order_by(Page.created_at.desc())
+                .order_by(Page.created_at.desc(), Page.id.desc())
                 .limit(max(1, min(limit, 100)))
             )
         ).all()

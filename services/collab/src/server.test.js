@@ -157,3 +157,30 @@ test('картинка попадает в документ содержимым
   });
   assert.ok(withImage.length > without.length, 'содержимое картинки не попало в файл');
 });
+
+test('счётчики канала отдаются отдельным маршрутом', async () => {
+  // Числа приходят от того, кто держит соединения. Заглушка здесь именно
+  // затем, чтобы проверять передачу, а не работу Hocuspocus.
+  const server = createTransformServer(() => ({ connections: 3, documents: 2 }));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/stats`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { connections: 3, documents: 2 });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('без счётчиков маршрут отвечает нулями, а не отказом', async () => {
+  const server = createTransformServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/stats`);
+    assert.deepEqual(await response.json(), { connections: 0, documents: 0 });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

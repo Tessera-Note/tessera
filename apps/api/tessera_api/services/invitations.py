@@ -17,8 +17,10 @@ from tessera_api.infrastructure.models import (
     Workspace,
     WorkspaceInvitation,
 )
+from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.auth import hash_password
+from tessera_api.services.notification_mail import compose_plain
 
 #: Длина токена приглашения. Токен и есть учётные данные приглашённого, поэтому
 #: он берётся у криптографического источника, а не у обычного генератора.
@@ -28,9 +30,20 @@ MIN_PASSWORD_LENGTH = 8
 
 
 class InvitationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        queue: JobQueue | None = None,
+        *,
+        app_url: str = "",
+    ) -> None:
         self._session = session
         self._audit = AuditService(session)
+        # `None` означает «письма не отправлять». Так собирают службу проверки;
+        # маршруты передают настоящую очередь, иначе приглашённый не узнает о
+        # приглашении вовсе.
+        self._queue = queue
+        self._app_url = app_url
 
     async def create(
         self,
@@ -107,7 +120,117 @@ class InvitationService:
             created.append(await self._session.get(WorkspaceInvitation, invitation_id))
 
         await self._session.commit()
+        for invitation in created:
+            await self._send_mail(invitation, actor)
         return created
+
+    def link_for(self, invitation: WorkspaceInvitation) -> str:
+        """Ссылка приглашения.
+
+        Токен в ней и есть учётные данные: приглашённого в базе ещё нет, и
+        предъявить ему нечего, кроме этой ссылки.
+        """
+        return (
+            f"{self._app_url.rstrip('/')}/invites/{invitation.id}"
+            f"?token={invitation.token}"
+        )
+
+    async def _send_mail(self, invitation: WorkspaceInvitation, actor: User) -> None:
+        """Отправить письмо приглашения.
+
+        Уходит заданием, а не прямо здесь: соединение с почтовым сервером
+        открывается с таймаутом, и внутри запроса это ожидание у того, кто
+        нажал «пригласить». Отказ отправки при этом не теряется — он попадает
+        в журнал исполнителя, и задание повторяется.
+
+        Язык письма — запасной. У приглашённого учётной записи ещё нет, а
+        значит нет и выбранного языка, и брать язык приглашающего неверно: его
+        выбор о нём, а не о получателе.
+        """
+        if self._queue is None:
+            return
+
+        letter = compose_plain(
+            locale=None,
+            recipient_name=None,
+            subject_key="mail.subject.invitation",
+            body_key="mail.invitation.body",
+            action_key="mail.action.accept_invitation",
+            url=self.link_for(invitation),
+            note_key="mail.invitation.note",
+            params={"actor": actor.name or actor.email},
+        )
+        await self._queue.enqueue(
+            JobName.SEND_EMAIL,
+            to=invitation.email,
+            subject=letter.subject,
+            body=letter.body,
+            html=letter.html,
+        )
+
+    async def _own(
+        self, invitation_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> WorkspaceInvitation:
+        found = await self._session.get(WorkspaceInvitation, invitation_id)
+        if found is None or found.workspace_id != workspace_id:
+            raise not_found("error.workspace.invitation_not_found")
+        return found
+
+    async def info(
+        self, invitation_id: uuid.UUID, workspace: Workspace
+    ) -> dict:
+        """Сведения о приглашении для экрана принятия.
+
+        Открыто без входа, и потому отдаётся ровно то, что нужно нарисовать
+        форму: кого пригласили и требует ли пространство входа через
+        провайдера. Ни роли, ни того, кто пригласил, ни тем более токена —
+        токен предъявляет сам приглашённый, а не мы ему.
+        """
+        found = await self._own(invitation_id, workspace.id)
+        return {
+            "id": found.id,
+            "email": found.email,
+            "createdAt": found.created_at,
+            "enforceSso": bool(workspace.enforce_sso),
+        }
+
+    async def link(
+        self, actor: User, invitation_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> str:
+        """Ссылка приглашения для того, кто приглашает.
+
+        Нужна там, где почта не работает или письмо не дошло: администратор
+        передаёт ссылку сам. Право то же, что у заведения приглашения —
+        ссылка равносильна самому приглашению.
+        """
+        if not is_workspace_admin(actor.role):
+            raise forbidden("error.common.admin_required")
+        return self.link_for(await self._own(invitation_id, workspace_id))
+
+    async def resend(
+        self, actor: User, invitation_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> None:
+        """Отправить письмо приглашения ещё раз.
+
+        Токен не перевыпускается: прежняя ссылка могла уже дойти, и смена
+        токена сделала бы её негодной ровно тогда, когда человек ею
+        воспользуется.
+        """
+        if not is_workspace_admin(actor.role):
+            raise forbidden("error.common.admin_required")
+
+        invitation = await self._own(invitation_id, workspace_id)
+        inviter = await self._session.get(User, invitation.invited_by_id)
+        await self._send_mail(invitation, inviter or actor)
+        await self._audit.log(
+            event=AuditEvent.WORKSPACE_INVITE_RESENT,
+            resource_type=AuditResource.WORKSPACE_INVITATION,
+            resource_id=invitation.id,
+            user_id=actor.id,
+            workspace_id=workspace_id,
+            metadata={"email": invitation.email, "role": invitation.role},
+        )
+        await self._session.commit()
 
     async def list(self, workspace_id: uuid.UUID) -> list[WorkspaceInvitation]:
         stmt = (

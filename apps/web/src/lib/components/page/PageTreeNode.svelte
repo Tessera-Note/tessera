@@ -42,15 +42,21 @@
 
 <div data-component="PageTreeNode" style="padding-left: {depth * 12}px">
   <div class="flex items-center gap-1">
-    <button
-      class="w-5 shrink-0 rounded text-xs text-text-muted hover:bg-surface-muted"
-      type="button"
-      aria-label={open ? t('Collapse') : t('Expand')}
-      aria-expanded={open}
-      onclick={toggle}
-    >
-      {open ? '▾' : '▸'}
-    </button>
+    {#if node.hasChildren === false}
+      <!-- Значка раскрытия у листа нет: он раскрывался бы в пустоту. Место
+           под него остаётся, иначе строки уезжают влево и дерево рябит. -->
+      <span class="w-5 shrink-0" aria-hidden="true"></span>
+    {:else}
+      <button
+        class="w-5 shrink-0 rounded text-xs text-text-muted hover:bg-surface-muted"
+        type="button"
+        aria-label={open ? t('Collapse') : t('Expand')}
+        aria-expanded={open}
+        onclick={toggle}
+      >
+        {open ? '▾' : '▸'}
+      </button>
+    {/if}
     <a
       class="min-w-0 flex-1 truncate rounded px-1.5 py-1 text-sm hover:bg-surface-muted"
       class:font-medium={activeSlug === node.slugId}

@@ -7,6 +7,11 @@ export type PageSummary = {
   icon: string | null;
   parentPageId: string | null;
   spaceId: string;
+  /** Есть ли вложенные страницы. По нему рисуется значок раскрытия: без него
+   *  он стоит у каждой строки, и половина раскрывается в пустоту. */
+  hasChildren?: boolean;
+  canEdit?: boolean;
+  restricted?: boolean;
 };
 
 export type PageBody = PageSummary & {
