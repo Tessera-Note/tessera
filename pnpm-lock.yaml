@@ -892,15 +892,90 @@ importers:
 
   apps/web:
     dependencies:
+      '@hocuspocus/provider':
+        specifier: 3.4.4
+        version: 3.4.4(y-protocols@1.0.6(yjs@13.6.30))(yjs@13.6.30)
       '@tanstack/svelte-query':
         specifier: 6.1.38
         version: 6.1.38(svelte@5.56.8(@typescript-eslint/types@8.57.1))
+      '@tessera/editor-ext':
+        specifier: workspace:*
+        version: link:../../packages/editor-ext
+      '@tiptap/core':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/pm@3.27.1)
+      '@tiptap/extension-code-block':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-collaboration':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)(@tiptap/y-tiptap@3.0.5(prosemirror-model@1.25.9)(prosemirror-state@1.4.4)(prosemirror-view@1.41.9)(y-protocols@1.0.6(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30)
+      '@tiptap/extension-collaboration-caret':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)(@tiptap/y-tiptap@3.0.5(prosemirror-model@1.25.9)(prosemirror-state@1.4.4)(prosemirror-view@1.41.9)(y-protocols@1.0.6(yjs@13.6.30))(yjs@13.6.30))
+      '@tiptap/extension-color':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/extension-text-style@3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1)))
+      '@tiptap/extension-highlight':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/extension-image':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/extension-link':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-list':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-placeholder':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/extensions@3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1))
+      '@tiptap/extension-subscript':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-superscript':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-table':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-text-align':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/extension-text-style':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/extension-typography':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/extension-unique-id':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
+      '@tiptap/extension-youtube':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/pm':
+        specifier: 3.27.1
+        version: 3.27.1
+      '@tiptap/starter-kit':
+        specifier: 3.27.1
+        version: 3.27.1
       bits-ui:
         specifier: 2.18.1
         version: 2.18.1(@internationalized/date@3.12.3)(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))(typescript@5.9.3)(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))
+      lowlight:
+        specifier: 3.3.0
+        version: 3.3.0
       qrcode-generator:
         specifier: ^2.0.4
         version: 2.0.4
+      y-prosemirror:
+        specifier: 1.3.7
+        version: 1.3.7(prosemirror-model@1.25.9)(prosemirror-state@1.4.4)(prosemirror-view@1.41.9)(y-protocols@1.0.6(yjs@13.6.30))(yjs@13.6.30)
+      yjs:
+        specifier: ^13.6.30
+        version: 13.6.30
     devDependencies:
       '@sveltejs/adapter-node':
         specifier: 5.5.7
@@ -6983,6 +7058,7 @@ packages:
   eslint@9.28.0:
     resolution: {integrity: sha512-ocgh41VhRlf9+fVpe7QKzwLj9c92fDiqOj8Y3Sd4/ZmVA4Btx4PlUYPq4pp9JDyupkf1upbEXecxL2mwNV7jPQ==, tarball: https://registry.npmjs.org/eslint/-/eslint-9.28.0.tgz}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -6993,6 +7069,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==, tarball: https://registry.npmjs.org/eslint/-/eslint-9.39.4.tgz}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

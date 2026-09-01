@@ -4,6 +4,7 @@
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import PageBody from '$lib/components/page/PageBody.svelte';
+  import Editor from '$lib/features/editor/Editor.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
@@ -20,6 +21,31 @@
 
   const t = $derived(locale.t);
   const canEdit = $derived(data.page.canEdit !== false);
+
+  /**
+   * С чего открывается страница: с чтения или сразу с правки.
+   *
+   * Предпочтение человека из настроек; по умолчанию чтение, как в v1 — случайная
+   * правка чужой страницы хуже лишнего нажатия.
+   */
+  let editing = $state(false);
+
+  $effect(() => {
+    const mode = data.session?.user.settings?.preferences?.pageEditMode ?? 'read';
+    editing = canEdit && mode === 'edit';
+  });
+
+  /**
+   * Цвет чужого курсора.
+   *
+   * Выводится из идентификатора, а не назначается случайно: при переподключении
+   * цвет должен остаться прежним, иначе один и тот же человек мигает разными.
+   */
+  function caretColor(seed: string): string {
+    let sum = 0;
+    for (const one of seed) sum = (sum * 31 + one.charCodeAt(0)) % 360;
+    return `hsl(${sum} 70% 55%)`;
+  }
 
   let renaming = $state(false);
   let title = $state('');
@@ -159,6 +185,9 @@
             {data.favorite ? t('Remove from favorites') : t('Add to favorites')}
           </Button>
           {#if canEdit}
+            <Button variant="quiet" onclick={() => (editing = !editing)}>
+              {editing ? t('Read') : t('Edit')}
+            </Button>
             <Button variant="quiet" onclick={() => (renaming = true)}>{t('Rename')}</Button>
             <Button variant="quiet" disabled={busy} onclick={saveAsTemplate}>
               {t('New template')}
@@ -175,7 +204,24 @@
     {#if failure}<Notice message={failure} />{/if}
     {#if savedTemplate}<Notice tone="info" message={t('Template created successfully')} />{/if}
 
-    <PageBody content={data.page.content} />
+    {#if editing}
+      <!--
+        Редактор подключается к каналу совместной правки, и открывать его тем,
+        кто правит не вправе, незачем: канал всё равно переведёт соединение в
+        режим чтения, а страница успеет мигнуть.
+      -->
+      <Editor
+        pageId={data.page.id}
+        content={data.page.content}
+        editable={canEdit}
+        author={{
+          name: data.session?.user.name ?? data.session?.user.email ?? '',
+          color: caretColor(data.session?.user.id ?? '')
+        }}
+      />
+    {:else}
+      <PageBody content={data.page.content} />
+    {/if}
 
     <PageComments pageId={data.page.id} comments={data.comments} />
   </article>
