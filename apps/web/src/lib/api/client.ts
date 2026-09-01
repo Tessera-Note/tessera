@@ -13,30 +13,11 @@
  */
 
 import { apiBase } from '$lib/api/base';
+import { ApiError } from '$lib/api/failure';
 
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly params: Record<string, string | number>;
-
-  constructor(
-    status: number,
-    code: string,
-    message: string,
-    params: Record<string, string | number>
-  ) {
-    super(message || code);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = code;
-    this.params = params;
-  }
-
-  /** Вход потерян: сессия отозвана, истекла или её не было. */
-  get unauthenticated(): boolean {
-    return this.status === 401;
-  }
-}
+// Класс живёт в `failure.ts`, но перечисляется и отсюда: сюда за ним ходят
+// два десятка мест, и переезд ради проверок не повод их править.
+export { ApiError };
 
 type Options = {
   method?: string;

@@ -3,7 +3,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
-  import { ApiError } from '$lib/api/client';
+  import { errorText } from '$lib/api/failure';
   import { attachLabels, detachLabel, type Label } from '$lib/features/page/services/labels';
   import { getVersion, type Version } from '$lib/features/page/services/history';
   import { plainText } from '$lib/features/page/document';
@@ -75,7 +75,7 @@
     try {
       await action();
     } catch (error) {
-      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      failure = errorText(error, t);
     } finally {
       busy = false;
     }

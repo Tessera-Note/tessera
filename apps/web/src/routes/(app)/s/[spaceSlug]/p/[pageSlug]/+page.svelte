@@ -6,7 +6,7 @@
   import PageBody from '$lib/components/page/PageBody.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
-  import { ApiError } from '$lib/api/client';
+  import { errorText } from '$lib/api/failure';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
   import { deletePage, updatePage } from '$lib/features/page/services/pages';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -33,7 +33,7 @@
     try {
       await action();
     } catch (error) {
-      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      failure = errorText(error, t);
     } finally {
       busy = false;
     }

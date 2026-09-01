@@ -2,7 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
-  import { ApiError } from '$lib/api/client';
+  import { errorText } from '$lib/api/failure';
   import { createComment, type Comment } from '$lib/features/page/services/comments';
   import { plainText } from '$lib/features/page/document';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -27,7 +27,7 @@
       text = '';
       await invalidateAll();
     } catch (error) {
-      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      failure = errorText(error, t);
     } finally {
       busy = false;
     }

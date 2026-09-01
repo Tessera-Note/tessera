@@ -2,7 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
-  import { ApiError } from '$lib/api/client';
+  import { errorText } from '$lib/api/failure';
   import { removeFavorite } from '$lib/features/page/services/favorites';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
@@ -22,7 +22,7 @@
       await removeFavorite(pageId);
       await invalidateAll();
     } catch (error) {
-      failure = error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      failure = errorText(error, t);
     } finally {
       busy = null;
     }

@@ -4,7 +4,7 @@
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
-  import { ApiError } from '$lib/api/client';
+  import { errorText } from '$lib/api/failure';
   import { changePassword } from '$lib/features/auth/services/auth';
   import { updateProfile } from '$lib/features/user/services/profile';
   import { LOCALE_NAMES } from '$lib/i18n';
@@ -48,8 +48,7 @@
       await invalidateAll();
       profileSaved = true;
     } catch (error) {
-      profileFailure =
-        error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      profileFailure = errorText(error, t);
     } finally {
       profileBusy = false;
     }
@@ -66,8 +65,7 @@
       newPassword = '';
       passwordSaved = true;
     } catch (error) {
-      passwordFailure =
-        error instanceof ApiError ? t(error.code, error.params) : t('Something went wrong');
+      passwordFailure = errorText(error, t);
     } finally {
       passwordBusy = false;
     }
