@@ -43,7 +43,28 @@ export function renameChat(chatId: string, title: string, fetcher?: typeof fetch
 }
 
 export function deleteChat(chatId: string, fetcher?: typeof fetch) {
-  return post<{ success: boolean }>('/api/ai/chats/delete', { chatId }, { fetcher });
+  return post<{ status: string }>('/api/ai/chats/delete', { chatId }, { fetcher });
+}
+
+/**
+ * Решение по плану необратимых действий.
+ *
+ * Пока решения нет, шаги не выполнены: сервер их сохранил и ждёт. Без этого
+ * вызова такой план висит вечно, а разговор выглядит незаконченным.
+ *
+ * Второе решение по тому же плану сервер отклоняет: захват записи одним
+ * условным обновлением, чтобы два подтверждения не выполнили шаги дважды.
+ */
+export function resolvePlan(
+  messageId: string,
+  decision: 'confirm' | 'reject',
+  fetcher?: typeof fetch
+) {
+  return post<{ status: string; results: { tool: string; ok: boolean; error?: string }[] }>(
+    '/api/ai/chats/resolve-plan',
+    { messageId, decision },
+    { fetcher }
+  );
 }
 
 /**

@@ -14,6 +14,7 @@ from tessera_api.api.guards import Principal
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.page_verification import (
+    DEFAULT_LIST,
     MODE_PERIOD,
     PageVerificationService,
 )
@@ -22,6 +23,12 @@ from tessera_api.services.realtime import RealtimeService
 
 class PageIdRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
+
+
+class VerificationListRequest(msgspec.Struct):
+    spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    status: str | None = None
+    limit: int | None = None
 
 
 class ConfigureRequest(msgspec.Struct):
@@ -46,6 +53,25 @@ class PageVerificationController(Controller):
         page = await access.load_page(page_id, principal.workspace_id)
         await access.validate_can_view(page, principal.user_id)
         return page
+
+    @post("/verifications")
+    async def verifications(
+        self,
+        data: VerificationListRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        mailer: NamedDependency[NotificationMailer],
+    ) -> list[dict]:
+        """Проверяемые страницы доступных пространств. Путь из v1."""
+        principal: Principal = request.scope["principal"]
+        return await PageVerificationService(db_session, realtime, mailer).listing(
+            principal.user_id,
+            principal.workspace_id,
+            space_id=uuid.UUID(data.spaceId) if data.spaceId else None,
+            status=data.status,
+            limit=data.limit or DEFAULT_LIST,
+        )
 
     @post("/verification-info")
     async def info(

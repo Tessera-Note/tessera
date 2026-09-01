@@ -26,7 +26,9 @@ from tessera_api.infrastructure.models import (
     Page,
     PageVerification,
     PageVerifier,
+    Space,
 )
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import NotificationService, NotificationType
 from tessera_api.services.page_access import PageAccessService
@@ -55,6 +57,11 @@ SUBMITTABLE_FROM = (Status.PENDING, Status.REJECTED, Status.OBSOLETE, Status.EXP
 
 #: Отклонить можно только отправленное на утверждение.
 REJECTABLE_FROM = (Status.PENDING_APPROVAL,)
+
+#: Сколько строк отдавать перечню проверяемых страниц, если не сказано иное,
+#: и его потолок. Экран этот открывают, чтобы окинуть взглядом.
+DEFAULT_LIST = 50
+MAX_LIST = 100
 
 #: Режимы срока: считать от подтверждения или взять назначенную дату.
 MODE_PERIOD = "period"
@@ -115,6 +122,7 @@ class PageVerificationService:
     ) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        self._members = SpaceMemberRepo(session)
         # `None` означает «не рассылать»: так собирают службу проверки.
         self._realtime = realtime
         self._mailer = mailer
@@ -493,6 +501,69 @@ class PageVerificationService:
         await self._session.commit()
         await self._flush_notifications()
         return await self._require(page)
+
+    async def listing(
+        self,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        space_id: uuid.UUID | None = None,
+        status: str | None = None,
+        limit: int = DEFAULT_LIST,
+    ) -> list[dict]:
+        """Проверяемые страницы в пространствах, где человек состоит.
+
+        Расхождение с v1 намеренное: там выдача постраничная, с многопроходным
+        просмотром — отбор по правам выбрасывает строки уже после выборки, и
+        страница выходит короче запрошенной. Здесь выдача ограничена потолком
+        и отдаётся целиком: экран этот открывают, чтобы окинуть взглядом, а не
+        листать, и сотня строк для этого достаточна. Если станет мало,
+        постраничность вводится вместе с курсором, как в журнале аудита.
+
+        Право проверяется постранично: строка несёт название страницы.
+        """
+        space_ids = await self._members.space_ids_for(user_id)
+        if not space_ids:
+            return []
+
+        stmt = (
+            select(PageVerification, Page, Space)
+            .join(Page, Page.id == PageVerification.page_id)
+            .join(Space, Space.id == PageVerification.space_id)
+            .where(PageVerification.workspace_id == workspace_id)
+            .where(Page.deleted_at.is_(None))
+            .where(PageVerification.space_id.in_(space_ids))
+            .order_by(PageVerification.created_at.desc())
+            .limit(max(1, min(limit, MAX_LIST)))
+        )
+        if space_id is not None:
+            stmt = stmt.where(PageVerification.space_id == space_id)
+        if status:
+            stmt = stmt.where(PageVerification.status == status)
+
+        rows = (await self._session.execute(stmt)).all()
+
+        found: list[dict] = []
+        for record, page, space in rows:
+            if not (await self._access.rights(page, user_id)).can_view:
+                continue
+            found.append(
+                {
+                    "id": record.id,
+                    "pageId": record.page_id,
+                    "status": record.status,
+                    "mode": record.mode,
+                    "expiresAt": record.expires_at,
+                    "verifiedAt": record.verified_at,
+                    "createdAt": record.created_at,
+                    "pageTitle": page.title,
+                    "pageSlugId": page.slug_id,
+                    "pageIcon": page.icon,
+                    "spaceName": space.name,
+                    "spaceSlug": space.slug,
+                }
+            )
+        return found
 
     async def info(self, page: Page, user_id: uuid.UUID) -> dict:
         rights = await self.rights(page, user_id)

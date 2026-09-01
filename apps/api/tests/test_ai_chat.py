@@ -62,6 +62,29 @@ def _settings(**extra) -> Settings:
     return replace(base, **extra)
 
 
+class TestErrorFrame:
+    """Отказ в потоке.
+
+    Заголовки к моменту отказа уже отправлены, обычным ответом его не выразить,
+    и уходит он кадром. Кадр несёт и код, и текст: перевода у части кодов нет, а
+    показывать человеку `error.ai.request_failed` вместо фразы нельзя.
+    """
+
+    def test_the_frame_carries_the_text_next_to_the_code(self) -> None:
+        from tessera_api.domain.errors import ERROR_MESSAGES, bad_request
+
+        failure = bad_request("error.ai_chat.disabled")
+        assert failure.code == "error.ai_chat.disabled"
+        assert failure.detail == ERROR_MESSAGES["error.ai_chat.disabled"]
+
+    def test_every_code_of_this_stream_has_a_text(self) -> None:
+        """Иначе запасной вариант клиента упирается в тот же код."""
+        from tessera_api.domain.errors import ERROR_MESSAGES
+
+        for code in ("error.ai.request_failed", "error.ai_chat.disabled"):
+            assert ERROR_MESSAGES.get(code), code
+
+
 class TestPolicy:
     def test_every_named_tool_exists(self) -> None:
         """Политика на несуществующий инструмент — мёртвая строка.

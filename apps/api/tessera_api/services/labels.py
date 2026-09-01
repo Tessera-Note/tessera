@@ -94,31 +94,65 @@ class LabelService:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def pages_with(
-        self, label_id: uuid.UUID, workspace_id: uuid.UUID, user_id: uuid.UUID
-    ) -> list[Page]:
-        """Страницы с меткой.
+    async def by_name(self, name: str, workspace_id: uuid.UUID) -> Label | None:
+        """Метка по имени, без учёта регистра. Отсутствие — не отказ."""
+        clean = (name or "").strip()
+        if not clean:
+            return None
+        return (
+            await self._session.execute(
+                select(Label)
+                .where(Label.workspace_id == workspace_id)
+                .where(func.lower(Label.name) == clean.lower())
+            )
+        ).scalars().first()
 
-        Выдача фильтруется правами: метка не должна становиться способом
-        узнать о существовании закрытых страниц.
+    async def pages_with(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        label_id: uuid.UUID | None = None,
+        name: str | None = None,
+        space_id: uuid.UUID | None = None,
+    ) -> list[tuple[Page, Space]]:
+        """Страницы с меткой, вместе с их пространствами.
+
+        Метка ищется по идентификатору либо по имени. Незнакомое имя даёт
+        пустой список, а не отказ: разные ответы на «метки нет» и «метка есть,
+        но страниц не видно» позволяли бы перебором узнавать, какие метки в
+        рабочем пространстве заведены.
+
+        Выдача фильтруется правами постранично: метка не должна становиться
+        способом узнать о существовании закрытых страниц и их названиях.
         """
-        label = await self._session.get(Label, label_id)
-        if label is None or label.workspace_id != workspace_id:
-            raise not_found("error.label.label_not_found")
+        if label_id is not None:
+            label = await self._session.get(Label, label_id)
+            if label is None or label.workspace_id != workspace_id:
+                raise not_found("error.label.label_not_found")
+        else:
+            label = await self.by_name(name or "", workspace_id)
+            if label is None:
+                return []
 
         stmt = (
-            select(Page)
+            select(Page, Space)
             .join(PageLabel, PageLabel.page_id == Page.id)
-            .where(PageLabel.label_id == label_id)
+            .join(Space, Space.id == Page.space_id)
+            .where(PageLabel.label_id == label.id)
             .where(Page.deleted_at.is_(None))
+            .where(Space.deleted_at.is_(None))
             .order_by(Page.title.asc())
         )
-        found = list((await self._session.execute(stmt)).scalars().all())
+        if space_id is not None:
+            stmt = stmt.where(Page.space_id == space_id)
 
-        visible: list[Page] = []
-        for page in found:
+        found = (await self._session.execute(stmt)).all()
+
+        visible: list[tuple[Page, Space]] = []
+        for page, space in found:
             if (await self._access.rights(page, user_id)).can_view:
-                visible.append(page)
+                visible.append((page, space))
         return visible
 
 

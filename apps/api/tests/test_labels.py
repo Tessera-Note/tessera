@@ -161,6 +161,95 @@ class TestDetach:
         assert await session.get(Label, label.id) is not None
 
 
+class TestPagesByLabel:
+    """Страницы с меткой: то, ради чего заводят экран метки."""
+
+    async def test_pages_come_with_their_space(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "С меткой")
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        await LabelService(session).attach(page, [name], owner.id)
+
+        found = await LabelService(session).pages_with(workspace.id, owner.id, name=name)
+
+        assert [one[0].id for one in found] == [page.id]
+        assert found[0][1].slug == space.slug
+
+    async def test_an_unknown_name_is_an_empty_list(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Не отказ: разные ответы на «метки нет» и «страниц не видно»
+        позволяли бы перебором узнать, какие метки заведены."""
+        found = await LabelService(session).pages_with(
+            workspace.id, owner.id, name=f"нет-такой-{uuid.uuid4().hex[:6]}"
+        )
+        assert found == []
+
+    async def test_the_name_is_matched_without_case(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "Регламент")
+        name = f"Регламент-{uuid.uuid4().hex[:4]}"
+        await LabelService(session).attach(page, [name], owner.id)
+
+        found = await LabelService(session).pages_with(
+            workspace.id, owner.id, name=name.upper()
+        )
+        assert [one[0].id for one in found] == [page.id]
+
+    async def test_a_closed_page_is_not_listed(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Метка не должна выдавать ни существования закрытой страницы, ни её
+        названия."""
+        page = await _page(session, workspace, owner, space, "Закрытая с меткой")
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        await LabelService(session).attach(page, [name], owner.id)
+        reader_id = await _reader(session, workspace, space, owner)
+
+        access_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=access_id,
+                page_id=page.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(PagePermission).values(
+                id=uuid.uuid4(),
+                page_access_id=access_id,
+                user_id=owner.id,
+                role=SpaceRole.ADMIN,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+        assert await LabelService(session).pages_with(workspace.id, reader_id, name=name) == []
+        assert await LabelService(session).pages_with(workspace.id, owner.id, name=name)
+
+    async def test_a_space_filter_narrows_the_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "В своём пространстве")
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        await LabelService(session).attach(page, [name], owner.id)
+
+        same = await LabelService(session).pages_with(
+            workspace.id, owner.id, name=name, space_id=space.id
+        )
+        other = await LabelService(session).pages_with(
+            workspace.id, owner.id, name=name, space_id=uuid.uuid4()
+        )
+        assert [one[0].id for one in same] == [page.id]
+        assert other == []
+
+
 class TestFavorites:
     """Избранное для экрана: названия рядом с идентификаторами.
 

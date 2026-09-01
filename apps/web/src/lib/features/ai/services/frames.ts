@@ -18,7 +18,7 @@ export type Frame =
   | { type: 'tool_result'; name: string; isError: boolean }
   | { type: 'plan'; messageId: string; steps: { tool: string; args: unknown }[] }
   | { type: 'done'; messageId: string }
-  | { type: 'error'; error: string };
+  | { type: 'error'; error: string; message?: string };
 
 /** Признак конца потока. Значение то же, что у сервера. */
 export const DONE = '[DONE]';

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.models import Page, Share, Space, Workspace
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.page_access import PageAccessService
 
 #: Длина ключа ссылки. Ключ и есть учётные данные того, кто открывает страницу
@@ -22,6 +23,7 @@ class ShareService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        self._members = SpaceMemberRepo(session)
 
     async def create(
         self,
@@ -94,6 +96,43 @@ class ShareService:
             and settings["sharing"].get("disabled") is True
             for settings in row
         )
+
+    async def mine(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Share, Page, Space]]:
+        """Действующие ссылки в пространствах, где человек состоит.
+
+        Экран заводят ради одного вопроса: что из нашего сейчас открыто наружу.
+        Поэтому перечисляются не свои ссылки, а все в доступных пространствах —
+        ссылку мог завести кто угодно с правом правки, и увидеть её должен
+        каждый, кто эти страницы читает.
+
+        Право проверяется постранично: строка несёт название страницы, и
+        закрытая страница попадать сюда не должна даже своему пространству.
+        """
+        space_ids = await self._members.space_ids_for(user_id)
+        if not space_ids:
+            return []
+
+        rows = (
+            await self._session.execute(
+                select(Share, Page, Space)
+                .join(Page, Page.id == Share.page_id)
+                .join(Space, Space.id == Page.space_id)
+                .where(Share.deleted_at.is_(None))
+                .where(Share.workspace_id == workspace_id)
+                .where(Page.deleted_at.is_(None))
+                .where(Space.deleted_at.is_(None))
+                .where(Page.space_id.in_(space_ids))
+                .order_by(Share.created_at.desc())
+            )
+        ).all()
+
+        allowed: list[tuple[Share, Page, Space]] = []
+        for share, page, space in rows:
+            if (await self._access.rights(page, user_id)).can_view:
+                allowed.append((share, page, space))
+        return allowed
 
     async def for_page(self, page: Page, user_id: uuid.UUID) -> Share | None:
         """Ссылка страницы, если она заведена.

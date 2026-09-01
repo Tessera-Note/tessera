@@ -37,3 +37,27 @@ export function detachLabel(pageId: string, labelId: string, fetcher?: typeof fe
 export function attachLabels(pageId: string, names: string[], fetcher?: typeof fetch) {
   return post<Label[]>('/api/labels/attach', { pageId, names }, { fetcher });
 }
+
+/** Страница с меткой: то, чем рисуется экран метки. */
+export type LabelledPage = {
+  id: string;
+  slugId: string;
+  title: string | null;
+  icon: string | null;
+  spaceSlug: string;
+  spaceName: string | null;
+};
+
+/**
+ * Страницы с меткой.
+ *
+ * Незнакомое имя метки отвечает пустым списком, а не отказом: по разнице
+ * ответов иначе перебирается перечень заведённых меток.
+ */
+export function pagesWithLabel(
+  name: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<LabelledPage[]>('/api/labels/pages', { name }, { fetcher, headers });
+}

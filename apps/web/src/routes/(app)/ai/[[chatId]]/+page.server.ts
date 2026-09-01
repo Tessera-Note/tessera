@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
       listChats(undefined, fetch, headers),
       params.chatId ? chatInfo(params.chatId, fetch, headers) : Promise.resolve(null)
     ]);
-    return { chats: chats.items, chat };
+    return { chats, chat };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

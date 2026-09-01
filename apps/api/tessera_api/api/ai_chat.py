@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.ai_generate import AI_LIMIT, DONE
 from tessera_api.api.guards import Principal
 from tessera_api.config import Settings
-from tessera_api.domain.errors import AppError, bad_request, not_found
+from tessera_api.domain.errors import ERROR_MESSAGES, AppError, bad_request, not_found
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
@@ -272,10 +272,21 @@ class AiChatController(Controller):
                 ):
                     yield json.dumps(event, ensure_ascii=False, default=str)
             except AppError as error:
-                yield json.dumps({"type": "error", "error": error.code})
+                # Текст отказа идёт рядом с кодом, как и в обычном теле ответа:
+                # у кадра нет ни статуса, ни тела, и без текста клиенту при
+                # отсутствующем переводе нечего показать, кроме самого кода.
+                yield json.dumps(
+                    {"type": "error", "error": error.code, "message": error.detail}
+                )
             except Exception:  # noqa: BLE001 — оборванный поток хуже отказа
                 logger.exception("Ход разговора не завершён")
-                yield json.dumps({"type": "error", "error": "error.ai.request_failed"})
+                yield json.dumps(
+                    {
+                        "type": "error",
+                        "error": "error.ai.request_failed",
+                        "message": ERROR_MESSAGES["error.ai.request_failed"],
+                    }
+                )
             yield DONE
 
         return ServerSentEvent(frames())

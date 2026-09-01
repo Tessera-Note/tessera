@@ -35,6 +35,25 @@ export function templateInfo(
   return post<TemplateBody>('/api/templates/info', { templateId }, { fetcher, headers });
 }
 
+/**
+ * Завести шаблон.
+ *
+ * Содержимое берётся из страницы: шаблон и заводят затем, чтобы повторить
+ * удачную страницу. Пустой `spaceId` означает шаблон рабочего пространства.
+ */
+export function createTemplate(
+  values: {
+    title: string;
+    description?: string;
+    icon?: string;
+    content?: unknown;
+    spaceId?: string;
+  },
+  fetcher?: typeof fetch
+) {
+  return post<Template>('/api/templates/create', values, { fetcher });
+}
+
 export function updateTemplate(
   values: { templateId: string; title?: string; description?: string },
   fetcher?: typeof fetch

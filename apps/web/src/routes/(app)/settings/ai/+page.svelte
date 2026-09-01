@@ -112,6 +112,7 @@
     saved = null;
     try {
       await resetAiSettings();
+      saved = t('Cleared. AI now follows the server environment again.');
       await invalidateAll();
     } catch (error) {
       failure = errorText(error, t);
@@ -133,7 +134,7 @@
     <p class="text-sm text-text-muted">
       {data.settings.resolved.usable ? t('Enabled') : t('Disabled')}
       {#if data.settings.resolved.fromEnvironment}
-        · {t('Cleared. AI now follows the server environment again.')}
+        · {t('Use server environment (default)')}
       {/if}
     </p>
     {#if data.settings.resolved.chatModel}
@@ -148,9 +149,9 @@
 
     <Field label={t('Provider')}>
       <select class="w-full rounded border border-border bg-surface px-3 py-2" bind:value={driver}>
-        <option value="">{t('Select a provider')}</option>
-        {#each AI_DRIVERS as one (one)}
-          <option value={one}>{one}</option>
+        <option value="">{t('Use server environment (default)')}</option>
+        {#each AI_DRIVERS as one (one.value)}
+          <option value={one.value}>{t(one.label)}</option>
         {/each}
       </select>
     </Field>
@@ -189,8 +190,8 @@
         bind:value={embeddingDriver}
       >
         <option value="">{t('Same as chat provider')}</option>
-        {#each AI_DRIVERS as one (one)}
-          <option value={one}>{one}</option>
+        {#each AI_DRIVERS as one (one.value)}
+          <option value={one.value}>{t(one.label)}</option>
         {/each}
       </select>
     </Field>
@@ -226,9 +227,8 @@
         class="w-full rounded border border-border bg-surface px-3 py-2"
         bind:value={webSearchDriver}
       >
-        <option value="">{t('Disabled')}</option>
-        {#each WEB_SEARCH_DRIVERS as one (one)}
-          <option value={one}>{one}</option>
+        {#each WEB_SEARCH_DRIVERS as one (one.value)}
+          <option value={one.value}>{t(one.label)}</option>
         {/each}
       </select>
     </Field>
@@ -252,9 +252,11 @@
 
   <Panel
     title={t('Clear and use environment')}
-    hint={t(
-      'AI is currently configured through server environment variables. Picking a provider here overrides them for this workspace.'
-    )}
+    hint={data.settings.resolved.fromEnvironment
+      ? t(
+          'AI is currently configured through server environment variables. Picking a provider here overrides them for this workspace.'
+        )
+      : undefined}
   >
     <Button variant="quiet" disabled={busy === 'reset'} onclick={forget}>
       {t('Clear and use environment')}

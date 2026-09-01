@@ -1,10 +1,32 @@
 import { post } from '$lib/api/client';
 
-/** Вид провайдера. Значения из v1: их же понимает сервер. */
-export const AI_DRIVERS = ['openai', 'openrouter', 'compatible', 'gemini', 'ollama'] as const;
+/**
+ * Провайдеры моделей. Значения понимает сервер, подписи видит человек.
+ *
+ * Пустое значение не «не выбрано», а «жить по настройке из окружения»: сервер
+ * пустую строку принимает и стирает ею свою настройку.
+ */
+export const AI_DRIVERS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'gemini', label: 'Google Gemini' },
+  { value: 'ollama', label: 'Ollama (self-hosted)' },
+  { value: 'openai-compatible', label: 'OpenAI-compatible endpoint' }
+] as const;
 
-/** Вид поиска в интернете. `off` означает «выключен». */
-export const WEB_SEARCH_DRIVERS = ['off', 'searxng', 'tavily', 'brave'] as const;
+/**
+ * Поиск в интернете.
+ *
+ * Пустое значение означает свой сервис рядом в развёртывании, то есть поиск
+ * включён. Выключает его только `off` — путать эти два значения нельзя, иначе
+ * подпись обещает обратное тому, что произойдёт.
+ */
+export const WEB_SEARCH_DRIVERS = [
+  { value: 'searxng', label: 'Bundled search service (no key needed)' },
+  { value: 'tavily', label: 'Tavily' },
+  { value: 'brave', label: 'Brave Search' },
+  { value: 'off', label: 'Disabled' }
+] as const;
 
 /** Что сервер отдаёт администратору. Ключи только масками, целиком их не отдают. */
 export type AiSettings = {

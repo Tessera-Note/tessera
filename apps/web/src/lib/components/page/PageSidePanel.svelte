@@ -185,7 +185,11 @@
     <ul class="mb-3 flex flex-wrap gap-1">
       {#each labels as label (label.id)}
         <li class="flex items-center gap-1 rounded bg-surface px-2 py-0.5 text-xs">
-          {label.name}
+          <!-- Метка это ссылка на перечень страниц с ней: иначе она украшение,
+               а не способ найти соседние страницы. -->
+          <a class="hover:underline" href="/labels/{encodeURIComponent(label.name)}">
+            {label.name}
+          </a>
           <button
             class="text-text-muted hover:text-text"
             type="button"

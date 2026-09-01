@@ -552,6 +552,14 @@ class CommentController(Controller):
         return {"id": comment.id, "content": comment.content}
 
 
+class LabelPagesRequest(msgspec.Struct):
+    """Метка задаётся именем либо идентификатором. Имя приходит из адреса."""
+
+    name: str | None = None
+    labelId: str | None = None  # noqa: N815 — имя поля из v1
+    spaceId: str | None = None  # noqa: N815 — имя поля из v1
+
+
 class LabelController(Controller):
     path = "/api/labels"
 
@@ -586,6 +594,35 @@ class LabelController(Controller):
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
         found = await LabelService(db_session).for_page(page, principal.user_id)
         return [{"id": label.id, "name": label.name} for label in found]
+
+    @post("/pages")
+    async def pages_with_label(
+        self, data: LabelPagesRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Страницы с меткой. Путь и имя поля из v1.
+
+        Незнакомое имя метки отвечает пустым списком, а не отказом: иначе по
+        разнице ответов перебирается перечень заведённых меток.
+        """
+        principal: Principal = request.scope["principal"]
+        found = await LabelService(db_session).pages_with(
+            principal.workspace_id,
+            principal.user_id,
+            label_id=_label_uuid(data.labelId) if data.labelId else None,
+            name=data.name,
+            space_id=uuid.UUID(data.spaceId) if data.spaceId else None,
+        )
+        return [
+            {
+                "id": page.id,
+                "slugId": page.slug_id,
+                "title": page.title,
+                "icon": page.icon,
+                "spaceSlug": space.slug,
+                "spaceName": space.name,
+            }
+            for page, space in found
+        ]
 
     @post("/detach")
     async def detach(
@@ -731,6 +768,31 @@ class ShareController(Controller):
             "key": share.key,
             "includeSubPages": share.include_sub_pages,
         }
+
+    @post("/")
+    async def list_shares(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Действующие ссылки в доступных пространствах. Путь из v1."""
+        principal: Principal = request.scope["principal"]
+        found = await ShareService(db_session).mine(
+            principal.user_id, principal.workspace_id
+        )
+        return [
+            {
+                "id": share.id,
+                "key": share.key,
+                "includeSubPages": share.include_sub_pages,
+                "searchIndexing": share.search_indexing,
+                "createdAt": share.created_at,
+                "pageId": page.id,
+                "pageTitle": page.title,
+                "pageSlugId": page.slug_id,
+                "spaceSlug": space.slug,
+                "spaceName": space.name,
+            }
+            for share, page, space in found
+        ]
 
     @post("/for-page")
     async def for_page(

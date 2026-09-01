@@ -9,6 +9,7 @@
   import { errorText } from '$lib/api/failure';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
   import { deletePage, updatePage } from '$lib/features/page/services/pages';
+  import { createTemplate } from '$lib/features/template/services/templates';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -55,6 +56,27 @@
       await invalidateAll();
     });
 
+  let savedTemplate = $state(false);
+
+  /**
+   * Сохранить страницу шаблоном.
+   *
+   * Область — пространство страницы, а не рабочее пространство: страница
+   * писалась под своё пространство, и предлагать её всем по умолчанию значит
+   * навязывать чужой порядок.
+   */
+  const saveAsTemplate = () =>
+    act(async () => {
+      savedTemplate = false;
+      await createTemplate({
+        title: data.page.title ?? t('Untitled'),
+        icon: data.page.icon ?? undefined,
+        content: data.page.content,
+        spaceId: data.page.spaceId
+      });
+      savedTemplate = true;
+    });
+
   const remove = () =>
     act(async () => {
       // Удаление мягкое: страница уходит в корзину, откуда её возвращают.
@@ -98,6 +120,9 @@
           </Button>
           {#if canEdit}
             <Button variant="quiet" onclick={() => (renaming = true)}>{t('Rename')}</Button>
+            <Button variant="quiet" disabled={busy} onclick={saveAsTemplate}>
+              {t('New template')}
+            </Button>
             <Button variant="quiet" disabled={busy} onclick={remove}>{t('Delete')}</Button>
           {/if}
         </div>
@@ -105,6 +130,7 @@
     </div>
 
     {#if failure}<Notice message={failure} />{/if}
+    {#if savedTemplate}<Notice tone="info" message={t('Template created successfully')} />{/if}
 
     <PageBody content={data.page.content} />
 

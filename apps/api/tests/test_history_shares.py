@@ -323,6 +323,139 @@ class TestShares:
             await service.resolve(share.key)
         assert failure.value.code == "error.share.share_not_found"
 
+    async def test_the_list_shows_links_of_my_spaces(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Экран открывают ради вопроса «что из нашего открыто наружу»."""
+        page = await self._page(session, workspace, owner, space)
+        service = ShareService(session)
+        share = await service.create(page=page, user_id=owner.id)
+
+        found = await service.mine(owner.id, workspace.id)
+
+        assert any(one[0].id == share.id and one[1].id == page.id for one in found)
+
+    async def test_a_stranger_sees_nothing_of_that_space(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ключ ссылки это доступ к странице: посторонний его не получает даже
+        перечнем."""
+        page = await self._page(session, workspace, owner, space)
+        await ShareService(session).create(page=page, user_id=owner.id)
+
+        stranger_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger_id,
+                email=f"stranger-{uuid.uuid4().hex[:8]}@example.com",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        assert await ShareService(session).mine(stranger_id, workspace.id) == []
+
+    async def test_links_of_other_spaces_are_not_listed(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ссылки чужих пространств в перечень не попадают.
+
+        У человека здесь своё пространство есть, а ссылка заведена в другом:
+        случай ближе к жизни, чем посторонний без единого пространства.
+
+        Отбор по пространствам в запросе при этом не единственная защита и
+        снятие его поведения не меняет: право на каждую страницу проверяется
+        отдельно, и чужая страница отсеивается там. Отбор стоит ради цены —
+        иначе выбираются все ссылки рабочего пространства, чтобы почти все
+        отбросить.
+        """
+        page = await self._page(session, workspace, owner, space)
+        await ShareService(session).create(page=page, user_id=owner.id)
+
+        neighbour_id = uuid.uuid4()
+        other_space_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=neighbour_id,
+                email=f"neighbour-{uuid.uuid4().hex[:8]}@example.com",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(Space).values(
+                id=other_space_id,
+                name="Соседнее пространство",
+                slug=f"other-{other_space_id.hex[:8]}",
+                workspace_id=workspace.id,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                space_id=other_space_id,
+                user_id=neighbour_id,
+                role=SpaceRole.ADMIN,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+        found = await ShareService(session).mine(neighbour_id, workspace.id)
+        assert all(one[1].id != page.id for one in found)
+
+    async def test_a_closed_page_leaves_the_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Строка несёт название страницы: закрытой здесь не место."""
+        page = await self._page(session, workspace, owner, space)
+        await ShareService(session).create(page=page, user_id=owner.id)
+
+        reader_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=reader_id,
+                email=f"reader-{uuid.uuid4().hex[:8]}@example.com",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=reader_id,
+                space_id=space.id,
+                role=SpaceRole.READER,
+                added_by_id=owner.id,
+            )
+        )
+        access_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=access_id,
+                page_id=page.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(PagePermission).values(
+                id=uuid.uuid4(),
+                page_access_id=access_id,
+                user_id=owner.id,
+                role=SpaceRole.ADMIN,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+        mine = await ShareService(session).mine(reader_id, workspace.id)
+        assert all(one[1].id != page.id for one in mine)
+
     async def test_for_page_returns_nothing_when_not_shared(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:

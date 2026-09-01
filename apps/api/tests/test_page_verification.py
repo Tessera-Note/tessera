@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -19,6 +19,7 @@ from tessera_api.infrastructure.models import (
     Notification,
     PageVerification,
     PageVerifier,
+    User,
 )
 from tessera_api.services.notifications import NotificationType
 from tessera_api.services.page_verification import (
@@ -268,6 +269,68 @@ class TestLifecycle:
 
 
 @needs_database
+class TestListing:
+    """Перечень проверяемых страниц.
+
+    Строка несёт название страницы, поэтому право проверяется постранично, а
+    пространства берутся только те, где человек состоит.
+    """
+
+    async def _setup(self, session, workspace, owner, space):
+        world = await _world(session, workspace, owner, space)
+        service = PageVerificationService(session)
+        await service.create(
+            page=world["root"],
+            user_id=owner.id,
+            mode=MODE_PERIOD,
+            period_amount=1,
+            period_unit="month",
+            verifier_ids=[owner.id],
+        )
+        return world, service
+
+    async def test_the_row_carries_the_page_and_the_space(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world, service = await self._setup(session, workspace, owner, space)
+
+        rows = await service.listing(owner.id, workspace.id)
+
+        mine = [one for one in rows if one["pageId"] == world["root"].id]
+        assert len(mine) == 1
+        assert mine[0]["pageTitle"] == world["root"].title
+        assert mine[0]["spaceSlug"] == space.slug
+
+    async def test_a_stranger_sees_nothing(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        await self._setup(session, workspace, owner, space)
+
+        stranger_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger_id,
+                email=f"stranger-{uuid.uuid4().hex[:8]}@example.com",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        assert await PageVerificationService(session).listing(stranger_id, workspace.id) == []
+
+    async def test_the_status_filter_narrows_the_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world, service = await self._setup(session, workspace, owner, space)
+
+        pending = await service.listing(owner.id, workspace.id, status=Status.PENDING)
+        verified = await service.listing(owner.id, workspace.id, status=Status.VERIFIED)
+
+        assert any(one["pageId"] == world["root"].id for one in pending)
+        assert all(one["pageId"] != world["root"].id for one in verified)
+
+
 class TestVerifiers:
     async def test_first_verifier_is_primary(
         self, session: AsyncSession, workspace, owner, space

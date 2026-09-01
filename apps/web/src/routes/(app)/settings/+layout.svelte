@@ -15,6 +15,8 @@
     { href: '/settings/groups', label: t('Groups') },
     { href: '/settings/workspace', label: t('Workspace settings') },
     { href: '/settings/ai', label: t('AI') },
+    { href: '/settings/sharing', label: t('Public sharing') },
+    { href: '/settings/verifications', label: t('Page verification') },
     { href: '/settings/audit', label: t('Audit log') }
   ]);
 </script>
