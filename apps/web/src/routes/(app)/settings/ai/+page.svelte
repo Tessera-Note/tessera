@@ -249,7 +249,9 @@
     </div>
 
     {#if models.length > 0}
-      <p class="mt-2 text-xs text-text-muted">{models.length}</p>
+      <p class="mt-2 text-xs text-text-muted">
+        {t('{{count}} result available', { count: models.length })}
+      </p>
     {/if}
 
     {#if probe}

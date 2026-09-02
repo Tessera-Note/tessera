@@ -196,6 +196,51 @@ progress {
   margin-bottom: 0;
 }
 
+/*
+ * Значок «скопировать ссылку на заголовок».
+ *
+ * Его ставит общее расширение заголовков украшением документа, и без этих
+ * правил он занимает отдельную строку под заголовком: видно на странице,
+ * открытой по ссылке, где документ рисуется только на чтение. В первой версии
+ * он лежит в строке заголовка и проявляется при наведении — здесь так же.
+ */
+.tessera-doc h1 > .link-btn,
+.tessera-doc h2 > .link-btn,
+.tessera-doc h3 > .link-btn,
+.tessera-doc h4 > .link-btn,
+.tessera-doc h5 > .link-btn,
+.tessera-doc h6 > .link-btn {
+  position: relative;
+  cursor: pointer;
+}
+
+.tessera-doc h1 > .link-btn > .link-btn-content,
+.tessera-doc h2 > .link-btn > .link-btn-content,
+.tessera-doc h3 > .link-btn > .link-btn-content,
+.tessera-doc h4 > .link-btn > .link-btn-content,
+.tessera-doc h5 > .link-btn > .link-btn-content,
+.tessera-doc h6 > .link-btn > .link-btn-content {
+  position: absolute;
+  left: 5px;
+  top: 0;
+  height: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: var(--color-text-muted);
+}
+
+.tessera-doc h1:hover > .link-btn > .link-btn-content,
+.tessera-doc h2:hover > .link-btn > .link-btn-content,
+.tessera-doc h3:hover > .link-btn > .link-btn-content,
+.tessera-doc h4:hover > .link-btn > .link-btn-content,
+.tessera-doc h5:hover > .link-btn > .link-btn-content,
+.tessera-doc h6:hover > .link-btn > .link-btn-content {
+  opacity: 1;
+}
+
 .tessera-doc h1 {
   font-size: 1.875rem;
   margin-top: 1.875rem;

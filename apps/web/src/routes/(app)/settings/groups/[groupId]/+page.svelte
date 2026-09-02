@@ -140,9 +140,6 @@
   {#if !data.group.isDefault}
     <div class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5">
       <h2 class="mb-2 text-lg font-medium">{t('Let a directory manage this group')}</h2>
-      <p class="mb-4 text-sm text-text-muted">
-        {t('Managed by the directory')}
-      </p>
 
       {#if data.group.directorySource}
         <p class="mb-3 text-sm">{t('Managed by the directory')}</p>

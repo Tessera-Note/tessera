@@ -63,6 +63,27 @@
   {/if}
 </svelte:head>
 
+{#snippet branchNode(node: (typeof branch)[number], depth: number)}
+  <li>
+    <a
+      class="block truncate rounded px-2 py-1 hover:bg-surface"
+      class:font-medium={node.slugId === data.page.slugId}
+      href={node.id === rootId ? `/share/${data.key}` : `?p=${node.slugId}`}
+      style="padding-left: {8 + depth * 12}px"
+    >
+      <span aria-hidden="true">{node.icon ?? '📄'}</span>
+      {node.title ?? t('Untitled')}
+    </a>
+    {#if childrenOf(node.id).length > 0}
+      <ul class="space-y-0.5">
+        {#each childrenOf(node.id) as child (child.id)}
+          {@render branchNode(child, depth + 1)}
+        {/each}
+      </ul>
+    {/if}
+  </li>
+{/snippet}
+
 <div class="flex gap-6" class:justify-center={!hasBranch}>
   {#if hasBranch}
     <aside data-component="SharedTree" class="w-56 shrink-0">
@@ -99,38 +120,12 @@
             query = '';
           }}
         >
-          {t('Clear selection')}
+          {t('Show all')}
         </button>
       {:else}
         <ul class="space-y-0.5 text-sm">
           {#each childrenOf(null) as node (node.id)}
-            {@const isRoot = node.id === rootId}
-            <li>
-              <a
-                class="block truncate rounded px-2 py-1 hover:bg-surface"
-                class:font-medium={node.slugId === data.page.slugId}
-                href={isRoot ? '.' : `?p=${node.slugId}`}
-              >
-                <span aria-hidden="true">{node.icon ?? '📄'}</span>
-                {node.title ?? t('Untitled')}
-              </a>
-              {#if childrenOf(node.id).length > 0}
-                <ul class="ml-3 space-y-0.5">
-                  {#each childrenOf(node.id) as child (child.id)}
-                    <li>
-                      <a
-                        class="block truncate rounded px-2 py-1 hover:bg-surface"
-                        class:font-medium={child.slugId === data.page.slugId}
-                        href="?p={child.slugId}"
-                      >
-                        <span aria-hidden="true">{child.icon ?? '📄'}</span>
-                        {child.title ?? t('Untitled')}
-                      </a>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </li>
+            {@render branchNode(node, 0)}
           {/each}
         </ul>
       {/if}

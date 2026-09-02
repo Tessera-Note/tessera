@@ -4,7 +4,7 @@
   import type { NodeViewProps } from '../node-view.svelte';
 
   type Props = NodeViewProps;
-  const { attributes }: Props = $props();
+  const { attributes, editable }: Props = $props();
 
   const t = $derived(locale.t);
 
@@ -37,9 +37,13 @@
 >
   <div class="mb-1 flex items-center justify-between text-xs text-text-muted">
     <span>{t('Synced block')}</span>
-    <button class="hover:underline" type="button" onclick={copyReference}>
-      {copied ? t('Copied') : t('Copy synced block')}
-    </button>
+    {#if editable}
+      <!-- На чтении копировать ссылку некуда: вставить её можно только в
+           документ, который правится. -->
+      <button class="hover:underline" type="button" onclick={copyReference}>
+        {copied ? t('Copied') : t('Copy synced block')}
+      </button>
+    {/if}
   </div>
   <div data-node-view-content></div>
 </div>

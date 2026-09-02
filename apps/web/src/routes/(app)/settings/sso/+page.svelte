@@ -259,15 +259,15 @@
           checked={form.isEnabled}
           onchange={(value) => (form.isEnabled = value)}
         />
+        <!-- Без подписи: она у этого переключателя в первой версии про
+             ограничение доменов, а здесь речь о заведении учётной записи. -->
         <Toggle
           label={t('Allow signup')}
-          hint={t('Only users with email addresses from these domains can signup via SSO.')}
           checked={form.allowSignup}
           onchange={(value) => (form.allowSignup = value)}
         />
         <Toggle
           label={t('Group sync')}
-          hint={t('Sync groups')}
           checked={form.groupSync}
           onchange={(value) => (form.groupSync = value)}
         />

@@ -215,9 +215,6 @@
   {/if}
 
   <h2 class="mb-2 mt-8 text-xl font-semibold">{t('Active sessions')}</h2>
-  <p class="mb-4 text-sm text-text-muted">
-    {t('Log out of all sessions except this device')}
-  </p>
 
   <div class="card-soft mb-4 rounded-md border border-border bg-surface-raised">
     <table data-component="SessionTable" class="w-full text-left text-sm">

@@ -18,6 +18,10 @@
 
   const t = $derived(locale.t);
 
+  //: Страница открыта по ссылке общего доступа. Тогда человека нет, и часть
+  //: действий узла ведёт в отказ.
+  const shared = $derived(Boolean(current.params?.key));
+
   const sourcePageId = $derived(String(attributes.sourcePageId ?? ''));
   const transclusionId = $derived(String(attributes.transclusionId ?? ''));
 
@@ -123,9 +127,13 @@
 
   <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-text-muted">
     <span>{t('Synced block')}</span>
-    <button class="hover:underline" type="button" disabled={busy} onclick={showPlaces}>
-      {places === null ? t('Synced to') : t('Close')}
-    </button>
+    {#if !shared}
+      <!-- На странице по ссылке человека нет: перечень мест спрашивается
+           маршрутом для вошедших и ответил бы отказом. -->
+      <button class="hover:underline" type="button" disabled={busy} onclick={showPlaces}>
+        {places === null ? t('Synced to') : t('Close')}
+      </button>
+    {/if}
     {#if editable && found?.content}
       <button class="hover:underline" type="button" disabled={busy} onclick={unsync}>
         {t('Unsync')}
