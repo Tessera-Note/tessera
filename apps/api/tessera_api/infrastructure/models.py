@@ -117,11 +117,11 @@ class Workspace(Base, SoftDeleteMixin):
     # Синхронизация каталога включается одним переключателем. Описан здесь
     # потому, что на него опирается охрана SCIM: выключенная синхронизация
     # означает отказ независимо от предъявленного токена.
-    is_scim_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    is_scim_enabled: Mapped[bool] = mapped_column(Boolean, server_default="false")
     # Требовать вход только через провайдера. Описан здесь потому, что на него
     # опирается парольный вход: пропажа колонки обязана ронять сверку схемы, а
     # не открывать вход паролем в пространстве, где его запретили.
-    enforce_sso: Mapped[bool | None] = mapped_column(Boolean)
+    enforce_sso: Mapped[bool] = mapped_column(Boolean, server_default="false")
     # Сколько дней хранить журнал аудита. Ноль и пустое значение означают
     # «хранить вечно»: уборка отсекает и то и другое одним условием.
     audit_retention_days: Mapped[int | None] = mapped_column(BigInteger)
@@ -523,9 +523,13 @@ class PageEmbedding(Base, SoftDeleteMixin):
     driver: Mapped[str | None] = mapped_column(String)
     base_url: Mapped[str | None] = mapped_column(String)
     chunk_index: Mapped[int] = mapped_column(Integer)
-    chunk_start: Mapped[int | None] = mapped_column(Integer)
-    chunk_length: Mapped[int | None] = mapped_column(Integer)
-    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", NullableJsonb)
+    chunk_start: Mapped[int] = mapped_column(Integer, server_default="0")
+    chunk_length: Mapped[int] = mapped_column(Integer, server_default="0")
+    # Пустоты колонка не допускает, у неё умолчание `{}`. Признак «нет
+    # сведений» выражается пустым объектом, а не отсутствием значения.
+    chunk_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, server_default="{}"
+    )
 
 
 class PageAccess(Base, TimestampMixin):
@@ -691,8 +695,11 @@ class Share(Base, SoftDeleteMixin):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     key: Mapped[str] = mapped_column(String)
     page_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    include_sub_pages: Mapped[bool] = mapped_column(Boolean)
-    search_indexing: Mapped[bool] = mapped_column(Boolean)
+    # База допускает пустоту у обоих признаков, и тип обязан это повторять:
+    # обещание `bool` при `NULL` в строке отдаёт `None` туда, где его не ждут.
+    # Читающие приводят значение к признаку сами.
+    include_sub_pages: Mapped[bool | None] = mapped_column(Boolean)
+    search_indexing: Mapped[bool | None] = mapped_column(Boolean)
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     space_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))

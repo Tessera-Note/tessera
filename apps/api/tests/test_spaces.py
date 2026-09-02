@@ -30,7 +30,13 @@ from tessera_api.infrastructure.models import (
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.notifications import WATCHER_PAGE
 from tessera_api.services.pages import PageService
-from tessera_api.services.spaces import MAX_BATCH, MAX_NAME, SpaceService, slugify
+from tessera_api.services.spaces import (
+    MAX_BATCH,
+    MAX_NAME,
+    MAX_SLUG,
+    SpaceService,
+    slugify,
+)
 from tests.conftest import needs_database
 
 
@@ -49,6 +55,12 @@ class TestSlugify:
 
 
 pytestmark = needs_database
+
+
+async def _none() -> None:
+    """Пустой ответ вместо найденного пространства: так выглядит гонка."""
+    return None
+
 
 
 async def _person(
@@ -620,6 +632,44 @@ class TestPersonalSpace:
         two = await SpaceService(session).create_personal(second, workspace.id)
 
         assert one.slug != two.slug
+
+    async def test_a_second_press_of_the_button_is_answered_plainly(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Между проверкой и вставкой есть время, и правило держит база.
+        Человеку нужен внятный отказ, а не пятисотый."""
+        await self._allow(session, workspace, on=True)
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+        person_id = person.id
+        made = await SpaceService(session).create_personal(person, workspace.id)
+        assert made.id is not None
+
+        # Так выглядит второе нажатие, обогнавшее запись первого: проверка
+        # ничего не находит, а база уже держит строку. Отказ базы обязан дойти
+        # объяснимой причиной, а не пятисотым.
+        service = SpaceService(session)
+        service.personal = lambda *args, **kwargs: _none()  # noqa: ARG005
+        fresh = await session.get(User, person_id)
+
+        with pytest.raises(AppError) as failure:
+            await service.create_personal(fresh, workspace.id)
+        assert failure.value.code == "error.space.you_already_have_a_personal_space"
+
+    async def test_a_long_name_still_leaves_room_for_the_counter(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе приписанный суффикс срезается длиной, и тёзка получает отказ
+        «адрес занят» вместо соседнего адреса."""
+        await self._allow(session, workspace, on=True)
+        long_name = "и" * (MAX_SLUG + 10)
+        first = await _person(session, workspace, role=UserRole.MEMBER, name=long_name)
+        second = await _person(session, workspace, role=UserRole.MEMBER, name=long_name)
+
+        one = await SpaceService(session).create_personal(first, workspace.id)
+        two = await SpaceService(session).create_personal(second, workspace.id)
+
+        assert one.slug != two.slug
+        assert len(two.slug) <= MAX_SLUG
 
     async def test_info_finds_only_ones_own(
         self, session: AsyncSession, workspace, owner

@@ -13,7 +13,8 @@ import re
 import unicodedata
 import uuid
 
-from sqlalchemy import delete, insert, or_, select, update
+from sqlalchemy import delete, insert, or_, select, true, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
@@ -104,7 +105,11 @@ class SpaceService:
                 select(Space)
                 .where(Space.workspace_id == workspace_id)
                 .where(Space.creator_id == user_id)
-                .where(Space.is_personal.is_(True))
+                # Сравнение с `true()`, а не `is_(True)`: у базы частичный
+                # уникальный индекс с условием `is_personal`, и из проверки
+                # `IS TRUE` PostgreSQL его условие не выводит — обход идёт по
+                # соседнему индексу с фильтром.
+                .where(Space.is_personal == true())
                 .where(Space.deleted_at.is_(None))
             )
         ).scalar_one_or_none()
@@ -132,16 +137,27 @@ class SpaceService:
             raise bad_request("error.space.you_already_have_a_personal_space")
 
         title = (name or "").strip() or f"{actor.name or actor.email}"
-        base = slugify(title) or "personal"
+        # Место под счётчик отрезается заранее: `create` прогоняет короткое имя
+        # через `slugify` заново, и приписанный к предельной длине суффикс он
+        # срезал бы — тёзка получал бы отказ «адрес занят» вместо соседнего
+        # адреса.
+        base = (slugify(title) or "personal")[: MAX_SLUG - 4]
         short = base
         counter = 1
         while await self._slug_taken(short, workspace_id):
             short = f"{base}-{counter}"
             counter += 1
 
-        return await self.create(
-            actor, workspace_id, name=title, slug=short, personal=True
-        )
+        try:
+            return await self.create(
+                actor, workspace_id, name=title, slug=short, personal=True
+            )
+        except IntegrityError as failure:
+            # Кнопку нажали дважды, и второе нажатие обогнало первую запись.
+            # Проверка выше этого не ловит: между нею и вставкой есть время.
+            # Правило держит база, а человеку нужен внятный отказ, а не пятисотый.
+            await self._session.rollback()
+            raise bad_request("error.space.you_already_have_a_personal_space") from failure
 
     async def _slug_taken(
         self, slug: str, workspace_id: uuid.UUID, *, besides: uuid.UUID | None = None

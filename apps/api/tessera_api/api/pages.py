@@ -1197,7 +1197,7 @@ class ShareController(Controller):
         return {
             "id": share.id,
             "key": share.key,
-            "includeSubPages": share.include_sub_pages,
+            "includeSubPages": bool(share.include_sub_pages),
         }
 
     @post("/")
@@ -1213,8 +1213,8 @@ class ShareController(Controller):
             {
                 "id": share.id,
                 "key": share.key,
-                "includeSubPages": share.include_sub_pages,
-                "searchIndexing": share.search_indexing,
+                "includeSubPages": bool(share.include_sub_pages),
+                "searchIndexing": bool(share.search_indexing),
                 "createdAt": share.created_at,
                 "pageId": page.id,
                 "pageTitle": page.title,
@@ -1240,7 +1240,7 @@ class ShareController(Controller):
         return {
             "id": share.id,
             "key": share.key,
-            "includeSubPages": share.include_sub_pages,
+            "includeSubPages": bool(share.include_sub_pages),
         }
 
     @post("/revoke")
@@ -1288,8 +1288,8 @@ class ShareController(Controller):
             "share": {
                 "id": share.id,
                 "key": share.key,
-                "includeSubPages": share.include_sub_pages,
-                "searchIndexing": share.search_indexing,
+                "includeSubPages": bool(share.include_sub_pages),
+                "searchIndexing": bool(share.search_indexing),
                 "pageId": share.page_id,
             },
         }
@@ -1313,8 +1313,8 @@ class ShareController(Controller):
         return {
             "id": share.id,
             "key": share.key,
-            "includeSubPages": share.include_sub_pages,
-            "searchIndexing": share.search_indexing,
+            "includeSubPages": bool(share.include_sub_pages),
+            "searchIndexing": bool(share.search_indexing),
         }
 
     @post("/tree", opt={PUBLIC: True})
@@ -1327,8 +1327,8 @@ class ShareController(Controller):
             "share": {
                 "id": share.id,
                 "key": share.key,
-                "includeSubPages": share.include_sub_pages,
-                "searchIndexing": share.search_indexing,
+                "includeSubPages": bool(share.include_sub_pages),
+                "searchIndexing": bool(share.search_indexing),
                 "pageId": share.page_id,
             },
             "rootId": root.id,

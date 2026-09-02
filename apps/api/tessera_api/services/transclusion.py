@@ -20,9 +20,10 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import forbidden, not_found
@@ -188,13 +189,24 @@ class TransclusionService:
         for node_id, snapshot in desired.items():
             previous = existing.get(node_id)
             if previous is None:
+                # Разрешение конфликта обязательно, и это не осторожность:
+                # одну страницу сохраняют два пути разом — правка по HTTP и
+                # сохранение из совместного сеанса, — и оба видят «такого ещё
+                # нет». Отказ уникальности отменил бы всю запись страницы.
+                statement = pg_insert(PageTransclusion).values(
+                    id=uuid.uuid4(),
+                    workspace_id=page.workspace_id,
+                    page_id=page.id,
+                    transclusion_id=node_id,
+                    content=snapshot.content,
+                )
                 await self._session.execute(
-                    insert(PageTransclusion).values(
-                        id=uuid.uuid4(),
-                        workspace_id=page.workspace_id,
-                        page_id=page.id,
-                        transclusion_id=node_id,
-                        content=snapshot.content,
+                    statement.on_conflict_do_update(
+                        constraint="page_transclusions_page_transclusion_unique",
+                        set_={
+                            "content": snapshot.content,
+                            "updated_at": datetime.now(UTC),
+                        },
                     )
                 )
                 inserted += 1
@@ -203,7 +215,10 @@ class TransclusionService:
                 await self._session.execute(
                     update(PageTransclusion)
                     .where(PageTransclusion.id == previous.id)
-                    .values(content=snapshot.content)
+                    # Отметка времени ставится явно: `onupdate` у модели нет, и
+                    # без неё снимок навсегда остаётся «созданным», хотя
+                    # содержимое сменилось.
+                    .values(content=snapshot.content, updated_at=datetime.now(UTC))
                 )
                 updated += 1
 
@@ -237,13 +252,19 @@ class TransclusionService:
 
         added = [key for key in desired if key not in existing]
         for source_id, node_id in added:
+            statement = pg_insert(PageTransclusionReference).values(
+                id=uuid.uuid4(),
+                workspace_id=page.workspace_id,
+                reference_page_id=page.id,
+                source_page_id=source_id,
+                transclusion_id=node_id,
+            )
+            # Связь уже могла появиться от одновременного сохранения той же
+            # страницы: повторная вставка здесь означает то же самое, что и
+            # первая, и отказывать по ней нечего.
             await self._session.execute(
-                insert(PageTransclusionReference).values(
-                    id=uuid.uuid4(),
-                    workspace_id=page.workspace_id,
-                    reference_page_id=page.id,
-                    source_page_id=source_id,
-                    transclusion_id=node_id,
+                statement.on_conflict_do_nothing(
+                    constraint="page_transclusion_references_unique"
                 )
             )
 
@@ -304,11 +325,18 @@ class TransclusionService:
         user_id: uuid.UUID,
         workspace_id: uuid.UUID,
     ) -> list[dict]:
-        """Содержимое включённых блоков для читающего страницу."""
+        """Содержимое включённых блоков для читающего страницу.
+
+        Список обрезается **до** проверки прав, а не после. Проверка стоит по
+        запросу на страницу — роль в пространстве плюс рекурсивный обход
+        предков, — и предел, поставленный после неё, ничего не ограничивает:
+        длину списка задаёт клиент.
+        """
+        wanted = references[:MAX_LOOKUP]
         allowed = await self._visible_page_ids(
-            [one.source_page_id for one in references], user_id, workspace_id
+            [one.source_page_id for one in wanted], user_id, workspace_id
         )
-        return await self.lookup_allowed(references, allowed, workspace_id)
+        return await self.lookup_allowed(wanted, allowed, workspace_id)
 
     async def lookup_allowed(
         self,
@@ -402,6 +430,11 @@ class TransclusionService:
                     .where(PageTransclusionReference.source_page_id == source_page_id)
                     .where(PageTransclusionReference.transclusion_id == transclusion_id)
                     .where(PageTransclusionReference.workspace_id == workspace_id)
+                    .order_by(PageTransclusionReference.created_at.asc())
+                    # Предел обязателен: общий блок вроде оговорки вставляют на
+                    # сотни страниц, и перечень мест растёт вместе с вики, а
+                    # права проверяются по каждой странице отдельно.
+                    .limit(MAX_LOOKUP)
                 )
             )
             .scalars()

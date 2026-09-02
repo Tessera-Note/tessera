@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -34,6 +34,7 @@ from tessera_api.services.attachments import AttachmentService
 from tessera_api.services.page_access import ACCESS_RESTRICTED
 from tessera_api.services.pages import PageService
 from tessera_api.services.transclusion import (
+    MAX_LOOKUP,
     ReferenceLink,
     TransclusionService,
     collect_references,
@@ -777,3 +778,137 @@ class TestUnsync:
                 storage=storage,
             )
         assert failure.value.code == "error.page.page_not_found"
+
+
+class TestConcurrentSave:
+    """Одну страницу сохраняют два пути разом.
+
+    Правка по HTTP и сохранение из совместного сеанса идут своими путями, и оба
+    видят «такого снимка ещё нет». Без разрешения конфликта отказ уникальности
+    отменял бы всю запись страницы, а из совместного сеанса уходил бы пятисотым.
+    """
+
+    async def test_a_repeated_snapshot_does_not_break_the_save(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Источник",
+            content=_source_doc("b-1", "первое"),
+        )
+
+        # Второй проход по тому же содержимому: так выглядит гонка, где второй
+        # писатель прочитал состояние до вставки первого.
+        await session.execute(
+            delete(PageTransclusion).where(PageTransclusion.page_id == page.id)
+        )
+        await session.flush()
+        await TransclusionService(session).sync(page)
+        await TransclusionService(session).sync(page)
+
+        rows = (
+            await session.execute(
+                select(func.count())
+                .select_from(PageTransclusion)
+                .where(PageTransclusion.page_id == page.id)
+            )
+        ).scalar_one()
+        assert rows == 1
+
+    async def test_a_repeated_reference_does_not_break_the_save(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        service = PageService(session)
+        source = await service.create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Источник",
+            content=_source_doc("b-1", "кусок"),
+        )
+        holder = await service.create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Ссылается",
+            content=_reference_doc(source.id, "b-1"),
+        )
+
+        await session.execute(
+            delete(PageTransclusionReference).where(
+                PageTransclusionReference.reference_page_id == holder.id
+            )
+        )
+        await session.flush()
+        await TransclusionService(session).sync(holder)
+        await TransclusionService(session).sync(holder)
+
+        rows = (
+            await session.execute(
+                select(func.count())
+                .select_from(PageTransclusionReference)
+                .where(PageTransclusionReference.reference_page_id == holder.id)
+            )
+        ).scalar_one()
+        assert rows == 1
+
+    async def test_the_snapshot_time_follows_the_content(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Иначе снимок навсегда остаётся «созданным», хотя содержимое сменилось."""
+        service = PageService(session)
+        page = await service.create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Источник",
+            content=_source_doc("b-1", "первое"),
+        )
+        before = (
+            await session.execute(
+                select(PageTransclusion.updated_at).where(
+                    PageTransclusion.page_id == page.id
+                )
+            )
+        ).scalar_one()
+
+        await service.update(
+            page=page, user_id=owner.id, content=_source_doc("b-1", "второе")
+        )
+
+        after = (
+            await session.execute(
+                select(PageTransclusion.updated_at).where(
+                    PageTransclusion.page_id == page.id
+                )
+            )
+        ).scalar_one()
+        assert after > before
+
+
+class TestLimits:
+    async def test_the_lookup_is_bounded_before_the_rights_check(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Длину списка задаёт клиент, а проверка прав стоит по запросу на
+        страницу: предел после неё ничего не ограничивает."""
+        seen: list[list[uuid.UUID]] = []
+        service = TransclusionService(session)
+        original = service._visible_page_ids  # noqa: SLF001 — свой пакет
+
+        async def watched(page_ids, user_id, workspace_id):  # noqa: ANN001
+            seen.append(list(page_ids))
+            return await original(page_ids, user_id, workspace_id)
+
+        service._visible_page_ids = watched  # noqa: SLF001 — свой пакет
+        many = [
+            ReferenceLink(source_page_id=uuid.uuid4(), transclusion_id=f"b-{i}")
+            for i in range(MAX_LOOKUP + 25)
+        ]
+
+        items = await service.lookup(many, owner.id, workspace.id)
+
+        assert len(seen[0]) == MAX_LOOKUP
+        assert len(items) == MAX_LOOKUP
