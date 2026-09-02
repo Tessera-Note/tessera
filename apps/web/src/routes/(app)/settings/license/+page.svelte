@@ -50,6 +50,19 @@
     </div>
   </div>
 
+  {#if data.version}
+    <div class="mb-4 card-soft rounded-md border border-border bg-surface-raised p-5">
+      <p class="text-xs font-bold uppercase tracking-wide text-text-muted">{t('Version')}</p>
+      <p class="mt-1 text-lg font-semibold">{data.version.currentVersion}</p>
+      {#if data.version.latestVersion && data.version.latestVersion !== data.version.currentVersion}
+        <p class="mt-1 text-sm text-text-muted">
+          {t('{{latestVersion}} is available')}: {data.version.latestVersion}
+          <a class="ml-2 hover:underline" href={data.version.releaseUrl}>{t('Release notes')}</a>
+        </p>
+      {/if}
+    </div>
+  {/if}
+
   <p class="mb-4 text-sm text-text-muted">
     {t('This instance is operated in house and does not contact an external license service.')}
   </p>

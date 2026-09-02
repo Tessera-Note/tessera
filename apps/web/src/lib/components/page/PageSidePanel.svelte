@@ -7,7 +7,12 @@
   import { attachLabels, detachLabel, type Label } from '$lib/features/page/services/labels';
   import { getVersion, type Version } from '$lib/features/page/services/history';
   import { plainText } from '$lib/features/page/document';
-  import { createShare, revokeShare, type Share } from '$lib/features/share/services/share';
+  import {
+    createShare,
+    revokeShare,
+    updateShare,
+    type Share
+  } from '$lib/features/share/services/share';
   import {
     PERIOD_UNITS,
     configureVerification,
@@ -185,6 +190,13 @@
   const toggleShare = () =>
     act(async () => {
       await (share ? revokeShare(pageId) : createShare({ pageId }));
+      await invalidateAll();
+    });
+
+  const changeShare = (values: { includeSubPages?: boolean; searchIndexing?: boolean }) =>
+    act(async () => {
+      if (!share) return;
+      await updateShare(share.id, values);
       await invalidateAll();
     });
 </script>
@@ -485,6 +497,36 @@
           <p class="mb-2 text-xs text-text-muted">
             {t('Anyone with the link can view this page')}
           </p>
+          {#if permission?.userAccess.canManage}
+            <!--
+              Оба переключателя расширяют то, что уходит наружу, и потому
+              доступны только тому, кто вправе править страницу.
+            -->
+            <label class="mb-1 flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={share.includeSubPages}
+                disabled={busy}
+                onchange={(event) =>
+                  changeShare({
+                    includeSubPages: (event.currentTarget as HTMLInputElement).checked
+                  })}
+              />
+              <span>{t('Include sub-pages')}</span>
+            </label>
+            <label class="mb-2 flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={share.searchIndexing ?? false}
+                disabled={busy}
+                onchange={(event) =>
+                  changeShare({
+                    searchIndexing: (event.currentTarget as HTMLInputElement).checked
+                  })}
+              />
+              <span>{t('Allow search engines to index page')}</span>
+            </label>
+          {/if}
         {:else}
           <p class="mb-2 text-xs text-text-muted">{t('No shared pages')}</p>
         {/if}

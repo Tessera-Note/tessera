@@ -89,6 +89,11 @@ class WorkspaceSettingsView(msgspec.Struct):
     allowPersonalSpaces: bool  # noqa: N815 — имя поля из v1
 
 
+def _flag(workspace: Workspace, path: tuple[str, str]) -> bool:
+    """Признак из настроек. Тот же способ чтения, что и у службы."""
+    return WorkspaceService._flag(workspace, path)  # noqa: SLF001 — тот же признак
+
+
 def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
     flag = WorkspaceService._flag  # noqa: SLF001 — чтение того же признака, что пишет служба
     return WorkspaceSettingsView(
@@ -193,6 +198,7 @@ class WorkspaceController(Controller):
             hostname=workspace.hostname,
             logo=workspace.logo,
             memberCount=int(members),
+            allowPersonalSpaces=_flag(workspace, ("spaces", "allowPersonal")),
         )
 
     @get("/members")

@@ -25,11 +25,28 @@ export type NodeViewProps = {
   editor: Editor;
   /** Записать атрибуты узла. Пишет сам редактор, а не компонент. */
   updateAttributes: (values: Record<string, unknown>) => void;
+  /**
+   * Где узел стоит в документе.
+   *
+   * Нужен тем отображениям, которые заменяют себя целиком: текущее выделение
+   * для этого не годится — оно может быть где угодно, и вставка ушла бы не на
+   * место узла. `undefined` означает, что узел уже вынут из документа.
+   */
+  position: () => number | undefined;
 };
 
 type Options = {
   /** Строчный узел живёт внутри абзаца, поэтому и обёртка строчная. */
   inline?: boolean;
+  /**
+   * У узла есть содержимое, которое правит сам редактор.
+   *
+   * Тогда компонент рисует только обрамление и оставляет место меткой
+   * `data-node-view-content`; настоящий узел содержимого туда подставляет
+   * помощник. Своими руками рисовать содержимое нельзя: это узлы документа, и
+   * подменённые показом они перестают правиться.
+   */
+  content?: boolean;
 };
 
 export function svelteNodeView(
@@ -47,6 +64,7 @@ export function svelteNodeView(
       selected: false,
       editable: props.editor.isEditable,
       editor: props.editor as Editor,
+      position: () => (typeof props.getPos === 'function' ? props.getPos() : undefined),
       updateAttributes: (values) => {
         if (typeof props.getPos !== 'function') return;
         const position = props.getPos();
@@ -66,8 +84,18 @@ export function svelteNodeView(
 
     const instance = mount(view, { target: dom, props: state });
 
+    // Узел содержимого создаётся здесь, а не компонентом: его адрес нужен
+    // редактору целиком, и пересоздание при перерисовке оборвало бы правку.
+    let contentDOM: HTMLElement | undefined;
+    if (options.content) {
+      contentDOM = document.createElement(options.inline ? 'span' : 'div');
+      const slot = dom.querySelector('[data-node-view-content]');
+      (slot ?? dom).appendChild(contentDOM);
+    }
+
     return {
       dom,
+      contentDOM,
 
       update(updated) {
         if (updated.type !== props.node.type) return false;
@@ -85,10 +113,16 @@ export function svelteNodeView(
         state.selected = false;
       },
 
-      // Узел не содержит текста редактора: правки внутри него идут своими
-      // средствами, и пропускать сюда события редактора нельзя.
-      stopEvent: () => true,
-      ignoreMutation: () => true,
+      // У узла без содержимого правки идут своими средствами, и события
+      // редактора сюда пропускать нельзя. У узла с содержимым — наоборот:
+      // перехват событий означал бы, что внутри блока ничего не набирается.
+      stopEvent: () => !options.content,
+      ignoreMutation: (mutation) =>
+        options.content
+          ? // Правку внутри содержимого редактор разбирает сам; всё, что
+            // происходит в обрамлении, его не касается.
+            !contentDOM || !contentDOM.contains(mutation.target)
+          : true,
 
       destroy() {
         void unmount(instance);

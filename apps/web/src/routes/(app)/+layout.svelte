@@ -23,11 +23,18 @@
 
   // Разделы настроек. В v1 они живут в той же боковой панели, а не внутри
   // содержимого: панель одна на приложение и меняет состав по разделу.
+  // Часть разделов административная. Прятать их от участника — не защита,
+  // защита стоит на сервере; но пункт, который отвечает отказом, в меню лишний.
+  const isAdmin = $derived(
+    data.session?.user.role === 'admin' || data.session?.user.role === 'owner'
+  );
+
   const settingsSections = $derived([
     { href: '/settings/account', label: t('My Profile') },
     { href: '/settings/preferences', label: t('Reading') },
     { href: '/settings/security', label: t('2-step verification') },
     { href: '/settings/api-keys', label: t('API keys') },
+    ...(isAdmin ? [{ href: '/settings/sso', label: t('Single sign-on (SSO)') }] : []),
     { href: '/settings/members', label: t('Members') },
     { href: '/settings/groups', label: t('Groups') },
     { href: '/settings/workspace', label: t('Workspace settings') },

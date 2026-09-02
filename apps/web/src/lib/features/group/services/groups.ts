@@ -51,6 +51,31 @@ export function createGroup(
   return post<Group>('/api/groups/create', { name, description, userIds }, { fetcher });
 }
 
+/**
+ * Передать группу под управление каталога.
+ *
+ * После этого состав ведёт провайдер, а руками группа не правится: следующий
+ * цикл синхронизации всё равно вернёт своё. Пустой ключ означает «как
+ * называется здесь».
+ */
+export function attachDirectory(
+  groupId: string,
+  providerId: string,
+  directoryKey?: string,
+  fetcher?: typeof fetch
+) {
+  return post<Group>(
+    '/api/groups/attach-directory',
+    { groupId, providerId, directoryKey },
+    { fetcher }
+  );
+}
+
+/** Вернуть группу под ручное управление. Состав при этом сохраняется. */
+export function detachDirectory(groupId: string, fetcher?: typeof fetch) {
+  return post<Group>('/api/groups/detach-directory', { groupId }, { fetcher });
+}
+
 export function updateGroup(
   groupId: string,
   values: { name?: string; description?: string },

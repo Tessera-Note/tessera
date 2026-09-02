@@ -11,6 +11,7 @@ export type WorkspaceSettings = {
   disablePublicSharing: boolean;
   restrictApiToAdmins: boolean;
   allowMemberTemplates: boolean;
+  allowPersonalSpaces: boolean;
 };
 
 /** Правится по одному полю: экран шлёт изменённое, остальное сервер не трогает. */

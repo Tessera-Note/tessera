@@ -74,6 +74,8 @@ import MediaView from './views/MediaView.svelte';
 import MentionView from './views/MentionView.svelte';
 import StatusView from './views/StatusView.svelte';
 import SubpagesView from './views/SubpagesView.svelte';
+import TransclusionReferenceView from './views/TransclusionReferenceView.svelte';
+import TransclusionSourceView from './views/TransclusionSourceView.svelte';
 
 /**
  * Один компонент показывает четыре вида вложений: разница между ними в теге, а
@@ -104,7 +106,7 @@ function diagramView(kind: 'drawio' | 'excalidraw'): Component<NodeViewProps> {
 function withView<T extends { extend: (config: object) => T }>(
   extension: T,
   view: Component<NodeViewProps>,
-  options: { inline?: boolean } = {}
+  options: { inline?: boolean; content?: boolean } = {}
 ): T {
   return extension.extend({ addNodeView: () => svelteNodeView(view, options) });
 }
@@ -132,11 +134,27 @@ const StatusNode = withView(Status as never, StatusView as never, { inline: true
 const BaseEmbedNode = withView(BaseEmbed as never, BaseEmbedView as never);
 
 /**
- * Встраивание внешнего ролика и ссылка на кусок чужой страницы рисуются своей
- * разметкой: показывать там нечего сверх того, что записано в узле.
+ * Встраивание внешнего ролика рисуется своей разметкой: показывать там нечего
+ * сверх того, что записано в узле.
  */
 const EmbedNode = withoutNodeView(Embed as never);
-const TransclusionReferenceNode = withoutNodeView(TransclusionReference as never);
+
+/**
+ * Включения. У блока-источника содержимое правит сам редактор, поэтому его
+ * отображение только обрамляет; у ссылки содержимого нет вовсе — она
+ * спрашивает его у источника.
+ */
+const TransclusionSourceNode = withView(
+  TransclusionSource as never,
+  TransclusionSourceView as never,
+  {
+    content: true
+  }
+);
+const TransclusionReferenceNode = withView(
+  TransclusionReference as never,
+  TransclusionReferenceView as never
+);
 
 /**
  * Полный состав расширений.
@@ -204,7 +222,7 @@ export function editorExtensions(): AnyExtension[] {
     StatusNode,
     Indent,
     PageBreak,
-    TransclusionSource,
+    TransclusionSourceNode,
     TransclusionReferenceNode,
     BaseEmbedNode
   ] as AnyExtension[];

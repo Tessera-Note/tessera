@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
@@ -14,6 +15,7 @@
     mfaSetup,
     type MfaSetup
   } from '$lib/features/mfa/services/mfa';
+  import { revokeOtherSessions, revokeSession } from '$lib/features/auth/services/sessions';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -82,6 +84,13 @@
       await invalidateAll();
     });
   };
+  const when = (value: string | null | undefined) =>
+    value
+      ? new Intl.DateTimeFormat(locale.current, {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        }).format(new Date(value))
+      : '—';
 </script>
 
 <svelte:head><title>{t('2-step verification')} · Tessera</title></svelte:head>
@@ -203,5 +212,73 @@
         {/if}
       </form>
     </Panel>
+  {/if}
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">{t('Active sessions')}</h2>
+  <p class="mb-4 text-sm text-text-muted">
+    {t('Log out of all sessions except this device')}
+  </p>
+
+  <div class="card-soft mb-4 rounded-md border border-border bg-surface-raised">
+    <table data-component="SessionTable" class="w-full text-left text-sm">
+      <thead class="border-b border-border text-text-muted">
+        <tr>
+          <th class="p-3 font-medium">{t('Device Name')}</th>
+          <th class="p-3 font-medium">{t('Created')}</th>
+          <th class="p-3 font-medium">{t('Last used')}</th>
+          <th class="p-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each data.sessions as one (one.id)}
+          <tr class="border-b border-border last:border-0">
+            <td class="p-3">
+              <span class="font-medium">{one.deviceName ?? t('Unknown device')}</span>
+              {#if one.isCurrent}
+                <span class="ml-2 rounded bg-surface px-2 py-0.5 text-xs text-text-muted">
+                  {t('This Device')}
+                </span>
+              {/if}
+              {#if one.userAgent}
+                <p class="mt-1 truncate text-xs text-text-muted">{one.userAgent}</p>
+              {/if}
+            </td>
+            <td class="p-3 text-text-muted">{when(one.createdAt)}</td>
+            <td class="p-3 text-text-muted">{when(one.lastActiveAt)}</td>
+            <td class="p-3 text-right">
+              {#if !one.isCurrent}
+                <Confirm
+                  label={t('Log out')}
+                  question={t('Log out')}
+                  disabled={busy === one.id}
+                  onconfirm={() =>
+                    act(one.id, async () => {
+                      await revokeSession(one.id);
+                      await invalidateAll();
+                    })}
+                />
+              {/if}
+            </td>
+          </tr>
+        {:else}
+          <tr>
+            <td class="p-6 text-center text-text-muted" colspan="4">{t('No active sessions')}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+
+  {#if data.sessions.filter((one) => !one.isCurrent).length > 0}
+    <Confirm
+      label={t('Log out of all sessions except this device')}
+      question={t('Log out')}
+      disabled={busy === 'sessions'}
+      onconfirm={() =>
+        act('sessions', async () => {
+          await revokeOtherSessions();
+          await invalidateAll();
+        })}
+    />
   {/if}
 </section>

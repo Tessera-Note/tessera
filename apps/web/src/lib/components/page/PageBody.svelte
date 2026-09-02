@@ -1,23 +1,16 @@
 <script lang="ts">
-  import { locale } from '$lib/stores/i18n.svelte';
-  import { plainText } from '$lib/features/page/document';
+  import DocumentView from '$lib/features/editor/DocumentView.svelte';
 
   type Props = { content: unknown };
   const { content }: Props = $props();
-
-  const t = $derived(locale.t);
-  const text = $derived(plainText(content));
 </script>
 
 <!--
-  Пока текстом. Редактор с представлениями узлов это отдельная фаза, и
-  показывать до неё пустой экран хуже, чем показывать содержимое без разметки:
-  по тексту видно, что страница загрузилась и права проверены.
+  Показ документа теми же расширениями, что и правка: иначе картинки, таблицы и
+  диаграммы на странице по ссылке и в печати превращаются в голый текст. Пока
+  редактор грузится — и если не загрузится вовсе — показывается текст: пустая
+  страница читалась бы как потерянное содержимое.
 -->
-<div data-component="PageBody" class="whitespace-pre-wrap leading-relaxed">
-  {#if text}
-    {text}
-  {:else}
-    <p class="text-text-muted">{t('This page has no content yet')}</p>
-  {/if}
+<div data-component="PageBody">
+  <DocumentView {content} />
 </div>

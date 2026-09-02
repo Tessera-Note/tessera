@@ -122,6 +122,14 @@
       disabled={busy === 'allowMemberTemplates'}
       onchange={(checked) => save('allowMemberTemplates', { allowMemberTemplates: checked })}
     />
+
+    <Toggle
+      checked={data.settings.allowPersonalSpaces}
+      label={t('Allow personal spaces')}
+      hint={t('Each member may create one space visible only to them.')}
+      disabled={busy === 'allowPersonalSpaces'}
+      onchange={(checked) => save('allowPersonalSpaces', { allowPersonalSpaces: checked })}
+    />
   </Panel>
 
   <form onsubmit={saveRetention}>

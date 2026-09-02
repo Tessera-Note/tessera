@@ -5,7 +5,11 @@
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
-  import { SPACE_ROLES, createSpace } from '$lib/features/space/services/spaces';
+  import {
+    SPACE_ROLES,
+    createPersonalSpace,
+    createSpace
+  } from '$lib/features/space/services/spaces';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -31,6 +35,20 @@
   let description = $state('');
   let busy = $state(false);
   let failure = $state<string | null>(null);
+
+  async function makePersonal() {
+    busy = true;
+    failure = null;
+    try {
+      const space = await createPersonalSpace();
+      await invalidateAll();
+      await goto(`/s/${space.slug}`);
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = false;
+    }
+  }
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -86,6 +104,18 @@
         {busy ? t('Loading...') : t('Create space')}
       </Button>
     </form>
+  {/if}
+
+  {#if data.session?.workspace.allowPersonalSpaces && !data.personal}
+    <div class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5">
+      <h2 class="mb-2 text-lg font-medium">{t('Personal space')}</h2>
+      <p class="mb-4 text-sm text-text-muted">
+        {t('Members can create their own personal space.')}
+      </p>
+      <Button disabled={busy} onclick={makePersonal}>
+        {busy ? t('Loading...') : t('Create personal space')}
+      </Button>
+    </div>
   {/if}
 
   <ul data-component="SpaceCards" class="space-y-2">

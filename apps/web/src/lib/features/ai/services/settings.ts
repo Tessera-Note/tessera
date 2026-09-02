@@ -89,6 +89,27 @@ export function updateAiSettings(values: AiPatch, fetcher?: typeof fetch) {
   });
 }
 
+export type AiModel = { id: string; label: string };
+
+/**
+ * Перечень моделей у провайдера.
+ *
+ * Переданные ключ и адрес перекрывают сохранённые: перечень спрашивается до
+ * сохранения, по только что введённым значениям. Иначе выбрать модель у нового
+ * провайдера нельзя — сначала сохрани вслепую, потом смотри, что там есть.
+ */
+export function aiModels(
+  values: { driver?: string; baseUrl?: string; apiKey?: string; kind?: 'chat' | 'embedding' },
+  fetcher?: typeof fetch
+) {
+  return post<{ models: AiModel[] }>('/api/ai/settings/models', values, { fetcher });
+}
+
+/** Проверить соединение с провайдером. Отвечает исходом, а не отказом. */
+export function testAiConnection(fetcher?: typeof fetch) {
+  return post<{ ok: boolean; message: string }>('/api/ai/settings/test', {}, { fetcher });
+}
+
 /** Убрать свои настройки и вернуться к конфигурации из окружения. */
 export function resetAiSettings(fetcher?: typeof fetch) {
   return post<AiSettings>('/api/ai/settings/reset', {}, { fetcher });

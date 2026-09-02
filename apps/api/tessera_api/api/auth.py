@@ -66,7 +66,18 @@ def _workspace_view(workspace) -> WorkspaceView:
         name=workspace.name,
         hostname=workspace.hostname,
         logo=workspace.logo,
+        # Признак личных пространств уходит вместе с входом: настройки читает
+        # только администратор, а кнопка «завести своё» нужна участнику.
+        allowPersonalSpaces=_personal_spaces_allowed(workspace),
     )
+
+
+def _personal_spaces_allowed(workspace) -> bool:
+    settings: object = getattr(workspace, "settings", None) or {}
+    if not isinstance(settings, dict):
+        return False
+    spaces = settings.get("spaces")
+    return bool(isinstance(spaces, dict) and spaces.get("allowPersonal"))
 
 
 #: Кука промежуточного шага второго фактора. Имя из v1.

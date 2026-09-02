@@ -7,6 +7,9 @@
     placeholder?: string;
     required?: boolean;
     disabled?: boolean;
+    /** Идентификатор перечня подсказок. Подсказка, а не выбор: значение
+     *  остаётся вводимым, а перечень лишь помогает не набирать его руками. */
+    list?: string;
   };
   let {
     value = $bindable(),
@@ -14,7 +17,8 @@
     autocomplete,
     placeholder,
     required = false,
-    disabled = false
+    disabled = false,
+    list
   }: Props = $props();
 </script>
 
@@ -32,6 +36,7 @@
     {placeholder}
     {required}
     {disabled}
+    {list}
     bind:value
   />
 {:else if type === 'email'}
@@ -43,6 +48,7 @@
     {placeholder}
     {required}
     {disabled}
+    {list}
     bind:value
   />
 {:else if type === 'search'}
@@ -54,6 +60,7 @@
     {placeholder}
     {required}
     {disabled}
+    {list}
     bind:value
   />
 {:else}
@@ -65,6 +72,7 @@
     {placeholder}
     {required}
     {disabled}
+    {list}
     bind:value
   />
 {/if}

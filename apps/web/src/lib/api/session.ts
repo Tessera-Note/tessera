@@ -27,6 +27,10 @@ export type Workspace = {
   name: string | null;
   hostname: string | null;
   logo: string | null;
+  /** Разрешены ли личные пространства. Приходит со входом: настройки читает
+   *  только администратор, а завести своё вправе каждый. */
+  allowPersonalSpaces?: boolean;
+  memberCount?: number;
 };
 
 export type Session = {

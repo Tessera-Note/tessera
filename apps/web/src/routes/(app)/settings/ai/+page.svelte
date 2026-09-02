@@ -9,8 +9,11 @@
   import {
     AI_DRIVERS,
     WEB_SEARCH_DRIVERS,
+    aiModels,
     resetAiSettings,
+    testAiConnection,
     updateAiSettings,
+    type AiModel,
     type AiPatch
   } from '$lib/features/ai/services/settings';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -37,6 +40,45 @@
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
   let saved = $state<string | null>(null);
+
+  //: Что ответил провайдер на запрос перечня и на проверку связи. Держится до
+  //: следующего действия: человек читает это глазами, а не по секундомеру.
+  let models = $state<AiModel[]>([]);
+  let embeddingModels = $state<AiModel[]>([]);
+  let probe = $state<{ ok: boolean; message: string } | null>(null);
+
+  async function loadModels(kind: 'chat' | 'embedding') {
+    busy = `models-${kind}`;
+    failure = null;
+    try {
+      // Введённые прямо сейчас значения уходят вместе с запросом: иначе
+      // выбрать модель у нового провайдера нельзя, пока настройки не сохранены.
+      const answer = await aiModels(
+        kind === 'chat'
+          ? { driver, baseUrl, apiKey, kind }
+          : { driver: embeddingDriver, baseUrl: embeddingBaseUrl, apiKey: embeddingApiKey, kind }
+      );
+      if (kind === 'chat') models = answer.models;
+      else embeddingModels = answer.models;
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = null;
+    }
+  }
+
+  async function testConnection() {
+    busy = 'test';
+    failure = null;
+    probe = null;
+    try {
+      probe = await testAiConnection();
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = null;
+    }
+  }
 
   // Значения приходят с сервера и обновляются после сохранения. Ключи не
   // приходят никогда — только маска, — поэтому поля ключей всегда пусты: пустое
@@ -175,16 +217,44 @@
     </Field>
 
     <Field label={t('Chat model')}>
-      <TextInput bind:value={chatModel} placeholder="openai/gpt-5.6-luna" />
+      <TextInput bind:value={chatModel} placeholder="openai/gpt-5.6-luna" list="ai-chat-models" />
     </Field>
 
     <Field label={t('Completion model')}>
-      <TextInput bind:value={completionModel} placeholder="deepseek/deepseek-v4-flash-0731" />
+      <TextInput
+        bind:value={completionModel}
+        placeholder="deepseek/deepseek-v4-flash-0731"
+        list="ai-chat-models"
+      />
     </Field>
 
-    <Button type="submit" disabled={busy === 'provider'}>
-      {busy === 'provider' ? t('Loading...') : t('Save')}
-    </Button>
+    <!-- Перечень подсказывается, но не заменяет ввод: у совместимых шлюзов
+         каталог бывает неполным, а модель там всё равно работает. -->
+    <datalist id="ai-chat-models">
+      {#each models as one (one.id)}
+        <option value={one.id}>{one.label}</option>
+      {/each}
+    </datalist>
+
+    <div class="flex flex-wrap gap-2">
+      <Button type="submit" disabled={busy === 'provider'}>
+        {busy === 'provider' ? t('Loading...') : t('Save')}
+      </Button>
+      <Button variant="quiet" disabled={busy === 'models-chat'} onclick={() => loadModels('chat')}>
+        {busy === 'models-chat' ? t('Loading...') : t('Fetch models from provider')}
+      </Button>
+      <Button variant="quiet" disabled={busy === 'test'} onclick={testConnection}>
+        {busy === 'test' ? t('Loading...') : t('Test connection')}
+      </Button>
+    </div>
+
+    {#if models.length > 0}
+      <p class="mt-2 text-xs text-text-muted">{models.length}</p>
+    {/if}
+
+    {#if probe}
+      <p class="mt-2 text-sm" class:text-danger={!probe.ok}>{probe.message}</p>
+    {/if}
   </form>
 
   <form
@@ -220,12 +290,27 @@
     </Field>
 
     <Field label={t('Embedding model')}>
-      <TextInput bind:value={embeddingModel} />
+      <TextInput bind:value={embeddingModel} list="ai-embedding-models" />
     </Field>
 
-    <Button type="submit" disabled={busy === 'embedding'}>
-      {busy === 'embedding' ? t('Loading...') : t('Save')}
-    </Button>
+    <datalist id="ai-embedding-models">
+      {#each embeddingModels as one (one.id)}
+        <option value={one.id}>{one.label}</option>
+      {/each}
+    </datalist>
+
+    <div class="flex flex-wrap gap-2">
+      <Button type="submit" disabled={busy === 'embedding'}>
+        {busy === 'embedding' ? t('Loading...') : t('Save')}
+      </Button>
+      <Button
+        variant="quiet"
+        disabled={busy === 'models-embedding'}
+        onclick={() => loadModels('embedding')}
+      >
+        {busy === 'models-embedding' ? t('Loading...') : t('Fetch embedding models')}
+      </Button>
+    </div>
   </form>
 
   <form

@@ -16,6 +16,22 @@ export function getSpace(slug: string, fetcher?: typeof fetch, headers?: Record<
   return get<Space>(`/api/spaces/${encodeURIComponent(slug)}`, { fetcher, headers });
 }
 
+/**
+ * Личное пространство человека, если оно заведено.
+ *
+ * Отдельным вызовом, а не признаком в общем списке: сервер отдаёт его по
+ * запросу самого человека, и признак в общем списке пришлось бы считать для
+ * каждой строки.
+ */
+export function personalSpace(fetcher?: typeof fetch, headers?: Record<string, string>) {
+  return post<Space | null>('/api/personal-space/info', {}, { fetcher, headers });
+}
+
+/** Завести своё личное пространство. Оно у человека одно. */
+export function createPersonalSpace(name?: string, fetcher?: typeof fetch) {
+  return post<Space>('/api/personal-space/create', { name }, { fetcher });
+}
+
 /** Участник пространства: имя и почта, без роли — она нужна другому экрану. */
 export type SpaceMember = { id: string; name: string | null; email: string };
 

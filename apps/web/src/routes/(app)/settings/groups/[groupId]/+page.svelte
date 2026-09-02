@@ -7,7 +7,9 @@
   import { errorText } from '$lib/api/failure';
   import {
     addGroupMembers,
+    attachDirectory,
     deleteGroup,
+    detachDirectory,
     removeGroupMember,
     updateGroup
   } from '$lib/features/group/services/groups';
@@ -21,6 +23,21 @@
 
   /** Группу по умолчанию и группу каталога сервер править не даёт. */
   const locked = $derived(data.group.isDefault || Boolean(data.group.directorySource));
+
+  //: Выбор провайдера и имя группы в каталоге. Пустое имя означает «как
+  //: называется здесь»: у большинства развёртываний они совпадают.
+  let provider = $state('');
+  let directoryKey = $state('');
+
+  function attach(event: SubmitEvent) {
+    event.preventDefault();
+    if (!provider) return;
+    return act('directory', async () => {
+      await attachDirectory(data.group.id, provider, directoryKey.trim() || undefined);
+      provider = '';
+      directoryKey = '';
+    });
+  }
 
   let name = $state('');
   let description = $state('');
@@ -119,6 +136,53 @@
       {/if}
     </div>
   </form>
+
+  {#if !data.group.isDefault}
+    <div class="mb-8 card-soft rounded-md border border-border bg-surface-raised p-5">
+      <h2 class="mb-2 text-lg font-medium">{t('Let a directory manage this group')}</h2>
+      <p class="mb-4 text-sm text-text-muted">
+        {t('Managed by the directory')}
+      </p>
+
+      {#if data.group.directorySource}
+        <p class="mb-3 text-sm">{t('Managed by the directory')}</p>
+        <Button
+          variant="quiet"
+          disabled={busy === 'directory'}
+          onclick={() =>
+            act('directory', async () => {
+              await detachDirectory(data.group.id);
+            })}
+        >
+          {t('Detach from directory')}
+        </Button>
+      {:else if data.providers.length > 0}
+        <form class="flex flex-wrap items-end gap-3" onsubmit={attach}>
+          <label class="min-w-[12rem] flex-1">
+            <span class="mb-1 block text-sm text-text-muted">{t('Provider')}</span>
+            <select
+              class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
+              bind:value={provider}
+            >
+              <option value="">{t('Select a provider')}</option>
+              {#each data.providers as one (one.id)}
+                <option value={one.id}>{one.name}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="min-w-[12rem] flex-1">
+            <span class="mb-1 block text-sm text-text-muted">{t('Directory key')}</span>
+            <TextInput bind:value={directoryKey} placeholder={data.group.name} />
+          </label>
+          <Button type="submit" disabled={busy === 'directory' || !provider}>
+            {t('Attach to directory')}
+          </Button>
+        </form>
+      {:else}
+        <p class="text-sm text-text-muted">{t('No SSO providers found.')}</p>
+      {/if}
+    </div>
+  {/if}
 
   <div class="card-soft rounded-md border border-border bg-surface-raised p-5">
     <h2 class="mb-4 text-lg font-medium">{t('Members')}</h2>
