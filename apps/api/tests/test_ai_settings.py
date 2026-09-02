@@ -20,8 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.config import Settings
 from tessera_api.domain.errors import AppError
+from tessera_api.infrastructure.ai_client import ChatTarget
 from tessera_api.infrastructure.models import Workspace, WorkspaceAiSettings
-from tessera_api.infrastructure.secrets import decrypt_secret
+from tessera_api.infrastructure.secrets import decrypt_secret, encrypt_secret
 from tessera_api.services.ai_settings import (
     CANONICAL_BASE_URL,
     DEFAULT_CHAT_MODELS,
@@ -606,3 +607,199 @@ def test_only_the_compatible_gateway_lacks_a_canonical_address() -> None:
     assert AiDriver.COMPATIBLE not in CANONICAL_BASE_URL
     for driver in (AiDriver.OPENAI, AiDriver.OPENROUTER, AiDriver.OLLAMA):
         assert CANONICAL_BASE_URL.get(driver), driver
+
+
+@needs_database
+class TestModelsAndProbe:
+    """Перечень моделей и проверка соединения.
+
+    Перечень спрашивается **до** сохранения, по только что введённым ключу и
+    адресу: иначе выбрать модель у нового провайдера нельзя — сначала сохрани
+    вслепую, потом смотри, что там есть.
+
+    Проверка соединения отвечает исходом, а не отказом: половина обращений к
+    ней и делается затем, чтобы увидеть, что ключ не принят.
+    """
+
+    async def _row(self, session: AsyncSession, workspace, **values) -> None:
+        existing = (
+            await session.execute(
+                select(WorkspaceAiSettings).where(
+                    WorkspaceAiSettings.workspace_id == workspace.id
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            await session.delete(existing)
+            await session.commit()
+        await session.execute(
+            insert(WorkspaceAiSettings).values(
+                id=uuid.uuid4(), workspace_id=workspace.id, **values
+            )
+        )
+        await session.commit()
+
+    async def test_the_entered_values_win_over_the_saved_ones(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(session, workspace, driver=AiDriver.OPENAI)
+        seen: list[ChatTarget] = []
+
+        class Client:
+            async def list_models(self, target: ChatTarget) -> list[dict]:
+                seen.append(target)
+                return [{"id": "b", "label": "Бета"}, {"id": "a", "label": "Альфа"}]
+
+        found = await AiSettingsService(session, _settings()).list_models(
+            workspace.id,
+            Client(),  # type: ignore[arg-type]
+            driver=AiDriver.OPENROUTER,
+            api_key="введённый-сейчас",
+        )
+
+        assert seen[0].driver == AiDriver.OPENROUTER
+        assert seen[0].api_key == "введённый-сейчас"
+        # Порядок по подписи: перечень читает человек, а не машина.
+        assert [one["id"] for one in found] == ["a", "b"]
+
+    async def test_the_canonical_address_is_substituted(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(session, workspace, driver=None)
+        seen: list[ChatTarget] = []
+
+        class Client:
+            async def list_models(self, target: ChatTarget) -> list[dict]:
+                seen.append(target)
+                return []
+
+        await AiSettingsService(session, _settings()).list_models(
+            workspace.id,
+            Client(),  # type: ignore[arg-type]
+            driver=AiDriver.OPENROUTER,
+            api_key="ключ",
+        )
+        assert seen[0].base_url == CANONICAL_BASE_URL[AiDriver.OPENROUTER]
+
+    async def test_without_a_provider_there_is_nothing_to_ask(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(session, workspace, driver=None)
+
+        class Client:
+            async def list_models(self, target: ChatTarget) -> list[dict]:
+                raise AssertionError("к провайдеру ходить не должны")
+
+        with pytest.raises(AppError) as failure:
+            await AiSettingsService(session, _settings()).list_models(
+                workspace.id, Client()  # type: ignore[arg-type]
+            )
+        assert failure.value.code == "error.ai.select_a_provider_first"
+
+    async def test_a_key_is_required_for_everyone_but_the_local_model(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(session, workspace, driver=None)
+
+        class Client:
+            async def list_models(self, target: ChatTarget) -> list[dict]:
+                return []
+
+        with pytest.raises(AppError) as failure:
+            await AiSettingsService(session, _settings()).list_models(
+                workspace.id, Client(), driver=AiDriver.OPENAI  # type: ignore[arg-type]
+            )
+        assert failure.value.code == "error.ai.enter_an_api_key_first"
+
+        # Локальная модель ключа не спрашивает: она рядом, в сети развёртывания.
+        await AiSettingsService(session, _settings()).list_models(
+            workspace.id,
+            Client(),  # type: ignore[arg-type]
+            driver=AiDriver.OLLAMA,
+        )
+
+    async def test_the_embedding_kind_asks_its_own_provider(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(
+            session,
+            workspace,
+            driver=AiDriver.OPENAI,
+            api_key_encrypted=None,
+            embedding_driver=AiDriver.OLLAMA,
+            embedding_base_url="http://tessera-ollama:11434",
+        )
+        seen: list[ChatTarget] = []
+
+        class Client:
+            async def list_models(self, target: ChatTarget) -> list[dict]:
+                seen.append(target)
+                return []
+
+        await AiSettingsService(session, _settings()).list_models(
+            workspace.id,
+            Client(),  # type: ignore[arg-type]
+            kind="embedding",
+        )
+        assert seen[0].driver == AiDriver.OLLAMA
+        assert seen[0].base_url == "http://tessera-ollama:11434"
+
+    async def test_an_unconfigured_workspace_says_so(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(session, workspace, driver=None)
+
+        class Client:
+            async def generate(self, target, *, system, prompt) -> str:  # noqa: ANN001
+                raise AssertionError("к провайдеру ходить не должны")
+
+        answer = await AiSettingsService(session, _settings()).test_connection(
+            workspace.id, Client()  # type: ignore[arg-type]
+        )
+        assert answer["ok"] is False
+
+    async def test_a_refusal_of_the_provider_is_an_answer_not_a_failure(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Половина обращений сюда и делается затем, чтобы увидеть отказ."""
+        await self._row(
+            session,
+            workspace,
+            driver=AiDriver.OPENAI,
+            api_key_encrypted=encrypt_secret("ключ", SECRET),
+            chat_model="gpt-x",
+        )
+
+        class Client:
+            async def generate(self, target, *, system, prompt) -> str:  # noqa: ANN001
+                raise AppError("error.ai.request_failed", 400)
+
+        answer = await AiSettingsService(session, _settings()).test_connection(
+            workspace.id, Client()  # type: ignore[arg-type]
+        )
+        assert answer["ok"] is False
+        # Человеку показывается текст отказа, а не его представление с кодом
+        # состояния впереди: сообщение читают глазами.
+        assert answer["message"] == "The AI provider refused the request"
+
+    async def test_a_successful_probe_names_the_provider_and_the_model(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await self._row(
+            session,
+            workspace,
+            driver=AiDriver.OPENAI,
+            api_key_encrypted=encrypt_secret("ключ", SECRET),
+            chat_model="gpt-x",
+        )
+
+        class Client:
+            async def generate(self, target, *, system, prompt) -> str:  # noqa: ANN001
+                return "ok"
+
+        answer = await AiSettingsService(session, _settings()).test_connection(
+            workspace.id, Client()  # type: ignore[arg-type]
+        )
+        assert answer["ok"] is True
+        assert AiDriver.OPENAI in answer["message"]
+        assert "gpt-x" in answer["message"]

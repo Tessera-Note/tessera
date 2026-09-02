@@ -536,7 +536,10 @@ class AiSettingsService:
                 prompt="Reply with the single word: ok",
             )
         except AppError as failure:
-            return {"ok": False, "message": failure.message}
+            # `detail`, а не `message`: у отказа приложения текст лежит там, и
+            # обращение к несуществующему полю превращало бы отказ провайдера в
+            # поломку — ровно на кнопке, которую нажимают, чтобы увидеть отказ.
+            return {"ok": False, "message": failure.detail}
         except Exception as failure:  # noqa: BLE001 — важен факт отказа, не его вид
             return {"ok": False, "message": str(failure)}
 
