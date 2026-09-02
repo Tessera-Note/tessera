@@ -59,6 +59,9 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.common.workspace_not_found": "Workspace not found",
     "error.common.user_not_found": "User not found",
     "error.space.space_not_found": "Space not found",
+    "error.favorite.invalid_favorite_type": "Unknown favorite type",
+    "error.favorite.pageid_is_required": "Nothing to add to favorites",
+
     "error.space.space_id_required": "A space must be given",
     "error.user.name_invalid": "The name must not be empty and no longer than {{limit}}",
     "error.user.locale_invalid": "This is not a language code",

@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.config import Settings
 from tessera_api.domain.errors import AppError, not_found
+from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.models import Page
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
@@ -48,10 +49,17 @@ from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.bases import BaseService
 from tessera_api.services.comments import CommentService
 from tessera_api.services.embeddings import EmbeddingService
+from tessera_api.services.exports import FORMAT_MARKDOWN, ExportService
 from tessera_api.services.history import PageHistoryService
-from tessera_api.services.labels import FavoriteService, LabelService
+from tessera_api.services.labels import (
+    FAVORITE_PAGE,
+    FAVORITE_SPACE,
+    FAVORITE_TEMPLATE,
+    FavoriteService,
+    LabelService,
+)
 from tessera_api.services.page_access import PageAccessService
-from tessera_api.services.pages import PageService
+from tessera_api.services.pages import PageService, extract_text
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.search import AttachmentSearchService, SearchService
 from tessera_api.services.templates import TemplateService
@@ -403,6 +411,182 @@ TOOLS: list[ToolDefinition] = [
         },
     ),
     ToolDefinition(
+        "get_comment",
+        "Get a single comment by id.",
+        {
+            "type": "object",
+            "properties": {"commentId": _text("Comment id")},
+            "required": ["commentId"],
+        },
+    ),
+    ToolDefinition(
+        "update_comment",
+        "Edit a comment. Only the author may edit it.",
+        {
+            "type": "object",
+            "properties": {
+                "commentId": _text("Comment id"),
+                "content": _text("New comment body"),
+            },
+            "required": ["commentId", "content"],
+        },
+    ),
+    ToolDefinition(
+        "list_labels",
+        "List the page labels of the workspace.",
+        {"type": "object", "properties": {}},
+    ),
+    ToolDefinition(
+        "find_pages_by_label",
+        "List pages carrying a label, by id or by name.",
+        {
+            "type": "object",
+            "properties": {
+                "labelId": _text("Label id"),
+                "name": _text("Label name, if the id is unknown"),
+                "spaceId": _text("Optional space to restrict to"),
+            },
+        },
+    ),
+    ToolDefinition(
+        "remove_page_label",
+        "Detach a label from a page.",
+        {
+            "type": "object",
+            "properties": {
+                "pageId": _text("Page id or slug"),
+                "labelId": _text("Label id"),
+            },
+            "required": ["pageId", "labelId"],
+        },
+    ),
+    ToolDefinition(
+        "add_favorite",
+        "Add a page, space or template to the favorites.",
+        {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["page", "space", "template"]},
+                "pageId": _text("Required when type is page"),
+                "spaceId": _text("Required when type is space"),
+                "templateId": _text("Required when type is template"),
+            },
+            "required": ["type"],
+        },
+    ),
+    ToolDefinition(
+        "remove_favorite",
+        "Remove a page, space or template from the favorites.",
+        {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["page", "space", "template"]},
+                "pageId": _text("Required when type is page"),
+                "spaceId": _text("Required when type is space"),
+                "templateId": _text("Required when type is template"),
+            },
+            "required": ["type"],
+        },
+    ),
+    ToolDefinition(
+        "get_page_version",
+        "Read one version from the page history.",
+        {
+            "type": "object",
+            "properties": {"historyId": _text("Version id from list_page_history")},
+            "required": ["historyId"],
+        },
+    ),
+    ToolDefinition(
+        "list_recent_pages",
+        "List the pages changed most recently.",
+        {
+            "type": "object",
+            "properties": {
+                "spaceId": _text("Optional space filter"),
+                "limit": {"type": "integer"},
+            },
+        },
+    ),
+    ToolDefinition(
+        "list_trash",
+        "List the deleted pages of a space.",
+        {
+            "type": "object",
+            "properties": {"spaceId": _text("Space id")},
+            "required": ["spaceId"],
+        },
+    ),
+    ToolDefinition(
+        "export_page",
+        "Export a page as markdown or html.",
+        {
+            "type": "object",
+            "properties": {
+                "pageId": _text("Page id or slug"),
+                "format": {"type": "string", "enum": ["markdown", "html"]},
+            },
+            "required": ["pageId"],
+        },
+    ),
+    ToolDefinition(
+        "get_attachment_info",
+        "Get the metadata of an uploaded file.",
+        {
+            "type": "object",
+            "properties": {"attachmentId": _text("Attachment id")},
+            "required": ["attachmentId"],
+        },
+    ),
+    ToolDefinition(
+        "get_template",
+        "Get a template with its content.",
+        {
+            "type": "object",
+            "properties": {"templateId": _text("Template id")},
+            "required": ["templateId"],
+        },
+    ),
+    ToolDefinition(
+        "create_template",
+        "Create a template from markdown.",
+        {
+            "type": "object",
+            "properties": {
+                "title": _text("Template title"),
+                "content": _text("Template body"),
+                "description": _text("Optional description"),
+                "icon": _text("Optional icon"),
+                "spaceId": _text("Optional space to scope it to"),
+            },
+            "required": ["title"],
+        },
+    ),
+    ToolDefinition(
+        "update_template",
+        "Update a template title, description, icon or content.",
+        {
+            "type": "object",
+            "properties": {
+                "templateId": _text("Template id"),
+                "title": _text("Optional new title"),
+                "content": _text("Optional new body"),
+                "description": _text("Optional new description"),
+                "icon": _text("Optional new icon"),
+            },
+            "required": ["templateId"],
+        },
+    ),
+    ToolDefinition(
+        "delete_template",
+        "Delete a template.",
+        {
+            "type": "object",
+            "properties": {"templateId": _text("Template id")},
+            "required": ["templateId"],
+        },
+    ),
+    ToolDefinition(
         "reindex_embeddings",
         "Rebuild the semantic index of the workspace.",
         {"type": "object", "properties": {}},
@@ -600,6 +784,47 @@ TOOLS: list[ToolDefinition] = [
         },
     ),
     ToolDefinition(
+        "reorder_base_property",
+        "Move a property to a new position.",
+        {
+            "type": "object",
+            "properties": {
+                "pageId": _text("Base page id"),
+                "propertyId": _text("Property id"),
+                "position": _text("New position"),
+            },
+            "required": ["pageId", "propertyId", "position"],
+        },
+    ),
+    ToolDefinition(
+        "reorder_base_row",
+        "Move a row to a new position.",
+        {
+            "type": "object",
+            "properties": {
+                "pageId": _text("Base page id"),
+                "rowId": _text("Row id"),
+                "position": _text("New position"),
+            },
+            "required": ["pageId", "rowId", "position"],
+        },
+    ),
+    ToolDefinition(
+        "update_base_view",
+        "Rename a view, change its type or update its configuration.",
+        {
+            "type": "object",
+            "properties": {
+                "pageId": _text("Base page id"),
+                "viewId": _text("View id"),
+                "name": _text("Optional new name"),
+                "type": _text("Optional new view type"),
+                "config": {"type": "object"},
+            },
+            "required": ["pageId", "viewId"],
+        },
+    ),
+    ToolDefinition(
         "delete_base_view",
         "Remove a view of a base.",
         {
@@ -757,7 +982,26 @@ class McpService:
             "delete_base_rows": self._delete_rows,
             "list_base_views": self._list_views,
             "create_base_view": self._create_view,
+            "reorder_base_property": self._reorder_property,
+            "reorder_base_row": self._reorder_row,
+            "update_base_view": self._update_view,
             "delete_base_view": self._delete_view,
+            "get_comment": self._get_comment,
+            "update_comment": self._update_comment,
+            "list_labels": self._list_labels,
+            "find_pages_by_label": self._pages_by_label,
+            "remove_page_label": self._remove_page_label,
+            "add_favorite": self._add_favorite,
+            "remove_favorite": self._remove_favorite,
+            "get_page_version": self._get_version,
+            "list_recent_pages": self._list_recent,
+            "list_trash": self._list_trash,
+            "export_page": self._export_page,
+            "get_attachment_info": self._attachment_info,
+            "get_template": self._get_template,
+            "create_template": self._create_template,
+            "update_template": self._update_template,
+            "delete_template": self._delete_template,
         }
 
     # --- общие помощники --------------------------------------------------
@@ -1192,6 +1436,222 @@ class McpService:
         )
         return {"id": str(attachment.id), "fileName": attachment.file_name}
 
+    async def _get_comment(self, args: dict) -> Any:
+        comment_id = self._uuid(args.get("commentId"), "error.comment.comment_not_found")
+        found = await CommentService(self._session, self._realtime).info(
+            comment_id, self._user_id
+        )
+        return {
+            "id": str(found.id),
+            "pageId": str(found.page_id),
+            "creatorId": str(found.creator_id) if found.creator_id else None,
+            "parentCommentId": (
+                str(found.parent_comment_id) if found.parent_comment_id else None
+            ),
+            "resolvedAt": found.resolved_at.isoformat() if found.resolved_at else None,
+            "content": found.content,
+        }
+
+    async def _update_comment(self, args: dict) -> Any:
+        comment_id = self._uuid(args.get("commentId"), "error.comment.comment_not_found")
+        await CommentService(self._session, self._realtime).update(
+            comment_id, self._user_id, _plain_document(str(args.get("content") or ""))
+        )
+        return {"success": True, "commentId": str(comment_id)}
+
+    async def _list_labels(self, args: dict) -> Any:  # noqa: ARG002
+        found = await LabelService(self._session).list_all(self._workspace_id)
+        return {"labels": [{"id": str(one.id), "name": one.name} for one in found]}
+
+    async def _pages_by_label(self, args: dict) -> Any:
+        label_id = (
+            self._uuid(args["labelId"], "error.label.label_not_found")
+            if args.get("labelId")
+            else None
+        )
+        space_id = (
+            self._uuid(args["spaceId"], "error.space.space_not_found")
+            if args.get("spaceId")
+            else None
+        )
+        found = await LabelService(self._session).pages_with(
+            workspace_id=self._workspace_id,
+            user_id=self._user_id,
+            label_id=label_id,
+            name=str(args["name"]) if args.get("name") else None,
+            space_id=space_id,
+        )
+        return {"pages": [_page_brief(page) for page, _ in found]}
+
+    async def _remove_page_label(self, args: dict) -> Any:
+        page = await self._page(args.get("pageId"))
+        label_id = self._uuid(args.get("labelId"), "error.label.label_not_found")
+        await LabelService(self._session).detach(page, label_id, self._user_id)
+        return {"success": True, "labelId": str(label_id)}
+
+    def _favorite_kind(self, args: dict) -> str:
+        kind = str(args.get("type") or FAVORITE_PAGE).strip().lower()
+        if kind not in (FAVORITE_PAGE, FAVORITE_SPACE, FAVORITE_TEMPLATE):
+            raise not_found("error.favorite.invalid_favorite_type")
+        return kind
+
+    async def _add_favorite(self, args: dict) -> Any:
+        service = FavoriteService(self._session)
+        kind = self._favorite_kind(args)
+        if kind == FAVORITE_SPACE:
+            await service.add_space(
+                self._uuid(args.get("spaceId"), "error.space.space_not_found"),
+                self._user_id,
+            )
+        elif kind == FAVORITE_TEMPLATE:
+            await service.add_template(
+                self._uuid(args.get("templateId"), "error.template.not_found"),
+                self._user_id,
+            )
+        else:
+            page = await self._page(args.get("pageId"))
+            await service.add_page(page, self._user_id)
+        return {"success": True, "type": kind}
+
+    async def _remove_favorite(self, args: dict) -> Any:
+        service = FavoriteService(self._session)
+        kind = self._favorite_kind(args)
+        if kind == FAVORITE_SPACE:
+            await service.remove_space(
+                self._uuid(args.get("spaceId"), "error.space.space_not_found"),
+                self._user_id,
+            )
+        elif kind == FAVORITE_TEMPLATE:
+            await service.remove_template(
+                self._uuid(args.get("templateId"), "error.template.not_found"),
+                self._user_id,
+            )
+        else:
+            # Права не проверяются намеренно: снять свою отметку человек должен
+            # мочь и после того, как доступ к странице у него отобрали.
+            await service.remove_page(
+                self._uuid(args.get("pageId"), "error.page.page_not_found"), self._user_id
+            )
+        return {"success": True, "type": kind}
+
+    async def _get_version(self, args: dict) -> Any:
+        version = await PageHistoryService(self._session).get_version(
+            self._uuid(args.get("historyId"), "error.page.version_not_found"),
+            self._user_id,
+            self._workspace_id,
+        )
+        return {
+            "id": str(version.id),
+            "pageId": str(version.page_id),
+            "version": version.version,
+            "title": version.title,
+            # Плоский текст, как и у чтения страницы: разбирать документ модели
+            # дорого, а нужны ей слова.
+            "content": extract_text(version.content),
+            "createdAt": version.created_at.isoformat() if version.created_at else None,
+        }
+
+    async def _list_recent(self, args: dict) -> Any:
+        space_id = (
+            self._uuid(args["spaceId"], "error.space.space_not_found")
+            if args.get("spaceId")
+            else None
+        )
+        found = await self._pages().recent(
+            self._user_id,
+            self._workspace_id,
+            space_id=space_id,
+            limit=_limit(args.get("limit")),
+        )
+        return {"pages": [_page_brief(page) for page, _ in found]}
+
+    async def _list_trash(self, args: dict) -> Any:
+        space_id = self._uuid(args.get("spaceId"), "error.space.space_not_found")
+        found = await self._pages().deleted_in_space(space_id, self._user_id)
+        return {
+            "pages": [
+                {
+                    **_page_brief(one),
+                    "deletedAt": one.deleted_at.isoformat() if one.deleted_at else None,
+                }
+                for one in found
+            ]
+        }
+
+    async def _export_page(self, args: dict) -> Any:
+        """Выгрузить страницу разметкой.
+
+        Преобразование делает соседний сервис: схема узлов редактора живёт там,
+        и второй её реализации быть не должно. Без него инструмент отказывает,
+        а не отдаёт полуразобранный текст.
+        """
+        page = await self._page(args.get("pageId"))
+        fmt = str(args.get("format") or FORMAT_MARKDOWN).strip().lower()
+        exported = await ExportService(
+            self._session, ContentClient(self._settings.content_service_url)
+        ).export_page(page, self._user_id, fmt)
+        return {
+            "fileName": exported.file_name,
+            "format": fmt,
+            "content": exported.data.decode("utf-8"),
+        }
+
+    async def _attachment_info(self, args: dict) -> Any:
+        if self._storage is None:
+            raise not_found("error.attachment.attachment_not_found")
+        attachment_id = self._uuid(
+            args.get("attachmentId"), "error.attachment.attachment_not_found"
+        )
+        return await AttachmentService(self._session, self._storage, self._queue).info(
+            attachment_id, self._user_id, self._workspace_id
+        )
+
+    async def _get_template(self, args: dict) -> Any:
+        actor = await self._actor()
+        workspace = await self._workspace()
+        return await TemplateService(self._session).info(
+            self._uuid(args.get("templateId"), "error.template.not_found"), actor, workspace
+        )
+
+    async def _create_template(self, args: dict) -> Any:
+        actor = await self._actor()
+        workspace = await self._workspace()
+        return await TemplateService(self._session).create(
+            user=actor,
+            workspace=workspace,
+            title=str(args.get("title") or ""),
+            description=str(args["description"]) if args.get("description") else None,
+            icon=str(args["icon"]) if args.get("icon") else None,
+            content=_plain_document(str(args.get("content") or "")),
+            space_id=(
+                self._uuid(args["spaceId"], "error.space.space_not_found")
+                if args.get("spaceId")
+                else None
+            ),
+        )
+
+    async def _update_template(self, args: dict) -> Any:
+        actor = await self._actor()
+        workspace = await self._workspace()
+        return await TemplateService(self._session).update(
+            template_id=self._uuid(args.get("templateId"), "error.template.not_found"),
+            user=actor,
+            workspace=workspace,
+            title=str(args["title"]) if args.get("title") else None,
+            description=str(args["description"]) if args.get("description") else None,
+            icon=str(args["icon"]) if args.get("icon") else None,
+            content=(
+                _plain_document(str(args["content"])) if args.get("content") else None
+            ),
+        )
+
+    async def _delete_template(self, args: dict) -> Any:
+        template_id = self._uuid(args.get("templateId"), "error.template.not_found")
+        actor = await self._actor()
+        workspace = await self._workspace()
+        await TemplateService(self._session).delete(template_id, actor, workspace)
+        return {"success": True, "templateId": str(template_id)}
+
     async def _reindex(self, args: dict) -> Any:  # noqa: ARG002
         indexed = await EmbeddingService(self._session, self._settings).index_workspace(
             self._workspace_id
@@ -1346,6 +1806,35 @@ class McpService:
             self._workspace_id,
             name=str(args.get("name") or ""),
             kind=str(args.get("type") or "table"),
+            config=args.get("config"),
+        )
+
+    async def _reorder_property(self, args: dict) -> Any:
+        return await self._bases().reorder_property(
+            await self._base_id(args),
+            self._user_id,
+            self._workspace_id,
+            property_id_value=str(args.get("propertyId") or ""),
+            position=str(args.get("position") or ""),
+        )
+
+    async def _reorder_row(self, args: dict) -> Any:
+        return await self._bases().reorder_row(
+            await self._base_id(args),
+            self._user_id,
+            self._workspace_id,
+            row_id=self._uuid(args.get("rowId"), "error.base.row_not_found"),
+            position=str(args.get("position") or ""),
+        )
+
+    async def _update_view(self, args: dict) -> Any:
+        return await self._bases().update_view(
+            await self._base_id(args),
+            self._user_id,
+            self._workspace_id,
+            view_id=self._uuid(args.get("viewId"), "error.base.view_not_found"),
+            name=str(args["name"]) if args.get("name") is not None else None,
+            kind=str(args["type"]) if args.get("type") is not None else None,
             config=args.get("config"),
         )
 

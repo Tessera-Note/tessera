@@ -487,3 +487,90 @@ class TestSidebar:
             )
             == []
         )
+
+
+class TestDescendants:
+    """Обход ветви вниз.
+
+    Признак «вместе с удалёнными» раньше объявлялся и ничего не менял: перенос
+    в другое пространство молча уносил страницы из корзины, а восстановление
+    полагалось на то, чего не было.
+    """
+
+    async def _branch(self, session: AsyncSession, world):
+        service = PageService(session)
+        root = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Корень",
+        )
+        child = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Ветка",
+            parent_page_id=root.id,
+        )
+        return root, child
+
+    async def test_a_deleted_child_is_skipped_by_default(
+        self, session: AsyncSession, world
+    ) -> None:
+        service = PageService(session)
+        root, child = await self._branch(session, world)
+        await service.move_to_trash(child, world["owner"].id)
+
+        found = await service._descendants(root.id)  # noqa: SLF001 — свой пакет
+        assert child.id not in found
+
+    async def test_a_deleted_child_is_returned_when_asked(
+        self, session: AsyncSession, world
+    ) -> None:
+        service = PageService(session)
+        root, child = await self._branch(session, world)
+        await service.move_to_trash(child, world["owner"].id)
+
+        found = await service._descendants(  # noqa: SLF001 — свой пакет
+            root.id, include_deleted=True
+        )
+        assert child.id in found
+
+    async def test_a_deleted_branch_travels_with_the_page(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Иначе удалённая часть остаётся в прежнем пространстве при живом
+        родителе в новом: восстановить её потом некуда."""
+        service = PageService(session)
+        root, child = await self._branch(session, world)
+        await service.move_to_trash(child, world["owner"].id)
+
+        other_id = uuid.uuid4()
+        await session.execute(
+            insert(Space).values(
+                id=other_id,
+                name="Соседнее",
+                slug=f"n{uuid.uuid4().hex[:8]}",
+                workspace_id=world["workspace"].id,
+                creator_id=world["owner"].id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=world["owner"].id,
+                space_id=other_id,
+                role=SpaceRole.ADMIN,
+                added_by_id=world["owner"].id,
+            )
+        )
+        await session.flush()
+
+        root_id, child_id = root.id, child.id
+        await service.move_to_space(root_id, world["owner"].id, other_id)
+
+        # Запись шла запросом, минуя загруженные объекты: без сброса читалось
+        # бы их прежнее состояние из карты сессии.
+        session.expire(child)
+        moved = await session.get(Page, child_id)
+        assert moved.space_id == other_id

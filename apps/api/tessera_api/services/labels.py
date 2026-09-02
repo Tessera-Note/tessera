@@ -8,7 +8,15 @@ from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, not_found
-from tessera_api.infrastructure.models import Favorite, Label, Page, PageLabel, Space
+from tessera_api.infrastructure.models import (
+    Favorite,
+    Label,
+    Page,
+    PageLabel,
+    Space,
+    Template,
+)
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.page_access import PageAccessService
 
 
@@ -156,10 +164,17 @@ class LabelService:
         return visible
 
 
+#: Виды отметок. Значения из v1: колонка `type` общая на все три.
+FAVORITE_PAGE = "page"
+FAVORITE_SPACE = "space"
+FAVORITE_TEMPLATE = "template"
+
+
 class FavoriteService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._access = PageAccessService(session)
+        self._members = SpaceMemberRepo(session)
 
     async def list_for_user(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> list[Favorite]:
         stmt = (
@@ -201,6 +216,147 @@ class FavoriteService:
             if (await self._access.rights(page, user_id)).can_view:
                 allowed.append((favorite, page, space))
         return allowed
+
+    async def list_spaces(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Favorite, Space]]:
+        """Отмеченные пространства. Показываются только те, где человек состоит."""
+        rows = (
+            await self._session.execute(
+                select(Favorite, Space)
+                .join(Space, Space.id == Favorite.space_id)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.workspace_id == workspace_id)
+                .where(Favorite.type == FAVORITE_SPACE)
+                .where(Space.deleted_at.is_(None))
+                .order_by(Favorite.created_at.desc())
+            )
+        ).all()
+
+        allowed = set(await self._members.space_ids_for(user_id))
+        return [(one, space) for one, space in rows if space.id in allowed]
+
+    async def list_templates(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Favorite, Template]]:
+        """Отмеченные шаблоны.
+
+        Отбор тот же, что у самого перечня шаблонов: общий виден всем, свой —
+        только в своём пространстве.
+        """
+        rows = (
+            await self._session.execute(
+                select(Favorite, Template)
+                .join(Template, Template.id == Favorite.template_id)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.workspace_id == workspace_id)
+                .where(Favorite.type == FAVORITE_TEMPLATE)
+                .where(Template.deleted_at.is_(None))
+                .order_by(Favorite.created_at.desc())
+            )
+        ).all()
+
+        allowed = set(await self._members.space_ids_for(user_id))
+        return [
+            (one, template)
+            for one, template in rows
+            if template.space_id is None or template.space_id in allowed
+        ]
+
+    async def add_space(self, space_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        """Отметить пространство.
+
+        В избранное берётся только то, что человек видит: иначе отметка
+        переживает снятие доступа и остаётся ссылкой на закрытое.
+        """
+        space = await self._session.get(Space, space_id)
+        if space is None or space.deleted_at is not None:
+            raise not_found("error.space.space_not_found")
+        if await self._members.role_in_space(user_id, space_id) is None:
+            raise not_found("error.space.space_not_found")
+
+        await self._remember(
+            user_id=user_id,
+            workspace_id=space.workspace_id,
+            kind=FAVORITE_SPACE,
+            column=Favorite.space_id,
+            values={"space_id": space_id},
+        )
+
+    async def add_template(self, template_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        template = await self._session.get(Template, template_id)
+        if template is None or template.deleted_at is not None:
+            raise not_found("error.template.not_found")
+        if (
+            template.space_id is not None
+            and await self._members.role_in_space(user_id, template.space_id) is None
+        ):
+            # «Не найдено», а не «отказано»: шаблон своего пространства не
+            # должен обнаруживаться теми, кто в него не входит.
+            raise not_found("error.template.not_found")
+
+        await self._remember(
+            user_id=user_id,
+            workspace_id=template.workspace_id,
+            kind=FAVORITE_TEMPLATE,
+            column=Favorite.template_id,
+            values={"template_id": template_id},
+        )
+
+    async def _remember(
+        self,
+        *,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        kind: str,
+        column,  # noqa: ANN001 — колонка модели, тип у неё внутренний
+        values: dict,
+    ) -> None:
+        """Записать отметку, если её ещё нет.
+
+        Повторная отметка молчит, а не отказывает: человек нажал звезду дважды,
+        и второе нажатие означает то же самое, что первое.
+        """
+        already = (
+            await self._session.execute(
+                select(Favorite)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.type == kind)
+                .where(column == next(iter(values.values())))
+            )
+        ).scalar_one_or_none()
+        if already is not None:
+            return
+
+        await self._session.execute(
+            insert(Favorite).values(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                type=kind,
+                workspace_id=workspace_id,
+                **values,
+            )
+        )
+        await self._session.commit()
+
+    async def remove_space(self, space_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        """Снять отметку с пространства. Права не проверяются: см. `remove_page`."""
+        await self._session.execute(
+            delete(Favorite)
+            .where(Favorite.user_id == user_id)
+            .where(Favorite.space_id == space_id)
+            .where(Favorite.type == FAVORITE_SPACE)
+        )
+        await self._session.commit()
+
+    async def remove_template(self, template_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        await self._session.execute(
+            delete(Favorite)
+            .where(Favorite.user_id == user_id)
+            .where(Favorite.template_id == template_id)
+            .where(Favorite.type == FAVORITE_TEMPLATE)
+        )
+        await self._session.commit()
 
     async def add_page(self, page: Page, user_id: uuid.UUID) -> None:
         # В избранное берётся только то, что человек видит: иначе избранное

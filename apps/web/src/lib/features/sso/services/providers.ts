@@ -44,10 +44,6 @@ export function listProviders(fetcher?: typeof fetch, headers?: Record<string, s
   return post<{ items: AuthProvider[] }>('/api/sso/providers', {}, { fetcher, headers });
 }
 
-export function providerInfo(providerId: string, fetcher?: typeof fetch) {
-  return post<AuthProvider>('/api/sso/info', { providerId }, { fetcher });
-}
-
 export function createProvider(values: ProviderValues, fetcher?: typeof fetch) {
   return post<AuthProvider>('/api/sso/create', values, { fetcher });
 }

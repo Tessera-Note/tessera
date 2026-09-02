@@ -60,6 +60,23 @@
 
   const t = $derived(locale.t);
 
+  /**
+   * Подписи состояний проверки.
+   *
+   * Сервер отдаёт коды, и показывать их человеку нельзя: `pending_approval` в
+   * интерфейсе читается как обрывок кода, а не как состояние. Незнакомый код
+   * показывается как есть — это лучше пустоты, и такое сразу видно.
+   */
+  const STATUS_LABELS: Record<string, string> = {
+    pending: 'Pending',
+    pending_approval: 'In approval',
+    verified: 'Verified',
+    rejected: 'Approval rejected',
+    expiring: 'Expiring',
+    expired: 'Expired',
+    obsolete: 'Obsolete'
+  };
+
   let tab = $state<'history' | 'labels' | 'links' | 'access' | 'check'>('history');
   let busy = $state(false);
   let failure = $state<string | null>(null);
@@ -341,7 +358,7 @@
       {:else}
         <p>
           <span class="font-medium">{t('Status')}:</span>
-          {verification.status}
+          {t(STATUS_LABELS[verification.status ?? ''] ?? verification.status ?? '')}
         </p>
         {#if verification.expiresAt}
           <p class="text-text-muted">

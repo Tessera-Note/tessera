@@ -19,6 +19,7 @@
   } from '$lib/features/sso/services/providers';
   import {
     createScimToken,
+    renameScimToken,
     revokeScimToken,
     type CreatedScimToken
   } from '$lib/features/scim/services/tokens';
@@ -88,6 +89,9 @@
 
   let tokenName = $state('');
   let created = $state<CreatedScimToken | null>(null);
+  //: Какой токен переименовывают и как. Правка на месте, как у ключей API.
+  let renaming = $state<string | null>(null);
+  let newName = $state('');
 
   async function act(key: string, action: () => Promise<unknown>) {
     busy = key;
@@ -155,6 +159,15 @@
       // Значение видно один раз: в базе от него остаётся только отпечаток.
       created = await createScimToken(tokenName.trim());
       tokenName = '';
+    });
+  }
+
+  function rename(event: SubmitEvent, id: string) {
+    event.preventDefault();
+    if (!newName.trim()) return;
+    return act(id, async () => {
+      await renameScimToken(id, newName.trim());
+      renaming = null;
     });
   }
 
@@ -381,18 +394,39 @@
       <tbody>
         {#each data.tokens as token (token.id)}
           <tr class="border-b border-border last:border-0">
-            <td class="p-3 font-medium">{token.name}</td>
+            <td class="p-3">
+              {#if renaming === token.id}
+                <form class="flex gap-2" onsubmit={(event) => rename(event, token.id)}>
+                  <TextInput bind:value={newName} />
+                  <Button type="submit" disabled={busy === token.id}>{t('Save')}</Button>
+                  <Button variant="quiet" onclick={() => (renaming = null)}>{t('Cancel')}</Button>
+                </form>
+              {:else}
+                <span class="font-medium">{token.name}</span>
+              {/if}
+            </td>
             <td class="p-3 font-mono text-text-muted">…{token.lastFour}</td>
             <td class="p-3 text-text-muted">{when(token.lastUsedAt)}</td>
             <td class="p-3 text-right">
-              <Confirm
-                label={t('Revoke')}
-                question={t(
-                  'This action cannot be undone. Your identity provider will stop syncing immediately.'
-                )}
-                disabled={busy === token.id}
-                onconfirm={() => act(token.id, () => revokeScimToken(token.id))}
-              />
+              <span class="inline-flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="quiet"
+                  onclick={() => {
+                    renaming = token.id;
+                    newName = token.name;
+                  }}
+                >
+                  {t('Rename')}
+                </Button>
+                <Confirm
+                  label={t('Revoke')}
+                  question={t(
+                    'This action cannot be undone. Your identity provider will stop syncing immediately.'
+                  )}
+                  disabled={busy === token.id}
+                  onconfirm={() => act(token.id, () => revokeScimToken(token.id))}
+                />
+              </span>
             </td>
           </tr>
         {:else}

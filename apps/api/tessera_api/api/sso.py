@@ -463,16 +463,37 @@ class CreateProviderRequest(msgspec.Struct):
     ldapTlsCaCert: str | None = None  # noqa: N815 — имя поля из v1
 
 
-class UpdateProviderRequest(CreateProviderRequest):
-    """То же, но всё необязательно: экран шлёт только изменённое.
+class UpdateProviderRequest(msgspec.Struct):
+    """Правка провайдера: обязателен только его идентификатор.
 
-    Тип здесь не читается. Поля разных протоколов не пересекаются, и смена типа
-    оставила бы провайдера с заполненными полями прежнего.
+    Отдельным описанием, а не наследованием от заведения. Наследование требует
+    ставить умолчания полям, которые при заведении обязательны, и тогда
+    `providerId` без умолчания не поставить — а с умолчанием запрос без него
+    превращается из ошибки разбора в «провайдер не найден».
+
+    Тип здесь не читается вовсе. Поля разных протоколов не пересекаются, и
+    смена типа оставила бы провайдера с заполненными полями прежнего.
     """
 
-    providerId: uuid.UUID = msgspec.field(default_factory=uuid.uuid4)  # noqa: N815
-    name: str = ""
-    type: str = ""
+    providerId: uuid.UUID  # noqa: N815 — имя поля из v1
+    name: str | None = None
+    isEnabled: bool | None = None  # noqa: N815 — имя поля из v1
+    allowSignup: bool | None = None  # noqa: N815 — имя поля из v1
+    groupSync: bool | None = None  # noqa: N815 — имя поля из v1
+    groupClaimName: str | None = None  # noqa: N815 — имя поля из v1
+    oidcIssuer: str | None = None  # noqa: N815 — имя поля из v1
+    oidcClientId: str | None = None  # noqa: N815 — имя поля из v1
+    oidcClientSecret: str | None = None  # noqa: N815 — имя поля из v1
+    samlUrl: str | None = None  # noqa: N815 — имя поля из v1
+    samlCertificate: str | None = None  # noqa: N815 — имя поля из v1
+    ldapUrl: str | None = None  # noqa: N815 — имя поля из v1
+    ldapBaseDn: str | None = None  # noqa: N815 — имя поля из v1
+    ldapBindDn: str | None = None  # noqa: N815 — имя поля из v1
+    ldapBindPassword: str | None = None  # noqa: N815 — имя поля из v1
+    ldapUserSearchFilter: str | None = None  # noqa: N815 — имя поля из v1
+    ldapUserAttributes: dict | None = None  # noqa: N815 — имя поля из v1
+    ldapTlsEnabled: bool | None = None  # noqa: N815 — имя поля из v1
+    ldapTlsCaCert: str | None = None  # noqa: N815 — имя поля из v1
 
 
 #: Имя поля запроса и колонка, которой оно соответствует.
@@ -498,14 +519,16 @@ _FIELDS = {
 }
 
 
-def _values(data: CreateProviderRequest, *, with_type: bool) -> dict:
+def _values(
+    data: CreateProviderRequest | UpdateProviderRequest, *, with_type: bool
+) -> dict:
     """Поля запроса в виде, понятном службе. Отсутствующие не подставляются."""
     values = {
         column: getattr(data, field)
         for field, column in _FIELDS.items()
-        if getattr(data, field) is not None
+        if getattr(data, field, None) is not None
     }
-    if with_type:
+    if with_type and isinstance(data, CreateProviderRequest):
         values["type"] = data.type
     return values
 

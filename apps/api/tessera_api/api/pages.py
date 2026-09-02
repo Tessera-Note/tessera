@@ -10,7 +10,7 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import PUBLIC, Principal
-from tessera_api.domain.errors import forbidden, not_found
+from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo
@@ -19,7 +19,13 @@ from tessera_api.services.attachment_index import AttachmentIndexService
 from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.comments import CommentService
 from tessera_api.services.history import PageHistoryService
-from tessera_api.services.labels import FavoriteService, LabelService
+from tessera_api.services.labels import (
+    FAVORITE_PAGE,
+    FAVORITE_SPACE,
+    FAVORITE_TEMPLATE,
+    FavoriteService,
+    LabelService,
+)
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import WatcherService
 from tessera_api.services.page_access import PageAccessService
@@ -843,6 +849,27 @@ class LabelController(Controller):
         return {"status": "ok"}
 
 
+class FavoriteRequest(msgspec.Struct):
+    """Что отмечают. Имена полей из v1.
+
+    Пустой вид означает страницу: так это работало до появления двух других
+    видов, и клиент, который поля не шлёт, продолжает работать.
+    """
+
+    type: str | None = None
+    pageId: str | None = None  # noqa: N815 — имя поля из v1
+    spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    templateId: str | None = None  # noqa: N815 — имя поля из v1
+
+
+def _favorite_uuid(raw: str | None) -> uuid.UUID:
+    """Идентификатор отметки. Негодное значение — «не найдено», а не пятисотый."""
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.favorite.pageid_is_required") from error
+
+
 class FavoriteController(Controller):
     path = "/api/favorites"
 
@@ -891,28 +918,97 @@ class FavoriteController(Controller):
         )
         return [one.page_id for one in found if one.page_id is not None]
 
+    @get("/spaces")
+    async def favorite_spaces(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Отмеченные пространства."""
+        principal: Principal = request.scope["principal"]
+        found = await FavoriteService(db_session).list_spaces(
+            principal.user_id, principal.workspace_id
+        )
+        return [
+            {
+                "id": favorite.id,
+                "spaceId": space.id,
+                "type": favorite.type,
+                "name": space.name,
+                "slug": space.slug,
+            }
+            for favorite, space in found
+        ]
+
+    @get("/templates")
+    async def favorite_templates(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> list[dict]:
+        """Отмеченные шаблоны."""
+        principal: Principal = request.scope["principal"]
+        found = await FavoriteService(db_session).list_templates(
+            principal.user_id, principal.workspace_id
+        )
+        return [
+            {
+                "id": favorite.id,
+                "templateId": template.id,
+                "type": favorite.type,
+                "title": template.title,
+                "icon": template.icon,
+                "spaceId": template.space_id,
+            }
+            for favorite, template in found
+        ]
+
     @post("/add")
     async def add(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self, data: FavoriteRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> dict:
+        """Отметить страницу, пространство или шаблон.
+
+        Вид передаётся полем `type`, как в v1. Пустое поле означает страницу:
+        так это и было до появления двух других видов, и клиент, который его не
+        шлёт, продолжает работать.
+        """
         principal: Principal = request.scope["principal"]
-        page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        await FavoriteService(db_session).add_page(page, principal.user_id)
+        service = FavoriteService(db_session)
+        kind = (data.type or FAVORITE_PAGE).strip().lower()
+
+        if kind == FAVORITE_SPACE:
+            await service.add_space(_favorite_uuid(data.spaceId), principal.user_id)
+        elif kind == FAVORITE_TEMPLATE:
+            await service.add_template(_favorite_uuid(data.templateId), principal.user_id)
+        elif kind == FAVORITE_PAGE:
+            page = await PageAccessService(db_session).load_page(
+                str(data.pageId or ""), principal.workspace_id
+            )
+            await service.add_page(page, principal.user_id)
+        else:
+            raise bad_request("error.favorite.invalid_favorite_type")
         return {"status": "ok"}
 
     @post("/remove")
     async def remove(
-        self, data: PageIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
+        self, data: FavoriteRequest, request: Request, db_session: NamedDependency[AsyncSession]
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        # Права намеренно не проверяются: снять свою запись человек должен
-        # мочь и после того, как доступ к странице у него отобрали.
+        service = FavoriteService(db_session)
+        kind = (data.type or FAVORITE_PAGE).strip().lower()
+
+        # Права намеренно не проверяются ни в одном из трёх случаев: снять свою
+        # запись человек должен мочь и после того, как доступ у него отобрали.
         # Разбор через общий помощник: голое `uuid.UUID` отвечало бы пятисотым
         # на опечатку, тогда как весь файл на негодный идентификатор отвечает
         # «не найдено».
-        await FavoriteService(db_session).remove_page(
-            _page_uuid(data.pageId), principal.user_id
-        )
+        if kind == FAVORITE_SPACE:
+            await service.remove_space(_favorite_uuid(data.spaceId), principal.user_id)
+        elif kind == FAVORITE_TEMPLATE:
+            await service.remove_template(
+                _favorite_uuid(data.templateId), principal.user_id
+            )
+        elif kind == FAVORITE_PAGE:
+            await service.remove_page(_page_uuid(data.pageId), principal.user_id)
+        else:
+            raise bad_request("error.favorite.invalid_favorite_type")
         return {"status": "ok"}
 
 

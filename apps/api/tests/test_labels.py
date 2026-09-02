@@ -22,6 +22,7 @@ from tessera_api.infrastructure.models import (
     PageLabel,
     PagePermission,
     SpaceMember,
+    Template,
     User,
 )
 from tessera_api.services.labels import FavoriteService, LabelService
@@ -398,3 +399,154 @@ class TestFavoriteIds:
 
         found = await FavoriteService(session).list_for_user(stranger_id, workspace.id)
         assert page.id not in [one.page_id for one in found]
+
+
+class TestFavoriteKinds:
+    """Избранное трёх видов: страница, пространство, шаблон.
+
+    Правило одно на все три: в избранное берётся то, что человек видит. Иначе
+    отметка переживает снятие доступа и остаётся ссылкой на закрытое — а
+    перечень избранного показывает названия.
+    """
+
+    async def _template(
+        self, session: AsyncSession, workspace, owner, *, space_id=None
+    ) -> Template:
+        template_id = uuid.uuid4()
+        await session.execute(
+            insert(Template).values(
+                id=template_id,
+                title="Проверочный шаблон",
+                content={"type": "doc", "content": []},
+                space_id=space_id,
+                workspace_id=workspace.id,
+                creator_id=owner.id,
+            )
+        )
+        await session.flush()
+        return await session.get(Template, template_id)
+
+    async def test_a_space_is_marked_and_listed(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        await FavoriteService(session).add_space(space.id, owner.id)
+
+        found = await FavoriteService(session).list_spaces(owner.id, workspace.id)
+        assert [one.id for _, one in found] == [space.id]
+
+    async def test_a_space_without_membership_is_not_marked(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Иначе избранное становится списком того, куда доступа нет."""
+        stranger_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger_id,
+                email=f"fav-{uuid.uuid4().hex[:8]}@example.com",
+                name="Посторонний",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await FavoriteService(session).add_space(space.id, stranger_id)
+        assert failure.value.code == "error.space.space_not_found"
+
+    async def test_marking_a_space_twice_is_silent(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Человек нажал звезду дважды: второе нажатие означает то же самое."""
+        service = FavoriteService(session)
+        await service.add_space(space.id, owner.id)
+        await service.add_space(space.id, owner.id)
+
+        found = await service.list_spaces(owner.id, workspace.id)
+        assert len(found) == 1
+
+    async def test_a_space_mark_is_removed(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        service = FavoriteService(session)
+        await service.add_space(space.id, owner.id)
+
+        await service.remove_space(space.id, owner.id)
+
+        assert await service.list_spaces(owner.id, workspace.id) == []
+
+    async def test_a_workspace_template_is_marked(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        template = await self._template(session, workspace, owner)
+
+        await FavoriteService(session).add_template(template.id, owner.id)
+
+        found = await FavoriteService(session).list_templates(owner.id, workspace.id)
+        assert [one.id for _, one in found] == [template.id]
+
+    async def test_a_template_of_a_foreign_space_is_not_marked(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Шаблон своего пространства не должен обнаруживаться теми, кто в
+        него не входит."""
+        template = await self._template(session, workspace, owner, space_id=space.id)
+        stranger_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger_id,
+                email=f"tpl-{uuid.uuid4().hex[:8]}@example.com",
+                name="Посторонний",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await FavoriteService(session).add_template(template.id, stranger_id)
+        assert failure.value.code == "error.template.not_found"
+
+    async def test_a_template_mark_is_removed(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        template = await self._template(session, workspace, owner)
+        service = FavoriteService(session)
+        await service.add_template(template.id, owner.id)
+
+        await service.remove_template(template.id, owner.id)
+
+        assert await service.list_templates(owner.id, workspace.id) == []
+
+    async def test_the_three_kinds_do_not_mix(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Один перечень на три вида: отметка пространства не должна
+        показываться среди страниц."""
+        page = await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Отмеченная",
+        )
+        template = await self._template(session, workspace, owner)
+        service = FavoriteService(session)
+        await service.add_page(page, owner.id)
+        await service.add_space(space.id, owner.id)
+        await service.add_template(template.id, owner.id)
+
+        pages = await service.list_pages(owner.id, workspace.id)
+        spaces = await service.list_spaces(owner.id, workspace.id)
+        templates = await service.list_templates(owner.id, workspace.id)
+
+        # Проверяется разделение видов, а не длина перечня: в базе стенда у
+        # владельца есть и свои прежние отметки.
+        page_ids = {one.id for _, one, _ in pages}
+        space_ids = {one.id for _, one in spaces}
+        template_ids = {one.id for _, one in templates}
+
+        assert page.id in page_ids
+        assert space.id in space_ids
+        assert template.id in template_ids
+        assert space.id not in page_ids
+        assert template.id not in page_ids

@@ -566,7 +566,9 @@ class PageService:
             raise forbidden("error.space.access_denied")
 
         source = page.space_id
-        ids = [page_id, *await self._descendants(page_id)]
+        # Вместе с удалёнными: ветвь переезжает целиком, иначе её часть из
+        # корзины остаётся в прежнем пространстве при живом родителе в новом.
+        ids = [page_id, *await self._descendants(page_id, include_deleted=True)]
         await self._session.execute(
             update(Page)
             .where(Page.id.in_(ids))
@@ -697,18 +699,33 @@ class PageService:
     async def _descendants(
         self, page_id: uuid.UUID, *, include_deleted: bool = False
     ) -> list[uuid.UUID]:
+        """Потомки страницы, вся ветвь вниз.
+
+        Удалённые по умолчанию не возвращаются: обход нужен живому дереву, и
+        страница из корзины в нём не участвует. Восстановление и перенос в
+        другое пространство просят и удалённых — там ветвь обязана ехать
+        целиком, иначе её удалённая часть остаётся сиротой при живом родителе
+        в другом месте.
+
+        Признак этот раньше объявлялся, но ничего не менял, и `move_to_space`
+        молча уносил удалённые страницы вместе с живыми. Теперь он работает, и
+        каждый вызывающий говорит, что ему нужно.
+        """
         from sqlalchemy import text as sql_text
 
+        condition = "" if include_deleted else " AND deleted_at IS NULL"
         rows = await self._session.execute(
             sql_text(
-                """
+                f"""
                 WITH RECURSIVE tree AS (
-                    SELECT id FROM pages WHERE parent_page_id = :page_id
+                    SELECT id FROM pages
+                    WHERE parent_page_id = :page_id{condition}
                     UNION ALL
                     SELECT p.id FROM pages p JOIN tree t ON p.parent_page_id = t.id
+                    WHERE TRUE{condition.replace("deleted_at", "p.deleted_at")}
                 )
                 SELECT id FROM tree
-                """
+                """  # noqa: S608 — условие собрано здесь же из двух постоянных
             ),
             {"page_id": page_id},
         )

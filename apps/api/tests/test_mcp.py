@@ -789,3 +789,212 @@ def test_the_storage_double_matches_the_real_one() -> None:
         assert inspect.signature(getattr(_StorageDouble, name)) == inspect.signature(
             getattr(Storage, name)
         ), name
+
+
+@needs_database
+class TestAddedTools:
+    """Инструменты, которых не хватало против первой версии.
+
+    Проверяется то же, что и у прочих: инструмент делает своё дело и не обходит
+    прав. Права проверяют службы, поэтому здесь смотрят на поведение.
+    """
+
+    def _service(self, session: AsyncSession, user_id, workspace) -> McpService:
+        return McpService(
+            session,
+            _settings(),
+            user_id=user_id,
+            workspace_id=workspace.id,
+            realtime=RealtimeDouble(),
+        )
+
+    async def _page(self, session: AsyncSession, workspace, space, owner, **extra):
+        from tessera_api.services.pages import PageService
+
+        return await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title=extra.pop("title", "Страница"),
+            content=extra.pop("content", None),
+        )
+
+    async def _call(self, service: McpService, name: str, args: dict) -> dict:
+        body, failed = await service.call(name, args)
+        assert not failed, body
+        return json.loads(body)
+
+    async def test_labels_are_listed_and_pages_found_by_them(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.labels import LabelService
+
+        page = await self._page(session, workspace, space, owner)
+        await LabelService(session).attach(page, ["осмотр"], owner.id)
+        service = self._service(session, owner.id, workspace)
+
+        labels = await self._call(service, "list_labels", {})
+        assert any(one["name"] == "осмотр" for one in labels["labels"])
+
+        found = await self._call(service, "find_pages_by_label", {"name": "осмотр"})
+        assert page.id in {uuid.UUID(one["id"]) for one in found["pages"]}
+
+    async def test_a_label_is_detached(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.labels import LabelService
+
+        page = await self._page(session, workspace, space, owner)
+        labels = await LabelService(session).attach(page, ["снимаемая"], owner.id)
+        service = self._service(session, owner.id, workspace)
+
+        await self._call(
+            service,
+            "remove_page_label",
+            {"pageId": str(page.id), "labelId": str(labels[0].id)},
+        )
+
+        left = await LabelService(session).for_page(page, owner.id)
+        assert labels[0].id not in {one.id for one in left}
+
+    async def test_favorites_take_all_three_kinds(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, space, owner)
+        service = self._service(session, owner.id, workspace)
+
+        await self._call(
+            service, "add_favorite", {"type": "page", "pageId": str(page.id)}
+        )
+        await self._call(
+            service, "add_favorite", {"type": "space", "spaceId": str(space.id)}
+        )
+
+        listed = await self._call(service, "list_favorites", {})
+        marked_pages = {one["pageId"] for one in listed["favorites"] if one["pageId"]}
+        marked_spaces = {one["spaceId"] for one in listed["favorites"] if one["spaceId"]}
+        assert str(page.id) in marked_pages
+        assert str(space.id) in marked_spaces
+
+        await self._call(
+            service, "remove_favorite", {"type": "space", "spaceId": str(space.id)}
+        )
+        after = await self._call(service, "list_favorites", {})
+        assert str(space.id) not in {
+            one["spaceId"] for one in after["favorites"] if one["spaceId"]
+        }
+
+    async def test_an_unknown_favorite_kind_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        service = self._service(session, owner.id, workspace)
+
+        body, failed = await service.call("add_favorite", {"type": "чашка"})
+        assert failed
+        assert "favorite" in body
+
+    async def test_a_version_is_read_back(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.pages import PageService
+
+        page = await self._page(
+            session,
+            workspace,
+            space,
+            owner,
+            content={"type": "doc", "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "первое"}]}
+            ]},
+        )
+        await PageService(session).update(
+            page=page,
+            user_id=owner.id,
+            content={"type": "doc", "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "второе"}]}
+            ]},
+        )
+        service = self._service(session, owner.id, workspace)
+
+        versions = await self._call(
+            service, "list_page_history", {"pageId": str(page.id)}
+        )
+        assert versions["versions"]
+
+        one = await self._call(
+            service, "get_page_version", {"historyId": versions["versions"][0]["id"]}
+        )
+        assert "первое" in one["content"]
+
+    async def test_a_foreign_version_is_not_read(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Право проверяется по странице версии, а не по самой версии."""
+        service = self._service(session, uuid.uuid4(), workspace)
+
+        body, failed = await service.call("get_page_version", {"historyId": str(uuid.uuid4())})
+        assert failed
+
+    async def test_recent_pages_and_trash(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        from tessera_api.services.pages import PageService
+
+        page = await self._page(session, workspace, space, owner, title="Недавняя")
+        service = self._service(session, owner.id, workspace)
+
+        recent = await self._call(service, "list_recent_pages", {})
+        assert page.id in {uuid.UUID(one["id"]) for one in recent["pages"]}
+
+        await PageService(session).move_to_trash(page, owner.id)
+        trash = await self._call(service, "list_trash", {"spaceId": str(space.id)})
+        assert page.id in {uuid.UUID(one["id"]) for one in trash["pages"]}
+
+    async def test_the_trash_of_a_foreign_space_is_refused(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        service = self._service(session, uuid.uuid4(), workspace)
+
+        body, failed = await service.call("list_trash", {"spaceId": str(space.id)})
+        assert failed
+
+    async def test_a_comment_is_read_and_edited(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, space, owner)
+        service = self._service(session, owner.id, workspace)
+
+        created = await self._call(
+            service, "create_comment", {"pageId": str(page.id), "content": "первое"}
+        )
+        await self._call(
+            service,
+            "update_comment",
+            {"commentId": created["id"], "content": "исправленное"},
+        )
+
+        one = await self._call(service, "get_comment", {"commentId": created["id"]})
+        assert "исправленное" in json.dumps(one["content"], ensure_ascii=False)
+
+    async def test_templates_live_their_whole_life(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        service = self._service(session, owner.id, workspace)
+
+        created = await self._call(
+            service,
+            "create_template",
+            {"title": "Проверочный", "content": "тело шаблона"},
+        )
+        await self._call(
+            service,
+            "update_template",
+            {"templateId": created["id"], "title": "Переименованный"},
+        )
+
+        one = await self._call(service, "get_template", {"templateId": created["id"]})
+        assert one["title"] == "Переименованный"
+
+        await self._call(service, "delete_template", {"templateId": created["id"]})
+        body, failed = await service.call("get_template", {"templateId": created["id"]})
+        assert failed
