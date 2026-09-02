@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
+  import { onRealtime } from '$lib/features/realtime/socket';
   import PageTree from '$lib/components/page/PageTree.svelte';
   import { errorText } from '$lib/api/failure';
   import { deleteChat, listChats, renameChat, type Chat } from '$lib/features/ai/services/chat';
@@ -54,6 +55,20 @@
   let chatFailure = $state<string | null>(null);
 
   const chats = $derived([...data.chats.items, ...more]);
+
+  /**
+   * Значок непрочитанного обновляется от канала событий.
+   *
+   * Уведомление приходит своим именем и содержимого не несёт: счётчик
+   * перечитывается по HTTP, где перечень отбирается доступностью страниц.
+   * Без канала значок отставал до следующего перехода по экранам.
+   */
+  $effect(() => {
+    return onRealtime((event) => {
+      if (event.operation !== 'notification') return;
+      void invalidateAll();
+    });
+  });
 
   $effect(() => {
     data.chats;

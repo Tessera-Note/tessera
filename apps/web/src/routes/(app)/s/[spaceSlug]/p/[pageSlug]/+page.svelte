@@ -253,7 +253,7 @@
       }}
     />
 
-    <PageComments pageId={data.page.id} comments={data.comments} />
+    <PageComments pageId={data.page.id} comments={data.comments} userId={data.session?.user.id} />
   </article>
 
   <PageSidePanel

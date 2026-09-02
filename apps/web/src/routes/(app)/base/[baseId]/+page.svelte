@@ -19,6 +19,7 @@
     type BaseProperty,
     type BaseRow
   } from '$lib/features/base/services/bases';
+  import { onRealtime, sendRealtime } from '$lib/features/realtime/socket';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -45,6 +46,33 @@
     name = data.base.name ?? '';
     more = [];
     cursor = data.rows.nextCursor;
+  });
+
+  /**
+   * База обновляется от канала событий.
+   *
+   * Подписка отдельная: комнаты базы сервер заводит по просьбе, а не при
+   * подключении — рассылать правки строк всем, кто состоит в пространстве,
+   * означало бы слать их тем, кто базу не открывал.
+   */
+  $effect(() => {
+    const pageId = data.base.id;
+    void sendRealtime({ operation: 'base:subscribe', pageId });
+
+    const stop = onRealtime((event) => {
+      const kind = String(event.operation ?? '');
+      if (!kind.startsWith('base:')) return;
+      if (event.pageId && event.pageId !== pageId) return;
+      // Правка приходит уже применённой к базе: перечитывается страница
+      // целиком, а не патчится состояние. Сшивать своё состояние с чужими
+      // правками значило бы держать вторую копию правил слияния.
+      void invalidateAll();
+    });
+
+    return () => {
+      void sendRealtime({ operation: 'base:unsubscribe', pageId });
+      stop();
+    };
   });
 
   async function act(key: string, action: () => Promise<unknown>) {

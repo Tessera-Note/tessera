@@ -41,3 +41,26 @@ export function createComment(
     { fetcher }
   );
 }
+
+/** Тело комментария документом редактора: так его хранит база. */
+function document(text: string) {
+  return {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+  };
+}
+
+/** Править можно только своё: право правки страницы этого не даёт. */
+export function updateComment(commentId: string, text: string, fetcher?: typeof fetch) {
+  return post<Comment>('/api/comments/update', { commentId, content: document(text) }, { fetcher });
+}
+
+/** Удалять может автор и тот, кто распоряжается страницей. */
+export function deleteComment(commentId: string, fetcher?: typeof fetch) {
+  return post<{ status: string }>('/api/comments/delete', { commentId }, { fetcher });
+}
+
+/** Пометить обсуждение решённым или снять пометку. */
+export function resolveComment(commentId: string, resolved: boolean, fetcher?: typeof fetch) {
+  return post<Comment>('/api/comments/resolve', { commentId, resolved }, { fetcher });
+}

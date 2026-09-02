@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page as current } from '$app/state';
   import { pageTree, type PageSummary } from '$lib/features/page/services/pages';
+  import { onRealtime } from '$lib/features/realtime/socket';
   import { locale } from '$lib/stores/i18n.svelte';
   import PageTreeNode from './PageTreeNode.svelte';
 
@@ -9,6 +10,9 @@
 
   let roots = $state<PageSummary[]>([]);
   let loading = $state(true);
+  //: Счётчик перезапросов. Меняется от события канала, и от него же зависит
+  //: загрузка: без него обновление пришлось бы звать в обход своего же кода.
+  let refresh = $state(0);
 
   const t = $derived(locale.t);
 
@@ -17,6 +21,7 @@
   // как страницу завели в другой вкладке.
   $effect(() => {
     const wanted = spaceId;
+    void refresh;
     loading = true;
     pageTree(wanted, null)
       .then((found) => {
@@ -30,6 +35,21 @@
       .finally(() => {
         if (wanted === spaceId) loading = false;
       });
+  });
+
+  /**
+   * Дерево обновляется от канала событий.
+   *
+   * Сервер шлёт «перечитай ветвь» на заведение, удаление и перенос страницы:
+   * без этого страница, заведённая соседом, появляется у остальных только
+   * после перезагрузки, и двое работают с разным деревом.
+   */
+  $effect(() => {
+    return onRealtime((event) => {
+      if (event.operation !== 'refetchRootTreeNodeEvent') return;
+      if (event.spaceId && event.spaceId !== spaceId) return;
+      refresh += 1;
+    });
   });
 </script>
 
