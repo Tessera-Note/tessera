@@ -350,7 +350,14 @@ class SpaceService:
             metadata={"name": space.name, "slug": space.slug},
         )
         await self._session.commit()
-        await self._refresh_rooms(await self._affected_users(space.id, include_removed=True))
+
+        # Подписки и отметки снимаются у всех: доступ потеряли все разом.
+        # Оставленные, они продолжали бы числиться в избранном и приводить
+        # человека на удалённую страницу — тот же класс, что при выводе
+        # человека из пространства, только шире.
+        touched = await self._affected_users(space.id, include_removed=True)
+        await self._forget_without_access(space.id, touched)
+        await self._refresh_rooms(touched)
 
     async def members(
         self, space_id: uuid.UUID, workspace_id: uuid.UUID, user_id: uuid.UUID

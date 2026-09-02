@@ -448,6 +448,52 @@ class TestRemoval:
         assert watchers == []
         assert favorites == []
 
+    async def test_deleting_a_space_takes_the_subscriptions_with_it(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Тот же класс, что и при выводе человека, только шире: доступ теряют
+        все разом. Оставленная отметка приводила бы на удалённую страницу."""
+        space = await _own_space(session, workspace, owner)
+        person = await _person(session, workspace)
+        service = SpaceService(session)
+        await service.add_members(
+            owner, space.id, workspace.id, role=SpaceRole.WRITER, user_ids=[person.id]
+        )
+        page = await PageService(session).create(
+            user_id=owner.id, workspace_id=workspace.id, space_id=space.id, title="Страница"
+        )
+        await session.execute(
+            insert(Watcher).values(
+                id=uuid.uuid4(),
+                user_id=person.id,
+                page_id=page.id,
+                space_id=space.id,
+                workspace_id=workspace.id,
+                type=WATCHER_PAGE,
+            )
+        )
+        await session.execute(
+            insert(Favorite).values(
+                id=uuid.uuid4(),
+                user_id=person.id,
+                page_id=page.id,
+                type="page",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.commit()
+
+        await service.delete(owner, space.id, workspace.id)
+
+        watchers = (
+            await session.execute(select(Watcher.id).where(Watcher.user_id == person.id))
+        ).all()
+        favorites = (
+            await session.execute(select(Favorite.id).where(Favorite.user_id == person.id))
+        ).all()
+        assert watchers == []
+        assert favorites == []
+
     async def test_access_through_a_group_keeps_the_subscription(
         self, session: AsyncSession, workspace, owner
     ) -> None:
