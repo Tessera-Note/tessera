@@ -28,7 +28,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.config import Settings
-from tessera_api.domain.errors import bad_request
+from tessera_api.domain.errors import AppError, bad_request
+from tessera_api.infrastructure.ai_client import AiClient, ChatTarget
 from tessera_api.infrastructure.models import Workspace, WorkspaceAiSettings
 from tessera_api.infrastructure.secrets import decrypt_secret, encrypt_secret
 from tessera_api.infrastructure.web_search import DRIVERS as WEB_SEARCH_DRIVERS
@@ -458,6 +459,93 @@ class AiSettingsService:
 
         after = (await self.resolve_embedding(workspace_id)).identity
         return await self.view(workspace_id), before != after
+
+    async def list_models(
+        self,
+        workspace_id: uuid.UUID,
+        client: AiClient,
+        *,
+        driver: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        kind: str = "chat",
+    ) -> list[dict[str, str]]:
+        """Модели, доступные у провайдера.
+
+        Переданные значения перекрывают сохранённые, и это главное здесь: экран
+        настроек спрашивает перечень **до** сохранения, по только что введённым
+        ключу и адресу. Иначе выбрать модель у нового провайдера нельзя —
+        сначала сохрани вслепую, потом смотри, что там есть.
+
+        Ключ ниоткуда не отдаётся наружу: он приходит от того, кто его и ввёл,
+        а сохранённый берётся расшифрованным и остаётся внутри запроса.
+        """
+        if kind == "embedding":
+            embedding = await self.resolve_embedding(workspace_id)
+            use_driver = (driver or "").strip() or embedding.driver
+            use_key = (api_key or "").strip() or embedding.api_key
+            use_base = (base_url or "").strip() or embedding.base_url
+        else:
+            resolved = await self.resolve(workspace_id)
+            use_driver = (driver or "").strip() or resolved.driver
+            use_key = (api_key or "").strip() or resolved.api_key
+            use_base = (base_url or "").strip() or resolved.base_url
+
+        if not use_driver:
+            raise bad_request("error.ai.select_a_provider_first")
+        if not use_base:
+            use_base = CANONICAL_BASE_URL.get(use_driver)
+        # Локальная модель ключа не спрашивает: она рядом и в сети развёртывания.
+        if use_driver != AiDriver.OLLAMA and not use_key:
+            raise bad_request("error.ai.enter_an_api_key_first")
+
+        target = ChatTarget(
+            driver=use_driver, base_url=use_base, api_key=use_key, model=""
+        )
+        models = await client.list_models(target)
+        return sorted(models, key=lambda one: one["label"].lower())
+
+    async def test_connection(
+        self, workspace_id: uuid.UUID, client: AiClient
+    ) -> dict:
+        """Проверить, отвечает ли провайдер.
+
+        Отказ провайдера здесь — обычный исход, а не поломка: половина
+        обращений к этой кнопке и делается затем, чтобы увидеть, что ключ не
+        принят. Поэтому ответ описывает исход, а не выбрасывается исключением.
+
+        Сообщение провайдера передаётся человеку как есть: без него остаётся
+        «не получилось», и разбираться не с чем. Ключа в таком сообщении быть
+        не может — его туда не кладём ни мы, ни провайдер.
+        """
+        resolved = await self.resolve(workspace_id)
+        if not resolved.usable:
+            return {"ok": False, "message": "AI is not configured yet."}
+
+        model = require_model(resolved, chat=True)
+        target = ChatTarget(
+            driver=resolved.driver,
+            base_url=resolved.base_url,
+            api_key=resolved.api_key,
+            model=model,
+        )
+        try:
+            reply = await client.generate(
+                target,
+                system="You are a connection test.",
+                prompt="Reply with the single word: ok",
+            )
+        except AppError as failure:
+            return {"ok": False, "message": failure.message}
+        except Exception as failure:  # noqa: BLE001 — важен факт отказа, не его вид
+            return {"ok": False, "message": str(failure)}
+
+        return {
+            "ok": True,
+            "message": (
+                f"Connected to {resolved.driver} using {model}. Reply: {reply[:60]}"
+            ),
+        }
 
     async def reset(self, workspace_id: uuid.UUID) -> dict:
         """Убрать свои настройки и вернуться к окружению."""

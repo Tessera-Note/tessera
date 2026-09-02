@@ -37,6 +37,7 @@ JSON_FLAGS = {
     "disablePublicSharing": ("sharing", "disabled"),
     "restrictApiToAdmins": ("api", "restrictToAdmins"),
     "allowMemberTemplates": ("templates", "allowMemberTemplates"),
+    "allowPersonalSpaces": ("spaces", "allowPersonal"),
 }
 
 

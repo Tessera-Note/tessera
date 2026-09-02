@@ -32,6 +32,7 @@ from tessera_api.services.search import (
 )
 from tessera_api.services.shares import ShareService
 from tessera_api.services.tokens import TokenService
+from tessera_api.services.transclusion import ReferenceLink, TransclusionService
 
 
 def _label_uuid(raw: str) -> uuid.UUID:
@@ -915,6 +916,107 @@ class FavoriteController(Controller):
         return {"status": "ok"}
 
 
+class ReferenceItem(msgspec.Struct):
+    """Одна ссылка на чужой блок. Имена полей из v1."""
+
+    sourcePageId: uuid.UUID  # noqa: N815 — имя поля из v1
+    transclusionId: str  # noqa: N815 — имя поля из v1
+
+
+class LookupRequest(msgspec.Struct):
+    references: list[ReferenceItem] = msgspec.field(default_factory=list)
+
+
+class ShareLookupRequest(msgspec.Struct):
+    key: str
+    references: list[ReferenceItem] = msgspec.field(default_factory=list)
+
+
+class ReferencesRequest(msgspec.Struct):
+    sourcePageId: uuid.UUID  # noqa: N815 — имя поля из v1
+    transclusionId: str  # noqa: N815 — имя поля из v1
+
+
+class UnsyncRequest(msgspec.Struct):
+    referencePageId: uuid.UUID  # noqa: N815 — имя поля из v1
+    sourcePageId: uuid.UUID  # noqa: N815 — имя поля из v1
+    transclusionId: str  # noqa: N815 — имя поля из v1
+
+
+class TransclusionController(Controller):
+    """Включения: содержимое блоков, их места и отвязка.
+
+    Отдельным контроллером, а не в общем: у включений своё правило доступа —
+    право спрашивается у источника, а не у страницы, где показан блок.
+    """
+
+    path = "/api/pages/transclusion"
+
+    @post("/lookup")
+    async def lookup(
+        self,
+        data: LookupRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> dict:
+        """Содержимое включённых блоков.
+
+        Одним запросом на всю страницу: включений на ней бывает десяток, и
+        запрос на каждое превращал бы открытие страницы в десяток обращений.
+        """
+        principal: Principal = request.scope["principal"]
+        items = await TransclusionService(db_session).lookup(
+            [
+                ReferenceLink(
+                    source_page_id=one.sourcePageId, transclusion_id=one.transclusionId
+                )
+                for one in data.references
+            ],
+            principal.user_id,
+            principal.workspace_id,
+        )
+        return {"items": items}
+
+    @post("/references")
+    async def references(
+        self,
+        data: ReferencesRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> dict:
+        """Где показан этот блок."""
+        principal: Principal = request.scope["principal"]
+        return await TransclusionService(db_session).references_of(
+            data.sourcePageId,
+            data.transclusionId,
+            principal.user_id,
+            principal.workspace_id,
+        )
+
+    @post("/unsync-reference")
+    async def unsync(
+        self,
+        data: UnsyncRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        storage: NamedDependency[Storage],
+    ) -> dict:
+        """Отвязать блок, оставив его содержимое на странице.
+
+        Узел ссылки заменяет клиент: документ живёт в общем сеансе правки, и
+        запись мимо него разошлась бы с тем, что видят соседи.
+        """
+        principal: Principal = request.scope["principal"]
+        return await TransclusionService(db_session).unsync(
+            reference_page_id=data.referencePageId,
+            source_page_id=data.sourcePageId,
+            transclusion_id=data.transclusionId,
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            storage=storage,
+        )
+
+
 class ShareRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
     includeSubPages: bool = False  # noqa: N815 — имя поля из v1
@@ -1146,6 +1248,33 @@ class ShareController(Controller):
                 for one in branch
             ],
         }
+
+    @post("/transclusion/lookup", opt={PUBLIC: True})
+    async def share_lookup(
+        self, data: ShareLookupRequest, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        """Содержимое включённых блоков на опубликованной странице.
+
+        Доступ задаёт ветвь публикации, а не права человека: человека здесь
+        нет. Блок из страницы вне ветви не отдаётся — иначе одна опубликованная
+        страница открывала бы куски любых других.
+        """
+        service = ShareService(db_session)
+        _, _, branch = await service.tree(data.key)
+        allowed = {one.id for one in branch}
+        share, _ = await service.resolve(data.key)
+
+        items = await TransclusionService(db_session).lookup_allowed(
+            [
+                ReferenceLink(
+                    source_page_id=one.sourcePageId, transclusion_id=one.transclusionId
+                )
+                for one in data.references
+            ],
+            allowed,
+            share.workspace_id,
+        )
+        return {"items": items}
 
     @post("/search", opt={PUBLIC: True})
     async def search_in_share(

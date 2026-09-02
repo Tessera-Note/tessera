@@ -138,6 +138,9 @@ class Space(Base, SoftDeleteMixin):
     creator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     settings: Mapped[dict[str, Any] | None] = mapped_column(NullableJsonb)
+    # Личное пространство. У человека оно одно: частичный уникальный индекс по
+    # `creator_id` держит это правило в базе, а не в приложении.
+    is_personal: Mapped[bool] = mapped_column(Boolean, server_default="false")
 
 
 class SpaceMember(Base, SoftDeleteMixin):
@@ -619,6 +622,40 @@ class Favorite(Base, CreatedMixin):
     template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     type: Mapped[str] = mapped_column(String)
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+
+class PageTransclusion(Base, TimestampMixin):
+    """Снимок содержимого блока, на который ссылаются другие страницы.
+
+    Хранится отдельно от самой страницы намеренно: ссылающейся странице нужен
+    именно этот кусок, а не весь документ источника, и права на документ
+    целиком у неё может не быть.
+    """
+
+    __tablename__ = "page_transclusions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    #: Идентификатор узла в документе, строкой: его ставит редактор.
+    transclusion_id: Mapped[str] = mapped_column(String)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class PageTransclusionReference(Base, CreatedMixin):
+    """Кто на какой блок ссылается.
+
+    Обратная связь: по ней страница-источник знает, где её кусок показан, и по
+    ней же ссылка находится, когда источник правится.
+    """
+
+    __tablename__ = "page_transclusion_references"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    reference_page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    source_page_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    transclusion_id: Mapped[str] = mapped_column(String)
 
 
 class PageHistory(Base, CreatedMixin):

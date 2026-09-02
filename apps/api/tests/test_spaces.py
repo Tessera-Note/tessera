@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -25,7 +25,9 @@ from tessera_api.infrastructure.models import (
     SpaceMember,
     User,
     Watcher,
+    Workspace,
 )
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.notifications import WATCHER_PAGE
 from tessera_api.services.pages import PageService
 from tessera_api.services.spaces import MAX_BATCH, MAX_NAME, SpaceService, slugify
@@ -49,12 +51,18 @@ class TestSlugify:
 pytestmark = needs_database
 
 
-async def _person(session: AsyncSession, workspace, *, role: str = UserRole.MEMBER) -> User:
+async def _person(
+    session: AsyncSession,
+    workspace,
+    *,
+    role: str = UserRole.MEMBER,
+    name: str | None = None,
+) -> User:
     user_id = uuid.uuid4()
     await session.execute(
         insert(User).values(
             id=user_id,
-            name=f"Человек {user_id.hex[:4]}",
+            name=name or f"Человек {user_id.hex[:4]}",
             email=f"{user_id.hex[:8]}@example.com",
             role=role,
             workspace_id=workspace.id,
@@ -527,3 +535,110 @@ class TestDelete:
 
         mine = await SpaceMemberRepo(session).spaces_for(owner.id, workspace.id)
         assert space.id not in [one.id for one in mine]
+
+
+class TestPersonalSpace:
+    """Личное пространство.
+
+    Правила у него другие, чем у обычного: заводит его человек себе сам, оно у
+    него одно, и включается всё это переключателем рабочего пространства.
+    """
+
+    async def _allow(self, session: AsyncSession, workspace, *, on: bool) -> None:
+        settings = dict(workspace.settings or {})
+        settings["spaces"] = {"allowPersonal": on}
+        await session.execute(
+            update(Workspace).where(Workspace.id == workspace.id).values(settings=settings)
+        )
+        await session.flush()
+
+    async def test_nothing_is_created_while_the_switch_is_off(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе участники расходятся по своим углам вопреки решению
+        администратора."""
+        await self._allow(session, workspace, on=False)
+
+        with pytest.raises(AppError) as failure:
+            await SpaceService(session).create_personal(owner, workspace.id)
+        assert failure.value.code == "error.space.personal_spaces_are_not_enabled"
+
+    async def test_an_ordinary_member_creates_their_own(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Прав администратора здесь не требуется: доступ к пространству есть
+        только у того, кто его завёл."""
+        await self._allow(session, workspace, on=True)
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+
+        space = await SpaceService(session).create_personal(person, workspace.id)
+
+        assert space.is_personal is True
+        assert space.creator_id == person.id
+
+    async def test_the_creator_becomes_its_administrator(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        await self._allow(session, workspace, on=True)
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+
+        space = await SpaceService(session).create_personal(person, workspace.id)
+
+        role = await SpaceMemberRepo(session).role_in_space(person.id, space.id)
+        assert role == SpaceRole.ADMIN
+
+    async def test_a_second_one_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        await self._allow(session, workspace, on=True)
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+        await SpaceService(session).create_personal(person, workspace.id)
+
+        with pytest.raises(AppError) as failure:
+            await SpaceService(session).create_personal(person, workspace.id)
+        assert failure.value.code == "error.space.you_already_have_a_personal_space"
+
+    async def test_the_name_is_taken_from_the_person(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        await self._allow(session, workspace, on=True)
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+
+        space = await SpaceService(session).create_personal(person, workspace.id)
+        assert space.name == person.name
+
+    async def test_a_taken_slug_does_not_collide(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Тёзки заводят личные пространства с одинаковым именем, и второй
+        отказ по занятому адресу выглядел бы поломкой."""
+        await self._allow(session, workspace, on=True)
+        first = await _person(session, workspace, role=UserRole.MEMBER, name="Иван")
+        second = await _person(session, workspace, role=UserRole.MEMBER, name="Иван")
+
+        one = await SpaceService(session).create_personal(first, workspace.id)
+        two = await SpaceService(session).create_personal(second, workspace.id)
+
+        assert one.slug != two.slug
+
+    async def test_info_finds_only_ones_own(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        await self._allow(session, workspace, on=True)
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+        stranger = await _person(session, workspace, role=UserRole.MEMBER)
+        space = await SpaceService(session).create_personal(person, workspace.id)
+
+        assert (await SpaceService(session).personal(person.id, workspace.id)).id == space.id
+        assert await SpaceService(session).personal(stranger.id, workspace.id) is None
+
+    async def test_an_ordinary_space_is_still_for_administrators(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Послабление касается только личного: обычное пространство по-прежнему
+        заводит администратор."""
+        person = await _person(session, workspace, role=UserRole.MEMBER)
+
+        with pytest.raises(AppError) as failure:
+            await SpaceService(session).create(person, workspace.id, name="Общее")
+        assert failure.value.code == "error.common.admin_required"

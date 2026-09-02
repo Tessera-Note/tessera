@@ -63,6 +63,13 @@ class GroupIdRequest(msgspec.Struct):
     groupId: str  # noqa: N815 — имя поля из v1
 
 
+class AttachDirectoryRequest(msgspec.Struct):
+    groupId: str  # noqa: N815 — имя поля из v1
+    providerId: uuid.UUID  # noqa: N815 — имя поля из v1
+    #: Имя группы в каталоге. Пустое означает «как называется здесь».
+    directoryKey: str | None = None  # noqa: N815 — имя поля из v1
+
+
 class CreateGroupRequest(msgspec.Struct):
     name: str
     description: str | None = None
@@ -416,6 +423,65 @@ def _group_view(group, people: int) -> GroupDetailView:
     )
 
 
+class PersonalSpaceRequest(msgspec.Struct):
+    name: str | None = None
+
+
+class PersonalSpaceController(Controller):
+    """Личное пространство.
+
+    Отдельным путём, а не признаком у общего заведения: правила у него другие.
+    Заводит его человек себе сам, оно у него одно, и включается всё это
+    переключателем рабочего пространства.
+    """
+
+    path = "/api/personal-space"
+
+    @post("/info")
+    async def info(
+        self, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> SpaceView | None:
+        principal: Principal = request.scope["principal"]
+        found = await SpaceService(db_session).personal(
+            principal.user_id, principal.workspace_id
+        )
+        if found is None:
+            return None
+        return SpaceView(
+            id=found.id,
+            name=found.name,
+            slug=found.slug,
+            description=found.description,
+            role=SpaceRole.ADMIN,
+        )
+
+    @post("/create")
+    async def create(
+        self,
+        data: PersonalSpaceRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> SpaceView:
+        principal: Principal = request.scope["principal"]
+        actor = await db_session.get(User, principal.user_id)
+        if actor is None:
+            raise not_found("error.common.user_not_found")
+
+        space = await SpaceService(db_session, realtime).create_personal(
+            actor, principal.workspace_id, name=data.name
+        )
+        # Роль известна без запроса: заводящий становится администратором
+        # своего пространства тем же действием.
+        return SpaceView(
+            id=space.id,
+            name=space.name,
+            slug=space.slug,
+            description=space.description,
+            role=SpaceRole.ADMIN,
+        )
+
+
 class GroupController(Controller):
     path = "/api/groups"
 
@@ -522,6 +588,44 @@ class GroupController(Controller):
             principal.user_id, _group_uuid(data.groupId), principal.workspace_id
         )
         return {"success": True}
+
+    @post("/attach-directory")
+    async def attach_directory(
+        self,
+        data: AttachDirectoryRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> GroupDetailView:
+        """Передать группу под управление каталога."""
+        principal: Principal = request.scope["principal"]
+        service = GroupService(db_session, realtime)
+        group = await service.attach_directory(
+            principal.user_id,
+            _group_uuid(data.groupId),
+            principal.workspace_id,
+            provider_id=data.providerId,
+            directory_key=data.directoryKey,
+        )
+        _, people = await service.info(group.id, principal.workspace_id)
+        return _group_view(group, people)
+
+    @post("/detach-directory")
+    async def detach_directory(
+        self,
+        data: GroupIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+    ) -> GroupDetailView:
+        """Вернуть группу под ручное управление."""
+        principal: Principal = request.scope["principal"]
+        service = GroupService(db_session, realtime)
+        group = await service.detach_directory(
+            principal.user_id, _group_uuid(data.groupId), principal.workspace_id
+        )
+        _, people = await service.info(group.id, principal.workspace_id)
+        return _group_view(group, people)
 
     @post("/members/add")
     async def add_group_members(

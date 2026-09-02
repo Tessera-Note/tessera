@@ -44,13 +44,18 @@ from tessera_api.api.pages import (
     PageController,
     SearchController,
     ShareController,
+    TransclusionController,
     WatcherController,
 )
 from tessera_api.api.pdf_export import PdfExportController
 from tessera_api.api.realtime import attach
 from tessera_api.api.scim import ScimController
 from tessera_api.api.scim_tokens import ScimTokenController
-from tessera_api.api.spaces import GroupController, SpaceController
+from tessera_api.api.spaces import (
+    GroupController,
+    PersonalSpaceController,
+    SpaceController,
+)
 from tessera_api.api.sso import SsoController, SsoProviderController
 from tessera_api.api.templates import TemplateController
 from tessera_api.api.users import UserController
@@ -191,6 +196,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             AuthController,
             SpaceController,
             GroupController,
+            PersonalSpaceController,
             WorkspaceController,
             InvitationController,
             PageController,
@@ -206,6 +212,7 @@ def create_app(settings: Settings | None = None) -> Litestar:
             FavoriteController,
             HistoryController,
             ShareController,
+            TransclusionController,
             TemplateController,
             NotificationController,
             ApiKeyController,

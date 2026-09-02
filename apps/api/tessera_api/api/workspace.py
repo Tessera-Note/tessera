@@ -66,6 +66,7 @@ class UpdateWorkspaceRequest(msgspec.Struct):
     disablePublicSharing: bool | None = None  # noqa: N815 — имя поля из v1
     restrictApiToAdmins: bool | None = None  # noqa: N815 — имя поля из v1
     allowMemberTemplates: bool | None = None  # noqa: N815 — имя поля из v1
+    allowPersonalSpaces: bool | None = None  # noqa: N815 — имя поля из v1
 
 
 class MemberIdRequest(msgspec.Struct):
@@ -85,6 +86,7 @@ class WorkspaceSettingsView(msgspec.Struct):
     disablePublicSharing: bool  # noqa: N815 — имя поля из v1
     restrictApiToAdmins: bool  # noqa: N815 — имя поля из v1
     allowMemberTemplates: bool  # noqa: N815 — имя поля из v1
+    allowPersonalSpaces: bool  # noqa: N815 — имя поля из v1
 
 
 def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
@@ -100,6 +102,7 @@ def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
         disablePublicSharing=flag(workspace, ("sharing", "disabled")),
         restrictApiToAdmins=flag(workspace, ("api", "restrictToAdmins")),
         allowMemberTemplates=flag(workspace, ("templates", "allowMemberTemplates")),
+        allowPersonalSpaces=flag(workspace, ("spaces", "allowPersonal")),
     )
 
 
@@ -230,6 +233,7 @@ class WorkspaceController(Controller):
                 "disablePublicSharing": data.disablePublicSharing,
                 "restrictApiToAdmins": data.restrictApiToAdmins,
                 "allowMemberTemplates": data.allowMemberTemplates,
+                "allowPersonalSpaces": data.allowPersonalSpaces,
             },
         )
         return _settings_view(updated)

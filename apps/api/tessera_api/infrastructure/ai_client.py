@@ -67,6 +67,75 @@ class AiClient:
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=REQUEST_TIMEOUT, transport=self._transport)
 
+    # --- перечень моделей -------------------------------------------------
+
+    async def list_models(self, target: ChatTarget) -> list[dict[str, str]]:
+        """Модели, доступные у провайдера.
+
+        Спрашивается у самого провайдера, а не берётся списком в коде: каталог
+        меняется чаще, чем выходит наша сборка, и зашитый перечень устаревает
+        молча — человек не находит модель, которая у него есть.
+
+        Протоколы разные. У OpenAI и совместимых `GET /models` с заголовком, у
+        Gemini ключ в запросе и отбор по поддерживаемому действию, у локальной
+        модели свой путь. Ветвление здесь то же, что у самого обращения.
+        """
+        if target.driver == "gemini":
+            return await self._gemini_models(target)
+        if target.driver == "ollama":
+            return await self._ollama_models(target)
+        return await self._openai_models(target)
+
+    async def _openai_models(self, target: ChatTarget) -> list[dict[str, str]]:
+        base = (target.base_url or "https://api.openai.com/v1").rstrip("/")
+        async with self._client() as client:
+            response = await client.get(
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {target.api_key or ''}"},
+            )
+        if response.status_code != 200:
+            _fail(response.status_code)
+        rows = (response.json() or {}).get("data") or []
+        return [
+            {"id": str(one.get("id")), "label": str(one.get("name") or one.get("id"))}
+            for one in rows
+            if one.get("id")
+        ]
+
+    async def _gemini_models(self, target: ChatTarget) -> list[dict[str, str]]:
+        base = (target.base_url or "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+        async with self._client() as client:
+            # Ключ уходит запросом, а не заголовком: так устроен этот провайдер.
+            response = await client.get(
+                f"{base}/models", params={"key": target.api_key or ""}
+            )
+        if response.status_code != 200:
+            _fail(response.status_code)
+        rows = (response.json() or {}).get("models") or []
+        models: list[dict[str, str]] = []
+        for one in rows:
+            # Отбор обязателен: в перечне есть модели, которые текст не
+            # порождают вовсе, и выбор такой моделью ломается на первом запросе.
+            if "generateContent" not in (one.get("supportedGenerationMethods") or []):
+                continue
+            name = str(one.get("name") or "").removeprefix("models/")
+            if name:
+                models.append({"id": name, "label": str(one.get("displayName") or name)})
+        return models
+
+    async def _ollama_models(self, target: ChatTarget) -> list[dict[str, str]]:
+        base = (target.base_url or "http://localhost:11434").rstrip("/")
+        async with self._client() as client:
+            response = await client.get(f"{base}/api/tags")
+        if response.status_code != 200:
+            _fail(response.status_code)
+        rows = (response.json() or {}).get("models") or []
+        return [
+            {"id": str(one.get("name")), "label": str(one.get("name"))}
+            for one in rows
+            if one.get("name")
+        ]
+
     # --- разовый ответ ----------------------------------------------------
 
     async def generate(self, target: ChatTarget, *, system: str, prompt: str) -> str:

@@ -40,6 +40,7 @@ from tessera_api.services.notifications import (
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import TokenService, TokenType
+from tessera_api.services.transclusion import TransclusionService
 
 if TYPE_CHECKING:
     # Только для подсказок типов: и отправитель писем, и сводка читают отсюда
@@ -290,6 +291,10 @@ class CollabService:
         updated = await self._session.get(Page, page_id)
         await self._session.refresh(updated)
         await BacklinkService(self._session).rebuild(updated)
+        # Снимки включённых блоков пересобираются здесь же: это единственное
+        # место, где содержимое страницы меняется, и снимок, отставший от
+        # источника, показывался бы читателям как свежий.
+        await TransclusionService(self._session).sync(updated)
         await self._session.commit()
 
         await self._follow_up(updated, user_id, before, list(everyone))

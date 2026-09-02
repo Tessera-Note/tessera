@@ -14,12 +14,13 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import insert, select, update
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import SpaceRole, UserRole
 from tessera_api.infrastructure.models import (
+    AuthProvider,
     Favorite,
     Group,
     GroupUser,
@@ -561,3 +562,240 @@ class TestLosingAccess:
             )
         ).first()
         assert left is not None
+
+
+class TestDirectory:
+    """Передача группы каталогу и возврат под ручное управление.
+
+    Пока группу ведёт каталог, руками её состав не правится: следующий цикл
+    синхронизации всё равно вернёт своё, и ручная правка выглядела бы
+    применённой ровно до него.
+    """
+
+    async def _provider(self, session: AsyncSession, workspace, *, sync: bool) -> uuid.UUID:
+        provider_id = uuid.uuid4()
+        await session.execute(
+            insert(AuthProvider).values(
+                id=provider_id,
+                name="Каталог",
+                type="oidc",
+                workspace_id=workspace.id,
+                is_enabled=True,
+                allow_signup=False,
+                group_sync=sync,
+            )
+        )
+        await session.flush()
+        return provider_id
+
+    async def _group(self, session: AsyncSession, workspace, owner) -> Group:
+        return await GroupService(session).create(
+            owner.id, workspace.id, name=f"Отдел {uuid.uuid4().hex[:4]}"
+        )
+
+    async def test_attaching_records_the_source_and_the_key(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+
+        changed = await GroupService(session).attach_directory(
+            owner.id, group.id, workspace.id, provider_id=provider_id
+        )
+
+        assert changed.directory_source == "sso"
+        assert changed.directory_provider_id == provider_id
+        # Ключ по умолчанию равен имени: требовать ввести его второй раз
+        # значило бы просить о том, что и так известно.
+        assert changed.directory_key == group.name
+
+    async def test_an_explicit_key_wins(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+
+        changed = await GroupService(session).attach_directory(
+            owner.id,
+            group.id,
+            workspace.id,
+            provider_id=provider_id,
+            directory_key="CN=Отдел,OU=Группы",
+        )
+        assert changed.directory_key == "CN=Отдел,OU=Группы"
+
+    async def test_an_attached_group_is_not_edited_by_hand(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+        await GroupService(session).attach_directory(
+            owner.id, group.id, workspace.id, provider_id=provider_id
+        )
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).update(
+                owner.id, group.id, workspace.id, name="Вручную"
+            )
+        assert failure.value.code == "error.group.you_cannot_change_an_external_group"
+
+    async def test_the_default_group_is_never_attached(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """В ней все участники пространства, и каталог вывел бы из неё тех,
+        кого в каталоге нет, — то есть отобрал бы доступ ко всему сразу."""
+        provider_id = await self._provider(session, workspace, sync=True)
+        default = (
+            await session.execute(
+                select(Group)
+                .where(Group.workspace_id == workspace.id)
+                .where(Group.is_default.is_(True))
+                .where(Group.deleted_at.is_(None))
+            )
+        ).scalars().first()
+        assert default is not None
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).attach_directory(
+                owner.id, default.id, workspace.id, provider_id=provider_id
+            )
+        assert failure.value.code == "error.group.you_cannot_update_a_default_group"
+
+    async def test_a_foreign_provider_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        group = await self._group(session, workspace, owner)
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).attach_directory(
+                owner.id, group.id, workspace.id, provider_id=uuid.uuid4()
+            )
+        assert failure.value.code == "error.sso.provider_not_found"
+
+    async def test_a_provider_of_another_workspace_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Иначе состав группы начинает вести чужой каталог: людей в неё
+        добавляет вход из другого рабочего пространства."""
+        other = uuid.uuid4()
+        await session.execute(
+            insert(Workspace).values(
+                id=other, name="Чужое", hostname=f"h{other.hex[:8]}", enforce_sso=False
+            )
+        )
+        stranger = uuid.uuid4()
+        await session.execute(
+            insert(AuthProvider).values(
+                id=stranger,
+                name="Чужой каталог",
+                type="oidc",
+                workspace_id=other,
+                is_enabled=True,
+                allow_signup=False,
+                group_sync=True,
+            )
+        )
+        await session.flush()
+        group = await self._group(session, workspace, owner)
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).attach_directory(
+                owner.id, group.id, workspace.id, provider_id=stranger
+            )
+        assert failure.value.code == "error.sso.provider_not_found"
+
+    async def test_attaching_twice_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+        await GroupService(session).attach_directory(
+            owner.id, group.id, workspace.id, provider_id=provider_id
+        )
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).attach_directory(
+                owner.id, group.id, workspace.id, provider_id=provider_id
+            )
+        assert failure.value.code == "error.group.you_cannot_change_an_external_group"
+
+    async def test_an_ordinary_member_does_not_attach(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+        person = await _person(session, workspace)
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).attach_directory(
+                person.id, group.id, workspace.id, provider_id=provider_id
+            )
+        assert failure.value.code == "error.common.admin_required"
+
+    async def test_detaching_returns_the_group_to_hand(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+        await GroupService(session).attach_directory(
+            owner.id, group.id, workspace.id, provider_id=provider_id
+        )
+
+        changed = await GroupService(session).detach_directory(
+            owner.id, group.id, workspace.id
+        )
+
+        assert changed.directory_source is None
+        assert changed.directory_provider_id is None
+        assert changed.directory_key is None
+        # Правка снова доступна: снимается управление составом, а не люди.
+        await GroupService(session).update(
+            owner.id, group.id, workspace.id, name="Снова вручную"
+        )
+
+    async def test_the_membership_survives_detaching(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+        person = await _person(session, workspace)
+        await GroupService(session).add_members(
+            owner.id, group.id, workspace.id, [person.id]
+        )
+        await GroupService(session).attach_directory(
+            owner.id, group.id, workspace.id, provider_id=provider_id
+        )
+
+        await GroupService(session).detach_directory(owner.id, group.id, workspace.id)
+
+        left = (
+            await session.execute(
+                select(func.count())
+                .select_from(GroupUser)
+                .where(GroupUser.group_id == group.id)
+            )
+        ).scalar_one()
+        assert left == 1
+
+    async def test_a_group_of_its_own_is_not_detached(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        group = await self._group(session, workspace, owner)
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).detach_directory(owner.id, group.id, workspace.id)
+        assert failure.value.code == "error.group.this_group_is_not_managed_by_a_directory"
+
+    async def test_an_ordinary_member_does_not_detach(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id = await self._provider(session, workspace, sync=True)
+        group = await self._group(session, workspace, owner)
+        await GroupService(session).attach_directory(
+            owner.id, group.id, workspace.id, provider_id=provider_id
+        )
+        person = await _person(session, workspace)
+
+        with pytest.raises(AppError) as failure:
+            await GroupService(session).detach_directory(person.id, group.id, workspace.id)
+        assert failure.value.code == "error.common.admin_required"

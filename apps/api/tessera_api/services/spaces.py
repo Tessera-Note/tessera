@@ -32,6 +32,7 @@ from tessera_api.infrastructure.models import (
     SpaceMember,
     User,
     Watcher,
+    Workspace,
 )
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
@@ -61,6 +62,18 @@ def slugify(text: str | None) -> str:
     return re.sub(r"-{2,}", "-", cleaned).strip("-")[:MAX_SLUG]
 
 
+def _flag(workspace: Workspace, path: tuple[str, str]) -> bool:
+    """Признак из настроек рабочего пространства."""
+    settings: object = workspace.settings or {}
+    for key in path:
+        if not isinstance(settings, dict):
+            return False
+        settings = settings.get(key)
+        if settings is None:
+            return False
+    return bool(settings)
+
+
 class SpaceService:
     def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
@@ -84,6 +97,52 @@ class SpaceService:
         if not can_manage_space(role):
             raise forbidden("error.space.access_denied")
 
+    async def personal(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> Space | None:
+        """Личное пространство человека, если оно заведено."""
+        return (
+            await self._session.execute(
+                select(Space)
+                .where(Space.workspace_id == workspace_id)
+                .where(Space.creator_id == user_id)
+                .where(Space.is_personal.is_(True))
+                .where(Space.deleted_at.is_(None))
+            )
+        ).scalar_one_or_none()
+
+    async def create_personal(
+        self, actor: User, workspace_id: uuid.UUID, *, name: str | None = None
+    ) -> Space:
+        """Завести личное пространство.
+
+        Разрешение спрашивается у рабочего пространства: личные пространства
+        включаются переключателем, и без него заводить их нельзя — иначе
+        участники расходятся по своим углам вопреки решению администратора.
+
+        Второе личное завести нельзя. Правило держит база частичным уникальным
+        индексом, но проверка стоит и здесь: отказ базы дошёл бы до человека
+        как пятисотый ответ, а не как объяснимая причина.
+        """
+        workspace = await self._session.get(Workspace, workspace_id)
+        if workspace is None:
+            raise not_found("error.common.workspace_not_found")
+        if not _flag(workspace, ("spaces", "allowPersonal")):
+            raise bad_request("error.space.personal_spaces_are_not_enabled")
+
+        if await self.personal(actor.id, workspace_id) is not None:
+            raise bad_request("error.space.you_already_have_a_personal_space")
+
+        title = (name or "").strip() or f"{actor.name or actor.email}"
+        base = slugify(title) or "personal"
+        short = base
+        counter = 1
+        while await self._slug_taken(short, workspace_id):
+            short = f"{base}-{counter}"
+            counter += 1
+
+        return await self.create(
+            actor, workspace_id, name=title, slug=short, personal=True
+        )
+
     async def _slug_taken(
         self, slug: str, workspace_id: uuid.UUID, *, besides: uuid.UUID | None = None
     ) -> bool:
@@ -105,6 +164,7 @@ class SpaceService:
         name: str,
         description: str | None = None,
         slug: str | None = None,
+        personal: bool = False,
     ) -> Space:
         """Завести пространство.
 
@@ -114,7 +174,10 @@ class SpaceService:
         Заводящий сразу становится администратором пространства. Иначе оно
         появляется пустым и без хозяина, и распорядиться им некому.
         """
-        if not is_workspace_admin(actor.role):
+        # Личное пространство человек заводит себе сам, и права
+        # администратора для этого не требуется: доступ к нему есть только у
+        # него. Все прочие заводит администратор — так же, как в v1.
+        if not personal and not is_workspace_admin(actor.role):
             raise forbidden("error.common.admin_required")
 
         clean = (name or "").strip()
@@ -136,6 +199,7 @@ class SpaceService:
                 description=(description or "").strip() or None,
                 creator_id=actor.id,
                 workspace_id=workspace_id,
+                is_personal=personal,
             )
         )
         await self._session.execute(

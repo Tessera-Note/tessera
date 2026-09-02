@@ -19,6 +19,7 @@ from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.history import PageHistoryService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
+from tessera_api.services.transclusion import TransclusionService
 
 #: Алфавит короткого имени страницы. Тот же, что в v1: короткое имя попадает в
 #: адрес страницы, и менять его на переходе значило бы сломать все ссылки.
@@ -174,6 +175,7 @@ class PageService:
         # записанными отдельной транзакцией, при откате осталась бы со
         # связями от несуществующего содержимого.
         await BacklinkService(self._session).rebuild(created)
+        await TransclusionService(self._session).sync(created)
 
         await self._session.commit()
         await self._refresh_tree(created)
@@ -215,6 +217,7 @@ class PageService:
         if content is not None:
             await self._session.refresh(updated)
             await BacklinkService(self._session).rebuild(updated)
+            await TransclusionService(self._session).sync(updated)
 
         await self._session.commit()
         # Дерево показывает заголовок и значок, поэтому их правка обновляет и
@@ -645,6 +648,9 @@ class PageService:
 
         created = await self._session.get(Page, copy_id)
         await BacklinkService(self._session).rebuild(created)
+        # Копия несёт те же включения, что и оригинал: без пересборки её блоки
+        # не находятся ссылками, а её собственные ссылки не считаются.
+        await TransclusionService(self._session).sync(created)
         await self._session.commit()
 
         await self._refresh_tree(created)

@@ -20,6 +20,7 @@ from tessera_api.api.guards import Principal
 from tessera_api.config import Settings
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
+from tessera_api.infrastructure.ai_client import AiClient
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.throttle import AUTH_LIMIT, Throttle, client_ip
@@ -47,6 +48,16 @@ class UpdateRequest(msgspec.Struct, omit_defaults=True):
     webSearchDriver: str | None = None  # noqa: N815 — имя поля из v1
     webSearchBaseUrl: str | None = None  # noqa: N815 — имя поля из v1
     webSearchApiKey: str | None = None  # noqa: N815 — имя поля из v1
+
+
+class ModelsRequest(msgspec.Struct):
+    """Чем спрашивать перечень. Пустые поля означают «взять сохранённое»."""
+
+    driver: str | None = None
+    baseUrl: str | None = None  # noqa: N815 — имя поля из v1
+    apiKey: str | None = None  # noqa: N815 — имя поля из v1
+    #: `chat` или `embedding`: у векторов свой провайдер и свой перечень.
+    kind: str | None = None
 
 
 class AiSettingsController(Controller):
@@ -124,6 +135,53 @@ class AiSettingsController(Controller):
                 )
 
         return {**view, "reindexScheduled": identity_changed}
+
+    @post("/models")
+    async def models(
+        self,
+        data: ModelsRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> dict:
+        """Перечень моделей у провайдера.
+
+        Переданные ключ и адрес перекрывают сохранённые: экран спрашивает
+        перечень до сохранения, по только что введённым значениям. Иначе выбрать
+        модель у нового провайдера нельзя — сначала сохрани вслепую, потом
+        смотри, что там есть.
+        """
+        await self._limit(request, throttle, settings)
+        _, principal = await self._admin(request, db_session)
+        models = await AiSettingsService(db_session, settings).list_models(
+            principal.workspace_id,
+            AiClient(),
+            driver=data.driver,
+            base_url=data.baseUrl,
+            api_key=data.apiKey,
+            kind=data.kind or "chat",
+        )
+        return {"models": models}
+
+    @post("/test")
+    async def test(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> dict:
+        """Проверить соединение с провайдером.
+
+        Отвечает исходом, а не отказом: половина обращений сюда и делается
+        затем, чтобы увидеть, что ключ не принят.
+        """
+        await self._limit(request, throttle, settings)
+        _, principal = await self._admin(request, db_session)
+        return await AiSettingsService(db_session, settings).test_connection(
+            principal.workspace_id, AiClient()
+        )
 
     @post("/reset")
     async def reset(

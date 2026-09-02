@@ -346,6 +346,106 @@ class GroupService:
         await self._session.commit()
         await self._refresh_rooms([user_id])
 
+    async def attach_directory(
+        self,
+        actor_id: uuid.UUID,
+        group_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        provider_id: uuid.UUID,
+        directory_key: str | None = None,
+    ) -> Group:
+        """Передать группу под управление каталога.
+
+        После этого состав группы ведёт провайдер, а руками он не правится:
+        следующий цикл синхронизации всё равно вернул бы своё, и ручная правка
+        выглядела бы применённой ровно до него.
+
+        Ключ каталога по умолчанию равен имени группы: у большинства
+        развёртываний они и совпадают, а требовать ввести имя второй раз
+        значило бы просить о том, что и так известно.
+        """
+        await self._require_admin(actor_id, workspace_id)
+        group = await self._group(group_id, workspace_id)
+
+        if group.is_default:
+            # Группа по умолчанию содержит всех участников пространства, и
+            # каталог, ведущий её состав, вывел бы из неё тех, кого в каталоге
+            # нет, — то есть отобрал бы у них доступ ко всему сразу.
+            raise bad_request("error.group.you_cannot_update_a_default_group")
+        if group.directory_source:
+            raise bad_request("error.group.you_cannot_change_an_external_group")
+
+        provider = (
+            await self._session.execute(
+                select(AuthProvider.id)
+                .where(AuthProvider.id == provider_id)
+                .where(AuthProvider.workspace_id == workspace_id)
+                .where(AuthProvider.deleted_at.is_(None))
+            )
+        ).scalar_one_or_none()
+        if provider is None:
+            raise not_found("error.sso.provider_not_found")
+
+        key = (directory_key or "").strip() or group.name
+        await self._session.execute(
+            update(Group)
+            .where(Group.id == group.id)
+            .values(
+                directory_source="sso",
+                directory_provider_id=provider,
+                directory_key=key,
+            )
+        )
+        await self._audit.log(
+            event=AuditEvent.GROUP_UPDATED,
+            resource_type=AuditResource.GROUP,
+            resource_id=group.id,
+            user_id=actor_id,
+            workspace_id=workspace_id,
+            changes={
+                "before": {"directorySource": None},
+                "after": {"directorySource": "sso", "directoryKey": key},
+            },
+        )
+        await self._session.commit()
+        return await self._group(group_id, workspace_id)
+
+    async def detach_directory(
+        self, actor_id: uuid.UUID, group_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> Group:
+        """Вернуть группу под ручное управление.
+
+        Привязка снимается целиком, вместе с ключом: следующий цикл
+        синхронизации такую группу не увидит и состав в ней трогать не будет.
+        Само членство сохраняется — снимается управление им, а не люди.
+        """
+        await self._require_admin(actor_id, workspace_id)
+        group = await self._group(group_id, workspace_id)
+
+        if not group.directory_source:
+            raise bad_request("error.group.this_group_is_not_managed_by_a_directory")
+
+        before = group.directory_source
+        await self._session.execute(
+            update(Group)
+            .where(Group.id == group.id)
+            .values(directory_source=None, directory_provider_id=None, directory_key=None)
+        )
+        await self._audit.log(
+            event=AuditEvent.GROUP_UPDATED,
+            resource_type=AuditResource.GROUP,
+            resource_id=group.id,
+            user_id=actor_id,
+            workspace_id=workspace_id,
+            changes={
+                "before": {"directorySource": before},
+                "after": {"directorySource": None},
+            },
+        )
+        await self._session.commit()
+        return await self._group(group_id, workspace_id)
+
     async def _group(self, group_id: uuid.UUID, workspace_id: uuid.UUID) -> Group:
         found = (
             await self._session.execute(
