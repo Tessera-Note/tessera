@@ -151,6 +151,7 @@ class SpaceController(Controller):
                     name=space.name,
                     slug=space.slug,
                     description=space.description,
+                    logo=space.logo,
                     role=await members.role_in_space(principal.user_id, space.id),
                 )
             )
@@ -178,6 +179,7 @@ class SpaceController(Controller):
             name=space.name,
             slug=space.slug,
             description=space.description,
+            logo=space.logo,
             role=role,
         )
 
@@ -301,6 +303,7 @@ class SpaceController(Controller):
             name=space.name,
             slug=space.slug,
             description=space.description,
+            logo=space.logo,
             role=SpaceRole.ADMIN,
         )
 
@@ -327,6 +330,7 @@ class SpaceController(Controller):
             name=space.name,
             slug=space.slug,
             description=space.description,
+            logo=space.logo,
             role=role,
         )
 
@@ -452,6 +456,7 @@ class PersonalSpaceController(Controller):
             name=found.name,
             slug=found.slug,
             description=found.description,
+            logo=found.logo,
             role=SpaceRole.ADMIN,
         )
 
@@ -478,6 +483,7 @@ class PersonalSpaceController(Controller):
             name=space.name,
             slug=space.slug,
             description=space.description,
+            logo=space.logo,
             role=SpaceRole.ADMIN,
         )
 

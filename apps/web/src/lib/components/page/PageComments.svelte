@@ -2,6 +2,8 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import RichText from '$lib/components/page/RichText.svelte';
+  import CommentEditor from '$lib/features/editor/CommentEditor.svelte';
   import { errorText } from '$lib/api/failure';
   import {
     createComment,
@@ -11,21 +13,28 @@
     type Comment
   } from '$lib/features/page/services/comments';
   import { onRealtime } from '$lib/features/realtime/socket';
-  import { plainText } from '$lib/features/page/document';
   import { locale } from '$lib/stores/i18n.svelte';
 
-  type Props = { pageId: string; comments: Comment[]; userId?: string | null };
-  const { pageId, comments, userId }: Props = $props();
+  type Props = {
+    pageId: string;
+    comments: Comment[];
+    userId?: string | null;
+    /** Пространство страницы. Сужает поиск страниц при упоминании. */
+    spaceId?: string | null;
+  };
+  const { pageId, comments, userId, spaceId = null }: Props = $props();
 
   const t = $derived(locale.t);
 
-  let text = $state('');
   let busy = $state(false);
   let failure = $state<string | null>(null);
-  //: Какой комментарий правят и чем. Правка на месте: отдельный экран ради
-  //: одного абзаца увёл бы человека со страницы, которую он обсуждает.
+  //: Какой комментарий правят. Правка на месте: отдельный экран ради одного
+  //: абзаца увёл бы человека со страницы, которую он обсуждает.
   let editing = $state<string | null>(null);
-  let draft = $state('');
+
+  /** Поле нового комментария и поле правки. Тело читается из них вызовом. */
+  let composer = $state<CommentEditor | null>(null);
+  let draft = $state<CommentEditor | null>(null);
 
   async function act(action: () => Promise<unknown>) {
     busy = true;
@@ -40,11 +49,11 @@
     }
   }
 
-  function save(event: SubmitEvent, id: string) {
-    event.preventDefault();
-    if (!draft.trim()) return;
+  function save(id: string) {
+    const content = draft?.content();
+    if (!content || draft?.isEmpty()) return;
     return act(async () => {
-      await updateComment(id, draft);
+      await updateComment(id, content);
       editing = null;
     });
   }
@@ -65,15 +74,15 @@
     });
   });
 
-  async function submit(event: SubmitEvent) {
-    event.preventDefault();
-    if (!text.trim()) return;
+  async function submit() {
+    const content = composer?.content();
+    if (!content || composer?.isEmpty()) return;
 
     busy = true;
     failure = null;
     try {
-      await createComment({ pageId, text });
-      text = '';
+      await createComment({ pageId, content });
+      composer?.clear();
       await invalidateAll();
     } catch (error) {
       failure = errorText(error, t);
@@ -89,22 +98,35 @@
   <ul class="mb-6 space-y-3">
     {#each comments as comment (comment.id)}
       <li class="card-soft rounded-md border border-border bg-surface-raised p-3">
-        {#if editing === comment.id}
-          <form class="flex flex-col gap-2" onsubmit={(event) => save(event, comment.id)}>
-            <textarea
-              class="min-h-16 rounded border border-border bg-surface px-3 py-2 text-sm"
-              bind:value={draft}
-            ></textarea>
-            <span class="flex gap-2">
-              <Button type="submit" disabled={busy}>{t('Save')}</Button>
-              <Button variant="quiet" onclick={() => (editing = null)}>{t('Cancel')}</Button>
-            </span>
-          </form>
-        {:else}
-          <p class="whitespace-pre-wrap text-sm" class:text-text-muted={comment.resolvedAt}>
-            {plainText(comment.content)}
+        {#if comment.selection}
+          <!-- Процитированный кусок страницы: без него обсуждение выделения
+               читается как обсуждение страницы целиком. -->
+          <p class="mb-2 line-clamp-3 border-l-2 border-accent pl-2 text-xs text-text-muted">
+            {comment.selection}
           </p>
         {/if}
+
+        {#if editing === comment.id}
+          <div class="flex flex-col gap-2">
+            <CommentEditor
+              bind:this={draft}
+              initial={comment.content}
+              {spaceId}
+              {userId}
+              fail={(error) => (failure = errorText(error, t))}
+              onsubmit={() => save(comment.id)}
+            />
+            <span class="flex gap-2">
+              <Button disabled={busy} onclick={() => save(comment.id)}>{t('Save')}</Button>
+              <Button variant="quiet" onclick={() => (editing = null)}>{t('Cancel')}</Button>
+            </span>
+          </div>
+        {:else}
+          <div class:text-text-muted={comment.resolvedAt}>
+            <RichText content={comment.content} />
+          </div>
+        {/if}
+
         <p class="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
           <span>{new Date(comment.createdAt).toLocaleString(locale.current)}</span>
           {#if comment.resolvedAt}
@@ -125,10 +147,7 @@
               class="hover:underline"
               type="button"
               disabled={busy}
-              onclick={() => {
-                editing = comment.id;
-                draft = plainText(comment.content);
-              }}
+              onclick={() => (editing = comment.id)}
             >
               {t('Edit')}
             </button>
@@ -148,14 +167,20 @@
     {/each}
   </ul>
 
-  <form class="flex gap-2" onsubmit={submit}>
-    <textarea
-      class="min-h-20 flex-1 rounded border border-border bg-surface px-3 py-2 text-sm"
-      placeholder={t('Write a comment')}
-      bind:value={text}
-    ></textarea>
-    <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Add comment')}</Button>
-  </form>
+  <div class="flex flex-col gap-2">
+    <CommentEditor
+      bind:this={composer}
+      {spaceId}
+      {userId}
+      fail={(error) => (failure = errorText(error, t))}
+      onsubmit={submit}
+    />
+    <span>
+      <Button disabled={busy} onclick={submit}>
+        {busy ? t('Loading...') : t('Add comment')}
+      </Button>
+    </span>
+  </div>
 
   {#if failure}<Notice message={failure} />{/if}
 </section>

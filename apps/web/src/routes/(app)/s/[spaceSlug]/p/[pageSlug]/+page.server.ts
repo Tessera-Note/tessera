@@ -7,7 +7,7 @@ import { listVersions } from '$lib/features/page/services/history';
 import { labelsOfPage } from '$lib/features/page/services/labels';
 import { permissionInfo } from '$lib/features/page/services/permissions';
 import { verificationInfo } from '$lib/features/verification/services/page';
-import { breadcrumbs, pageInfo } from '$lib/features/page/services/pages';
+import { breadcrumbs, pageInfo, watchStatus } from '$lib/features/page/services/pages';
 import { shareForPage } from '$lib/features/share/services/share';
 import type { PageServerLoad } from './$types';
 
@@ -32,7 +32,8 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       backlinks,
       permission,
       share,
-      verification
+      verification,
+      watching
     ] = await Promise.all([
       breadcrumbs(page.id, fetch, headers),
       listComments(page.id, fetch, headers),
@@ -42,7 +43,8 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       backlinksOf(page.id, fetch, headers).catch(() => []),
       permissionInfo(page.id, fetch, headers).catch(() => null),
       shareForPage(page.id, fetch, headers).catch(() => null),
-      verificationInfo(page.id, fetch, headers).catch(() => null)
+      verificationInfo(page.id, fetch, headers).catch(() => null),
+      watchStatus(page.id, fetch, headers).catch(() => ({ isWatching: false, isMuted: false }))
     ]);
 
     // Пространство берётся из слоя приложения: оно уже загружено там, и второй
@@ -58,6 +60,8 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       permission,
       share,
       verification,
+      watching,
+      spaces,
       space: spaces.find((one) => one.slug === params.spaceSlug),
       favorite: favorites.some((one) => one.pageId === page.id)
     };

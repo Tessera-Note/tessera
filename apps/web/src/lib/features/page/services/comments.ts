@@ -5,6 +5,8 @@ export type Comment = {
   content: unknown;
   creatorId: string | null;
   parentCommentId: string | null;
+  /** Процитированный кусок страницы. `null` у обсуждения страницы целиком. */
+  selection?: string | null;
   resolvedAt: string | null;
   createdAt: string;
 };
@@ -21,11 +23,14 @@ export function listComments(
  * Оставить комментарий.
  *
  * Тело комментария это документ редактора, а не строка: так его хранит база, и
- * упоминания внутри него разбирает сервер. Простой текст оборачивается в
- * абзац — единственный узел, который здесь нужен до появления редактора.
+ * упоминания внутри него разбирает сервер — по ним он шлёт извещения.
+ *
+ * `selection` это процитированный кусок страницы. Он хранится строкой рядом с
+ * обсуждением, а место в тексте держит метка `comment` в самом документе: текст
+ * правят, и хранимые смещения разъехались бы с ним на первой же правке.
  */
 export function createComment(
-  values: { pageId: string; text: string; parentCommentId?: string },
+  values: { pageId: string; content: unknown; parentCommentId?: string; selection?: string },
   fetcher?: typeof fetch
 ) {
   return post<Comment>(
@@ -33,26 +38,16 @@ export function createComment(
     {
       pageId: values.pageId,
       parentCommentId: values.parentCommentId,
-      content: {
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: values.text }] }]
-      }
+      selection: values.selection,
+      content: values.content
     },
     { fetcher }
   );
 }
 
-/** Тело комментария документом редактора: так его хранит база. */
-function document(text: string) {
-  return {
-    type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
-  };
-}
-
 /** Править можно только своё: право правки страницы этого не даёт. */
-export function updateComment(commentId: string, text: string, fetcher?: typeof fetch) {
-  return post<Comment>('/api/comments/update', { commentId, content: document(text) }, { fetcher });
+export function updateComment(commentId: string, content: unknown, fetcher?: typeof fetch) {
+  return post<Comment>('/api/comments/update', { commentId, content }, { fetcher });
 }
 
 /** Удалять может автор и тот, кто распоряжается страницей. */

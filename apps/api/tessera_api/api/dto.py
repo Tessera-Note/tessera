@@ -50,6 +50,10 @@ class SpaceView(msgspec.Struct):
     slug: str
     description: str | None
     role: str | None
+    #: Имя файла значка, а не адрес: так же в v1, и адрес собирает клиент. Поле
+    #: обязательно, иначе загруженный через `attachments/upload-image` значок
+    #: пространства никому не виден — маршрут есть, а показать его нечем.
+    logo: str | None = None
 
 
 class GroupView(msgspec.Struct):

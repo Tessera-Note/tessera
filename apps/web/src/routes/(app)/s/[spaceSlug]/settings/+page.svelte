@@ -19,6 +19,12 @@
     updateSpace,
     type Suggestion
   } from '$lib/features/space/services/spaces';
+  import {
+    IMAGE_ACCEPT,
+    imageUrl,
+    removeIcon,
+    uploadImage
+  } from '$lib/features/page/services/images';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -46,6 +52,28 @@
     slug = data.space.slug;
     description = data.space.description ?? '';
   });
+
+  /** Значок пространства: картинка, а не эмодзи. Хранится файлом. */
+  const logo = $derived(imageUrl('space-icon', data.space.logo));
+
+  let picker: HTMLInputElement | undefined = $state();
+
+  const chooseLogo = (event: Event) => {
+    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    return act('logo', async () => {
+      await uploadImage('space-icon', file, data.space.id);
+      // Значок виден и на этом экране, и в боковой панели: перечитать надо всё.
+      await invalidateAll();
+      if (picker) picker.value = '';
+    });
+  };
+
+  const dropLogo = () =>
+    act('logo', async () => {
+      await removeIcon('space-icon', data.space.id);
+      await invalidateAll();
+    });
 
   async function act(key: string, action: () => Promise<unknown>) {
     busy = key;
@@ -107,6 +135,40 @@
 
   <form onsubmit={save}>
     <Panel title={t('Details')}>
+      <Field label={t('Space icon')}>
+        <div class="flex items-center gap-3">
+          {#if logo}
+            <img class="h-12 w-12 rounded object-cover" src={logo} alt={t('Space icon')} />
+          {:else}
+            <span
+              class="flex h-12 w-12 items-center justify-center rounded bg-surface-muted text-lg text-text-muted"
+              aria-hidden="true"
+            >
+              {(data.space.name ?? '?').slice(0, 1).toUpperCase()}
+            </span>
+          {/if}
+
+          {#if manager}
+            <!-- Выбор файла спрятан за кнопкой: сам `input type=file` рисуется
+                 каждым браузером по-своему и не встаёт в расстановку экрана. -->
+            <input
+              bind:this={picker}
+              class="hidden"
+              type="file"
+              accept={IMAGE_ACCEPT}
+              onchange={chooseLogo}
+            />
+            <Button variant="quiet" disabled={busy === 'logo'} onclick={() => picker?.click()}>
+              {busy === 'logo' ? t('Loading...') : t('Upload')}
+            </Button>
+            {#if data.space.logo}
+              <Button variant="quiet" disabled={busy === 'logo'} onclick={dropLogo}>
+                {t('Remove icon')}
+              </Button>
+            {/if}
+          {/if}
+        </div>
+      </Field>
       <Field label={t('Space name')}>
         <TextInput bind:value={name} placeholder={t('e.g Sales')} disabled={!manager} required />
       </Field>

@@ -45,6 +45,10 @@
     verification: VerificationInfo | null;
     share: Share | null;
     spaceSlug: string;
+    /** Счёт слов и знаков от редактора. Пусто, пока он не собрался. */
+    stats?: { words: number; characters: number } | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
   };
   const {
     pageId,
@@ -55,7 +59,10 @@
     permission,
     verification,
     share,
-    spaceSlug
+    spaceSlug,
+    stats,
+    createdAt = null,
+    updatedAt = null
   }: Props = $props();
 
   const t = $derived(locale.t);
@@ -77,7 +84,17 @@
     obsolete: 'Obsolete'
   };
 
-  let tab = $state<'history' | 'labels' | 'links' | 'access' | 'check'>('history');
+  let tab = $state<'history' | 'labels' | 'links' | 'access' | 'check' | 'stats'>('history');
+
+  /** Дата в языке человека. Пусто, когда даты нет. */
+  const when = $derived((value: string | null) =>
+    value
+      ? new Intl.DateTimeFormat(locale.current, {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        }).format(new Date(value))
+      : '—'
+  );
   let busy = $state(false);
   let failure = $state<string | null>(null);
   let newLabel = $state('');
@@ -223,7 +240,7 @@
   class="fixed bottom-0 right-0 top-header w-aside overflow-y-auto bg-surface-muted p-4"
 >
   <nav class="mb-4 flex flex-wrap gap-1 text-sm">
-    {#each [['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')]] as [key, title] (key)}
+    {#each [['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')], ['stats', t('Stats')]] as [key, title] (key)}
       <button
         class="rounded px-2 py-1 hover:bg-surface"
         class:bg-surface={tab === key}
@@ -421,6 +438,30 @@
         {/if}
       {/if}
     </div>
+  {:else if tab === 'stats'}
+    <!--
+      Счёт идёт по документу редактора, а не по разметке: разметка несёт узлы
+      без текста — таблицы, вложения, диаграммы, — и счёт по ней расходился бы
+      с тем, что человек видит написанным.
+    -->
+    <dl data-component="PageStats" class="space-y-2 text-sm">
+      <div class="flex justify-between gap-3">
+        <dt class="text-text-muted">{t('Word count')}</dt>
+        <dd>{stats ? stats.words : '—'}</dd>
+      </div>
+      <div class="flex justify-between gap-3">
+        <dt class="text-text-muted">{t('Characters')}</dt>
+        <dd>{stats ? stats.characters : '—'}</dd>
+      </div>
+      <div class="flex justify-between gap-3">
+        <dt class="text-text-muted">{t('Created')}</dt>
+        <dd>{when(createdAt)}</dd>
+      </div>
+      <div class="flex justify-between gap-3">
+        <dt class="text-text-muted">{t('Last updated')}</dt>
+        <dd>{when(updatedAt)}</dd>
+      </div>
+    </dl>
   {:else}
     <div class="space-y-4 text-sm">
       <div>

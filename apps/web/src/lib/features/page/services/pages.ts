@@ -7,6 +7,8 @@ export type PageSummary = {
   icon: string | null;
   parentPageId: string | null;
   spaceId: string;
+  /** Ключ порядка среди соседей. Пустой у страницы, которую ещё не двигали. */
+  position?: string | null;
   /** Есть ли вложенные страницы. По нему рисуется значок раскрытия: без него
    *  он стоит у каждой строки, и половина раскрывается в пустоту. */
   hasChildren?: boolean;
@@ -71,6 +73,68 @@ export function updatePage(
 
 export function deletePage(pageId: string, fetcher?: typeof fetch) {
   return post<{ status: string }>('/api/pages/delete', { pageId }, { fetcher });
+}
+
+/**
+ * Переставить страницу в дереве.
+ *
+ * `position` это дробный ключ порядка между соседями: сервер считает его сам,
+ * когда его не передали. `detach` выносит страницу в корень — отдельным
+ * признаком, а не пустым родителем: пустое значение и «поле не передавали»
+ * иначе неразличимы, и вынести страницу из вложенности было бы нельзя.
+ */
+export function movePage(
+  values: { pageId: string; position?: string; parentPageId?: string | null; detach?: boolean },
+  fetcher?: typeof fetch
+) {
+  return post<{ id: string; position: string | null; parentPageId: string | null }>(
+    '/api/pages/move',
+    values,
+    { fetcher }
+  );
+}
+
+/** Перенести страницу вместе с ветвью в другое пространство. */
+export function movePageToSpace(pageId: string, spaceId: string, fetcher?: typeof fetch) {
+  return post<{ id: string; spaceId: string }>(
+    '/api/pages/move-to-space',
+    { pageId, spaceId },
+    { fetcher }
+  );
+}
+
+/** Скопировать страницу с ветвью. Без пространства копия ложится рядом. */
+export function duplicatePage(pageId: string, spaceId?: string, fetcher?: typeof fetch) {
+  return post<{ id: string; slugId: string; title: string | null }>(
+    '/api/pages/duplicate',
+    { pageId, spaceId },
+    { fetcher }
+  );
+}
+
+export type WatchStatus = { isWatching: boolean; isMuted: boolean };
+
+/**
+ * Подписка на страницу.
+ *
+ * Подписаться может тот, кто страницу видит; отписаться — кто угодно, даже
+ * потеряв доступ. Иначе отобранный доступ навсегда оставлял бы человека в
+ * получателях извещений.
+ */
+export function watchPage(pageId: string, fetcher?: typeof fetch) {
+  return post<WatchStatus>('/api/pages/watch', { pageId }, { fetcher });
+}
+
+export function unwatchPage(pageId: string, fetcher?: typeof fetch) {
+  return post<WatchStatus>('/api/pages/unwatch', { pageId }, { fetcher });
+}
+
+export function watchStatus(
+  pageId: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<WatchStatus>('/api/pages/watch-status', { pageId }, { fetcher, headers });
 }
 
 export type TrashedPage = PageSummary & { deletedAt: string; deletedById: string | null };

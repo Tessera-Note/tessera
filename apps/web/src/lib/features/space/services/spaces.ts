@@ -6,6 +6,8 @@ export type Space = {
   slug: string;
   description: string | null;
   role: string | null;
+  /** Имя файла значка, а не адрес: адрес собирает `imageUrl`. */
+  logo?: string | null;
 };
 
 export function listSpaces(fetcher?: typeof fetch, headers?: Record<string, string>) {
@@ -120,6 +122,32 @@ export function changeSpaceMemberRole(
   fetcher?: typeof fetch
 ) {
   return post<{ success: boolean }>('/api/spaces/members/change-role', values, { fetcher });
+}
+
+export type SpaceWatchStatus = { isWatching: boolean };
+
+/**
+ * Подписка на пространство.
+ *
+ * Подписан на пространство — значит получаешь всё, что в нём происходит.
+ * Право то же, что на чтение: подписка не даёт видеть больше, чем видно.
+ * Отписаться при этом можно и потеряв доступ, иначе отобранный доступ навсегда
+ * оставлял бы человека в получателях извещений.
+ */
+export function watchSpace(spaceId: string, fetcher?: typeof fetch) {
+  return post<SpaceWatchStatus>('/api/spaces/watch', { spaceId }, { fetcher });
+}
+
+export function unwatchSpace(spaceId: string, fetcher?: typeof fetch) {
+  return post<SpaceWatchStatus>('/api/spaces/unwatch', { spaceId }, { fetcher });
+}
+
+export function spaceWatchStatus(
+  spaceId: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<SpaceWatchStatus>('/api/spaces/watch-status', { spaceId }, { fetcher, headers });
 }
 
 /** Подсказка выбора: человек либо группа. */

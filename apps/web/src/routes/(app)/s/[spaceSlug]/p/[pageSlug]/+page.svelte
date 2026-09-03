@@ -3,9 +3,15 @@
   import Button from '$lib/components/ui/Button.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import {
+    IconBell,
+    IconBellOff,
+    IconCopy,
     IconEdit,
     IconEye,
+    IconFileExport,
     IconFileTypePdf,
+    IconFolderSymlink,
+    IconMoodSmile,
     IconStar,
     IconStarFilled,
     IconTemplate,
@@ -19,8 +25,18 @@
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
+  import { editModeGate } from '$lib/features/page/edit-mode';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
-  import { deletePage, updatePage } from '$lib/features/page/services/pages';
+  import EmojiPicker from '$lib/features/editor/EmojiPicker.svelte';
+  import PageExport from '$lib/components/page/PageExport.svelte';
+  import {
+    deletePage,
+    duplicatePage,
+    movePageToSpace,
+    unwatchPage,
+    updatePage,
+    watchPage
+  } from '$lib/features/page/services/pages';
   import { createTemplate } from '$lib/features/template/services/templates';
   import { downloadPdf, exportPagePdf, listFileTasks } from '$lib/features/page/services/pdf';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -32,17 +48,17 @@
   const t = $derived(locale.t);
   const canEdit = $derived(data.page.canEdit !== false);
 
-  /**
-   * С чего открывается страница: с чтения или сразу с правки.
-   *
-   * Предпочтение человека из настроек; по умолчанию чтение, как в v1 — случайная
-   * правка чужой страницы хуже лишнего нажатия.
-   */
+  /** С чего открывается страница. Правило и его оговорки — в `edit-mode.ts`. */
   let editing = $state(false);
+  const gate = editModeGate();
 
   $effect(() => {
-    const mode = data.session?.user.settings?.preferences?.pageEditMode ?? 'read';
-    editing = canEdit && mode === 'edit';
+    const decided = gate.decide(
+      data.page.id,
+      canEdit,
+      data.session?.user.settings?.preferences?.pageEditMode
+    );
+    if (decided !== null) editing = decided;
   });
 
   /**
@@ -56,6 +72,9 @@
     for (const one of seed) sum = (sum * 31 + one.charCodeAt(0)) % 360;
     return `hsl(${sum} 70% 55%)`;
   }
+
+  /** Счёт слов и знаков. Приходит от редактора: считает он, показывает панель. */
+  let stats = $state<{ words: number; characters: number } | null>(null);
 
   let renaming = $state(false);
   let title = $state('');
@@ -91,6 +110,68 @@
   const toggleFavorite = () =>
     act(async () => {
       await (data.favorite ? removeFavorite(data.page.id) : addFavorite(data.page.id));
+      await invalidateAll();
+    });
+
+  /** Подписка на страницу. Состояние приходит с сервера и меняется здесь же. */
+  let watching = $state(false);
+  $effect(() => {
+    watching = data.watching?.isWatching ?? false;
+  });
+
+  const toggleWatch = () =>
+    act(async () => {
+      const status = data.watching?.isWatching
+        ? await unwatchPage(data.page.id)
+        : await watchPage(data.page.id);
+      watching = status.isWatching;
+      await invalidateAll();
+    });
+
+  /** Копия страницы с ветвью. Ложится рядом, в то же пространство. */
+  const duplicate = () =>
+    act(async () => {
+      const copy = await duplicatePage(data.page.id);
+      await goto(`/s/${data.space?.slug ?? ''}/p/${copy.slugId}`);
+      await invalidateAll();
+    });
+
+  /** Открыт перечень пространств для переноса. */
+  let moving = $state(false);
+
+  const moveToSpace = (spaceId: string) =>
+    act(async () => {
+      await movePageToSpace(data.page.id, spaceId);
+      moving = false;
+      const target = data.spaces.find((one) => one.id === spaceId);
+      await goto(`/s/${target?.slug ?? ''}/p/${data.page.slugId}`);
+      await invalidateAll();
+    });
+
+  /** Открыто окно выгрузки. */
+  let exporting = $state(false);
+
+  /** Открыт выбор значка страницы. */
+  let choosing = $state(false);
+
+  const setIcon = (icon: string) =>
+    act(async () => {
+      await updatePage({ pageId: data.page.id, icon });
+      choosing = false;
+      // Значок виден и в дереве, и в хлебных крошках: перечитать надо всё.
+      await invalidateAll();
+    });
+
+  /**
+   * Снять значок.
+   *
+   * Пустой строкой, а не отсутствием поля: сервер отличает «не передавали» от
+   * «очистить», и без явного пустого значения значок остался бы прежним.
+   */
+  const clearIcon = () =>
+    act(async () => {
+      await updatePage({ pageId: data.page.id, icon: '' });
+      choosing = false;
       await invalidateAll();
     });
 
@@ -185,8 +266,35 @@
           <Button variant="quiet" onclick={() => (renaming = false)}>{t('Cancel')}</Button>
         </form>
       {:else}
-        <h1 class="min-w-64 flex-1 text-3xl font-semibold">
-          {#if data.page.icon}<span class="mr-2" aria-hidden="true">{data.page.icon}</span>{/if}
+        <h1 class="relative min-w-64 flex-1 text-3xl font-semibold">
+          {#if canEdit}
+            <!-- Значок страницы это эмодзи в самой странице, а не файл: так же
+                 в v1, и дерево показывает его без второго запроса. -->
+            <button
+              class="mr-2 rounded hover:bg-surface-hover"
+              type="button"
+              title={t('Choose icon')}
+              aria-label={t('Choose icon')}
+              aria-expanded={choosing}
+              onclick={() => (choosing = !choosing)}
+            >
+              {#if data.page.icon}
+                <span aria-hidden="true">{data.page.icon}</span>
+              {:else}
+                <IconMoodSmile size={26} stroke={1.6} />
+              {/if}
+            </button>
+            {#if choosing}
+              <EmojiPicker
+                current={data.page.icon}
+                onpick={setIcon}
+                onclear={clearIcon}
+                onclose={() => (choosing = false)}
+              />
+            {/if}
+          {:else if data.page.icon}
+            <span class="mr-2" aria-hidden="true">{data.page.icon}</span>
+          {/if}
           {data.page.title ?? t('Untitled')}
         </h1>
 
@@ -195,12 +303,21 @@
           половину ширины заголовка и читаются как перечень, а не как действия.
           Подпись остаётся во всплывающей и в имени для чтения с экрана.
         -->
-        <div class="flex shrink-0 items-center gap-0.5">
+        <div class="relative flex shrink-0 items-center gap-0.5">
           <IconButton
             icon={data.favorite ? IconStarFilled : IconStar}
             label={data.favorite ? t('Remove from favorites') : t('Add to favorites')}
             disabled={busy}
             onclick={toggleFavorite}
+          />
+          <!-- Подписка отдельно от избранного: избранное это своя закладка,
+               подписка — извещения о чужих правках. -->
+          <IconButton
+            icon={watching ? IconBell : IconBellOff}
+            label={watching ? t('Unsubscribe') : t('Subscribe')}
+            active={watching}
+            disabled={busy}
+            onclick={toggleWatch}
           />
           {#if canEdit}
             <IconButton
@@ -226,7 +343,56 @@
               disabled={busy || printing}
               onclick={exportPdf}
             />
+            <IconButton
+              icon={IconFileExport}
+              label={t('Export')}
+              active={exporting}
+              disabled={busy}
+              onclick={() => (exporting = !exporting)}
+            />
+            <IconButton
+              icon={IconCopy}
+              label={t('Duplicate')}
+              disabled={busy}
+              onclick={duplicate}
+            />
+            <IconButton
+              icon={IconFolderSymlink}
+              label={t('Move to space')}
+              active={moving}
+              disabled={busy}
+              onclick={() => (moving = !moving)}
+            />
             <IconButton icon={IconTrash} label={t('Delete')} disabled={busy} onclick={remove} />
+
+            {#if exporting}
+              <PageExport
+                pageId={data.page.id}
+                title={data.page.title ?? t('Untitled')}
+                onclose={() => (exporting = false)}
+              />
+            {/if}
+
+            {#if moving}
+              <div
+                class="absolute right-0 top-10 z-40 max-h-64 w-56 overflow-y-auto rounded-md border border-border bg-surface-raised py-1 shadow-lg"
+                role="menu"
+              >
+                {#each data.spaces.filter((one) => one.id !== data.page.spaceId) as space (space.id)}
+                  <button
+                    class="w-full truncate px-3 py-1.5 text-left text-sm hover:bg-surface-hover"
+                    type="button"
+                    role="menuitem"
+                    disabled={busy}
+                    onclick={() => moveToSpace(space.id)}
+                  >
+                    {space.name}
+                  </button>
+                {:else}
+                  <p class="px-3 py-1.5 text-sm text-text-muted">{t('No spaces yet')}</p>
+                {/each}
+              </div>
+            {/if}
           {/if}
         </div>
       {/if}
@@ -251,9 +417,17 @@
         name: data.session?.user.name ?? data.session?.user.email ?? '',
         color: caretColor(data.session?.user.id ?? '')
       }}
+      userId={data.session?.user.id}
+      spaceId={data.page.spaceId}
+      oncount={(counted) => (stats = counted)}
     />
 
-    <PageComments pageId={data.page.id} comments={data.comments} userId={data.session?.user.id} />
+    <PageComments
+      pageId={data.page.id}
+      comments={data.comments}
+      userId={data.session?.user.id}
+      spaceId={data.page.spaceId}
+    />
   </article>
 
   <PageSidePanel
@@ -266,5 +440,8 @@
     verification={data.verification}
     share={data.share}
     spaceSlug={data.space?.slug ?? ''}
+    {stats}
+    createdAt={data.page.createdAt ?? null}
+    updatedAt={data.page.updatedAt ?? null}
   />
 </div>

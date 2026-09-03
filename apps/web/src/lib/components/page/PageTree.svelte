@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page as current } from '$app/state';
   import { pageTree, type PageSummary } from '$lib/features/page/services/pages';
+  import { listSpaces, type Space } from '$lib/features/space/services/spaces';
   import { onRealtime } from '$lib/features/realtime/socket';
   import { locale } from '$lib/stores/i18n.svelte';
   import PageTreeNode from './PageTreeNode.svelte';
@@ -10,6 +11,23 @@
 
   let roots = $state<PageSummary[]>([]);
   let loading = $state(true);
+  /**
+   * Куда можно перенести страницу.
+   *
+   * Загружается один раз на всё дерево: перечень одинаков для каждой строки, и
+   * запрос на строку означал бы сотню одинаковых обращений при раскрытии.
+   */
+  let spaces = $state<Space[]>([]);
+
+  $effect(() => {
+    listSpaces()
+      .then((found) => (spaces = found))
+      .catch(() => {
+        // Отказ перечня прячет перенос, но дерево работает: остальные действия
+        // от него не зависят.
+        spaces = [];
+      });
+  });
   //: Счётчик перезапросов. Меняется от события канала, и от него же зависит
   //: загрузка: без него обновление пришлось бы звать в обход своего же кода.
   let refresh = $state(0);
@@ -58,7 +76,15 @@
     <p class="px-2 py-1 text-sm text-text-muted">{t('Loading...')}</p>
   {:else}
     {#each roots as node (node.id)}
-      <PageTreeNode {node} {spaceSlug} depth={0} activeSlug={current.params.pageSlug} />
+      <PageTreeNode
+        {node}
+        {spaceSlug}
+        depth={0}
+        activeSlug={current.params.pageSlug}
+        siblings={roots}
+        {spaces}
+        onchanged={() => (refresh += 1)}
+      />
     {:else}
       <p class="px-2 py-1 text-sm text-text-muted">{t('No pages in this space')}</p>
     {/each}

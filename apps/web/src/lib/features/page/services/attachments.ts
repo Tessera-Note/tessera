@@ -1,5 +1,5 @@
 import { apiBase } from '$lib/api/base';
-import { ApiError } from '$lib/api/client';
+import { ApiError, post } from '$lib/api/client';
 
 /** Вложение так, как его отдаёт сервер. */
 export type Attachment = {
@@ -9,7 +9,43 @@ export type Attachment = {
   mimeType: string | null;
   pageId: string | null;
   updatedAt: string | null;
+  /**
+   * Попадёт ли содержимое файла в поиск.
+   *
+   * Правило разбора живёт на сервере: извлечение текста берёт обычный текст,
+   * Markdown, JSON, PDF и DOCX, а картинка, архив и PDF из сканов не попадут в
+   * поиск никогда. Повторять этот список на клиенте значило бы завести второе
+   * правило, которое разойдётся с первым.
+   */
+  indexStatus?: string;
 };
+
+/** Что известно о вложении. Нужен карточке: размер и попадание в поиск. */
+export function attachmentInfo(attachmentId: string, fetcher?: typeof fetch) {
+  return post<Attachment>('/api/files/info', { attachmentId }, { fetcher });
+}
+
+/**
+ * Размер файла словами.
+ *
+ * Считается от килобайта, а не от байта: вложение меньше килобайта в вики не
+ * встречается, а «0 B» рядом с именем читается как пустой файл. Правило то же,
+ * что в v1, чтобы одна и та же страница показывала один и тот же размер.
+ */
+export function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return '0.0 KB';
+
+  const step = 1024;
+  const units = ['KB', 'MB', 'GB', 'TB', 'PB'];
+  const kilobytes = bytes / step;
+  const index = Math.min(
+    Math.max(Math.floor(Math.log(kilobytes) / Math.log(step)), 0),
+    units.length - 1
+  );
+  const size = kilobytes / step ** index;
+
+  return `${size.toFixed(index === 0 ? 1 : 0)} ${units[index]}`;
+}
 
 /**
  * Загрузить файл страницы.
