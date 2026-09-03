@@ -103,6 +103,8 @@ EXPECTED_PUBLIC = {
     # токен: закрыв их, мы сделали бы настройку интеграции невозможной.
     "/api/scim/v2/ServiceProviderConfig",
     "/api/scim/v2/ResourceTypes",
+    "/api/scim/v2/Schemas",
+    "/api/scim/v2/Schemas/{schema_id:str}",
     "/api/scim/v2/Users",
     "/api/scim/v2/Users/{user_id:str}",
     "/api/scim/v2/Groups",
@@ -122,13 +124,19 @@ EXPECTED_PUBLIC = {
     # подписи утверждения, чтение только подписанного поддерева и подписанный
     # нами `RelayState`. Каталог: проверка пароля в самом каталоге.
     #
-    # На всех трёх стоит счётчик частоты по адресу, на входе через каталог —
+    # Google — тот же OIDC с постоянными настройками, и защита у него та же.
+    #
+    # На всех четырёх стоит счётчик частоты по адресу, на входе через каталог —
     # второй, по паре провайдера и имени.
     "/api/sso/oidc/{provider_id:uuid}/login",
     "/api/sso/oidc/{provider_id:uuid}/callback",
     "/api/sso/saml/{provider_id:uuid}/login",
     "/api/sso/saml/{provider_id:uuid}/callback",
     "/api/sso/ldap/{provider_id:uuid}/login",
+    # У Google идентификатора провайдера в пути нет: обратный адрес
+    # регистрируется в консоли Google один на установку и не может его нести.
+    "/api/sso/google/login",
+    "/api/sso/google/callback",
     # Канал событий. Открыт для общей охраны и аутентифицируется сам: у
     # рукопожатия нет ни разобранного токена, ни сессии базы, и охрана маршрута
     # ему ничего дать не может.

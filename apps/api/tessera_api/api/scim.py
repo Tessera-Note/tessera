@@ -1,10 +1,17 @@
 """Маршруты синхронизации каталога.
 
-Все они объявлены открытыми для общей охраны и **аутентифицируются сами**,
-токеном SCIM. Причина не в послаблении: провайдер учётных записей не входит
-человеком, у него нет ни сессии, ни cookie, и токен доступа ему выдать нельзя.
-Собственная охрана здесь строже общей — она сверяет и выключатель
-синхронизации, и принадлежность токена рабочему пространству.
+Все они объявлены открытыми для общей охраны. Причина не в послаблении:
+провайдер учётных записей не входит человеком, у него нет ни сессии, ни
+cookie, и токен доступа ему выдать нельзя.
+
+**Работа с записями аутентифицируется сама**, токеном SCIM, и эта охрана
+строже общей — она сверяет и выключатель синхронизации, и принадлежность
+токена рабочему пространству.
+
+**Описание протокола отдаётся без токена**: `ServiceProviderConfig`,
+`ResourceTypes` и `Schemas`. Их читают до заведения приложения, когда токена у
+провайдера ещё нет, и данных пространства в них не бывает — это перечень имён
+полей и признаков протокола.
 
 Формат ответов свой. У протокола собственный тип содержимого и собственный
 словарь причин отказа: провайдер ждёт `scimType` и по нему решает, повторять
@@ -32,6 +39,7 @@ from tessera_api.services.scim_filter import (
     parse_user_filter,
 )
 from tessera_api.services.scim_groups import ScimGroupData, ScimGroupService
+from tessera_api.services.scim_schemas import SCHEMAS
 from tessera_api.services.scim_tokens import ScimTokenService
 from tessera_api.services.scim_users import (
     SCIM_INVALID_VALUE,
@@ -219,6 +227,30 @@ class ScimController(Controller):
             },
         ]
         return _list(types, len(types), 1, len(types))
+
+    @get("/Schemas")
+    async def schemas(self) -> Response:
+        """Описания схем.
+
+        Их опрашивают Okta и Entra при заведении приложения. Содержимое —
+        `services/scim_schemas.py`: там же объяснено, почему объявлено меньше
+        атрибутов, чем есть в ядре протокола.
+        """
+        described = list(SCHEMAS.values())
+        return _list(described, len(described), 1, len(described))
+
+    @get("/Schemas/{schema_id:str}")
+    async def schema(self, schema_id: str) -> Response:
+        """Одно описание по его URN.
+
+        Часть провайдеров ходит сразу за нужным, минуя перечень.
+        """
+        found = SCHEMAS.get(schema_id)
+        if found is None:
+            # Отказ в терминах протокола, а не общий: провайдер разбирает своё
+            # тело ответа и по нему решает, повторять запрос или нет.
+            return _error(404, "схема не найдена")
+        return _scim(found)
 
     @get("/Users")
     async def list_users(
