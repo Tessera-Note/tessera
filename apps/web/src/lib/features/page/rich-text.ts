@@ -29,7 +29,15 @@ export type Piece =
       code: boolean;
       href: string | null;
     }
-  | { kind: 'mention'; label: string; slugId: string | null; page: boolean };
+  | {
+      kind: 'mention';
+      label: string;
+      /** Кого упомянули. Нужен показу: подпись в узле заморожена при вставке. */
+      entityId: string | null;
+      slugId: string | null;
+      anchorId: string | null;
+      page: boolean;
+    };
 
 /** Строка показа: вид блока и его куски. */
 export type Line = { block: 'paragraph' | 'quote' | 'code' | 'item'; pieces: Piece[] };
@@ -123,10 +131,14 @@ function textPiece(node: Raw): Piece {
 function mentionPiece(node: Raw): Piece {
   const attrs = node.attrs ?? {};
   const slug = attrs.slugId;
+  const entity = attrs.entityId;
+  const anchor = attrs.anchorId;
   return {
     kind: 'mention',
     label: String(attrs.label ?? attrs.entityId ?? ''),
+    entityId: typeof entity === 'string' ? entity : null,
     slugId: typeof slug === 'string' ? slug : null,
+    anchorId: typeof anchor === 'string' ? anchor : null,
     page: attrs.entityType === 'page'
   };
 }

@@ -7,8 +7,19 @@
  */
 
 import { flushSync, mount, unmount } from 'svelte';
-import { afterEach, describe, expect, it } from 'vitest';
-import RichText from './RichText.svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mentionTarget = vi.fn();
+const pageOnce = vi.fn();
+
+vi.mock('$lib/features/user/services/mentions', () => ({
+  mentionTarget: (...args: unknown[]) => mentionTarget(...args)
+}));
+vi.mock('$lib/features/page/services/page-cache', () => ({
+  pageOnce: (...args: unknown[]) => pageOnce(...args)
+}));
+
+const { default: RichText } = await import('./RichText.svelte');
 
 let host: HTMLElement | null = null;
 let component: Record<string, unknown> | null = null;
@@ -20,6 +31,15 @@ function render(content: unknown): HTMLElement {
   flushSync();
   return host;
 }
+
+beforeEach(() => {
+  // По умолчанию сеть молчит: разметка проверяется на замороженных подписях,
+  // а разрешение — своими проверками ниже.
+  mentionTarget.mockReset();
+  pageOnce.mockReset();
+  mentionTarget.mockRejectedValue(new Error('сеть'));
+  pageOnce.mockRejectedValue(new Error('сеть'));
+});
 
 afterEach(() => {
   if (component) void unmount(component);
@@ -94,5 +114,54 @@ describe('RichText', () => {
   it('пустое тело не рисует ни одного абзаца', () => {
     const box = render(doc({ type: 'paragraph' }));
     expect(box.querySelectorAll('p')).toHaveLength(0);
+  });
+});
+
+describe('RichText, разрешение упоминаний', () => {
+  /** Дать разрешению дойти до показа: ответ приходит обещанием. */
+  async function settle(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    flushSync();
+  }
+
+  it('показывает нынешнее имя, а не замороженное', async () => {
+    // Тот же показ, что в теле страницы. Иначе имя удалённого уходило бы со
+    // страницы и оставалось в обсуждении под ней.
+    mentionTarget.mockResolvedValue({
+      id: 'u1',
+      name: 'Новое имя',
+      deactivated: false
+    });
+
+    const box = render(
+      doc({
+        type: 'paragraph',
+        content: [
+          { type: 'mention', attrs: { label: 'Прежнее имя', entityType: 'user', entityId: 'u1' } }
+        ]
+      })
+    );
+    await settle();
+
+    expect(box.textContent).toContain('Новое имя');
+    expect(box.textContent).not.toContain('Прежнее имя');
+  });
+
+  it('удалённого показывает обезличенно', async () => {
+    mentionTarget.mockResolvedValue(null);
+
+    const box = render(
+      doc({
+        type: 'paragraph',
+        content: [
+          { type: 'mention', attrs: { label: 'Ушедший', entityType: 'user', entityId: 'u1' } }
+        ]
+      })
+    );
+    await settle();
+
+    expect(box.textContent).toContain('Deleted user');
+    expect(box.textContent).not.toContain('Ушедший');
   });
 });

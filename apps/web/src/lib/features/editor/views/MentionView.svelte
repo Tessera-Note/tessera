@@ -1,28 +1,22 @@
 <script lang="ts">
+  /**
+   * Узел упоминания в документе.
+   *
+   * Показ общий с телом комментария (`MentionChip`): здесь только перевод
+   * атрибутов узла в его доводы. Второй показ означал бы, что имя удалённого
+   * убрано на странице, но осталось в обсуждении под ней.
+   */
+  import MentionChip from '$lib/components/page/MentionChip.svelte';
   import type { NodeViewProps } from '../node-view.svelte';
 
   const { attributes }: Props = $props();
   type Props = NodeViewProps;
 
   const label = $derived(String(attributes.label ?? attributes.entityId ?? ''));
-  const isPage = $derived(attributes.entityType === 'page');
-  const slug = $derived(attributes.slugId ? String(attributes.slugId) : null);
+  const page = $derived(attributes.entityType === 'page');
+  const entityId = $derived(attributes.entityId ? String(attributes.entityId) : null);
+  const slugId = $derived(attributes.slugId ? String(attributes.slugId) : null);
+  const anchorId = $derived(attributes.anchorId ? String(attributes.anchorId) : null);
 </script>
 
-<!--
-  Упоминание страницы это ссылка, упоминание человека — нет: у человека внутри
-  вики своего экрана нет, и ссылка вела бы в никуда.
--->
-{#if isPage && slug}
-  <a
-    data-component="MentionView"
-    class="rounded bg-accent-soft px-1 py-0.5 text-sm text-accent no-underline"
-    href="/p/{slug}"
-  >
-    {label}
-  </a>
-{:else}
-  <span data-component="MentionView" class="rounded bg-accent-soft px-1 py-0.5 text-sm text-accent">
-    {isPage ? '' : '@'}{label}
-  </span>
-{/if}
+<MentionChip {page} {label} {entityId} {slugId} {anchorId} />

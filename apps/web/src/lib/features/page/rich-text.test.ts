@@ -52,13 +52,32 @@ describe('readRichText', () => {
         type: 'paragraph',
         content: [
           { type: 'mention', attrs: { label: 'Пётр', entityType: 'user', entityId: 'u1' } },
-          { type: 'mention', attrs: { label: 'План', entityType: 'page', slugId: 's1' } }
+          {
+            type: 'mention',
+            attrs: { label: 'План', entityType: 'page', slugId: 's1', anchorId: 'h2' }
+          }
         ]
       })
     );
+    // Кого упомянули и якорь идут дальше показу: подпись в узле заморожена при
+    // вставке, и без них показ не смог бы спросить живую.
     expect(lines[0].pieces).toEqual([
-      { kind: 'mention', label: 'Пётр', slugId: null, page: false },
-      { kind: 'mention', label: 'План', slugId: 's1', page: true }
+      {
+        kind: 'mention',
+        label: 'Пётр',
+        entityId: 'u1',
+        slugId: null,
+        anchorId: null,
+        page: false
+      },
+      {
+        kind: 'mention',
+        label: 'План',
+        entityId: null,
+        slugId: 's1',
+        anchorId: 'h2',
+        page: true
+      }
     ]);
   });
 

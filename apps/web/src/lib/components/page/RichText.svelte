@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MentionChip from '$lib/components/page/MentionChip.svelte';
   import { readRichText } from '$lib/features/page/rich-text';
 
   type Props = { content: unknown };
@@ -17,18 +18,18 @@
     {#snippet pieces()}
       {#each line.pieces as piece, index (index)}
         {#if piece.kind === 'mention'}
-          {#if piece.page && piece.slugId}
-            <a
-              class="rounded bg-accent-soft px-1 text-accent no-underline"
-              href="/p/{piece.slugId}"
-            >
-              {piece.label}
-            </a>
-          {:else}
-            <span class="rounded bg-accent-soft px-1 text-accent">
-              {piece.page ? '' : '@'}{piece.label}
-            </span>
-          {/if}
+          <!--
+            Тот же показ, что в теле страницы: подпись в узле заморожена при
+            вставке, и без разрешения имя удалённого осталось бы в обсуждении
+            даже после того, как ушло со страницы.
+          -->
+          <MentionChip
+            page={piece.page}
+            label={piece.label}
+            entityId={piece.entityId}
+            slugId={piece.slugId}
+            anchorId={piece.anchorId}
+          />
         {:else if piece.href}
           <a class="text-accent underline" href={piece.href} rel="noreferrer noopener">
             {piece.text}
