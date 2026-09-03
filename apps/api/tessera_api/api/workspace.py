@@ -16,6 +16,7 @@ from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import AuthProvider, User, Workspace
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
+from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.workspace import WorkspaceService
 
@@ -286,8 +287,12 @@ class WorkspaceController(Controller):
 
     @post("/members/delete")
     async def delete_member(
-        self, data: MemberIdRequest, request: Request, db_session: NamedDependency[AsyncSession],
-        realtime: NamedDependency[RealtimeService]
+        self,
+        data: MemberIdRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        realtime: NamedDependency[RealtimeService],
+        storage: NamedDependency[Storage],
     ) -> dict:
         """Удалить участника.
 
@@ -296,7 +301,7 @@ class WorkspaceController(Controller):
         Запись при этом остаётся: на неё ссылаются страницы, правки и журнал.
         """
         actor, principal = await self._actor(request, db_session)
-        await WorkspaceService(db_session, realtime).delete_member(
+        await WorkspaceService(db_session, realtime, storage).delete_member(
             actor, uuid.UUID(data.userId), principal.workspace_id
         )
         return {"success": True}

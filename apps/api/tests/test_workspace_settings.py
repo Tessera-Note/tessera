@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import SpaceRole, UserRole
 from tessera_api.infrastructure.models import (
+    Attachment,
     AuditLog,
     AuthAccount,
     AuthProvider,
@@ -28,9 +29,27 @@ from tessera_api.infrastructure.models import (
     UserSession,
     Workspace,
 )
+from tessera_api.infrastructure.storage import image_key
 from tessera_api.services.ai_settings import feature_enabled
+from tessera_api.services.attachments import TYPE_AVATAR
 from tessera_api.services.workspace import MAX_NAME, MAX_TRASH_DAYS, WorkspaceService
 from tests.conftest import needs_database
+
+
+class _StorageDouble:
+    """Хранилище, которое помнит, что у него просили убрать."""
+
+    def __init__(self, files: dict[str, bytes]) -> None:
+        self._files = dict(files)
+        self.deleted: list[str] = []
+
+    async def delete(self, key: str) -> None:
+        self.deleted.append(key)
+        self._files.pop(key, None)
+
+    async def exists(self, key: str) -> bool:
+        return key in self._files
+
 
 pytestmark = needs_database
 
@@ -363,6 +382,66 @@ class TestDeleteMember:
         assert left.deleted_at is not None
         assert left.email != previous
         assert left.email.endswith("@deleted.invalid")
+
+    async def test_the_avatar_leaves_the_storage_with_its_owner(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Обезличивание снимает ссылку, а файл оставался в хранилище.
+
+        Найти его потом не по чему: имя случайное, владельца уже нет, ни отказа,
+        ни записи в журнале. Такой файл лежит вечно.
+        """
+        person = await self._member_with_everything(session, workspace, owner)
+        key = image_key(workspace.id, TYPE_AVATAR, "avatar.png")
+        await session.execute(
+            update(User).where(User.id == person.id).values(avatar_url="avatar.png")
+        )
+        await session.execute(
+            insert(Attachment).values(
+                id=uuid.uuid4(),
+                file_name="avatar.png",
+                file_path=key,
+                file_size=3,
+                file_ext=".png",
+                mime_type="image/png",
+                type=TYPE_AVATAR,
+                creator_id=person.id,
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        storage = _StorageDouble({key: b"png"})
+        await WorkspaceService(session, storage=storage).delete_member(
+            owner, person.id, workspace.id
+        )
+
+        assert storage.deleted == [key]
+        left = (
+            await session.execute(
+                select(func.count()).select_from(Attachment).where(Attachment.file_path == key)
+            )
+        ).scalar_one()
+        assert left == 0
+
+    async def test_an_external_avatar_is_left_alone(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Внешний адрес не наш, и удалять по нему нечего."""
+        person = await self._member_with_everything(session, workspace, owner)
+        await session.execute(
+            update(User)
+            .where(User.id == person.id)
+            .values(avatar_url="https://example.com/avatar.png")
+        )
+        await session.flush()
+
+        storage = _StorageDouble({})
+        await WorkspaceService(session, storage=storage).delete_member(
+            owner, person.id, workspace.id
+        )
+
+        assert storage.deleted == []
 
     async def test_everything_that_grants_access_is_removed(
         self, session: AsyncSession, workspace, owner

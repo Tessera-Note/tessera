@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.domain.roles import UserRole, is_workspace_admin
 from tessera_api.infrastructure.models import (
+    Attachment,
     AuthAccount,
     AuthProvider,
     Favorite,
@@ -21,8 +23,12 @@ from tessera_api.infrastructure.models import (
     Watcher,
     Workspace,
 )
+from tessera_api.infrastructure.storage import Storage, image_key
+from tessera_api.services.attachments import TYPE_AVATAR
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.realtime import RealtimeService
+
+logger = logging.getLogger(__name__)
 
 #: Длина имени рабочего пространства. Ограничение из v1: имя стоит в заголовке
 #: письма и в боковой панели, и строка на тысячу знаков ломает и то и другое.
@@ -46,11 +52,19 @@ JSON_FLAGS = {
 
 
 class WorkspaceService:
-    def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        realtime: RealtimeService | None = None,
+        storage: Storage | None = None,
+    ) -> None:
         self._session = session
         self._audit = AuditService(session)
         # `None` означает «канал не трогать»: так собирают службу проверки.
         self._realtime = realtime
+        # Нужен удалению участника: вместе с обезличиванием убирается его
+        # аватар. `None` означает «хранилище не трогать».
+        self._storage = storage
 
     async def members(self, workspace_id: uuid.UUID, limit: int = 100) -> list[User]:
         stmt = (
@@ -324,6 +338,10 @@ class WorkspaceService:
 
         before = {"name": target.name, "email": target.email, "role": target.role}
         now = datetime.now(UTC)
+        # Адрес аватара запоминается до обезличивания: после него ссылки нет, а
+        # файл в хранилище остаётся, и найти его будет нечем — ни отказа, ни
+        # записи в журнале.
+        avatar = target.avatar_url
 
         await self._session.execute(
             update(User)
@@ -384,10 +402,39 @@ class WorkspaceService:
             changes={"before": before},
         )
         await self._session.commit()
+
+        # Аватар убирается после записи: сначала снята ссылка, потом файл.
+        # Обратный порядок при сбое оставил бы ссылку на несуществующий файл,
+        # то есть битую картинку вместо прежней.
+        await self._forget_avatar(avatar, workspace_id)
+
         if revoked and self._realtime is not None:
             # Отзыв сессии закрывает вход, но открытое соединение канала живёт
             # само: без разрыва удалённый остаётся на связи.
             await self._realtime.drop_sessions(revoked)
+
+    async def _forget_avatar(self, avatar: str | None, workspace_id: uuid.UUID) -> None:
+        """Убрать аватар удалённого участника из хранилища и из учёта.
+
+        Обезличивание снимает ссылку, но файл остаётся: ни отказа, ни записи в
+        журнале, а обнаружить его потом не по чему — имя случайное, владельца
+        уже нет.
+
+        Внешний адрес пропускается: он не наш, и удалять по нему нечего.
+        """
+        if not avatar or self._storage is None:
+            return
+        if avatar.startswith("http://") or avatar.startswith("https://"):
+            return
+
+        key = image_key(workspace_id, TYPE_AVATAR, avatar)
+        try:
+            await self._storage.delete(key)
+        except Exception:  # noqa: BLE001 — участник удалён, файл подождёт уборки
+            logger.warning("Аватар удалённого участника не убран: %s", key)
+            return
+        await self._session.execute(delete(Attachment).where(Attachment.file_path == key))
+        await self._session.commit()
 
     async def _count_owners(self, workspace_id: uuid.UUID) -> int:
         stmt = (

@@ -139,6 +139,10 @@ class TestPublicWorkspace:
             dependencies={
                 "db_session": Provide(provide_session),
                 "realtime": Provide(lambda: realtime, sync_to_thread=False),
+                # Хранилище этому маршруту не нужно, но Litestar сверяет доводы
+                # всего контроллера при сборке приложения, а не только тех
+                # обработчиков, которые вызываются.
+                "storage": Provide(lambda: None, sync_to_thread=False),
             },
             state=State({"tokens": TokenService(SECRET)}),
         )
