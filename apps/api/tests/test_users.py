@@ -13,13 +13,13 @@ from httpx import ASGITransport, AsyncClient
 from litestar import Litestar
 from litestar.datastructures import State
 from litestar.di import Provide
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import AUTH_COOKIE, jwt_guard
-from tessera_api.api.users import MAX_NAME, UserController
+from tessera_api.api.users import MAX_MENTION_TARGETS, MAX_NAME, UserController
 from tessera_api.domain.errors import AppError, app_error_response
-from tessera_api.infrastructure.models import User, UserSession
+from tessera_api.infrastructure.models import User, UserSession, Workspace
 from tessera_api.services.tokens import TokenService
 from tests.conftest import needs_database
 from tests.test_transfer_routes import DatabaseDouble
@@ -209,3 +209,166 @@ class TestUpdateSelf:
 
         assert answer.status_code == 201
         assert answer.json()["locale"] == "ru"
+
+
+@needs_database
+class TestMentionTargets:
+    """Подпись упоминания на текущий момент.
+
+    Проверяется то, ради чего маршрут заведён: имя удалённого не остаётся в
+    теле страниц, отключённый отличим от действующего, а чужое пространство в
+    ответ не попадает.
+    """
+
+    async def test_the_current_name_is_returned_not_the_frozen_one(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        person = await _person(session, workspace, name="Новое имя")
+        token = await _token(session, person, workspace.id)
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions",
+                json={"userIds": [str(person)]},
+                cookies={AUTH_COOKIE: token},
+            )
+
+        assert answer.status_code == 201
+        body = answer.json()
+        assert len(body) == 1
+        assert body[0]["name"] == "Новое имя"
+        assert body[0]["deactivated"] is False
+
+    async def test_a_deleted_person_is_not_returned_at_all(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """По отсутствию строки показ ставит обезличенную подпись."""
+        reader = await _person(session, workspace)
+        token = await _token(session, reader, workspace.id)
+        gone = await _person(session, workspace, name="Ушедший")
+        await session.execute(
+            update(User).where(User.id == gone).values(deleted_at=datetime.now(UTC))
+        )
+        await session.commit()
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions",
+                json={"userIds": [str(gone)]},
+                cookies={AUTH_COOKIE: token},
+            )
+
+        assert answer.json() == []
+
+    async def test_a_deactivated_person_is_returned_with_the_mark(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Отключённый существует: его подпись остаётся, но отличима."""
+        # Читает другой: отключённого охрана до маршрута не пускает.
+        reader = await _person(session, workspace)
+        token = await _token(session, reader, workspace.id)
+        person = await _person(session, workspace, name="Отключённый")
+        await session.execute(
+            update(User).where(User.id == person).values(deactivated_at=datetime.now(UTC))
+        )
+        await session.commit()
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions",
+                json={"userIds": [str(person)]},
+                cookies={AUTH_COOKIE: token},
+            )
+
+        body = answer.json()
+        assert body[0]["deactivated"] is True
+        assert body[0]["name"] == "Отключённый"
+
+    async def test_a_stranger_from_another_workspace_is_not_returned(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        person = await _person(session, workspace)
+        token = await _token(session, person, workspace.id)
+
+        other = uuid.uuid4()
+        await session.execute(insert(Workspace).values(id=other, name="Чужое"))
+        stranger = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=stranger,
+                name="Чужой",
+                email=f"{stranger}@example.org",
+                password="x",
+                role="member",
+                workspace_id=other,
+            )
+        )
+        await session.commit()
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions",
+                json={"userIds": [str(stranger)]},
+                cookies={AUTH_COOKIE: token},
+            )
+
+        assert answer.json() == []
+
+    async def test_a_broken_identifier_is_skipped_not_refused(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Значение приходит из содержимого страницы: один битый узел не
+        должен обезличивать все остальные упоминания на ней."""
+        person = await _person(session, workspace, name="Живой")
+        token = await _token(session, person, workspace.id)
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions",
+                json={"userIds": ["не идентификатор", str(person)]},
+                cookies={AUTH_COOKIE: token},
+            )
+
+        assert answer.status_code == 201
+        assert [one["name"] for one in answer.json()] == ["Живой"]
+
+    async def test_an_empty_request_asks_the_database_for_nothing(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        person = await _person(session, workspace)
+        token = await _token(session, person, workspace.id)
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions", json={"userIds": []}, cookies={AUTH_COOKIE: token}
+            )
+
+        assert answer.json() == []
+
+    async def test_too_many_at_once_are_refused(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        person = await _person(session, workspace)
+        token = await _token(session, person, workspace.id)
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions",
+                json={"userIds": [str(uuid.uuid4()) for _ in range(MAX_MENTION_TARGETS + 1)]},
+                cookies={AUTH_COOKIE: token},
+            )
+
+        assert answer.status_code == 400
+        assert answer.json()["code"] == "error.common.too_many_items"
+
+    async def test_without_a_token_nothing_is_returned(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        person = await _person(session, workspace)
+
+        async with _client(session) as client:
+            answer = await client.post(
+                "/api/users/mentions", json={"userIds": [str(person)]}
+            )
+
+        assert answer.status_code == 401

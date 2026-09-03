@@ -47,6 +47,25 @@ class UserRepo:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def mention_targets(
+        self, user_ids: list[uuid.UUID], workspace_id: uuid.UUID
+    ) -> list[User]:
+        """Кто стоит за упоминаниями прямо сейчас.
+
+        Удалённые не возвращаются вовсе: вызывающий по отсутствию строки
+        покажет обезличенную подпись. Отключённые возвращаются, они существуют,
+        и отличать их от действующих — дело показа, а не выборки.
+        """
+        if not user_ids:
+            return []
+        stmt = (
+            select(User)
+            .where(User.id.in_(user_ids))
+            .where(User.workspace_id == workspace_id)
+            .where(User.deleted_at.is_(None))
+        )
+        return list((await self._session.execute(stmt)).scalars())
+
 
 class WorkspaceRepo:
     def __init__(self, session: AsyncSession) -> None:

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 
 import msgspec
 from litestar import Controller, Request, post
@@ -34,6 +35,33 @@ LOCALE = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
 #: Предел длины имени. Имя показывается в дереве, в упоминаниях и в письмах, и
 #: строка на тысячу знаков ломает вёрстку всюду сразу.
 MAX_NAME = 100
+
+
+class MentionTargetsRequest(msgspec.Struct):
+    """Кого разрешить. Имя поля из v1: запрос шлёт уже написанный клиент."""
+
+    userIds: list[str] = []  # noqa: N815 — имя поля из v1
+
+
+class MentionTargetView(msgspec.Struct):
+    """Подпись упоминания на текущий момент.
+
+    Отдаётся только то, что показывает подпись: имя и признак отключённой
+    записи. Почты, роли и настроек здесь нет — упоминание видит каждый, кто
+    видит страницу, и состав ответа не должен зависеть от прав читающего.
+    Аватара нет по той же причине, что и остального: подпись его не рисует, а
+    поле, которого никто не читает, — лишняя выдача о человеке.
+    """
+
+    id: uuid.UUID
+    name: str | None
+    deactivated: bool
+
+
+#: Предел на один запрос. Упоминаний на странице бывает много, но запрос идёт
+#: пачкой из показа, а не из ввода человека: тысяча идентификаторов означала бы
+#: ошибку вызывающего, а не настоящую страницу.
+MAX_MENTION_TARGETS = 200
 
 
 class UpdateUserRequest(msgspec.Struct):
@@ -72,6 +100,51 @@ NOTIFICATION_KEYS = {
 
 class UserController(Controller):
     path = "/api/users"
+
+    @post("/mentions")
+    async def mentions(
+        self,
+        data: MentionTargetsRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> list[MentionTargetView]:
+        """Кто стоит за упоминаниями прямо сейчас.
+
+        Подпись в узле упоминания заморожена на момент вставки, поэтому имя
+        удалённого оставалось бы в теле каждой страницы, где его упомянули:
+        обезличивание при удалении до содержимого не доходит. Разрешение на
+        лету закрывает это, не переписывая страницы.
+
+        Отдельный маршрут, а не список участников: тот закрыт правом на чтение
+        состава, а подпись упоминания видит каждый, кто видит страницу.
+
+        Негодный идентификатор пропускается, а не отвергает весь запрос:
+        значение приходит из содержимого страницы, где оно могло быть испорчено
+        чем угодно, и один битый узел не должен обезличивать всю страницу.
+        """
+        principal: Principal = request.scope["principal"]
+
+        if len(data.userIds) > MAX_MENTION_TARGETS:
+            raise bad_request("error.common.too_many_items")
+
+        wanted: list[uuid.UUID] = []
+        for raw in data.userIds:
+            try:
+                wanted.append(uuid.UUID(str(raw)))
+            except (ValueError, AttributeError, TypeError):
+                continue
+
+        found = await UserRepo(db_session).mention_targets(
+            wanted, principal.workspace_id
+        )
+        return [
+            MentionTargetView(
+                id=user.id,
+                name=user.name,
+                deactivated=user.deactivated_at is not None,
+            )
+            for user in found
+        ]
 
     @post("/update")
     async def update_me(
