@@ -54,8 +54,23 @@ export function createTemplate(
   return post<Template>('/api/templates/create', values, { fetcher });
 }
 
+/**
+ * Изменить шаблон.
+ *
+ * `move` отдельным признаком, а не пустым `moveToSpaceId`: пустое значение
+ * означает «шаблон рабочего пространства», а не «область не меняем», и без
+ * признака перенести шаблон в рабочее пространство было бы нечем.
+ */
 export function updateTemplate(
-  values: { templateId: string; title?: string; description?: string },
+  values: {
+    templateId: string;
+    title?: string;
+    description?: string;
+    icon?: string;
+    content?: unknown;
+    moveToSpaceId?: string;
+    move?: boolean;
+  },
   fetcher?: typeof fetch
 ) {
   return post<Template>('/api/templates/update', values, { fetcher });

@@ -1,11 +1,23 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { invalidateAll } from '$app/navigation';
+  import { IconPlus, IconX } from '@tabler/icons-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
+  import BaseCalendar from '$lib/features/base/components/BaseCalendar.svelte';
+  import BaseFilters from '$lib/features/base/components/BaseFilters.svelte';
+  import BaseKanban from '$lib/features/base/components/BaseKanban.svelte';
+  import BaseRowCard from '$lib/features/base/components/BaseRowCard.svelte';
+  import BaseTable from '$lib/features/base/components/BaseTable.svelte';
+  import { chooseView, visibleColumns, viewRows, type Column } from '$lib/features/base/view';
+  import type { CellContext, PageRef, Person } from '$lib/features/base/cells';
+  import type { ViewConfig } from '$lib/features/base/types';
   import {
     PROPERTY_TYPES,
+    VIEW_TYPES,
     baseRows,
     createProperty,
     createRow,
@@ -13,9 +25,12 @@
     deleteProperty,
     deleteRow,
     deleteView,
+    expandPages,
     exportCsv,
     renameBase,
+    updateProperty,
     updateRow,
+    updateView,
     type BaseProperty,
     type BaseRow
   } from '$lib/features/base/services/bases';
@@ -41,12 +56,110 @@
   let newProperty = $state('');
   let newPropertyType = $state('text');
   let newView = $state('');
+  let newViewType = $state('table');
+
+  /** Какое представление открыто. Пусто — таблица без настроек. */
+  let viewId = $state<string | null>(null);
+  /** Открыты настройки отбора и порядка. */
+  let tuning = $state(false);
+  /** Какая строка открыта карточкой. */
+  let opened = $state<string | null>(null);
 
   $effect(() => {
     name = data.base.name ?? '';
     more = [];
     cursor = data.rows.nextCursor;
+    // Представление выбирается первым из имеющихся: показывать базу вовсе без
+    // представления значило бы прятать настроенные людьми отбор и порядок.
+    // Своё же значение читается вне отслеживания: эффект его пишет, и подписка
+    // на него зациклила бы правку.
+    viewId = chooseView(
+      data.base.views,
+      untrack(() => viewId)
+    );
   });
+
+  const view = $derived(data.base.views.find((one) => one.id === viewId) ?? null);
+  const config = $derived<ViewConfig>(view?.config ?? {});
+
+  /**
+   * Люди для ячеек с человеком.
+   *
+   * Два источника, и оба нужны. Вместе со строками сервер разворачивает только
+   * авторов правок — их он и так читает. В ячейке же может стоять кто угодно
+   * из пространства, поэтому его участники загружаются отдельно; они же
+   * составляют перечень выбора.
+   */
+  const people = $derived(
+    data.members.map((one) => ({ id: one.id, name: one.name, avatarUrl: null }))
+  );
+  const peopleById = $derived.by(() => {
+    const map: Record<string, Person> = {};
+    for (const one of data.rows.references?.users ?? []) map[one.id] = one;
+    for (const one of people) map[one.id] = map[one.id] ?? one;
+    return map;
+  });
+
+  /**
+   * Названия страниц для ячеек со ссылками.
+   *
+   * Отдельным запросом: сервер отдаёт их только по просьбе, и права у каждой
+   * проверяются отдельно — ячейка может ссылаться на закрытую страницу.
+   */
+  let pagesById = $state<Record<string, PageRef>>({});
+
+  $effect(() => {
+    const wanted = new Set<string>();
+    for (const property of data.base.properties) {
+      if (property.type !== 'page') continue;
+      for (const row of rows) {
+        const value = row.cells[property.id];
+        for (const one of Array.isArray(value) ? value : [value]) {
+          if (typeof one === 'string' && one) wanted.add(one);
+        }
+      }
+    }
+    if (wanted.size === 0) {
+      pagesById = {};
+      return;
+    }
+
+    void expandPages([...wanted])
+      .then((found) => {
+        const map: Record<string, PageRef> = {};
+        for (const one of found) map[one.id] = one;
+        pagesById = map;
+      })
+      .catch(() => {
+        // Отказ разворота не должен ронять таблицу: ячейка покажет
+        // идентификатор вместо названия.
+        pagesById = {};
+      });
+  });
+
+  const context = $derived<CellContext>({ people: peopleById, pages: pagesById });
+
+  /** Свойства в виде, который понимает отбор. */
+  const columnsForView = $derived<Column[]>(
+    data.base.properties.map((one) => ({
+      id: one.id,
+      name: one.name,
+      type: one.type,
+      position: one.position,
+      typeOptions: one.typeOptions,
+      isPrimary: one.isPrimary
+    }))
+  );
+
+  const shownColumns = $derived.by(() => {
+    const wanted = new Set(visibleColumns(columnsForView, config).map((one) => one.id));
+    const order = visibleColumns(columnsForView, config).map((one) => one.id);
+    const found = data.base.properties.filter((one) => wanted.has(one.id));
+    return [...found].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  });
+
+  const shownRows = $derived(viewRows(rows, config, columnsForView, context) as BaseRow[]);
+  const openedRow = $derived(rows.find((one) => one.id === opened) ?? null);
 
   /**
    * База обновляется от канала событий.
@@ -88,37 +201,22 @@
     }
   }
 
-  function cell(row: BaseRow, property: BaseProperty): string {
-    const value = row.cells[property.id];
-    if (value === null || value === undefined) return '';
-    return typeof value === 'object' ? JSON.stringify(value) : String(value);
-  }
-
   /**
    * Записать ячейку.
    *
    * Отправляется одна ячейка, а не строка целиком: слияние делает база, и
    * запись всей строки затирала бы правку соседа в соседней ячейке.
    */
-  function write(row: BaseRow, property: BaseProperty, raw: string) {
-    const value: unknown =
-      property.type === 'number'
-        ? raw.trim() === ''
-          ? null
-          : Number(raw)
-        : raw.trim() === ''
-          ? null
-          : raw;
-    if (cell(row, property) === (value === null ? '' : String(value))) return;
+  function write(row: BaseRow, property: BaseProperty, value: unknown) {
     return act(`${row.id}:${property.id}`, () =>
       updateRow(data.base.id, row.id, { [property.id]: value })
     );
   }
 
-  function toggle(row: BaseRow, property: BaseProperty, checked: boolean) {
-    return act(`${row.id}:${property.id}`, () =>
-      updateRow(data.base.id, row.id, { [property.id]: checked })
-    );
+  /** Сохранить настройки представления целиком: сервер пишет `config` как есть. */
+  function saveConfig(next: ViewConfig) {
+    if (!view) return;
+    return act(view.id, () => updateView({ baseId: data.base.id, viewId: view.id, config: next }));
   }
 
   async function loadMore() {
@@ -131,11 +229,16 @@
       failure = errorText(error, t);
     }
   }
+
+  const propertyTypes = $derived(
+    PROPERTY_TYPES.map((one) => ({ value: one.value, label: t(one.label) }))
+  );
+  const viewTypes = $derived(VIEW_TYPES.map((one) => ({ value: one.value, label: t(one.label) })));
 </script>
 
 <svelte:head><title>{data.base.name ?? t('Untitled')} · Tessera</title></svelte:head>
 
-<section data-route="base" class="mx-auto max-w-5xl">
+<section data-route="base" class="mx-auto max-w-6xl">
   {#if failure}<Notice message={failure} />{/if}
 
   <div class="mb-6 flex items-end gap-3">
@@ -153,115 +256,125 @@
     {/if}
   </div>
 
-  {#if data.base.views.length > 0 || canEdit}
-    <div data-component="BaseViews" class="mb-6 flex flex-wrap items-center gap-2">
-      {#each data.base.views as view (view.id)}
-        <span class="flex items-center gap-1 rounded bg-surface-raised px-2 py-1 text-sm">
-          {view.name}
-          {#if canEdit}
-            <button
-              class="text-text-muted hover:text-text"
-              aria-label={t('Delete')}
-              onclick={() => act(view.id, () => deleteView(data.base.id, view.id))}
-            >
-              ×
-            </button>
-          {/if}
-        </span>
-      {/each}
-      {#if canEdit}
-        <form
-          class="flex items-center gap-2"
-          onsubmit={(event) => {
-            event.preventDefault();
-            if (!newView.trim()) return;
-            return act('view', async () => {
-              await createView(data.base.id, newView.trim());
-              newView = '';
-            });
-          }}
-        >
-          <input
-            class="h-8 rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
-            bind:value={newView}
-            placeholder={t('View name')}
-          />
-          <Button type="submit" disabled={busy === 'view' || !newView.trim()}>{t('Add')}</Button>
-        </form>
-      {/if}
-    </div>
+  <div data-component="BaseViews" class="mb-4 flex flex-wrap items-center gap-2">
+    {#each data.base.views as one (one.id)}
+      <span
+        class="flex items-center gap-1 rounded px-2 py-1 text-sm"
+        class:bg-surface-active={one.id === viewId}
+        class:bg-surface-raised={one.id !== viewId}
+      >
+        <button type="button" onclick={() => (viewId = one.id)}>{one.name}</button>
+        {#if canEdit}
+          <button
+            class="text-text-muted hover:text-text"
+            type="button"
+            aria-label={t('Delete')}
+            onclick={() => act(one.id, () => deleteView(data.base.id, one.id))}
+          >
+            <IconX size={14} stroke={1.7} />
+          </button>
+        {/if}
+      </span>
+    {/each}
+
+    {#if canEdit}
+      <form
+        class="flex items-center gap-2"
+        onsubmit={(event) => {
+          event.preventDefault();
+          if (!newView.trim()) return;
+          return act('view', async () => {
+            await createView(data.base.id, newView.trim(), newViewType);
+            newView = '';
+          });
+        }}
+      >
+        <input
+          class="h-8 rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
+          bind:value={newView}
+          placeholder={t('View name')}
+        />
+        <div class="w-32">
+          <Select bind:value={newViewType} compact label={t('Type')} options={viewTypes} />
+        </div>
+        <Button type="submit" disabled={busy === 'view' || !newView.trim()}>{t('Add')}</Button>
+      </form>
+    {/if}
+
+    {#if view}
+      <button
+        class="ml-auto rounded px-2 py-1 text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+        type="button"
+        aria-expanded={tuning}
+        onclick={() => (tuning = !tuning)}
+      >
+        {t('Filter and sort')}
+      </button>
+    {/if}
+  </div>
+
+  {#if view && tuning}
+    <BaseFilters
+      properties={data.base.properties}
+      {config}
+      editable={canEdit}
+      onchange={saveConfig}
+    />
   {/if}
 
-  <div class="mb-4 overflow-x-auto card-soft rounded-md border border-border bg-surface-raised">
-    <table data-component="BaseTable" class="w-full text-left text-sm">
-      <thead class="border-b border-border text-text-muted">
-        <tr>
-          {#each data.base.properties as property (property.id)}
-            <th class="p-3 font-medium">
-              <span class="flex items-center gap-1">
-                {property.name}
-                {#if canEdit && !property.isPrimary}
-                  <button
-                    class="text-text-muted hover:text-text"
-                    aria-label={t('Delete')}
-                    onclick={() =>
-                      act(property.id, () => deleteProperty(data.base.id, property.id))}
-                  >
-                    ×
-                  </button>
-                {/if}
-              </span>
-            </th>
-          {/each}
-          <th class="p-3"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as row (row.id)}
-          <tr class="border-b border-border last:border-0">
-            {#each data.base.properties as property (property.id)}
-              <td class="p-2">
-                {#if property.type === 'checkbox'}
-                  <input
-                    type="checkbox"
-                    checked={row.cells[property.id] === true}
-                    disabled={!canEdit}
-                    onchange={(event) =>
-                      toggle(row, property, (event.currentTarget as HTMLInputElement).checked)}
-                  />
-                {:else}
-                  <input
-                    class="w-full rounded border border-transparent bg-transparent px-2 py-1 hover:border-border focus:border-border"
-                    value={cell(row, property)}
-                    disabled={!canEdit}
-                    onchange={(event) =>
-                      write(row, property, (event.currentTarget as HTMLInputElement).value)}
-                  />
-                {/if}
-              </td>
-            {/each}
-            <td class="p-2 text-right">
-              {#if canEdit}
-                <Button
-                  variant="quiet"
-                  disabled={busy === row.id}
-                  onclick={() => act(row.id, () => deleteRow(data.base.id, row.id))}
-                >
-                  {t('Delete')}
-                </Button>
-              {/if}
-            </td>
-          </tr>
-        {:else}
-          <tr>
-            <td class="p-3 text-text-muted" colspan={data.base.properties.length + 1}>
-              {t('No rows yet')}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+  {#if view?.type === 'kanban'}
+    <BaseKanban
+      properties={data.base.properties}
+      columns={shownColumns}
+      rows={shownRows}
+      {config}
+      {context}
+      editable={canEdit}
+      onopen={(row) => (opened = row.id)}
+      onmove={(row, choiceId) => {
+        const groupBy = data.base.properties.find(
+          (one) => one.id === (config.groupByPropertyId ?? '')
+        );
+        const property =
+          groupBy ??
+          data.base.properties.find((one) => one.type === 'select' || one.type === 'status');
+        if (property) write(row, property, choiceId);
+      }}
+      onconfig={saveConfig}
+    />
+  {:else if view?.type === 'calendar'}
+    <BaseCalendar
+      properties={data.base.properties}
+      columns={shownColumns}
+      rows={shownRows}
+      {config}
+      {context}
+      editable={canEdit}
+      onopen={(row) => (opened = row.id)}
+      onconfig={saveConfig}
+    />
+  {:else}
+    <BaseTable
+      columns={shownColumns}
+      properties={data.base.properties}
+      rows={shownRows}
+      {config}
+      {context}
+      {people}
+      editable={canEdit}
+      {busy}
+      onwrite={write}
+      onopen={(row) => (opened = row.id)}
+      ondeleteRow={(row) => act(row.id, () => deleteRow(data.base.id, row.id))}
+      onconfig={saveConfig}
+      onproperty={(property, values) =>
+        act(property.id, () =>
+          updateProperty({ baseId: data.base.id, propertyId: property.id, ...values })
+        )}
+      ondeleteProperty={(property) =>
+        act(property.id, () => deleteProperty(data.base.id, property.id))}
+    />
+  {/if}
 
   <div class="mb-8 flex flex-wrap gap-3">
     {#if canEdit}
@@ -270,6 +383,10 @@
       </Button>
     {/if}
     {#if cursor}
+      <!--
+        Отбор и порядок считаются по загруженным строкам: движка отбора на
+        стороне сервера нет, и незагруженное в них не попадает.
+      -->
       <Button variant="quiet" onclick={loadMore}>{t('Load more')}</Button>
     {/if}
     <Button
@@ -297,7 +414,10 @@
         });
       }}
     >
-      <h2 class="mb-4 text-lg font-medium">{t('Add property')}</h2>
+      <h2 class="mb-4 flex items-center gap-2 text-lg font-medium">
+        <IconPlus size={18} stroke={1.7} />
+        {t('Add property')}
+      </h2>
       <div class="flex flex-wrap items-end gap-3">
         <label class="flex-1">
           <span class="mb-1 block text-sm text-text-muted">{t('Name')}</span>
@@ -305,19 +425,30 @@
         </label>
         <label>
           <span class="mb-1 block text-sm text-text-muted">{t('Type')}</span>
-          <select
-            class="rounded border border-border bg-surface px-3 py-2"
-            bind:value={newPropertyType}
-          >
-            {#each PROPERTY_TYPES as one (one.value)}
-              <option value={one.value}>{t(one.label)}</option>
-            {/each}
-          </select>
+          <Select bind:value={newPropertyType} label={t('Type')} options={propertyTypes} />
         </label>
         <Button type="submit" disabled={busy === 'property' || !newProperty.trim()}>
           {t('Add')}
         </Button>
       </div>
     </form>
+  {/if}
+
+  {#if openedRow}
+    <BaseRowCard
+      row={openedRow}
+      properties={data.base.properties}
+      {context}
+      {people}
+      editable={canEdit}
+      {busy}
+      onwrite={(property, value) => write(openedRow, property, value)}
+      ondelete={() =>
+        act(openedRow.id, async () => {
+          await deleteRow(data.base.id, openedRow.id);
+          opened = null;
+        })}
+      onclose={() => (opened = null)}
+    />
   {/if}
 </section>

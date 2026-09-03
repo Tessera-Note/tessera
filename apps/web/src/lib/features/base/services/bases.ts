@@ -1,10 +1,12 @@
 import { apiBase } from '$lib/api/base';
 import { ApiError, post } from '$lib/api/client';
 
+import type { PropertyType, ViewConfig, ViewType } from '$lib/features/base/types';
+
 export type BaseProperty = {
   id: string;
   name: string;
-  type: string;
+  type: PropertyType;
   position: string;
   typeOptions: Record<string, unknown> | null;
   isPrimary: boolean;
@@ -13,9 +15,9 @@ export type BaseProperty = {
 export type BaseView = {
   id: string;
   name: string;
-  type: string;
+  type: ViewType;
   position: string;
-  config: Record<string, unknown>;
+  config: ViewConfig;
 };
 
 export type BaseInfo = {
@@ -50,9 +52,12 @@ export type RowPage = {
 /**
  * Виды свойств. Значения понимает сервер, подписи видит человек.
  *
- * Перечислены не все двадцать: заводить руками имеет смысл те, у которых
- * значение вводит человек. Вычисляемые (`createdAt`, `lastEditedBy`, `formula`)
- * заводятся вместе с настройками, которых у этого экрана пока нет.
+ * Перечислены не все девятнадцать. `title` заводит только сервер — при
+ * заведении базы и при превращении страницы в базу; второе такое свойство
+ * означало бы две колонки названия. `file` пропущен: загрузки файла в ячейку
+ * у этого экрана нет, и предлагать вид, который нечем заполнить, незачем.
+ * `formula` пропущен по той же причине: выражение вводится в настройках,
+ * которых нет.
  */
 export const PROPERTY_TYPES = [
   { value: 'text', label: 'Text' },
@@ -60,8 +65,24 @@ export const PROPERTY_TYPES = [
   { value: 'number', label: 'Number' },
   { value: 'checkbox', label: 'Checkbox' },
   { value: 'date', label: 'Date' },
+  { value: 'select', label: 'Select' },
+  { value: 'status', label: 'Status' },
+  { value: 'multiSelect', label: 'Multi-select' },
+  { value: 'person', label: 'Person' },
+  { value: 'page', label: 'Page' },
   { value: 'url', label: 'URL' },
-  { value: 'email', label: 'Email' }
+  { value: 'email', label: 'Email' },
+  { value: 'createdAt', label: 'Created time' },
+  { value: 'lastEditedAt', label: 'Last edited time' },
+  { value: 'createdBy', label: 'Created by' },
+  { value: 'lastEditedBy', label: 'Last edited by' }
+] as const;
+
+/** Виды представления. Значения понимает сервер (`VIEW_TYPES`). */
+export const VIEW_TYPES = [
+  { value: 'table', label: 'Table' },
+  { value: 'kanban', label: 'Board' },
+  { value: 'calendar', label: 'Calendar' }
 ] as const;
 
 export function baseInfo(baseId: string, fetcher?: typeof fetch, headers?: Record<string, string>) {
@@ -77,6 +98,20 @@ export function baseRows(
   return post<RowPage>('/api/bases/rows', { baseId, cursor }, { fetcher, headers });
 }
 
+/**
+ * Завести базу.
+ *
+ * `parentPageId` привязывает базу к странице: так её заводит встраивание из
+ * редактора. `template: 'kanban'` просит сервер сразу добавить свойство
+ * состояния и представление доской — руками это четыре запроса подряд.
+ */
+export function createBase(
+  values: { spaceId?: string; parentPageId?: string; name?: string; template?: 'kanban' },
+  fetcher?: typeof fetch
+) {
+  return post<{ id: string }>('/api/bases/create', values, { fetcher });
+}
+
 export function renameBase(baseId: string, name: string, fetcher?: typeof fetch) {
   return post<BaseInfo>('/api/bases/update', { baseId, name }, { fetcher });
 }
@@ -86,6 +121,40 @@ export function createProperty(
   fetcher?: typeof fetch
 ) {
   return post<BaseProperty>('/api/bases/properties/create', values, { fetcher });
+}
+
+/**
+ * Изменить свойство.
+ *
+ * `clearTypeOptions` отдельным признаком, а не пустым объектом: пустой объект
+ * и отсутствие настроек — разные состояния, и сбросить настройки иначе нечем.
+ */
+export function updateProperty(
+  values: {
+    baseId: string;
+    propertyId: string;
+    name?: string;
+    type?: string;
+    typeOptions?: Record<string, unknown>;
+    clearTypeOptions?: boolean;
+  },
+  fetcher?: typeof fetch
+) {
+  return post<BaseProperty>('/api/bases/properties/update', values, { fetcher });
+}
+
+/** Переставить колонку. Позиция это дробный ключ между соседями. */
+export function reorderProperty(
+  baseId: string,
+  propertyId: string,
+  position: string,
+  fetcher?: typeof fetch
+) {
+  return post<BaseProperty>(
+    '/api/bases/properties/reorder',
+    { baseId, propertyId, position },
+    { fetcher }
+  );
 }
 
 export function deleteProperty(baseId: string, propertyId: string, fetcher?: typeof fetch) {
@@ -115,12 +184,54 @@ export function updateRow(
   return post<BaseRow>('/api/bases/rows/update', { baseId, rowId, cells }, { fetcher });
 }
 
+/** Переставить строку. Позиция это дробный ключ между соседями. */
+export function reorderRow(
+  baseId: string,
+  rowId: string,
+  position: string,
+  fetcher?: typeof fetch
+) {
+  return post<BaseRow>('/api/bases/rows/reorder', { baseId, rowId, position }, { fetcher });
+}
+
+/** Одна строка. Люди и страницы к ней разворачиваются отдельно. */
+export function rowInfo(baseId: string, rowId: string, fetcher?: typeof fetch) {
+  return post<BaseRow>('/api/bases/rows/info', { baseId, rowId }, { fetcher });
+}
+
+/** Названия страниц для ячеек со ссылками. */
+export function expandPages(pageIds: string[], fetcher?: typeof fetch) {
+  return post<{ id: string; slugId: string; title: string | null; icon: string | null }[]>(
+    '/api/bases/pages/expand',
+    { pageIds },
+    { fetcher }
+  );
+}
+
 export function deleteRow(baseId: string, rowId: string, fetcher?: typeof fetch) {
   return post<{ success: boolean }>('/api/bases/rows/delete', { baseId, rowId }, { fetcher });
 }
 
-export function createView(baseId: string, name: string, fetcher?: typeof fetch) {
-  return post<BaseView>('/api/bases/views/create', { baseId, name, type: 'table' }, { fetcher });
+export function createView(
+  baseId: string,
+  name: string,
+  type: string = 'table',
+  fetcher?: typeof fetch
+) {
+  return post<BaseView>('/api/bases/views/create', { baseId, name, type }, { fetcher });
+}
+
+/**
+ * Изменить представление.
+ *
+ * Настройки отдаются целиком, а не по частям: сервер записывает `config` как
+ * есть, и отправка одного поля стёрла бы остальные.
+ */
+export function updateView(
+  values: { baseId: string; viewId: string; name?: string; type?: string; config?: ViewConfig },
+  fetcher?: typeof fetch
+) {
+  return post<BaseView>('/api/bases/views/update', values, { fetcher });
 }
 
 export function deleteView(baseId: string, viewId: string, fetcher?: typeof fetch) {

@@ -3,7 +3,13 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import { errorText } from '$lib/api/failure';
-  import { deleteTemplate, useTemplate } from '$lib/features/template/services/templates';
+  import DocumentView from '$lib/features/editor/DocumentView.svelte';
+  import {
+    deleteTemplate,
+    templateInfo,
+    useTemplate,
+    type TemplateBody
+  } from '$lib/features/template/services/templates';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -31,12 +37,28 @@
     failure = null;
     try {
       await action();
-      await invalidateAll();
+      // Предпросмотр ничего не меняет: перечитывать из-за него нечего.
+      if (!key.startsWith('preview:')) await invalidateAll();
     } catch (error) {
       failure = errorText(error, t);
     } finally {
       busy = null;
     }
+  }
+
+  /**
+   * Предпросмотр перед применением.
+   *
+   * Содержимое загружается по требованию: перечень его не несёт, а тела
+   * шаблонов бывают в сотни килобайт — грузить их все ради того, чтобы человек
+   * заглянул в один, значит платить за каждый открытый список.
+   */
+  let preview = $state<TemplateBody | null>(null);
+
+  function look(templateId: string) {
+    return act(`preview:${templateId}`, async () => {
+      preview = await templateInfo(templateId);
+    });
   }
 
   function apply(templateId: string, spaceId: string) {
@@ -87,13 +109,26 @@
                 : t('Workspace')}
             </p>
           </div>
-          <div class="flex shrink-0 gap-2">
+          <div class="flex shrink-0 flex-wrap gap-2">
             <Button
               disabled={busy === template.id || !target}
               onclick={() => apply(template.id, target)}
             >
               {t('Use template')}
             </Button>
+            <Button
+              variant="quiet"
+              disabled={busy === `preview:${template.id}`}
+              onclick={() => look(template.id)}
+            >
+              {t('Preview')}
+            </Button>
+            <a
+              class="inline-flex h-9 items-center justify-center rounded border border-border bg-surface-raised px-[18px] text-sm font-medium hover:bg-surface-hover"
+              href="/templates/{template.id}"
+            >
+              {t('Edit')}
+            </a>
             <Button
               variant="quiet"
               disabled={busy === template.id}
@@ -108,4 +143,34 @@
       <li class="text-sm text-text-muted">{t('No templates found')}</li>
     {/each}
   </ul>
+
+  {#if preview}
+    <!--
+      Предпросмотр показывает документ как он есть, а не пересказ текстом:
+      шаблон и выбирают по тому, как он выглядит.
+    -->
+    <div
+      class="fixed inset-y-0 right-0 z-40 w-full max-w-2xl overflow-y-auto border-l border-border bg-surface-raised p-5 shadow-lg"
+      role="dialog"
+      aria-label={preview.title}
+    >
+      <div class="mb-4 flex items-start gap-2">
+        <h2 class="flex-1 text-lg font-medium">
+          {#if preview.icon}<span class="mr-1">{preview.icon}</span>{/if}
+          {preview.title}
+        </h2>
+        <button
+          class="rounded px-2 py-1 text-sm text-text-muted hover:bg-surface-hover"
+          type="button"
+          onclick={() => (preview = null)}
+        >
+          {t('Close')}
+        </button>
+      </div>
+      {#if preview.description}
+        <p class="mb-4 text-sm text-text-muted">{preview.description}</p>
+      {/if}
+      <DocumentView content={preview.content} />
+    </div>
+  {/if}
 </section>
