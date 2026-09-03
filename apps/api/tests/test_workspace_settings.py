@@ -381,7 +381,10 @@ class TestDeleteMember:
         assert left is not None, "запись унесла бы с собой чужие страницы"
         assert left.deleted_at is not None
         assert left.email != previous
-        assert left.email.endswith("@deleted.invalid")
+        # Подпись и домен ровно те же, что пишет v1: база у двух версий одна, и
+        # обезличенный в одной виден в другой.
+        assert left.name == "Deleted user"
+        assert left.email.endswith("@deleted.tessera.com")
 
     async def test_the_avatar_leaves_the_storage_with_its_owner(
         self, session: AsyncSession, workspace, owner
