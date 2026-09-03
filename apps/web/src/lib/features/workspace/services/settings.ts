@@ -12,6 +12,8 @@ export type WorkspaceSettings = {
   restrictApiToAdmins: boolean;
   allowMemberTemplates: boolean;
   allowPersonalSpaces: boolean;
+  /** Включён ли канал MCP. Тот же признак читает маршрут `/api/mcp`. */
+  mcpEnabled: boolean;
 };
 
 /** Правится по одному полю: экран шлёт изменённое, остальное сервер не трогает. */

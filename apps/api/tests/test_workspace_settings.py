@@ -28,6 +28,7 @@ from tessera_api.infrastructure.models import (
     UserSession,
     Workspace,
 )
+from tessera_api.services.ai_settings import feature_enabled
 from tessera_api.services.workspace import MAX_NAME, MAX_TRASH_DAYS, WorkspaceService
 from tests.conftest import needs_database
 
@@ -232,6 +233,39 @@ class TestFlags:
             )
         ).scalar_one()
         assert stored["templates"]["allowMemberTemplates"] is True
+
+    async def test_the_mcp_flag_lands_where_the_channel_reads_it(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Канал MCP читает `settings.ai.mcp`, и признак обязан лечь туда же.
+
+        Иначе включение канала на экране настроек ничего не меняет: маршрут
+        `/api/mcp` продолжает отвечать отказом, а человек видит включённый
+        переключатель.
+        """
+        admin = await _person(session, workspace, UserRole.ADMIN)
+
+        updated = await WorkspaceService(session).update(
+            admin, workspace.id, flags={"mcpEnabled": True}
+        )
+
+        assert updated.settings["ai"]["mcp"] is True
+        assert feature_enabled(updated, "mcp") is True
+
+    async def test_turning_mcp_on_does_not_erase_neighbouring_ai_settings(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Раздел `ai` общий с настройками провайдера: запись поверх стёрла бы их."""
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        workspace.settings = {**(workspace.settings or {}), "ai": {"chat": True}}
+        await session.flush()
+
+        updated = await WorkspaceService(session).update(
+            admin, workspace.id, flags={"mcpEnabled": True}
+        )
+
+        assert updated.settings["ai"]["mcp"] is True
+        assert updated.settings["ai"]["chat"] is True
 
     async def test_a_flag_can_be_turned_off(self, session: AsyncSession, workspace) -> None:
         admin = await _person(session, workspace, UserRole.ADMIN)

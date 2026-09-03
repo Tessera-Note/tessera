@@ -67,6 +67,7 @@ class UpdateWorkspaceRequest(msgspec.Struct):
     restrictApiToAdmins: bool | None = None  # noqa: N815 — имя поля из v1
     allowMemberTemplates: bool | None = None  # noqa: N815 — имя поля из v1
     allowPersonalSpaces: bool | None = None  # noqa: N815 — имя поля из v1
+    mcpEnabled: bool | None = None  # noqa: N815 — имя поля из v1
 
 
 class MemberIdRequest(msgspec.Struct):
@@ -87,6 +88,7 @@ class WorkspaceSettingsView(msgspec.Struct):
     restrictApiToAdmins: bool  # noqa: N815 — имя поля из v1
     allowMemberTemplates: bool  # noqa: N815 — имя поля из v1
     allowPersonalSpaces: bool  # noqa: N815 — имя поля из v1
+    mcpEnabled: bool  # noqa: N815 — имя поля из v1
 
 
 def _flag(workspace: Workspace, path: tuple[str, str]) -> bool:
@@ -108,6 +110,7 @@ def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
         restrictApiToAdmins=flag(workspace, ("api", "restrictToAdmins")),
         allowMemberTemplates=flag(workspace, ("templates", "allowMemberTemplates")),
         allowPersonalSpaces=flag(workspace, ("spaces", "allowPersonal")),
+        mcpEnabled=flag(workspace, ("ai", "mcp")),
     )
 
 
@@ -240,6 +243,7 @@ class WorkspaceController(Controller):
                 "restrictApiToAdmins": data.restrictApiToAdmins,
                 "allowMemberTemplates": data.allowMemberTemplates,
                 "allowPersonalSpaces": data.allowPersonalSpaces,
+                "mcpEnabled": data.mcpEnabled,
             },
         )
         return _settings_view(updated)

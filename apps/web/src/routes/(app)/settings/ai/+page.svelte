@@ -169,6 +169,12 @@
 <section data-route="settings-ai">
   <h1 class="mb-6 text-2xl font-semibold">{t('AI')}</h1>
 
+  <nav class="mb-4 text-sm">
+    <a class="text-accent hover:underline" href="/settings/ai/mcp">
+      {t('Model Context Protocol (MCP)')}
+    </a>
+  </nav>
+
   {#if failure}<Notice message={failure} />{/if}
   {#if saved}<Notice tone="info" message={saved} />{/if}
 

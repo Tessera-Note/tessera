@@ -33,6 +33,21 @@ export const DONE = '[DONE]';
  * Испорченный кадр пропускается: обрыв разговора хуже пропуска одного куска.
  */
 export async function* readFrames(chunks: AsyncIterable<string>): AsyncGenerator<Frame> {
+  for await (const payload of readData(chunks)) {
+    const frame = parse(payload);
+    if (frame) yield frame as Frame;
+  }
+}
+
+/**
+ * Содержимое кадров, ещё не разобранное.
+ *
+ * Отдельно от `readFrames`, потому что поток переписывания текста
+ * (`/api/ai/generate/stream`) шлёт кадры другого вида — `{content}` и
+ * `{error}`, без поля `type`. Склейка кусков у них общая, и вторая её копия
+ * разошлась бы с этой на первом же исправлении.
+ */
+export async function* readData(chunks: AsyncIterable<string>): AsyncGenerator<string> {
   let rest = '';
 
   for await (const chunk of chunks) {
@@ -40,24 +55,26 @@ export async function* readFrames(chunks: AsyncIterable<string>): AsyncGenerator
     const lines = rest.split('\n');
     rest = lines.pop() ?? '';
     for (const line of lines) {
-      const frame = parseLine(line);
-      if (frame) yield frame;
+      const payload = payloadOf(line);
+      if (payload) yield payload;
     }
   }
 
   // Поток мог закончиться без перевода строки: последний кадр иначе пропал бы.
-  const last = parseLine(rest);
+  const last = payloadOf(rest);
   if (last) yield last;
 }
 
-function parseLine(line: string): Frame | null {
+function payloadOf(line: string): string | null {
   if (!line.startsWith('data:')) return null;
-
   const payload = line.slice(5).trim();
   if (!payload || payload === DONE) return null;
+  return payload;
+}
 
+function parse(payload: string): unknown {
   try {
-    return JSON.parse(payload) as Frame;
+    return JSON.parse(payload);
   } catch {
     return null;
   }

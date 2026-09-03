@@ -38,6 +38,10 @@ JSON_FLAGS = {
     "restrictApiToAdmins": ("api", "restrictToAdmins"),
     "allowMemberTemplates": ("templates", "allowMemberTemplates"),
     "allowPersonalSpaces": ("spaces", "allowPersonal"),
+    # Канал MCP. Путь тот же, что читает `feature_enabled(workspace, "mcp")`:
+    # без записи по этому пути канал включить нечем, и маршрут `/api/mcp`
+    # отвечает отказом всегда.
+    "mcpEnabled": ("ai", "mcp"),
 }
 
 
