@@ -53,9 +53,12 @@ ERROR_MESSAGES: dict[str, str] = {
     ),
     "error.sso.account_unavailable": "This account is unavailable",
     "error.sso.identity_conflict": (
-        "This email is already linked to another account at the provider"
+        "An account with this email is already linked to the provider under a "
+        "different identifier. Contact your administrator"
     ),
-    "error.sso.signup_disabled": "This provider does not allow new accounts",
+    "error.sso.signup_disabled": (
+        "This provider does not create new accounts. Contact your administrator"
+    ),
     "error.common.workspace_not_found": "Workspace not found",
     "error.common.user_not_found": "User not found",
     "error.space.space_not_found": "Space not found",
@@ -112,7 +115,7 @@ ERROR_MESSAGES: dict[str, str] = {
         "The render token is invalid or has expired"
     ),
     "error.pdf_export.pdf_export_needs_gotenberg_url_to": (
-        "PDF export needs GOTENBERG_URL to be set"
+        "PDF export needs GOTENBERG_URL to point at a Gotenberg service."
     ),
     "error.export.unknown_format": "Unknown export format",
     "error.export.nothing_to_export": "There is nothing to export",
