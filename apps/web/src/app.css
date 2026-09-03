@@ -300,11 +300,177 @@ progress {
   overflow-x: auto;
 }
 
+/*
+ * Обрамление блока кода: выбор языка и копирование стоят над самим блоком и
+ * показываются по наведению или пока каретка внутри — постоянно висящие, они
+ * мешают читать код.
+ */
+.tessera-code {
+  position: relative;
+}
+
+.tessera-code-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tessera-code:hover .tessera-code-menu,
+.tessera-code:focus-within .tessera-code-menu {
+  opacity: 1;
+}
+
+/* Диаграмма. Ширину задаёт сама библиотека, здесь только место и выравнивание. */
+.tessera-mermaid {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+.tessera-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .tessera-doc pre code {
   color: inherit;
   padding: 0;
   background: none;
   font-size: 0.875rem;
+}
+
+/*
+ * Закреплённая шапка таблицы.
+ *
+ * Смещение задаёт само расширение переменной `--editor-pin-offset`: оно меряет
+ * его по нижней кромке того, что висит над редактором, — шапки приложения,
+ * заголовка страницы, панели. Здесь только правила прилипания.
+ */
+.tableWrapper.tableWrapperNoOverflow,
+.tableWrapper.tableWrapperNoOverflow table {
+  overflow: visible;
+}
+
+.tableWrapper.tableHeaderPinned table tr:first-child {
+  z-index: 2;
+}
+
+.tableWrapper.tableWrapperNoOverflow.tableHeaderPinned table tr:first-child {
+  position: sticky;
+  top: var(--editor-pin-offset, 90px);
+}
+
+/* Прокручиваемая таблица прилипнуть не может: обёртка обрезает содержимое.
+   Строка вместо этого сдвигается на прокрученное. */
+.tableWrapper.tableHeaderPinned:not(.tableWrapperNoOverflow) table tr:first-child {
+  position: relative;
+  transform: translateY(var(--table-pin-offset, 0px));
+}
+
+/* Сортировка столбца в режиме чтения. Показывается по наведению на шапку и
+   остаётся видимой у столбца, по которому сортируют. */
+.tableReadonlySortChevron {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--surface-active);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  z-index: 1;
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.tessera-doc table th:hover .tableReadonlySortChevron,
+.tableReadonlySortChevron[data-sort] {
+  opacity: 1;
+}
+
+.tableReadonlySortChevron:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.tableReadonlySortChevron svg {
+  display: block;
+}
+
+.tableReadonlySortChevron[data-sort='asc'],
+.tableReadonlySortChevron[data-sort='desc'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tableReadonlySortChevron[data-sort='asc'] svg {
+  transform: rotate(180deg);
+}
+
+/* Подсказка у значка сортировки. Своя, а не браузерная: браузерная
+   появляется через секунду, а решение нажимать принимается раньше. */
+.tableReadonlySortChevron::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  /* Снизу: сверху подсказку обрезала бы прокручиваемая обёртка таблицы. */
+  top: calc(100% + 6px);
+  right: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 120ms ease;
+}
+
+.tableReadonlySortChevron:hover::after {
+  opacity: 1;
+}
+
+/* Перетаскивание строк и столбцов. */
+.table-dnd-preview {
+  padding: 0;
+  background-color: color-mix(in srgb, var(--surface) 30%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.table-dnd-drop-indicator {
+  background-color: var(--accent);
+  z-index: 3;
+}
+
+@media print {
+  .tableWrapper.tableHeaderPinned table tr:first-child {
+    position: static !important;
+    top: auto !important;
+    transform: none !important;
+  }
+
+  .tableReadonlySortChevron {
+    display: none !important;
+  }
 }
 
 /* Таблица в v1 фиксированной раскладки: без этого широкая таблица растягивает
@@ -368,11 +534,52 @@ progress {
   border-radius: 8px;
 }
 
-.tessera-doc [data-type='callout'] {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+/*
+ * Формула. Рисует её KaTeX, здесь только обрамление: место под окно правки,
+ * подсветка выделенного узла и вид пустой и неразобранной формулы — сама
+ * KaTeX ни того, ни другого не знает.
+ */
+.tessera-math {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.25rem;
+  margin: 0 0.1rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.tessera-math-block {
+  display: block;
+  margin: 1rem 0;
+  padding: 0.25rem;
+  text-align: center;
+}
+
+/*
+ * Прокрутка длинной формулы лежит на самой формуле, а не на обрамлении: окно
+ * правки стоит в обрамлении внахлёст, и прокручиваемая область растянулась бы
+ * на его высоту, спрятав формулу за ним.
+ */
+.tessera-math-block > span {
+  display: block;
+  overflow-x: auto;
+}
+
+.tessera-math-selected {
+  background: var(--surface-active);
+}
+
+.tessera-math-empty,
+.tessera-math-error {
+  color: var(--text-muted);
   background: var(--surface-muted);
-  padding: 0.75rem 0.875rem;
+}
+
+.tessera-math-error {
+  color: var(--danger);
 }
 
 .tessera-doc [data-type='details'] {
@@ -412,4 +619,78 @@ progress {
   top: -1.4em;
   user-select: none;
   white-space: nowrap;
+}
+
+/*
+ * Метка обсуждения. Значения перенесены из
+ * `apps/client/src/features/editor/styles/core.css`: страницы у первой и
+ * второй версии общие, и один и тот же кусок текста обязан выглядеть
+ * обсуждаемым одинаково.
+ */
+.tessera-doc .comment-mark {
+  background: rgba(255, 215, 0, 0.14);
+  border-bottom: 2px solid rgb(166, 158, 12);
+}
+
+.tessera-doc .comment-mark.resolved {
+  background: none;
+  border-bottom: none;
+}
+
+/*
+ * Подсветка найденного при поиске по документу. Из
+ * `apps/client/src/features/editor/styles/find.css`. Цвета намеренно не из
+ * токенов: они одинаковы в светлой и тёмной гамме, потому что должны
+ * читаться поверх любого текста.
+ */
+.tessera-doc .search-result {
+  background: #ffff65;
+  color: #212529;
+}
+
+.tessera-doc .search-result-current {
+  background: #ffc266;
+  color: #212529;
+}
+
+/*
+ * Поле комментария. Тот же документ, но короче и без своих отступов сверху:
+ * поле на три строки с полем страницы не путается.
+ */
+.tessera-comment {
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.tessera-comment p {
+  margin: 0.25em 0;
+}
+
+.tessera-comment ul,
+.tessera-comment ol {
+  padding: 0 1rem;
+}
+
+.tessera-comment ul {
+  list-style: disc;
+}
+
+.tessera-comment ol {
+  list-style: decimal;
+}
+
+/*
+ * Подсказка в пустом поле. Из
+ * `apps/client/src/features/editor/styles/placeholder.css`: расширение рисует
+ * её псевдоэлементом, и без правила поле выглядит просто пустым.
+ */
+.tessera-comment .is-editor-empty:first-child::before,
+.tessera-comment .is-empty::before,
+.tessera-doc .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
 }

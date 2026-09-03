@@ -11,7 +11,7 @@
  * терять фокус и состояние — в поле ввода это заметно сразу.
  */
 
-import { mount, unmount } from 'svelte';
+import { mount, unmount, untrack } from 'svelte';
 import type { Component } from 'svelte';
 import type { Editor, NodeViewRenderer } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
@@ -47,6 +47,16 @@ type Options = {
    * подменённые показом они перестают правиться.
    */
   content?: boolean;
+  /**
+   * Постоянные доводы отображения: чем показывать вложение, строчная формула
+   * или блочная.
+   *
+   * Передаются здесь, а не обёрткой над компонентом. Обёртка складывала бы их
+   * с доводами узла через `{ ...props }`, то есть снимала бы с них снимок, и
+   * отображение переставало бы видеть и выделение, и смену режима, и правку
+   * атрибутов — всё, что мост пишет после создания.
+   */
+  extra?: Record<string, unknown>;
 };
 
 export function svelteNodeView(
@@ -59,6 +69,7 @@ export function svelteNodeView(
     if (options.inline) dom.style.display = 'inline-block';
 
     const state = $state<NodeViewProps>({
+      ...options.extra,
       node: props.node,
       attributes: { ...props.node.attrs },
       selected: false,
@@ -72,8 +83,14 @@ export function svelteNodeView(
         props.editor
           .chain()
           .command(({ tr }) => {
+            // Прежние значения берутся из документа, а не из узла, с которым
+            // отображение завели. Тот узел — снимок на миг создания, и правка
+            // поверх него возвращает всё, что записали после: у статуса выбор
+            // цвета стирал уже набранный текст.
+            const current = tr.doc.nodeAt(position);
+            if (!current) return false;
             tr.setNodeMarkup(position, undefined, {
-              ...props.node.attrs,
+              ...current.attrs,
               ...values
             });
             return true;
@@ -82,15 +99,41 @@ export function svelteNodeView(
       }
     });
 
+    /**
+     * Переключение режима чтения и правки.
+     *
+     * Через `update` отображения оно не приходит: `setEditable` документа не
+     * меняет, а ProseMirror переиспользует совпавшие узлы, не спрашивая их
+     * отображения. Без этой подписки уже нарисованный узел остаётся в прежнем
+     * режиме до первой своей правки — метка состояния не нажимается, выбор
+     * вида выноски не показывается.
+     *
+     * Вне отслеживания: `setEditable` вызывается из эффекта, и запись отсюда
+     * подписала бы тот эффект на то, что он же и меняет.
+     */
+    const refreshEditable = () => {
+      untrack(() => {
+        state.editable = props.editor.isEditable;
+      });
+    };
+    props.editor.on('update', refreshEditable);
+
     const instance = mount(view, { target: dom, props: state });
 
     // Узел содержимого создаётся здесь, а не компонентом: его адрес нужен
     // редактору целиком, и пересоздание при перерисовке оборвало бы правку.
     let contentDOM: HTMLElement | undefined;
     if (options.content) {
-      contentDOM = document.createElement(options.inline ? 'span' : 'div');
-      const slot = dom.querySelector('[data-node-view-content]');
-      (slot ?? dom).appendChild(contentDOM);
+      // Помеченный компонентом узел становится узлом содержимого сам, а не
+      // получает вложенную обёртку. Обёртка вставила бы лишний блок внутрь
+      // разметки узла — в блоке кода это `<div>` внутри `<code>`, и подсветка
+      // с переносами строк разъезжаются.
+      const slot = dom.querySelector<HTMLElement>('[data-node-view-content]');
+      if (slot) contentDOM = slot;
+      else {
+        contentDOM = document.createElement(options.inline ? 'span' : 'div');
+        dom.appendChild(contentDOM);
+      }
     }
 
     return {
@@ -125,6 +168,7 @@ export function svelteNodeView(
           : true,
 
       destroy() {
+        props.editor.off('update', refreshEditable);
         void unmount(instance);
       }
     };

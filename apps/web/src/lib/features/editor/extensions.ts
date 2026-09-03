@@ -50,11 +50,17 @@ import {
   MathInline,
   Mention,
   PageBreak,
+  SearchAndReplace,
   Status,
   Subpages,
   TableCell,
+  TableDndExtension,
+  TableHandleCommandsExtension,
   TableHeader,
+  TableHeaderPin,
+  TableReadonlySort,
   TableRow,
+  TableView,
   TiptapAudio,
   TiptapImage,
   TiptapPdf,
@@ -64,38 +70,36 @@ import {
   TransclusionSource,
   UniqueID
 } from '@tessera/editor-ext';
+import { CharacterCount, Placeholder, Selection } from '@tiptap/extensions';
+import clojure from 'highlight.js/lib/languages/clojure';
+import dockerfile from 'highlight.js/lib/languages/dockerfile';
+import elixir from 'highlight.js/lib/languages/elixir';
+import erlang from 'highlight.js/lib/languages/erlang';
+import fortran from 'highlight.js/lib/languages/fortran';
+import haskell from 'highlight.js/lib/languages/haskell';
+import plaintext from 'highlight.js/lib/languages/plaintext';
+import powershell from 'highlight.js/lib/languages/powershell';
+import scala from 'highlight.js/lib/languages/scala';
 import { common, createLowlight } from 'lowlight';
-import type { AnyExtension } from '@tiptap/core';
+import { AutoJoiner } from './extensions/auto-joiner';
+import { CleanStyles } from './extensions/clean-styles';
+import { MarkdownClipboard } from './extensions/markdown-clipboard';
+import type { AnyExtension, Editor } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Component } from 'svelte';
 import { svelteNodeView, type NodeViewProps } from './node-view.svelte';
 import BaseEmbedView from './views/BaseEmbedView.svelte';
 import DiagramView from './views/DiagramView.svelte';
 import MediaView from './views/MediaView.svelte';
 import MentionView from './views/MentionView.svelte';
+import AttachmentView from './views/AttachmentView.svelte';
+import CodeBlockView from './views/CodeBlockView.svelte';
+import CalloutView from './views/CalloutView.svelte';
+import MathView from './views/MathView.svelte';
 import StatusView from './views/StatusView.svelte';
 import SubpagesView from './views/SubpagesView.svelte';
 import TransclusionReferenceView from './views/TransclusionReferenceView.svelte';
 import TransclusionSourceView from './views/TransclusionSourceView.svelte';
-
-/**
- * Один компонент показывает четыре вида вложений: разница между ними в теге, а
- * не в поведении, и четыре почти одинаковых файла разъехались бы.
- */
-function mediaView(kind: 'image' | 'video' | 'audio' | 'pdf'): Component<NodeViewProps> {
-  return ((anchor: never, props: NodeViewProps) =>
-    (MediaView as never as (a: never, p: object) => unknown)(anchor, {
-      ...props,
-      kind
-    })) as never;
-}
-
-function diagramView(kind: 'drawio' | 'excalidraw'): Component<NodeViewProps> {
-  return ((anchor: never, props: NodeViewProps) =>
-    (DiagramView as never as (a: never, p: object) => unknown)(anchor, {
-      ...props,
-      kind
-    })) as never;
-}
 
 /**
  * Подменить отображение узла своим.
@@ -106,7 +110,7 @@ function diagramView(kind: 'drawio' | 'excalidraw'): Component<NodeViewProps> {
 function withView<T extends { extend: (config: object) => T }>(
   extension: T,
   view: Component<NodeViewProps>,
-  options: { inline?: boolean; content?: boolean } = {}
+  options: { inline?: boolean; content?: boolean; extra?: Record<string, unknown> } = {}
 ): T {
   return extension.extend({ addNodeView: () => svelteNodeView(view, options) });
 }
@@ -122,16 +126,75 @@ function withoutNodeView<T extends { extend: (config: object) => T }>(extension:
 }
 
 /** Узлы со своим отображением: без него они не показывают содержимого. */
-const Image = withView(TiptapImage as never, mediaView('image'));
-const Video = withView(TiptapVideo as never, mediaView('video'));
-const Audio = withView(TiptapAudio as never, mediaView('audio'));
-const Pdf = withView(TiptapPdf as never, mediaView('pdf'));
-const DrawioNode = withView(Drawio as never, diagramView('drawio'));
-const ExcalidrawNode = withView(Excalidraw as never, diagramView('excalidraw'));
+const Image = withView(TiptapImage as never, MediaView as never, { extra: { kind: 'image' } });
+const Video = withView(TiptapVideo as never, MediaView as never, { extra: { kind: 'video' } });
+const Audio = withView(TiptapAudio as never, MediaView as never, { extra: { kind: 'audio' } });
+const Pdf = withView(TiptapPdf as never, MediaView as never, { extra: { kind: 'pdf' } });
+const DrawioNode = withView(Drawio as never, DiagramView as never, {
+  extra: { kind: 'drawio' }
+});
+const ExcalidrawNode = withView(Excalidraw as never, DiagramView as never, {
+  extra: { kind: 'excalidraw' }
+});
 const MentionNode = withView(Mention as never, MentionView as never, { inline: true });
 const SubpagesNode = withView(Subpages as never, SubpagesView as never);
 const StatusNode = withView(Status as never, StatusView as never, { inline: true });
 const BaseEmbedNode = withView(BaseEmbed as never, BaseEmbedView as never);
+/** Выноска: значок и цвет по виду, содержимое правит сам редактор. */
+const CalloutNode = withView(Callout as never, CalloutView as never, { content: true });
+const AttachmentNode = withView(Attachment as never, AttachmentView as never);
+
+/**
+ * Подсветка нужна самому расширению: без набора языков оно отказывается
+ * собираться. Тот же набор отдаётся отображению — списка языков у него своего
+ * нет, и второй список разошёлся бы с первым.
+ */
+const lowlight = createLowlight(common);
+
+/**
+ * Языки сверх общего набора. Перечень тот же, что в v1: страница, привезённая
+ * оттуда, должна подсвечиваться так же.
+ *
+ * `mermaid` объявлен обычным текстом намеренно: это не язык подсветки, а
+ * пометка для отображения блока, и без объявления `lowlight` не знает, что с
+ * ним делать.
+ */
+for (const [name, language] of [
+  ['mermaid', plaintext],
+  ['powershell', powershell],
+  ['erlang', erlang],
+  ['elixir', elixir],
+  ['dockerfile', dockerfile],
+  ['clojure', clojure],
+  ['fortran', fortran],
+  ['haskell', haskell],
+  ['scala', scala]
+] as const) {
+  lowlight.register(name, language);
+}
+
+const CodeBlockNode = withView(
+  CustomCodeBlock.configure({
+    lowlight,
+    enableTabIndentation: true,
+    tabSize: 2,
+    HTMLAttributes: { spellcheck: false }
+  }) as never,
+  CodeBlockView as never,
+  { content: true, extra: { languages: () => lowlight.listLanguages() } }
+);
+
+/**
+ * Формула. Отображение одно на оба узла: разница между строчной и блочной —
+ * это довод `displayMode` у KaTeX и место, где стоит окно правки.
+ */
+const MathInlineNode = withView(MathInline as never, MathView as never, {
+  inline: true,
+  extra: { display: false }
+});
+const MathBlockNode = withView(MathBlock as never, MathView as never, {
+  extra: { display: true }
+});
 
 /**
  * Встраивание внешнего ролика рисуется своей разметкой: показывать там нечего
@@ -163,7 +226,39 @@ const TransclusionReferenceNode = withView(
  * блоком кода, ссылкой, замыкающим узлом и заголовком — все четыре заменены
  * своими.
  */
-export function editorExtensions(): AnyExtension[] {
+/**
+ * Как перевести подсказку.
+ *
+ * Отдельным доводом, а не обращением к хранилищу языка: перечень расширений
+ * собирается один раз на редактор и хранилища не знает, а подсказки нужны
+ * только там, где есть правка.
+ */
+export type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+/**
+ * Подсказка в пустом узле.
+ *
+ * Разная по месту: в ячейке таблицы, в колонке, в выноске и в цитате места на
+ * длинную фразу нет, а «/» там работает так же — но подсказка в каждой ячейке
+ * пустой таблицы превращала бы её в стену текста.
+ */
+function placeholderFor(translate: Translate) {
+  return ({ editor, node, pos }: { editor: Editor; node: PMNode; pos: number }): string => {
+    if (node.type.name === 'heading') {
+      return translate('Heading {{level}}', { level: node.attrs.level });
+    }
+    if (node.type.name === 'detailsSummary') return translate('Toggle title');
+    if (node.type.name !== 'paragraph') return '';
+
+    const inside = editor.state.doc.resolve(pos).parent.type.name;
+    if (['column', 'tableCell', 'tableHeader', 'callout', 'blockquote'].includes(inside)) {
+      return translate('Write...');
+    }
+    return translate('Write anything. Enter "/" for commands');
+  };
+}
+
+export function editorExtensions(translate: Translate = (key) => key): AnyExtension[] {
   return [
     StarterKit.configure({
       codeBlock: false,
@@ -177,6 +272,19 @@ export function editorExtensions(): AnyExtension[] {
     Heading,
     UniqueID.configure({ types: ['heading', 'paragraph', 'transclusionSource'] }),
     Comment,
+    Placeholder.configure({
+      placeholder: placeholderFor(translate),
+      includeChildren: true,
+      // В чтении подсказки не показываются: заполнять читателю нечего.
+      showOnlyWhenEditable: true
+    }),
+    // Украшение выделения, когда редактор потерял фокус. Без него выделенное
+    // пропадает с глаз, стоит нажать на кнопку панели, и человек не видит, к
+    // чему она применится.
+    Selection,
+    // Счёт слов и знаков для боковой панели страницы. Своего счёта у панели
+    // нет: он идёт по документу редактора, а не по разметке.
+    CharacterCount,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -184,6 +292,14 @@ export function editorExtensions(): AnyExtension[] {
     Subscript,
     Highlight.configure({ multicolor: true }),
     Typography,
+    // Слияние соседних списков: без него отмена правки и вставка между
+    // списками оставляют два вплотную, и нумерация начинается заново.
+    AutoJoiner,
+    // Срезание чужих стилей при вставке из Word и почты.
+    CleanStyles,
+    // Разбор вставленного простого текста как Markdown и копирование списка
+    // Markdown'ом.
+    MarkdownClipboard.configure({ transformPastedText: true }),
     TrailingNode,
     TextStyle,
     Color,
@@ -193,25 +309,33 @@ export function editorExtensions(): AnyExtension[] {
     Video,
     Audio,
     Pdf,
-    CustomTable,
+    // Настройки те же, что в v1: ширина ячейки и выделение таблицы узлом
+    // участвуют в перетаскивании столбцов, а `View` даёт ту обёртку, к которой
+    // цепляются закрепление шапки и сортировка.
+    CustomTable.configure({
+      resizable: true,
+      allowTableNodeSelection: true,
+      cellMinWidth: 49,
+      View: TableView
+    }),
     TableCell,
     TableRow,
     TableHeader,
-    MathInline,
-    MathBlock,
+    // Перетаскивание строк и столбцов, действия у ручки, закрепление шапки и
+    // сортировка в чтении. Схему узлов ни одно не трогает: у них нет своих
+    // атрибутов, только украшения и разбор нажатий.
+    TableDndExtension,
+    TableHandleCommandsExtension,
+    TableHeaderPin,
+    TableReadonlySort,
+    MathInlineNode,
+    MathBlockNode,
     Details,
     DetailsSummary,
     DetailsContent,
-    Callout,
-    Attachment,
-    CustomCodeBlock.configure({
-      // Подсветка синтаксиса нужна самому расширению: без набора языков оно
-      // отказывается собираться, и редактор не открывается вовсе.
-      lowlight: createLowlight(common),
-      enableTabIndentation: true,
-      tabSize: 2,
-      HTMLAttributes: { spellcheck: false }
-    }),
+    CalloutNode,
+    AttachmentNode,
+    CodeBlockNode,
     DrawioNode,
     ExcalidrawNode,
     EmbedNode,
@@ -224,6 +348,10 @@ export function editorExtensions(): AnyExtension[] {
     PageBreak,
     TransclusionSourceNode,
     TransclusionReferenceNode,
-    BaseEmbedNode
+    BaseEmbedNode,
+    // Поиск с заменой узлов не заводит: он рисует украшения поверх готового
+    // документа. Поэтому в списке `services/collab` его нет и быть не должно —
+    // схема от него не меняется, а на сервере рисовать нечего.
+    SearchAndReplace
   ] as AnyExtension[];
 }

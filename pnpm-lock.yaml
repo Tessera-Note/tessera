@@ -493,24 +493,6 @@ importers:
         specifier: 4.1.6
         version: 4.1.6(@opentelemetry/api@1.9.0)(@types/node@22.19.1)(happy-dom@20.8.9)(jsdom@25.0.0)(vite@8.0.16(@types/node@22.19.1)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.14))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3))
 
-  apps/probe:
-    devDependencies:
-      '@sveltejs/adapter-node':
-        specifier: 5.5.7
-        version: 5.5.7(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))(typescript@5.9.3)(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))
-      '@sveltejs/kit':
-        specifier: 2.70.2
-        version: 2.70.2(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))(typescript@5.9.3)(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3))
-      '@sveltejs/vite-plugin-svelte':
-        specifier: 7.3.0
-        version: 7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3))
-      svelte:
-        specifier: 5.56.8
-        version: 5.56.8(@typescript-eslint/types@8.57.1)
-      vite:
-        specifier: 8.0.16
-        version: 8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)
-
   apps/server:
     dependencies:
       '@ai-sdk/google':
@@ -958,6 +940,9 @@ importers:
       '@tiptap/extension-youtube':
         specifier: 3.27.1
         version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))
+      '@tiptap/extensions':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       '@tiptap/pm':
         specifier: 3.27.1
         version: 3.27.1
@@ -967,9 +952,15 @@ importers:
       bits-ui:
         specifier: 2.18.1
         version: 2.18.1(@internationalized/date@3.12.3)(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.8(@typescript-eslint/types@8.57.1))(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))(typescript@5.9.3)(vite@8.0.16(@types/node@25.5.0)(esbuild@0.28.0)(jiti@2.7.0)(less@4.2.0)(sugarss@5.0.1(postcss@8.5.15))(terser@5.39.0)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.56.8(@typescript-eslint/types@8.57.1))
+      katex:
+        specifier: 0.16.40
+        version: 0.16.40
       lowlight:
         specifier: 3.3.0
         version: 3.3.0
+      mermaid:
+        specifier: 11.15.0
+        version: 11.15.0
       qrcode-generator:
         specifier: ^2.0.4
         version: 2.0.4
