@@ -30,6 +30,7 @@ import re
 import uuid
 import zipfile
 from dataclasses import dataclass
+from urllib.parse import quote
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +40,15 @@ from tessera_api.infrastructure.document_text import from_docx, from_pdf, tidy
 from tessera_api.infrastructure.models import FileTask, Page
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
+from tessera_api.services.attachments import AttachmentService
+from tessera_api.services.import_archives import (
+    extract_confluence_page,
+    is_confluence_export,
+    notion_path,
+    parse_confluence_attachments,
+    parse_confluence_tree,
+    title_from_file_name,
+)
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
 
@@ -49,13 +59,23 @@ logger = logging.getLogger(__name__)
 #: понятного отказа.
 SINGLE_FILE_EXTENSIONS = (".md", ".markdown", ".html", ".htm", ".docx", ".pdf")
 
-#: Виды архивов. Пока один: архив с деревом в каталогах, каким его отдаёт своя
-#: же выгрузка. Разбор выгрузок Confluence и Notion сюда не перенесён: их
-#: устройство проверяется только на настоящих выгрузках, которых у нас нет
-#: (`docs/v2-migration/04-blockers.md`). Принять их значением, ничего не меняя
-#: в разборе, значило бы обещать перенос, которого не происходит.
+#: Виды архивов.
+#:
+#: `generic` — своя выгрузка: дерево задано каталогами, разбирать нечего.
+#: `notion` — то же дерево каталогами, но к каждому имени приписан
+#: тридцатидвухзначный идентификатор, и без его срезания он попадает и в
+#: заголовок страницы, и в имя ветви.
+#: `confluence` — страницы лежат в корне плоско, а иерархия записана вложенными
+#: списками в `index.html`; сама страница обёрнута служебными разделами.
+#:
+#: Разбор устройства архивов перенесён из v1 вместе с его опорными примерами
+#: (`services/import_archives.py`). Точность разбора самого содержимого
+#: страницы этим не решается: HTML уходит в тот же путь, что и при обычном
+#: ввозе HTML.
 SOURCE_GENERIC = "generic"
-SOURCES = (SOURCE_GENERIC,)
+SOURCE_NOTION = "notion"
+SOURCE_CONFLUENCE = "confluence"
+SOURCES = (SOURCE_GENERIC, SOURCE_NOTION, SOURCE_CONFLUENCE)
 
 #: Состояния задания.
 STATUS_PROCESSING = "processing"
@@ -195,12 +215,16 @@ class ImportService:
         storage: Storage | None = None,
         realtime: RealtimeService | None = None,
         queue: JobQueue | None = None,
+        upload_limit: int = 50 * 1024 * 1024,
     ) -> None:
         self._session = session
         self._content = content
         self._storage = storage
         self._realtime = realtime
+        # Предел на вложение выгрузки. Тот же, что у обычной загрузки: файл,
+        # который нельзя загрузить руками, нельзя завезти и архивом.
         self._queue = queue
+        self._upload_limit = upload_limit
 
     # --- один файл --------------------------------------------------------
 
@@ -362,6 +386,15 @@ class ImportService:
 
     async def _unpack(self, task: FileTask, data: bytes) -> int:
         raw = safe_entries(data)
+        if task.source == SOURCE_CONFLUENCE:
+            return await self._unpack_confluence(task, raw)
+        if task.source == SOURCE_NOTION:
+            # Имена очищаются до общего разбора: дальше архив Notion устроен
+            # так же, как своя выгрузка — дерево задано каталогами.
+            raw = [
+                ArchiveEntry(path=notion_path(one.path), data=one.data) for one in raw
+            ]
+
         listing = _listing(raw)
         entries = [
             one for one in raw if extension_of(one.path) in SINGLE_FILE_EXTENSIONS
@@ -408,6 +441,158 @@ class ImportService:
             by_folder[stem] = page.id
 
         return created
+
+
+    async def _unpack_confluence(self, task: FileTask, raw: list[ArchiveEntry]) -> int:
+        """Ввезти выгрузку Confluence.
+
+        Дерево берётся из `index.html`, а не из каталогов: все страницы лежат
+        в корне архива плоско. Страницы, которых нет в дереве, ввозятся следом
+        в корень — выгрузка бывает неполной, и терять их молча нельзя.
+        """
+        index = next(
+            (one for one in raw if posixpath.basename(one.path).lower() == "index.html"), None
+        )
+        if index is None or not is_confluence_export(index.data.decode("utf-8", errors="replace")):
+            raise bad_request("error.import.unknown_source")
+
+        prefix = posixpath.dirname(index.path)
+        prefix = f"{prefix}/" if prefix else ""
+        by_path = {one.path: one for one in raw}
+
+        pages = PageService(self._session, self._realtime, self._queue)
+        created = 0
+        taken: set[str] = set()
+
+        # Файлы архива по пути от корня выгрузки: по ним находятся вложения,
+        # на которые ссылаются страницы.
+        by_file = {one.path.removeprefix(prefix): one for one in raw}
+
+        async def walk(nodes: list[dict], parent: uuid.UUID | None) -> None:
+            nonlocal created
+            for node in nodes:
+                entry = by_path.get(f"{prefix}{node['href']}")
+                if entry is None:
+                    # Ссылка в оглавлении есть, файла нет. Ветвь под ней всё
+                    # равно ввозится: терять потомков из-за пропавшего родителя
+                    # хуже, чем поднять их на уровень выше.
+                    await walk(node["children"], parent)
+                    continue
+
+                taken.add(entry.path)
+                page = await self._confluence_page(
+                    task, entry, node["title"], parent, pages, by_file
+                )
+                if page is None:
+                    await walk(node["children"], parent)
+                    continue
+                created += 1
+                await walk(node["children"], page.id)
+
+        await walk(parse_confluence_tree(index.data.decode("utf-8", errors="replace")), None)
+
+        # Страницы, которых в оглавлении не оказалось.
+        for entry in raw:
+            if entry.path in taken or entry.path == index.path:
+                continue
+            if extension_of(entry.path) not in (".html", ".htm"):
+                continue
+            page = await self._confluence_page(task, entry, "", None, pages, by_file)
+            if page is not None:
+                created += 1
+
+        if created == 0:
+            raise bad_request("error.import.nothing_to_import")
+        return created
+
+    async def _confluence_page(
+        self,
+        task: FileTask,
+        entry: ArchiveEntry,
+        title: str,
+        parent: uuid.UUID | None,
+        pages: PageService,
+        files: dict[str, ArchiveEntry] | None = None,
+    ) -> Page | None:
+        """Одна страница выгрузки. Отказ разбора не отменяет архив."""
+        raw_html = entry.data.decode("utf-8", errors="replace")
+        found = extract_confluence_page(raw_html)
+        if not found.html:
+            return None
+
+        # Заголовок: из оглавления, из самой страницы, из имени файла. Первый
+        # знает человек, второй — Confluence, третий — файловая система.
+        name = (
+            title.strip()
+            or found.title
+            or title_from_file_name(posixpath.basename(entry.path))
+        )
+
+        # Страница заводится до разбора содержимого: вложение принадлежит
+        # странице, и загрузить его раньше, чем она есть, некуда.
+        page = await pages.create(
+            user_id=task.creator_id,
+            workspace_id=task.workspace_id,
+            space_id=task.space_id,
+            title=name,
+            parent_page_id=parent,
+        )
+
+        html = await self._with_attachments(task, page, entry, raw_html, found.html, files)
+
+        try:
+            content = await self._content.html_to_json(html)
+        except Exception:  # noqa: BLE001 — одна страница не отменяет архив
+            logger.info("Страница выгрузки не разобрана: %s", entry.path)
+            return page
+
+        return await pages.update(page=page, user_id=task.creator_id, content=content)
+
+    async def _with_attachments(
+        self,
+        task: FileTask,
+        page: Page,
+        entry: ArchiveEntry,
+        raw_html: str,
+        html: str,
+        files: dict[str, ArchiveEntry] | None,
+    ) -> str:
+        """Завезти вложения страницы и переписать ссылки на них.
+
+        Confluence Server кладёт файлы под числовыми именами без расширения, а
+        настоящее имя и тип пишет рядом со ссылкой. Разбирать надо по исходной
+        разметке: список вложений лежит в служебном разделе, который из
+        содержимого вырезан.
+
+        Без этого шага ссылка `attachments/65601/65602` в ввезённой странице
+        указывает в пустоту: такого адреса на нашей стороне нет.
+        """
+        if files is None or self._storage is None:
+            return html
+
+        attachments = AttachmentService(self._session, self._storage, self._queue)
+        for one in parse_confluence_attachments(raw_html):
+            stored = files.get(one.href)
+            if stored is None:
+                continue
+            try:
+                saved = await attachments.upload_page_file(
+                    page_id_or_slug=str(page.id),
+                    file_name=one.file_name,
+                    data=stored.data,
+                    user_id=task.creator_id,
+                    workspace_id=task.workspace_id,
+                    size_limit=self._upload_limit,
+                )
+            except Exception:  # noqa: BLE001 — одно вложение не отменяет страницу
+                logger.info("Вложение выгрузки не завезено: %s", one.href)
+                continue
+
+            address = f"/api/files/{saved.id}/{quote(saved.file_name)}"
+            html = html.replace(f'"{one.href}"', f'"{address}"')
+            html = html.replace(f"'{one.href}'", f"'{address}'")
+
+        return html
 
 
 @dataclass(frozen=True, slots=True)

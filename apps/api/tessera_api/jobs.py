@@ -158,6 +158,9 @@ async def import_archive(ctx: dict, *, task_id: str) -> int:
             ContentClient(settings.content_service_url),
             storage=ctx["storage"],
             queue=ctx["queue"],
+            # Предел на вложение выгрузки тот же, что у обычной загрузки: файл,
+            # который нельзя загрузить руками, нельзя завезти и архивом.
+            upload_limit=settings.file_upload_size_limit,
         ).run_archive(uuid.UUID(task_id))
 
 

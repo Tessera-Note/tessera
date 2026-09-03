@@ -22,7 +22,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.infrastructure.content import ContentClient
-from tessera_api.infrastructure.models import FileTask, Page, SpaceMember, User
+from tessera_api.infrastructure.models import (
+    Attachment,
+    FileTask,
+    Page,
+    SpaceMember,
+    User,
+)
 from tessera_api.services import imports as module
 from tessera_api.services.imports import (
     MAX_ENTRIES,
@@ -271,13 +277,13 @@ class TestParents:
 
 
 class TestSources:
-    def test_only_the_measured_source_is_accepted(self) -> None:
-        """Чужие выгрузки проверяются только на настоящих чужих выгрузках.
+    def test_every_accepted_source_has_a_parser(self) -> None:
+        """Принятый вид архива должен разбираться, а не только приниматься.
 
-        Принять их значением, ничего не меняя в разборе, значило бы обещать
-        перенос, которого не происходит.
+        Значение без разбора обещало бы перенос, которого не происходит:
+        человек выбрал бы «Confluence», а получил бы разбор своей выгрузки.
         """
-        assert SOURCES == ("generic",)
+        assert SOURCES == ("generic", "notion", "confluence")
 
 
 @needs_database
@@ -542,14 +548,20 @@ class _QueueDouble:
 
 
 async def _task(
-    session: AsyncSession, workspace, owner, space, *, status: str = STATUS_PROCESSING
+    session: AsyncSession,
+    workspace,
+    owner,
+    space,
+    *,
+    status: str = STATUS_PROCESSING,
+    source: str = "generic",
 ) -> FileTask:
     task_id = uuid.uuid4()
     await session.execute(
         insert(FileTask).values(
             id=task_id,
             type="import",
-            source="generic",
+            source=source,
             status=status,
             file_name="выгрузка.zip",
             file_path=f"{workspace.id}/imports/{task_id}/выгрузка.zip",
@@ -649,3 +661,242 @@ class TestMembership:
             )
         ).scalars().first()
         assert found is not None
+
+
+CONFLUENCE_INDEX = """<html><body><div id="main-content"><div class="pageSection">
+  <ul>
+    <li>
+      <a href="Reglament_1.html">Регламент</a>
+      <ul><li><a href="Prilozhenie_2.html">Приложение</a></li></ul>
+    </li>
+  </ul>
+</div></div></body></html>"""
+
+
+def _confluence_page(title: str, body: str) -> str:
+    return f"""<html><body>
+      <div id="breadcrumb-section"><ol class="breadcrumb"><li>Пространство</li></ol></div>
+      <h1><span id="title-text">{title}</span></h1>
+      <div id="main-content">
+        <div class="page-metadata">Создано пользователем Иванов</div>
+        <p>{body}</p>
+        <div class="pageSection group"><h2>Attachments:</h2></div>
+      </div>
+      <div id="footer">Экспортировано Confluence</div>
+    </body></html>"""
+
+
+#: Названия страниц проверочных выгрузок. Приметные нарочно: база проверок
+#: общая с рабочей, и обычное имя нашлось бы в ней и без ввоза.
+CONF_TOP = "Регламент выгрузки Confluence"
+CONF_CHILD = "Приложение выгрузки Confluence"
+NOTION_TOP = "Регламент выгрузки Notion"
+NOTION_CHILD = "Приложение выгрузки Notion"
+NOTION_ID_ONE = "1f2e3d4c5b6a7980a1b2c3d4e5f60718"
+NOTION_ID_TWO = "0011223344556677889900aabbccddee"
+
+CONFLUENCE_INDEX = f"""<html><body><div id="main-content"><div class="pageSection">
+  <ul>
+    <li>
+      <a href="Reglament_1.html">{CONF_TOP}</a>
+      <ul><li><a href="Prilozhenie_2.html">{CONF_CHILD}</a></li></ul>
+    </li>
+  </ul>
+</div></div></body></html>"""
+
+
+def _confluence_page(title: str, body: str) -> str:
+    return f"""<html><body>
+      <div id="breadcrumb-section"><ol class="breadcrumb"><li>Пространство</li></ol></div>
+      <h1><span id="title-text">{title}</span></h1>
+      <div id="main-content">
+        <div class="page-metadata">Создано пользователем Иванов</div>
+        <p>{body}</p>
+        <div class="pageSection group"><h2>Attachments:</h2></div>
+      </div>
+      <div id="footer">Экспортировано Confluence</div>
+    </body></html>"""
+
+
+#: Страница с вложением. Confluence Server кладёт файл под числовым именем без
+#: расширения, а настоящее имя и тип пишет рядом со ссылкой.
+CONFLUENCE_WITH_FILE = """<html><body>
+  <h1><span id="title-text">{title}</span></h1>
+  <div id="main-content">
+    <p>Смотри <a href="attachments/65601/65602">схему</a>.</p>
+    <div class="pageSection group">
+      <h2>Attachments:</h2>
+      <div class="greybox">
+        <a href="attachments/65601/65602">схема.txt</a> (text/plain)
+      </div>
+    </div>
+  </div>
+</body></html>"""
+
+
+def _confluence_archive(*, with_file: bool = False) -> bytes:
+    files = {
+        "index.html": CONFLUENCE_INDEX,
+        "Reglament_1.html": (
+            CONFLUENCE_WITH_FILE.format(title=CONF_TOP)
+            if with_file
+            else _confluence_page(CONF_TOP, "Дамп ежедневно")
+        ),
+        "Prilozhenie_2.html": _confluence_page(CONF_CHILD, "Список серверов"),
+    }
+    if with_file:
+        files["attachments/65601/65602"] = "содержимое схемы"
+    return archive(files)
+
+
+def _notion_archive() -> bytes:
+    """Выгрузка Notion.
+
+    У вложенной страницы заголовка в разметке нет нарочно: тогда он берётся из
+    имени файла, и видно, срезан ли идентификатор. С заголовком в разметке
+    проверка проходила бы и без срезания.
+    """
+    return archive(
+        {
+            f"{NOTION_TOP} {NOTION_ID_ONE}.md": f"# {NOTION_TOP}\n\nтекст",
+            f"{NOTION_TOP} {NOTION_ID_ONE}/{NOTION_CHILD} {NOTION_ID_TWO}.md": "просто текст",
+        }
+    )
+
+
+@needs_database
+class TestForeignArchives:
+    """Ввоз чужих выгрузок.
+
+    Устройство архива разбирается отдельно (`test_import_archives.py`), здесь —
+    что разобранное доезжает до страниц: дерево, заголовки, обвязка.
+
+    Названия нарочно приметные: база проверок общая с рабочей, и обычное имя
+    вроде «Регламент» нашлось бы и без ввоза.
+    """
+
+    async def test_a_confluence_export_keeps_its_tree(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Иерархия берётся из оглавления, а не из каталогов.
+
+        Все страницы выгрузки лежат в корне архива плоско: по каталогам дерево
+        не построить, и без оглавления они приехали бы вровень.
+        """
+        task = await _task(session, workspace, owner, space, source="confluence")
+        storage = _StorageDouble(_confluence_archive())
+
+        created = await ImportService(
+            session, content_client(), storage=storage
+        ).run_archive(task.id)
+
+        assert created == 2
+        pages = await _pages_of(session, space.id, (CONF_TOP, CONF_CHILD))
+        assert pages[CONF_CHILD].parent_page_id == pages[CONF_TOP].id
+        assert pages[CONF_TOP].parent_page_id is None
+
+    async def test_a_confluence_page_arrives_without_the_wrapper(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Обвязка самой Confluence в страницу не переносится.
+
+        Проверяется то, что уходит на преобразование: сама схема узлов живёт в
+        соседней службе, и здесь она подменена — смотреть надо на вход, а не на
+        выход.
+        """
+        task = await _task(session, workspace, owner, space, source="confluence")
+        storage = _StorageDouble(_confluence_archive())
+        seen: list = []
+
+        await ImportService(session, content_client(seen), storage=storage).run_archive(task.id)
+
+        sent = " ".join(json.dumps(one, ensure_ascii=False) for one in seen)
+        assert "Дамп ежедневно" in sent
+        assert "Создано пользователем" not in sent
+        assert "Экспортировано Confluence" not in sent
+        assert "Attachments" not in sent
+
+    async def test_an_attachment_is_brought_in_and_its_link_rewritten(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Без этого ссылка `attachments/65601/65602` указывает в пустоту.
+
+        Такого адреса на нашей стороне нет: файл лежит в архиве, а страница
+        ссылается на него путём внутри выгрузки.
+        """
+        task = await _task(session, workspace, owner, space, source="confluence")
+        storage = _StorageDouble(_confluence_archive(with_file=True))
+        seen: list = []
+
+        await ImportService(
+            session, content_client(seen), storage=storage
+        ).run_archive(task.id)
+
+        page = (await _pages_of(session, space.id, (CONF_TOP,)))[CONF_TOP]
+        saved = (
+            (
+                await session.execute(
+                    select(Attachment).where(Attachment.page_id == page.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [one.file_name for one in saved] == ["схема.txt"]
+
+        sent = " ".join(json.dumps(one, ensure_ascii=False) for one in seen)
+        assert f"/api/files/{saved[0].id}/" in sent
+        assert "attachments/65601/65602" not in sent
+
+    async def test_an_archive_that_is_not_a_confluence_export_is_refused(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Иначе своя выгрузка, выбранная как чужая, разбиралась бы наугад."""
+        task = await _task(session, workspace, owner, space, source="confluence")
+        storage = _StorageDouble(archive({"Страница.md": "# Страница"}))
+
+        created = await ImportService(
+            session, content_client(), storage=storage
+        ).run_archive(task.id)
+
+        assert created == 0
+        await session.refresh(task)
+        assert task.error_message == "error.import.unknown_source"
+
+    async def test_a_notion_export_loses_its_identifiers(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Notion приписывает идентификатор к каждому имени.
+
+        Без срезания он попадает и в заголовок страницы, и в имя ветви: дерево
+        строится по каталогам, а каталог называется так же.
+        """
+        task = await _task(session, workspace, owner, space, source="notion")
+        storage = _StorageDouble(_notion_archive())
+
+        created = await ImportService(
+            session, content_client(), storage=storage
+        ).run_archive(task.id)
+
+        assert created == 2
+        pages = await _pages_of(session, space.id, (NOTION_TOP, NOTION_CHILD))
+        assert set(pages) == {NOTION_TOP, NOTION_CHILD}
+
+        # И ни одной страницы с идентификатором в заголовке.
+        with_id = await session.execute(
+            select(Page.title).where(
+                Page.space_id == space.id, Page.title.like(f"%{NOTION_ID_ONE}%")
+            )
+        )
+        assert with_id.scalars().all() == []
+
+    async def test_a_notion_export_keeps_its_tree(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        task = await _task(session, workspace, owner, space, source="notion")
+        storage = _StorageDouble(_notion_archive())
+
+        await ImportService(session, content_client(), storage=storage).run_archive(task.id)
+
+        pages = await _pages_of(session, space.id, (NOTION_TOP, NOTION_CHILD))
+        assert pages[NOTION_CHILD].parent_page_id == pages[NOTION_TOP].id

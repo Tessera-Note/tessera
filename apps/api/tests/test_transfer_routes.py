@@ -376,7 +376,7 @@ class TestImportRoutes:
     async def test_an_unknown_source_is_refused(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
-        """Чужие выгрузки не разбираются, и делать вид, что разбираются, нельзя."""
+        """Незнакомый вид архива отвергается на приёме, а не в разборе."""
         token = await _token(session, owner.id, workspace.id)
         async with _client(session, StorageDouble(), QueueDouble()) as client:
             answer = await client.post(
@@ -388,11 +388,32 @@ class TestImportRoutes:
                         "application/zip",
                     )
                 },
-                data={"spaceId": str(space.id), "source": "confluence"},
+                data={"spaceId": str(space.id), "source": "sharepoint"},
                 cookies={AUTH_COOKIE: token},
             )
         assert answer.status_code == 400
         assert answer.json()["code"] == "error.import.unknown_source"
+
+    async def test_a_known_source_is_taken(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Все три вида архива принимаются одинаково: разбор решается позже."""
+        token = await _token(session, owner.id, workspace.id)
+        async with _client(session, StorageDouble(), QueueDouble()) as client:
+            for source in ("generic", "notion", "confluence"):
+                answer = await client.post(
+                    "/api/pages/import-zip",
+                    files={
+                        "file": (
+                            "выгрузка.zip",
+                            _archive({"Первая.md": "# Первая"}),
+                            "application/zip",
+                        )
+                    },
+                    data={"spaceId": str(space.id), "source": source},
+                    cookies={AUTH_COOKIE: token},
+                )
+                assert answer.status_code == 201, source
 
 
 @needs_database
