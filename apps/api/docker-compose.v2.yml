@@ -1,5 +1,16 @@
-# Развёртывание v2. Отдельный файл: прод поднимается корневым docker-compose.yml
-# и трогать его нельзя, пока v2 не готов целиком.
+# Стенд второй версии: приложение вместе со своими базой, Redis и хранилищем.
+#
+# Это **стенд**, а не боевой состав. Здесь у второй версии всё своё, поэтому её
+# можно поднять рядом с первой и ничего ей не сделать: свои тома, свои имена,
+# свои порты. На таком составе идёт репетиция переключения.
+#
+# Для боевого сервера есть `docker-compose.v2.server.yml`: там те же процессы
+# приложения, но база, Redis и хранилище — те же, что у первой версии. Иначе
+# переключение означало бы переезд данных, а весь порядок перехода построен на
+# том, что переезжать нечему.
+#
+# Прод поднимается корневым docker-compose.yml, и трогать его нельзя, пока v2
+# не готов целиком.
 #
 # Имена сервисов и container_name несут префикс проекта: на машине с несколькими
 # проектами голое имя `postgres` означает, что второй проект не поднимется, а
@@ -16,6 +27,12 @@ services:
   # схема узлов редактора описана расширениями Tiptap: второе описание той же
   # схемы расходится с первым, а расхождение здесь — порча содержимого, которая
   # не проявляется отказом.
+  #
+  # **Экземпляр один, и второго заводить нельзя.** Состояние документа живёт в
+  # памяти процесса, и рассылки между репликами здесь нет: два человека,
+  # попавшие на разные реплики, правили бы разные копии одной страницы и не
+  # сошлись бы — молча, без единого отказа. Прежде чем поднимать второй,
+  # см. `docs/future-roadmap.md`, раздел о рассылке между репликами.
   tessera-v2-collab:
     build:
       context: ../..
@@ -52,8 +69,11 @@ services:
       # читает Settings.from_env.
       APP_URL: ${APP_URL:-http://localhost:3100}
       APP_SECRET: ${APP_SECRET:?APP_SECRET обязателен, не короче 32 символов}
-      DATABASE_URL: postgresql://tessera:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@tessera-v2-db:5432/tessera
-      REDIS_URL: redis://tessera-v2-redis:6379
+      # Умолчание — своя база стенда. Боевой состав подставляет базу первой
+      # версии: у обеих версий она одна, и вписанный сюда литерал сделал бы
+      # переключение переездом данных.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tessera:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@tessera-v2-db:5432/tessera}
+      REDIS_URL: ${REDIS_URL:-redis://tessera-v2-redis:6379}
       HOST: ${HOST:-0.0.0.0}
       PORT: ${PORT:-3000}
       DEBUG_MODE: ${DEBUG_MODE:-}
@@ -79,6 +99,12 @@ services:
       AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD обязателен}
       # MinIO не умеет виртуальные хосты бакетов.
       AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-true}
+      # Ключи Google для входа. Общие на установку: обратный адрес
+      # регистрируется в консоли Google один и не может нести ни поддомена,
+      # ни идентификатора провайдера. Пускать ли через Google, решает строка
+      # провайдера в настройках пространства.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       FILE_UPLOAD_SIZE_LIMIT: ${FILE_UPLOAD_SIZE_LIMIT:-50mb}
       # Ввозимый архив крупнее обычного вложения: в нём целое пространство.
       FILE_IMPORT_SIZE_LIMIT: ${FILE_IMPORT_SIZE_LIMIT:-200mb}
@@ -151,10 +177,15 @@ services:
       - tessera-v2-db
       - tessera-v2-redis
     environment:
+      # Адрес, по которому страница открыта в браузере, — и никакой иной.
+      # По нему проверяется происхождение при рукопожатии канала событий: при
+      # расхождении соединение отвергается молча, страницы работают, а живые
+      # обновления просто не приходят. За обратным прокси здесь стоит внешний
+      # адрес вики, а не порт на петле.
       APP_URL: ${APP_URL:-http://localhost:3100}
       APP_SECRET: ${APP_SECRET:?APP_SECRET обязателен, не короче 32 символов}
-      DATABASE_URL: postgresql://tessera:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@tessera-v2-db:5432/tessera
-      REDIS_URL: redis://tessera-v2-redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tessera:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@tessera-v2-db:5432/tessera}
+      REDIS_URL: ${REDIS_URL:-redis://tessera-v2-redis:6379}
       MAIL_DRIVER: ${MAIL_DRIVER:-log}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@tessera.local}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Tessera}
