@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api.attachments import _file_response, _identifier
 from tessera_api.domain.errors import AppError
 from tessera_api.infrastructure.models import Attachment, PageAccess, Space, User
 from tessera_api.infrastructure.storage import LocalStorage, image_key
@@ -23,6 +24,7 @@ from tessera_api.services.attachments import (
     TYPE_SPACE_ICON,
     TYPE_WORKSPACE_ICON,
     AttachmentService,
+    StoredFile,
 )
 from tessera_api.services.page_access import ACCESS_RESTRICTED
 from tests.conftest import needs_database
@@ -297,6 +299,24 @@ class TestRead:
                 attachment.id, world["outsider_id"], workspace.id
             )
 
+    async def test_info_tells_whether_the_file_reaches_search(
+        self, session: AsyncSession, workspace, owner, space, storage
+    ) -> None:
+        """Состояние разбора отдаётся наружу.
+
+        По нему карточка вложения говорит человеку, что поиск этот файл по
+        содержимому не найдёт. Без поля отметка видна только администратору, в
+        счёте по состояниям, а человек узнаёт о ней, когда поиск молчит.
+        """
+        world, attachment = await self._uploaded(session, workspace, owner, space, storage)
+        shown = await AttachmentService(session, storage).info(
+            attachment.id, owner.id, workspace.id
+        )
+        assert "indexStatus" in shown
+        assert shown["indexStatus"] == attachment.index_status
+        # Время правки нужно адресу файла: по нему обходится кеш браузера.
+        assert shown["updatedAt"] == attachment.updated_at
+
     async def test_stranger_to_the_space_gets_nothing(
         self, session: AsyncSession, workspace, owner, space, storage
     ) -> None:
@@ -402,6 +422,58 @@ class TestRead:
             await AttachmentService(session, storage).authorize_read(
                 attachment_id, owner.id, workspace.id
             )
+
+
+class TestIdentifierParsing:
+    """Негодный идентификатор это отказ запроса, а не поломка службы.
+
+    Он приходит из содержимого страницы — карточка вложения берёт его из
+    атрибута узла, — а не из типизированного пути маршрута.
+    """
+
+    def test_a_good_value_is_parsed(self) -> None:
+        known = uuid.uuid4()
+        assert _identifier(str(known), "error.attachment.not_found") == known
+
+    @pytest.mark.parametrize("raw", ["", "не идентификатор", None, 17, {}])
+    def test_a_bad_value_is_a_refused_request(self, raw: object) -> None:
+        with pytest.raises(AppError) as failure:
+            _identifier(raw, "error.attachment.not_found")
+        assert failure.value.status_code == 400
+        assert failure.value.code == "error.attachment.not_found"
+
+
+class TestFileResponse:
+    """Заголовок выдачи файла."""
+
+    def test_a_non_latin_name_does_not_break_the_header(self) -> None:
+        """Кириллическое имя не роняет выдачу.
+
+        Заголовки кодируются latin-1, и имя, поставленное в `Content-Disposition`
+        как есть, роняет ответ целиком — файл с русским именем нельзя было
+        скачать вовсе. Имя пишется дважды: закодированным обычным полем для
+        старых клиентов и полем `filename*` для остальных.
+        """
+        answer = _file_response(
+            StoredFile(file_name="заметка.txt", mime_type="text/plain", data=b"x"),
+            cache="private",
+        )
+        disposition = answer.headers["Content-Disposition"]
+
+        disposition.encode("latin-1")
+        assert "filename*=UTF-8''" in disposition
+        assert "%D0%B7%D0%B0%D0%BC%D0%B5%D1%82%D0%BA%D0%B0.txt" in disposition
+
+    def test_inline_types_are_shown_and_the_rest_are_saved(self) -> None:
+        shown = _file_response(
+            StoredFile(file_name="a.png", mime_type="image/png", data=b"x"), cache="private"
+        )
+        saved = _file_response(
+            StoredFile(file_name="a.zip", mime_type="application/zip", data=b"x"),
+            cache="private",
+        )
+        assert shown.headers["Content-Disposition"].startswith("inline;")
+        assert saved.headers["Content-Disposition"].startswith("attachment;")
 
 
 class TestImages:

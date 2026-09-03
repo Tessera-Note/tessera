@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Annotated
+from urllib.parse import quote
 
 from litestar import Controller, Request, Response, get, post
 from litestar.datastructures import UploadFile
@@ -31,16 +32,36 @@ INLINE_MIME_PREFIXES = ("image/", "video/", "audio/")
 INLINE_MIME_TYPES = ("application/pdf", "text/plain")
 
 
+def _identifier(raw: object, code: str) -> uuid.UUID:
+    """Разобрать идентификатор из тела запроса.
+
+    Негодное значение это отказ запроса, а не поломка службы: идентификатор
+    приходит из содержимого страницы, а не из типизированного пути маршрута, и
+    без разбора уходил бы пятисотым ответом.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise bad_request(code) from error
+
+
 def _file_response(stored: StoredFile, *, cache: str) -> Response:
     inline = stored.mime_type.startswith(INLINE_MIME_PREFIXES) or (
         stored.mime_type in INLINE_MIME_TYPES
     )
     disposition = "inline" if inline else "attachment"
+    # Имя пишется дважды: обычным полем для старых клиентов и в кодировке
+    # UTF-8 для остальных — как в выгрузках. Заголовок допускает только
+    # латиницу, и кириллическое имя, поставленное в него как есть, роняет
+    # выдачу файла целиком: заголовки кодируются latin-1.
+    encoded = quote(stored.file_name)
     return Response(
         content=stored.data,
         media_type=stored.mime_type,
         headers={
-            "Content-Disposition": f'{disposition}; filename="{stored.file_name}"',
+            "Content-Disposition": (
+                f'{disposition}; filename="{encoded}"; filename*=UTF-8\'\'{encoded}'
+            ),
             "Cache-Control": cache,
             # Содержимое загружают люди. Без запрета исполнения браузер
             # выполнит чужой скрипт в контексте нашего домена.
@@ -74,10 +95,11 @@ class FileController(Controller):
         # за правку, и каждое сохранение новым вложением оставляло бы в хранилище
         # мёртвые файлы, а ссылка в документе указывала бы на прежний.
         replaces = data.get("attachmentId")
-        try:
-            replaced = uuid.UUID(str(replaces)) if replaces else None
-        except (TypeError, ValueError) as error:
-            raise bad_request("error.attachment.attachment_not_found") from error
+        replaced = (
+            _identifier(replaces, "error.attachment.attachment_not_found")
+            if replaces
+            else None
+        )
 
         content = await upload.read()
         attachment = await AttachmentService(db_session, storage, queue).upload_page_file(
@@ -169,7 +191,9 @@ class FileController(Controller):
         if not raw:
             raise bad_request("error.attachment.not_found")
         return await AttachmentService(db_session, storage, queue).info(
-            uuid.UUID(str(raw)), principal.user_id, principal.workspace_id
+            _identifier(raw, "error.attachment.not_found"),
+            principal.user_id,
+            principal.workspace_id,
         )
 
 
@@ -193,7 +217,9 @@ class ImageController(Controller):
             raise bad_request("error.attachment.file_required")
 
         raw_space = data.get("spaceId")
-        space_id = uuid.UUID(str(raw_space)) if raw_space else None
+        space_id = (
+            _identifier(raw_space, "error.space.not_found") if raw_space else None
+        )
 
         stored_name = await AttachmentService(db_session, storage, queue).upload_image(
             kind=kind,
@@ -221,7 +247,9 @@ class ImageController(Controller):
             kind=str(data.get("type") or ""),
             user_id=principal.user_id,
             workspace_id=principal.workspace_id,
-            space_id=uuid.UUID(str(raw_space)) if raw_space else None,
+            space_id=(
+                _identifier(raw_space, "error.space.not_found") if raw_space else None
+            ),
         )
         return {"success": True}
 

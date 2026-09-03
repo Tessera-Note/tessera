@@ -478,6 +478,14 @@ class AttachmentService:
             "mimeType": found.mime_type,
             "pageId": found.page_id,
             "createdAt": found.created_at,
+            # Время правки нужно адресу файла: по нему обходится кеш браузера
+            # у перезаписанного вложения. Без поля адрес собирался бы с
+            # нынешним временем, то есть кеш не работал бы вовсе.
+            "updatedAt": found.updated_at,
+            # Попадёт ли содержимое файла в поиск. Правило разбора живёт на
+            # сервере, и повторять список поддерживаемых типов на клиенте
+            # значило бы завести второе правило, расходящееся с первым.
+            "indexStatus": found.index_status,
         }
 
     async def delete_page_attachments(self, page_ids: list[uuid.UUID]) -> int:
