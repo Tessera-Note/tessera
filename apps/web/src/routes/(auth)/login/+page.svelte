@@ -7,7 +7,12 @@
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
   import { login } from '$lib/features/auth/services/auth';
+  import SsoLogin from '$lib/features/sso/components/SsoLogin.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
+  import type { PageData } from './$types';
+
+  type Props = { data: PageData };
+  const { data }: Props = $props();
 
   let email = $state('');
   let password = $state('');
@@ -55,6 +60,12 @@
   onsubmit={submit}
 >
   <h1 class="mb-6 text-xl font-semibold">{t('Login')}</h1>
+
+  <SsoLogin
+    workspace={data.workspace}
+    redirect={page.url.searchParams.get('redirect')}
+    failed={page.url.searchParams.get('error') === 'sso'}
+  />
 
   <Field label={t('Email')}>
     <TextInput bind:value={email} type="email" autocomplete="username" required />

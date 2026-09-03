@@ -171,11 +171,13 @@
     });
   }
 
-  const kinds = [
-    { value: 'oidc', label: 'OIDC' },
-    { value: 'saml', label: 'SAML' },
-    { value: 'ldap', label: 'LDAP' }
-  ];
+  // Имена протоколов и поставщика. Через словарь не идут и подписью не
+  // являются: `OIDC` и `Google` стоят как есть на любом языке. Перечень
+  // строится из самих имён — чтобы это было видно, а не описано словами.
+  const kinds = ['OIDC', 'SAML', 'LDAP', 'Google'].map((one) => ({
+    value: one.toLowerCase(),
+    label: one
+  }));
 
   const when = (value: string | null | undefined) =>
     value
@@ -235,6 +237,16 @@
           <Field label={t('Certificate')}>
             <Textarea bind:value={form.samlCertificate} rows={5} />
           </Field>
+        {:else if form.type === 'google'}
+          <!--
+            У Google полей нет: издатель постоянный, а ключи общие на
+            установку и приходят из окружения — обратный адрес регистрируется
+            в консоли Google один и не может нести идентификатор строки.
+            Строка провайдера здесь решает только, пускать ли через Google.
+          -->
+          <p class="mb-4 text-sm text-text-muted">
+            {t('Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.')}
+          </p>
         {:else if form.type === 'ldap'}
           <Field label={t('LDAP URL')} hint="ldap://directory.example.com">
             <TextInput bind:value={form.ldapUrl} />

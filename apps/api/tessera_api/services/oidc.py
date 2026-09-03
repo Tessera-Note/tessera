@@ -74,6 +74,10 @@ class OidcProfile:
     email: str
     name: str | None
     groups: list[str] | None
+    # Подтверждена ли почта у провайдера. `None` означает «провайдер не сказал».
+    # Нужно входу через Google: непроверенная почта там означает, что владение
+    # адресом не доказано, а по адресу связываются учётные записи.
+    email_verified: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,13 +173,29 @@ def _pkce_pair() -> tuple[str, str]:
 
 class OidcService:
     def __init__(
-        self, *, app_url: str, transport: httpx.AsyncBaseTransport | None = None
+        self,
+        *,
+        app_url: str,
+        transport: httpx.AsyncBaseTransport | None = None,
+        issuer: str | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        redirect_uri: str | None = None,
     ) -> None:
         self._app_url = app_url
         # Транспорт подменяется в проверках. Ходить в сеть за настоящим
         # провайдером ради проверки разбора ответа значило бы проверять чужую
         # доступность вместо своего кода.
         self._transport = transport
+        # Переопределения для провайдера, у которого настройки лежат не в его
+        # строке, а в окружении. Такой ровно один — Google: издатель у него
+        # постоянный, ключи общие на установку, а обратный адрес не несёт
+        # идентификатора строки. Всё остальное там тот же протокол, и второй
+        # его разбор разошёлся бы с первым при первой же правке.
+        self._issuer = issuer
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._redirect_uri = redirect_uri
 
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=REQUEST_TIMEOUT, transport=self._transport)
@@ -192,8 +212,17 @@ class OidcService:
             return True
         return not self._app_url.startswith("https://")
 
+    def issuer_of(self, provider: AuthProvider) -> str:
+        return (self._issuer or provider.oidc_issuer or "").rstrip("/")
+
+    def client_id_of(self, provider: AuthProvider) -> str:
+        return self._client_id or provider.oidc_client_id or ""
+
+    def client_secret_of(self, provider: AuthProvider) -> str:
+        return self._client_secret or provider.oidc_client_secret or ""
+
     async def discover(self, provider: AuthProvider) -> Discovery:
-        issuer = (provider.oidc_issuer or "").rstrip("/")
+        issuer = self.issuer_of(provider)
         if not issuer:
             raise bad_request("error.sso.issuer_not_configured")
         if not self._allow_insecure(issuer):
@@ -228,7 +257,10 @@ class OidcService:
         бы отказ на каждом входе до тех пор, пока настройку не поправят руками
         у всех провайдеров сразу.
         """
-        return f"{self._app_url.rstrip('/')}/api/sso/oidc/{provider.id}/callback"
+        return (
+            self._redirect_uri
+            or f"{self._app_url.rstrip('/')}/api/sso/oidc/{provider.id}/callback"
+        )
 
     async def begin(
         self, provider: AuthProvider, *, redirect: str | None = None
@@ -236,7 +268,7 @@ class OidcService:
         """Адрес провайдера и состояние, которое надо запомнить."""
         if not provider.is_enabled:
             raise unauthorized("error.sso.provider_disabled")
-        if not provider.oidc_client_id:
+        if not self.client_id_of(provider):
             raise bad_request("error.sso.client_not_configured")
 
         discovery = await self.discover(provider)
@@ -255,7 +287,7 @@ class OidcService:
         query = urlencode(
             {
                 "response_type": "code",
-                "client_id": provider.oidc_client_id,
+                "client_id": self.client_id_of(provider),
                 "redirect_uri": flow.redirect_uri,
                 "scope": SCOPES,
                 "state": flow.state,
@@ -294,8 +326,8 @@ class OidcService:
                     "grant_type": "authorization_code",
                     "code": code,
                     "redirect_uri": flow.redirect_uri,
-                    "client_id": provider.oidc_client_id,
-                    "client_secret": provider.oidc_client_secret or "",
+                    "client_id": self.client_id_of(provider),
+                    "client_secret": self.client_secret_of(provider),
                     "code_verifier": flow.code_verifier,
                 },
                 headers={"Accept": "application/json"},
@@ -311,7 +343,7 @@ class OidcService:
         claims = await self._verify_id_token(
             id_token,
             discovery=discovery,
-            audience=provider.oidc_client_id or "",
+            audience=self.client_id_of(provider),
             nonce=flow.nonce,
         )
 
@@ -330,11 +362,13 @@ class OidcService:
         if not email:
             raise unauthorized("error.sso.email_missing")
 
+        verified = claims.get("email_verified")
         return OidcProfile(
             subject=str(claims["sub"]),
             email=str(email).strip().lower(),
             name=name,
             groups=groups,
+            email_verified=bool(verified) if isinstance(verified, bool) else None,
         )
 
     async def _verify_id_token(

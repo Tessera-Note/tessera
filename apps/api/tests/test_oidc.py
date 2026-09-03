@@ -451,3 +451,81 @@ class TestComplete:
 
         with pytest.raises(AppError):
             await service.complete(provider, flow, code="c", state=flow.state)
+
+
+class TestGoogleOverrides:
+    """Google разбирается тем же кодом, что и обычный OIDC.
+
+    Отличие только в источнике настроек: издатель постоянный, ключи общие на
+    установку, обратный адрес без идентификатора строки. Второй разбор того же
+    протокола разошёлся бы с первым при первой же правке, поэтому проверяется
+    именно то, что переопределения доходят до запроса.
+    """
+
+    def _google(self, transport: httpx.MockTransport):  # noqa: ANN202
+        return OidcService(
+            app_url="https://tessera.example",
+            transport=transport,
+            issuer=ISSUER,
+            client_id=CLIENT_ID,
+            client_secret="из-окружения",
+            redirect_uri="https://tessera.example/api/sso/google/callback",
+        )
+
+    def test_settings_come_from_the_overrides_not_the_row(self) -> None:
+        service = self._google(_transport())
+        # У строки провайдера полей нет вовсе: у Google они не заполняются.
+        blank = _provider(oidc_issuer=None, oidc_client_id=None)
+        blank.type = "google"
+        blank.oidc_client_secret = None
+
+        assert service.issuer_of(blank) == ISSUER
+        assert service.client_id_of(blank) == CLIENT_ID
+        assert service.client_secret_of(blank) == "из-окружения"
+
+    def test_the_callback_address_carries_no_provider_id(self) -> None:
+        """Адрес возврата один на установку.
+
+        Он зарегистрирован в консоли Google, и другой путь означал бы отказ на
+        каждом входе, пока настройку не поправят руками.
+        """
+        service = self._google(_transport())
+        provider = _provider()
+        provider.type = "google"
+
+        assert service.redirect_uri(provider) == "https://tessera.example/api/sso/google/callback"
+        assert str(provider.id) not in service.redirect_uri(provider)
+
+    async def test_login_starts_at_google_with_the_shared_key(self) -> None:
+        provider = _provider(oidc_issuer=None, oidc_client_id=None)
+        provider.type = "google"
+        url, flow = await self._google(_transport()).begin(provider)
+
+        assert url.startswith(f"{ISSUER}/authorize?")
+        assert f"client_id={CLIENT_ID}" in url
+        assert flow.redirect_uri == "https://tessera.example/api/sso/google/callback"
+
+    async def test_profile_carries_whether_the_address_is_confirmed(self) -> None:
+        """Подтверждение почты доезжает до вызывающего.
+
+        По нему вход через Google отказывает: непроверенная почта означает, что
+        владение адресом не доказано, а по адресу связываются учётные записи.
+        """
+        holder: dict = {}
+        transport = _transport(nonce_holder=holder)
+        provider = _provider(oidc_issuer=None, oidc_client_id=None)
+        provider.type = "google"
+        service = self._google(transport)
+
+        _, flow = await service.begin(provider)
+        holder["nonce"] = flow.nonce
+        confirmed = await service.complete(provider, flow, code="c", state=flow.state)
+        assert confirmed.email_verified is None
+
+        _, flow = await service.begin(provider)
+        holder["nonce"] = flow.nonce
+        transport_no = _transport(id_token=_id_token(nonce=flow.nonce, email_verified=False))
+        denied = await self._google(transport_no).complete(
+            provider, flow, code="c", state=flow.state
+        )
+        assert denied.email_verified is False

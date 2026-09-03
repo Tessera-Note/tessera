@@ -31,6 +31,7 @@ from litestar.di import NamedDependency
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
 from litestar.response import Redirect
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.auth import https_only, set_session_cookie
@@ -59,6 +60,12 @@ logger = logging.getLogger(__name__)
 TYPE_OIDC = "oidc"
 TYPE_SAML = "saml"
 TYPE_LDAP = "ldap"
+TYPE_GOOGLE = "google"
+
+#: Издатель Google. Задан здесь, а не настройкой: у Google он один, и
+#: возможность его переопределить означала бы только возможность увести вход на
+#: чужой сервер.
+GOOGLE_ISSUER = "https://accounts.google.com"
 
 #: Куда возвращать, если точка возврата не задана или не прошла проверку.
 HOME = "/home"
@@ -93,6 +100,32 @@ async def _workspace(session: AsyncSession) -> Workspace:
     found = await WorkspaceRepo(session).first()
     if found is None:
         raise not_found("error.common.workspace_not_found")
+    return found
+
+
+async def _provider_by_type(
+    session: AsyncSession, workspace: Workspace, kind: str
+) -> AuthProvider:
+    """Включённый провайдер этого вида в пространстве.
+
+    Нужен входу через Google: идентификатора строки в пути нет, потому что
+    обратный адрес регистрируется у Google один на установку и не может его
+    нести. Ключи общие, а решение пускать через Google принимает пространство —
+    строкой провайдера.
+    """
+    found = (
+        await session.execute(
+            select(AuthProvider).where(
+                AuthProvider.workspace_id == workspace.id,
+                AuthProvider.type == kind,
+                AuthProvider.deleted_at.is_(None),
+            )
+        )
+    ).scalars().first()
+    if found is None:
+        raise not_found("error.sso.provider_not_found")
+    if not found.is_enabled:
+        raise unauthorized("error.sso.provider_disabled")
     return found
 
 
@@ -285,6 +318,116 @@ class SsoController(Controller):
         response = Redirect(target, status_code=302)
         _set_session_cookie(response, token, secure=https_only(settings))
         # Состояние потока больше не нужно и не должно пережить вход.
+        response.delete_cookie(FLOW_COOKIE, path="/")
+        return response
+
+    def _google(self, settings: Settings) -> OidcService:
+        """Разбор Google. Тот же протокол, что и OIDC, с постоянными настройками.
+
+        Обратный адрес без идентификатора провайдера, побуквенно как в v1: он
+        зарегистрирован в консоли Google у каждого, кто уже пользуется входом,
+        и сверяется точным сравнением. Другой путь означал бы отказ на каждом
+        входе, пока настройку не поправят руками.
+        """
+        return OidcService(
+            app_url=settings.app_url,
+            issuer=GOOGLE_ISSUER,
+            client_id=settings.google_client_id,
+            client_secret=settings.google_client_secret,
+            redirect_uri=f"{settings.app_url.rstrip('/')}/api/sso/google/callback",
+        )
+
+    @get("/google/login")
+    async def google_login(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        throttle: NamedDependency[Throttle],
+    ) -> Redirect:
+        """Начало входа через Google."""
+        await self._limit_by_address(request, throttle, settings)
+
+        workspace = await _workspace(db_session)
+        provider = await _provider_by_type(db_session, workspace, TYPE_GOOGLE)
+
+        if not settings.google_client_id or not settings.google_client_secret:
+            return _failed(
+                settings.app_url, "Google", ValueError("ключи Google не заданы в окружении")
+            )
+
+        try:
+            url, flow = await self._google(settings).begin(
+                provider, redirect=request.query_params.get("redirect")
+            )
+        except Exception as error:  # noqa: BLE001 — недоступный Google это не наша поломка
+            return _failed(settings.app_url, "Google", error)
+
+        response = Redirect(url, status_code=302)
+        response.set_cookie(
+            FLOW_COOKIE,
+            FlowCodec(settings.app_secret).sign(flow),
+            httponly=True,
+            samesite="lax",
+            max_age=int(FLOW_TTL.total_seconds()),
+            path="/",
+        )
+        return response
+
+    @get("/google/callback")
+    async def google_callback(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        tokens: NamedDependency[TokenService],
+        throttle: NamedDependency[Throttle],
+    ) -> Redirect:
+        await self._limit_by_address(request, throttle, settings)
+
+        workspace = await _workspace(db_session)
+        provider = await _provider_by_type(db_session, workspace, TYPE_GOOGLE)
+
+        flow = FlowCodec(settings.app_secret).read(request.cookies.get(FLOW_COOKIE))
+        if flow is None:
+            return _failed(
+                settings.app_url,
+                "Google",
+                ValueError("состояние потока отсутствует или протухло"),
+            )
+
+        try:
+            profile = await self._google(settings).complete(
+                provider,
+                flow,
+                code=request.query_params.get("code", ""),
+                state=request.query_params.get("state", ""),
+                group_claim=provider.group_claim_name,
+            )
+            # Непроверенную почту принимать нельзя: у Google она означает, что
+            # владение адресом не подтверждено, а по адресу связываются учётные
+            # записи, заведённые обычным способом.
+            if profile.email_verified is False:
+                raise ValueError("почта у Google не подтверждена")
+            token = await _issue_session(
+                db_session,
+                tokens,
+                request,
+                provider=provider,
+                workspace=workspace,
+                subject=profile.subject,
+                email=profile.email,
+                name=profile.name,
+                groups=profile.groups,
+            )
+        except Exception as error:  # noqa: BLE001 — любой отказ это отказ входа
+            response = _failed(settings.app_url, "Google", error)
+            response.delete_cookie(FLOW_COOKIE, path="/")
+            return response
+
+        target = f"{settings.app_url.rstrip('/')}{safe_app_path(flow.redirect)}"
+        response = Redirect(target, status_code=302)
+        _set_session_cookie(response, token, secure=https_only(settings))
         response.delete_cookie(FLOW_COOKIE, path="/")
         return response
 

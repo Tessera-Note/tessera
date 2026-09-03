@@ -38,7 +38,7 @@ APP_URL = "https://tessera.example"
 SECRET = "s" * 32
 
 
-def _settings() -> Settings:
+def _settings(**extra) -> Settings:  # noqa: ANN003
     return Settings(
         database_url="postgresql://tessera:x@127.0.0.1:5432/tessera",
         redis_url="redis://127.0.0.1:6379",
@@ -48,6 +48,7 @@ def _settings() -> Settings:
         host="0.0.0.0",
         debug=False,
         trust_proxy_hops=0,
+        **extra,
     )
 
 
@@ -97,13 +98,13 @@ class Recorder:
     seen: dict | None = None
 
 
-def _app(session: AsyncSession, throttle: ThrottleDouble) -> Litestar:
+def _app(session: AsyncSession, throttle: ThrottleDouble, **extra) -> Litestar:  # noqa: ANN003
     """Приложение из одного контроллера.
 
     Охрана настоящая: без неё проверка «маршрут работает без токена»
     подтверждала бы только то, что охраны нет.
     """
-    settings = _settings()
+    settings = _settings(**extra)
     tokens = TokenService(SECRET)
 
     async def provide_session() -> AsyncSession:
@@ -122,7 +123,7 @@ def _app(session: AsyncSession, throttle: ThrottleDouble) -> Litestar:
     )
 
 
-def _client(session: AsyncSession, throttle: ThrottleDouble) -> AsyncClient:
+def _client(session: AsyncSession, throttle: ThrottleDouble, **extra) -> AsyncClient:  # noqa: ANN003
     """Клиент, работающий в том же цикле событий, что и сессия базы.
 
     Готовый клиент проверок Litestar поднимает приложение через отдельный
@@ -134,7 +135,7 @@ def _client(session: AsyncSession, throttle: ThrottleDouble) -> AsyncClient:
     умолчанию выключен, и проверяется именно адрес, по которому пойдёт браузер.
     """
     return AsyncClient(
-        transport=ASGITransport(app=_app(session, throttle)),
+        transport=ASGITransport(app=_app(session, throttle, **extra)),
         base_url="http://testserver.local",
     )
 
@@ -592,7 +593,7 @@ class TestLdapRoute:
 @needs_database
 class TestPublicSurface:
     async def test_every_route_works_without_a_token(self, session: AsyncSession) -> None:
-        """Ни один из пяти не должен требовать сессии.
+        """Ни один из семи не должен требовать сессии.
 
         Требующий её недостижим по определению: человек приходит сюда именно
         потому, что сессии у него нет.
@@ -605,6 +606,10 @@ class TestPublicSurface:
             "/api/sso/saml/{provider_id:uuid}/login",
             "/api/sso/saml/{provider_id:uuid}/callback",
             "/api/sso/ldap/{provider_id:uuid}/login",
+            # У Google идентификатора провайдера в пути нет: обратный адрес
+            # регистрируется в консоли Google один на установку.
+            "/api/sso/google/login",
+            "/api/sso/google/callback",
         }
 
     async def test_no_route_reveals_why_the_login_failed(
@@ -677,3 +682,158 @@ class TestDeactivatedPerson:
                 workspace_id=workspace.id,
             )
         assert error.value.code == "error.auth.account_deactivated"
+
+
+class TestGoogleRoutes:
+    """Вход через Google.
+
+    Отличается от прочих протоколов путём: идентификатора провайдера в нём нет,
+    потому что обратный адрес регистрируется в консоли Google один на установку.
+    Провайдер поэтому ищется по виду.
+    """
+
+    KEYS = {"google_client_id": "id-из-окружения", "google_client_secret": "секрет"}
+
+    async def test_login_finds_the_provider_by_type_and_remembers_the_flow(
+        self, session: AsyncSession, workspace, monkeypatch
+    ) -> None:
+        provider = await _provider(session, workspace, "google")
+        seen: dict = {}
+
+        class FakeOidc:
+            def __init__(self, **options) -> None:  # noqa: ANN003
+                seen.update(options)
+
+            async def begin(self, provider, *, redirect=None):  # noqa: ANN001, ANN202
+                seen["redirect"] = redirect
+                return "https://accounts.google.com/o/oauth2/auth?x=1", FlowState(
+                    provider.id, "st", "ver", "non", "uri", redirect
+                )
+
+        monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
+
+        async with _client(session, ThrottleDouble(), **self.KEYS) as client:
+            response = await client.get("/api/sso/google/login", params={"redirect": "/home"})
+
+        assert response.status_code == 302
+        assert response.headers["location"].startswith("https://accounts.google.com/")
+        assert seen["issuer"] == "https://accounts.google.com"
+        assert seen["client_id"] == "id-из-окружения"
+        assert seen["redirect_uri"] == f"{APP_URL}/api/sso/google/callback"
+
+        flow = FlowCodec(SECRET).read(response.cookies.get(FLOW_COOKIE))
+        assert flow is not None
+        assert flow.provider_id == provider.id
+
+    async def test_without_keys_the_login_screen_says_no(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Без ключей в окружении вход не начинается.
+
+        Иначе человек уходит к Google и возвращается с отказом, причина
+        которого лежит в настройке установки, а не у него.
+        """
+        await _provider(session, workspace, "google")
+
+        async with _client(session, ThrottleDouble()) as client:
+            response = await client.get("/api/sso/google/login")
+
+        assert response.status_code == 302
+        assert response.headers["location"] == f"{APP_URL}/login?error=sso"
+
+    async def test_a_disabled_provider_does_not_let_in(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        await _provider(session, workspace, "google", is_enabled=False)
+
+        async with _client(session, ThrottleDouble(), **self.KEYS) as client:
+            response = await client.get("/api/sso/google/login")
+
+        assert response.status_code == 401
+
+    async def test_login_consults_the_counter(
+        self, session: AsyncSession, workspace, monkeypatch
+    ) -> None:
+        await _provider(session, workspace, "google")
+
+        class FakeOidc:
+            def __init__(self, **options) -> None: ...  # noqa: ANN003
+
+            async def begin(self, provider, *, redirect=None):  # noqa: ANN001, ANN202
+                return "https://accounts.google.com/a", FlowState(
+                    provider.id, "st", "ver", "non", "uri", redirect
+                )
+
+        monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
+
+        throttle = ThrottleDouble()
+        async with _client(session, throttle, **self.KEYS) as client:
+            await client.get("/api/sso/google/login")
+
+        assert [limit.name for _, limit in throttle.calls] == ["auth"]
+
+    async def test_unconfirmed_address_does_not_let_in(
+        self, session: AsyncSession, workspace, monkeypatch
+    ) -> None:
+        """Непроверенная почта у Google означает недоказанное владение адресом.
+
+        А по адресу связываются учётные записи, заведённые обычным способом:
+        принять такой вход значит отдать чужую учётную запись.
+        """
+        provider = await _provider(session, workspace, "google")
+        flow = FlowState(provider.id, "st", "ver", "non", "uri", None)
+
+        class FakeOidc:
+            def __init__(self, **options) -> None: ...  # noqa: ANN003
+
+            async def complete(self, provider, flow, **rest):  # noqa: ANN001, ANN003, ANN202
+                return OidcProfile(
+                    subject="google-1",
+                    email=f"{uuid.uuid4().hex}@example.com",
+                    name="Человек",
+                    groups=None,
+                    email_verified=False,
+                )
+
+        monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
+
+        async with _client(session, ThrottleDouble(), **self.KEYS) as client:
+            client.cookies.set(FLOW_COOKIE, FlowCodec(SECRET).sign(flow))
+            response = await client.get(
+                "/api/sso/google/callback", params={"code": "c", "state": "st"}
+            )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == f"{APP_URL}/login?error=sso"
+        assert "authToken" not in response.cookies
+
+    async def test_confirmed_address_issues_a_session(
+        self, session: AsyncSession, workspace, monkeypatch
+    ) -> None:
+        provider = await _provider(session, workspace, "google")
+        flow = FlowState(provider.id, "st", "ver", "non", "uri", "/s/design")
+        email = f"{uuid.uuid4().hex}@example.com"
+
+        class FakeOidc:
+            def __init__(self, **options) -> None: ...  # noqa: ANN003
+
+            async def complete(self, provider, flow, **rest):  # noqa: ANN001, ANN003, ANN202
+                return OidcProfile(
+                    subject="google-2",
+                    email=email,
+                    name="Человек",
+                    groups=None,
+                    email_verified=True,
+                )
+
+        monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
+
+        async with _client(session, ThrottleDouble(), **self.KEYS) as client:
+            client.cookies.set(FLOW_COOKIE, FlowCodec(SECRET).sign(flow))
+            response = await client.get(
+                "/api/sso/google/callback", params={"code": "c", "state": "st"}
+            )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == f"{APP_URL}/s/design"
+        assert response.cookies.get("authToken")

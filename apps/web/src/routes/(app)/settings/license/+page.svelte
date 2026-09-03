@@ -56,7 +56,7 @@
       <p class="mt-1 text-lg font-semibold">{data.version.currentVersion}</p>
       {#if data.version.latestVersion && data.version.latestVersion !== data.version.currentVersion}
         <p class="mt-1 text-sm text-text-muted">
-          {t('{{latestVersion}} is available')}: {data.version.latestVersion}
+          {t('{{latestVersion}} is available', { latestVersion: data.version.latestVersion })}
           <a class="ml-2 hover:underline" href={data.version.releaseUrl}>{t('Release notes')}</a>
         </p>
       {/if}

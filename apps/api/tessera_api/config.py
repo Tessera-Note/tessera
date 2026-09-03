@@ -60,6 +60,12 @@ class Settings:
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
     s3_force_path_style: bool = True
+    # Ключи Google для входа. Общие на установку, а не на пространство:
+    # обратный адрес регистрируется у Google один и не может нести ни
+    # поддомена, ни идентификатора провайдера. Решение пускать через Google
+    # принимает пространство — строкой провайдера, — а ключи приходят отсюда.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
     file_upload_size_limit: int = 50 * 1024 * 1024
     # Ввозимый архив крупнее обычного вложения: в нём не один файл, а целое
     # пространство. Предел тот же, что в v1.
@@ -125,6 +131,8 @@ class Settings:
             mail_from_name=_env("MAIL_FROM_NAME", "Tessera"),
             smtp_host=_env("SMTP_HOST") or None,
             smtp_port=int(_env("SMTP_PORT", "587")),
+            google_client_id=_env("GOOGLE_CLIENT_ID") or None,
+            google_client_secret=_env("GOOGLE_CLIENT_SECRET") or None,
             smtp_username=_env("SMTP_USERNAME") or None,
             smtp_password=_env("SMTP_PASSWORD") or None,
             smtp_secure=_env("SMTP_SECURE", "false").lower() == "true",
