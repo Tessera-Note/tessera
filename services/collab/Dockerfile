@@ -9,7 +9,10 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 RUN corepack enable
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# `.npmrc` обязателен: в нём `shamefully-hoist`, и без него `tsc` не оказывается
+# на пути у пакета расширений — своего объявления TypeScript тот не имеет и
+# берёт общий. Сборка падает на `tsc: not found`.
+COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
 COPY packages/editor-ext/package.json ./packages/editor-ext/
 COPY apps/client/package.json ./apps/client/
