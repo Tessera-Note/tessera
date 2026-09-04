@@ -5,13 +5,17 @@
   import {
     IconBell,
     IconBellOff,
+    IconCheck,
     IconCopy,
     IconEdit,
     IconEye,
     IconFileExport,
     IconFileTypePdf,
     IconFolderSymlink,
+    IconLayoutSidebarRight,
+    IconLink,
     IconMoodSmile,
+    IconPrinter,
     IconStar,
     IconStarFilled,
     IconTemplate,
@@ -21,11 +25,13 @@
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import Editor from '$lib/features/editor/Editor.svelte';
+  import Breadcrumbs from '$lib/components/page/Breadcrumbs.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
   import { editModeGate } from '$lib/features/page/edit-mode';
+  import { sidePanel } from '$lib/features/page/side-panel.svelte';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
   import EmojiPicker from '$lib/features/editor/EmojiPicker.svelte';
   import PageExport from '$lib/components/page/PageExport.svelte';
@@ -241,32 +247,181 @@
       await invalidateAll();
       await goto(`/s/${data.space?.slug ?? ''}`);
     });
+
+  /**
+   * Ссылка на страницу в буфер.
+   *
+   * Адрес отдаёт сам браузер: приложение развёртывают и на своём домене, и на
+   * `localhost`, и вписанный в настройки адрес расходился бы с тем, по
+   * которому человек сейчас работает.
+   */
+  let copied = $state(false);
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      copied = true;
+      if (copyTimer) clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => (copied = false), 2000);
+    } catch {
+      // Буфер недоступен: браузер не дал права. Показывать нечего.
+    }
+  }
+
+  $effect(() => () => {
+    if (copyTimer) clearTimeout(copyTimer);
+  });
+
+  /**
+   * Печать страницы средствами браузера.
+   *
+   * Отдельно от вывоза в PDF: тот собирается на сервере и приходит файлом, а
+   * печать нужна тогда, когда лист нужен сейчас и в руки. Так же в v1.
+   */
+  function print() {
+    // Задержка, как в v1: окно печати снимает разметку сразу, и без неё
+    // всплывающие подсказки попадают на лист.
+    setTimeout(() => window.print(), 250);
+  }
+
+  $effect(() => {
+    sidePanel.hydrate();
+  });
 </script>
 
 <svelte:head><title>{data.page.title ?? t('Untitled')} · Tessera</title></svelte:head>
 
-<div class="mr-aside">
+<div class:mr-aside={sidePanel.open}>
   <article data-route="page" class="mx-auto max-w-3xl">
-    {#if data.crumbs.length > 1}
-      <nav data-component="Breadcrumbs" class="mb-4 flex flex-wrap gap-1 text-sm text-text-muted">
-        {#each data.crumbs as crumb, index (crumb.id)}
-          {#if index > 0}<span aria-hidden="true">/</span>{/if}
-          <a class="hover:underline" href="/s/{data.space?.slug}/p/{crumb.slugId}">
-            {crumb.title ?? t('Untitled')}
-          </a>
-        {/each}
-      </nav>
-    {/if}
+    <!--
+      Полоса действий закреплена сверху, как в v1
+      (`features/page/components/header/page-header.module.css`). Раньше крошки
+      и действия были обычными строками содержимого: на длинной странице до них
+      нельзя было добраться, не прокрутив её до самого верха.
+    -->
+    <div
+      data-component="PageBar"
+      class="sticky top-header z-10 -mx-4 mb-6 flex h-header items-center justify-between gap-4 border-b border-border bg-surface px-4 print:hidden"
+    >
+      <Breadcrumbs crumbs={data.crumbs} spaceSlug={data.space?.slug ?? ''} />
 
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <!--
+        Действия значками, как в v1: шесть подписей подряд забирают половину
+        ширины и читаются как перечень, а не как действия. Подпись остаётся во
+        всплывающей и в имени для чтения с экрана.
+      -->
+      <div class="relative flex shrink-0 items-center gap-0.5">
+        <IconButton
+          icon={copied ? IconCheck : IconLink}
+          label={copied ? t('Copied') : t('Copy link')}
+          onclick={copyLink}
+        />
+        <IconButton
+          icon={data.favorite ? IconStarFilled : IconStar}
+          label={data.favorite ? t('Remove from favorites') : t('Add to favorites')}
+          disabled={busy}
+          onclick={toggleFavorite}
+        />
+        <!-- Подписка отдельно от избранного: избранное это своя закладка,
+             подписка — извещения о чужих правках. -->
+        <IconButton
+          icon={watching ? IconBell : IconBellOff}
+          label={watching ? t('Unsubscribe') : t('Subscribe')}
+          active={watching}
+          disabled={busy}
+          onclick={toggleWatch}
+        />
+        {#if canEdit}
+          <IconButton
+            icon={editing ? IconEye : IconEdit}
+            label={editing ? t('Read') : t('Edit')}
+            active={editing}
+            onclick={() => (editing = !editing)}
+          />
+          <IconButton
+            icon={IconTextCaption}
+            label={t('Rename')}
+            onclick={() => (renaming = true)}
+          />
+          <IconButton
+            icon={IconTemplate}
+            label={t('New template')}
+            disabled={busy}
+            onclick={saveAsTemplate}
+          />
+          <IconButton
+            icon={IconFileTypePdf}
+            label={t('PDF')}
+            disabled={busy || printing}
+            onclick={exportPdf}
+          />
+          <IconButton icon={IconPrinter} label={t('Print PDF')} onclick={print} />
+          <IconButton
+            icon={IconFileExport}
+            label={t('Export')}
+            active={exporting}
+            disabled={busy}
+            onclick={() => (exporting = !exporting)}
+          />
+          <IconButton icon={IconCopy} label={t('Duplicate')} disabled={busy} onclick={duplicate} />
+          <IconButton
+            icon={IconFolderSymlink}
+            label={t('Move to space')}
+            active={moving}
+            disabled={busy}
+            onclick={() => (moving = !moving)}
+          />
+          <IconButton icon={IconTrash} label={t('Delete')} disabled={busy} onclick={remove} />
+        {/if}
+
+        <IconButton
+          icon={IconLayoutSidebarRight}
+          label={t('Details')}
+          active={sidePanel.open}
+          onclick={() => sidePanel.toggle()}
+        />
+
+        {#if exporting}
+          <PageExport
+            pageId={data.page.id}
+            title={data.page.title ?? t('Untitled')}
+            onclose={() => (exporting = false)}
+          />
+        {/if}
+
+        {#if moving}
+          <div
+            class="absolute right-0 top-10 z-40 max-h-64 w-56 overflow-y-auto rounded-md border border-border bg-surface-raised py-1 shadow-lg"
+            role="menu"
+          >
+            {#each data.spaces.filter((one) => one.id !== data.page.spaceId) as space (space.id)}
+              <button
+                class="w-full truncate px-3 py-1.5 text-left text-sm hover:bg-surface-hover"
+                type="button"
+                role="menuitem"
+                disabled={busy}
+                onclick={() => moveToSpace(space.id)}
+              >
+                {space.name}
+              </button>
+            {:else}
+              <p class="px-3 py-1.5 text-sm text-text-muted">{t('No spaces yet')}</p>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <div class="mb-6">
       {#if renaming}
-        <form class="flex flex-1 gap-2" onsubmit={rename}>
+        <form class="flex gap-2" onsubmit={rename}>
           <div class="flex-1"><TextInput bind:value={title} required /></div>
           <Button type="submit" disabled={busy}>{t('Save')}</Button>
           <Button variant="quiet" onclick={() => (renaming = false)}>{t('Cancel')}</Button>
         </form>
       {:else}
-        <h1 class="relative min-w-64 flex-1 text-3xl font-semibold">
+        <h1 class="relative text-3xl font-semibold">
           {#if canEdit}
             <!-- Значок страницы это эмодзи в самой странице, а не файл: так же
                  в v1, и дерево показывает его без второго запроса. -->
@@ -297,104 +452,6 @@
           {/if}
           {data.page.title ?? t('Untitled')}
         </h1>
-
-        <!--
-          Действия страницы значками, как в v1: шесть подписей подряд забирают
-          половину ширины заголовка и читаются как перечень, а не как действия.
-          Подпись остаётся во всплывающей и в имени для чтения с экрана.
-        -->
-        <div class="relative flex shrink-0 items-center gap-0.5">
-          <IconButton
-            icon={data.favorite ? IconStarFilled : IconStar}
-            label={data.favorite ? t('Remove from favorites') : t('Add to favorites')}
-            disabled={busy}
-            onclick={toggleFavorite}
-          />
-          <!-- Подписка отдельно от избранного: избранное это своя закладка,
-               подписка — извещения о чужих правках. -->
-          <IconButton
-            icon={watching ? IconBell : IconBellOff}
-            label={watching ? t('Unsubscribe') : t('Subscribe')}
-            active={watching}
-            disabled={busy}
-            onclick={toggleWatch}
-          />
-          {#if canEdit}
-            <IconButton
-              icon={editing ? IconEye : IconEdit}
-              label={editing ? t('Read') : t('Edit')}
-              active={editing}
-              onclick={() => (editing = !editing)}
-            />
-            <IconButton
-              icon={IconTextCaption}
-              label={t('Rename')}
-              onclick={() => (renaming = true)}
-            />
-            <IconButton
-              icon={IconTemplate}
-              label={t('New template')}
-              disabled={busy}
-              onclick={saveAsTemplate}
-            />
-            <IconButton
-              icon={IconFileTypePdf}
-              label={t('PDF')}
-              disabled={busy || printing}
-              onclick={exportPdf}
-            />
-            <IconButton
-              icon={IconFileExport}
-              label={t('Export')}
-              active={exporting}
-              disabled={busy}
-              onclick={() => (exporting = !exporting)}
-            />
-            <IconButton
-              icon={IconCopy}
-              label={t('Duplicate')}
-              disabled={busy}
-              onclick={duplicate}
-            />
-            <IconButton
-              icon={IconFolderSymlink}
-              label={t('Move to space')}
-              active={moving}
-              disabled={busy}
-              onclick={() => (moving = !moving)}
-            />
-            <IconButton icon={IconTrash} label={t('Delete')} disabled={busy} onclick={remove} />
-
-            {#if exporting}
-              <PageExport
-                pageId={data.page.id}
-                title={data.page.title ?? t('Untitled')}
-                onclose={() => (exporting = false)}
-              />
-            {/if}
-
-            {#if moving}
-              <div
-                class="absolute right-0 top-10 z-40 max-h-64 w-56 overflow-y-auto rounded-md border border-border bg-surface-raised py-1 shadow-lg"
-                role="menu"
-              >
-                {#each data.spaces.filter((one) => one.id !== data.page.spaceId) as space (space.id)}
-                  <button
-                    class="w-full truncate px-3 py-1.5 text-left text-sm hover:bg-surface-hover"
-                    type="button"
-                    role="menuitem"
-                    disabled={busy}
-                    onclick={() => moveToSpace(space.id)}
-                  >
-                    {space.name}
-                  </button>
-                {:else}
-                  <p class="px-3 py-1.5 text-sm text-text-muted">{t('No spaces yet')}</p>
-                {/each}
-              </div>
-            {/if}
-          {/if}
-        </div>
       {/if}
     </div>
 
@@ -430,18 +487,21 @@
     />
   </article>
 
-  <PageSidePanel
-    pageId={data.page.id}
-    spaceId={data.page.spaceId}
-    versions={data.versions}
-    labels={data.labels}
-    backlinks={data.backlinks}
-    permission={data.permission}
-    verification={data.verification}
-    share={data.share}
-    spaceSlug={data.space?.slug ?? ''}
-    {stats}
-    createdAt={data.page.createdAt ?? null}
-    updatedAt={data.page.updatedAt ?? null}
-  />
+  {#if sidePanel.open}
+    <PageSidePanel
+      pageId={data.page.id}
+      spaceId={data.page.spaceId}
+      versions={data.versions}
+      labels={data.labels}
+      backlinks={data.backlinks}
+      permission={data.permission}
+      verification={data.verification}
+      share={data.share}
+      spaceSlug={data.space?.slug ?? ''}
+      {stats}
+      createdAt={data.page.createdAt ?? null}
+      updatedAt={data.page.updatedAt ?? null}
+      onclose={() => sidePanel.toggle()}
+    />
+  {/if}
 </div>

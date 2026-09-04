@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
+  import { IconX } from '@tabler/icons-svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import IconButton from '$lib/components/ui/IconButton.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
@@ -49,6 +51,8 @@
     stats?: { words: number; characters: number } | null;
     createdAt?: string | null;
     updatedAt?: string | null;
+    /** Закрыть панель. Кнопка стоит и здесь: закрывать там же, где смотришь. */
+    onclose: () => void;
   };
   const {
     pageId,
@@ -62,7 +66,8 @@
     spaceSlug,
     stats,
     createdAt = null,
-    updatedAt = null
+    updatedAt = null,
+    onclose
   }: Props = $props();
 
   const t = $derived(locale.t);
@@ -237,8 +242,12 @@
 
 <aside
   data-component="PageSidePanel"
-  class="fixed bottom-0 right-0 top-header w-aside overflow-y-auto bg-surface-muted p-4"
+  class="fixed bottom-0 right-0 top-header w-aside overflow-y-auto bg-surface-muted p-4 print:hidden"
 >
+  <div class="mb-2 flex justify-end">
+    <IconButton icon={IconX} label={t('Close')} onclick={onclose} />
+  </div>
+
   <nav class="mb-4 flex flex-wrap gap-1 text-sm">
     {#each [['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')], ['stats', t('Stats')]] as [key, title] (key)}
       <button
