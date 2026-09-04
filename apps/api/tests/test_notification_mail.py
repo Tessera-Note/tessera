@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -33,6 +34,10 @@ from tessera_api.services.notification_mail import (
 )
 from tessera_api.services.notifications import NotificationType
 from tests.conftest import needs_database
+
+#: Словари экранов. Список языков писем сверяется с ними: два перечня языков
+#: расходятся молча, и замечает это получатель письма, а не проверка.
+LOCALES_DIR = pathlib.Path(__file__).resolve().parents[3] / "apps" / "web" / "static" / "locales"
 
 APP_URL = "https://tessera.example"
 
@@ -61,9 +66,22 @@ class TestCatalogue:
             for locale in MAIL_LOCALES:
                 assert set(pattern.findall(CATALOGUE[locale][key])) == expected, (locale, key)
 
+    def test_every_screen_locale_has_letters(self) -> None:
+        """Языки писем и языки экранов — один список.
+
+        Расхождение выглядит так: человек ведёт вику на своём языке, а письмо
+        о смене пароля приходит по-английски. Отказом это не проявляется.
+        """
+        screens = {
+            one.stem
+            for one in (LOCALES_DIR).glob("*.json")
+        }
+        assert screens, "словари экранов не найдены — путь изменился"
+        assert screens <= set(MAIL_LOCALES), sorted(screens - set(MAIL_LOCALES))
+
     def test_an_unknown_locale_falls_back_to_english(self) -> None:
-        """Сочинять перевод на языке, которого не знаешь, хуже английского."""
-        assert mail_text("de-DE", "mail.greeting") == CATALOGUE[FALLBACK]["mail.greeting"]
+        """Незаведённый язык не роняет отправку и не оставляет пустоты."""
+        assert mail_text("xx-XX", "mail.greeting") == CATALOGUE[FALLBACK]["mail.greeting"]
         assert mail_text(None, "mail.greeting") == CATALOGUE[FALLBACK]["mail.greeting"]
         assert mail_text("", "mail.greeting") == CATALOGUE[FALLBACK]["mail.greeting"]
 
