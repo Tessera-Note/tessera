@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { errorText } from '$lib/api/failure';
   import Button from '$lib/components/ui/Button.svelte';
+  import Notice from '$lib/components/ui/Notice.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
 
   type Props = {
@@ -15,6 +17,7 @@
 
   let host: HTMLDivElement;
   let busy = $state(false);
+  let failure = $state<string | null>(null);
   let failed = $state(false);
 
   /**
@@ -122,6 +125,11 @@
 
       await save(text);
       close();
+    } catch (error) {
+      // Без этого отказ уходит необработанным обещанием: окно остаётся
+      // открытым, но человеку не говорится ничего, и он не знает, сохранилось
+      // ли. Работа при этом цела — её можно сохранить второй попыткой.
+      failure = errorText(error, t);
     } finally {
       busy = false;
     }
@@ -144,6 +152,9 @@
 
   {#if failed}
     <p class="p-4 text-sm text-danger" role="alert">{t('Something went wrong')}</p>
+  {/if}
+  {#if failure}
+    <div class="px-4 py-2"><Notice message={failure} /></div>
   {/if}
   <div bind:this={host} class="flex-1"></div>
 </div>

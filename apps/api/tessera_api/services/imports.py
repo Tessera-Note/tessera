@@ -41,7 +41,7 @@ from tessera_api.infrastructure.models import FileTask, Page
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService
-from tessera_api.services.docx_import import PLACEHOLDER, docx_to_html
+from tessera_api.services.docx_import import PLACEHOLDER, EmbeddedImage, docx_to_html
 from tessera_api.services.import_archives import (
     extract_confluence_page,
     is_confluence_export,
@@ -255,36 +255,60 @@ class ImportService:
         означало бы, что один и тот же файл ввозится по-разному в зависимости
         от того, лежал ли он в архиве.
         """
+        title, content, _ = await self._parsed(file_name, data)
+        return title, content
+
+    async def _parsed(
+        self, file_name: str, data: bytes
+    ) -> tuple[str, dict, list[EmbeddedImage]]:
+        """То же, но со встроенными картинками документа Word.
+
+        Картинки отдаются отдельно, а не кладутся сразу: вкладываются они в
+        страницу, а страницы в этот миг ещё нет. Разбор при этом один — второй
+        стоил бы полного повторного чтения документа ради того же результата.
+        """
         suffix = assert_supported(file_name)
 
         if suffix in (".md", ".markdown"):
             markdown = data.decode("utf-8", errors="replace")
-            return title_from_markdown(markdown, file_name), (
-                await self._content.markdown_to_json(markdown)
+            return (
+                title_from_markdown(markdown, file_name),
+                await self._content.markdown_to_json(markdown),
+                [],
             )
 
         if suffix in (".html", ".htm"):
             html = data.decode("utf-8", errors="replace")
-            return title_from_html(html, file_name), await self._content.html_to_json(html)
+            return (
+                title_from_html(html, file_name),
+                await self._content.html_to_json(html),
+                [],
+            )
 
         if suffix == ".docx":
             # Разметка сохраняется, как в v1: документ Word превращается в
             # HTML, а дальше работает обычный путь ввоза HTML. Голый текст
             # здесь означал бы страницу без заголовков, без списков и без
             # таблицы — и без единого признака, что что-то потеряно.
-            html, _ = docx_to_html(data)
+            html, images = docx_to_html(data)
             if not html.strip():
                 # Пустой разбор здесь — не пустой документ, а не разобранный:
                 # битый или защищённый файл выглядит так же.
                 raise bad_request("error.import.no_text")
-            return title_from_html(html, file_name), await self._content.html_to_json(html)
+            return (
+                title_from_html(html, file_name),
+                await self._content.html_to_json(html),
+                images,
+            )
 
         if suffix == ".odt":
             text = from_odt(data)
             if not text.strip():
                 raise bad_request("error.import.no_text")
-            return _title_from_text(text, file_name), (
-                await self._content.markdown_to_json(text)
+            return (
+                _title_from_text(text, file_name),
+                await self._content.markdown_to_json(text),
+                [],
             )
 
         text = from_pdf(data)
@@ -293,7 +317,11 @@ class ImportService:
             # распознаванием, которого в развёртывании нет, и пустая страница
             # вместо документа выглядела бы успешным ввозом.
             raise bad_request("error.import.no_text_layer")
-        return _title_from_text(text, file_name), await self._content.markdown_to_json(text)
+        return (
+            _title_from_text(text, file_name),
+            await self._content.markdown_to_json(text),
+            [],
+        )
 
     async def import_file(
         self,
@@ -310,7 +338,7 @@ class ImportService:
         Права проверяет обычное создание страницы: ввоз это тот же вход в
         пространство, и своя проверка здесь разошлась бы с ней.
         """
-        title, content = await self.to_document(file_name, data)
+        title, content, images = await self._parsed(file_name, data)
         page = await PageService(self._session, self._realtime, self._queue).create(
             user_id=user_id,
             workspace_id=workspace_id,
@@ -319,22 +347,21 @@ class ImportService:
             content=content,
             parent_page_id=parent_page_id,
         )
-
-        # Картинки документа Word выгружаются после создания страницы: они
-        # вкладываются в неё, а страницы до этого мига ещё нет. Заготовки в
-        # содержимом человеку не показываются — правка идёт в том же запросе.
-        if assert_supported(file_name) == ".docx":
-            await self._store_docx_images(page, data, user_id, workspace_id)
+        await self._store_images(page, images, user_id, workspace_id)
         return page
 
-    async def _store_docx_images(
+    async def _store_images(
         self,
         page: Page,
-        data: bytes,
+        images: list[EmbeddedImage],
         user_id: uuid.UUID,
         workspace_id: uuid.UUID,
     ) -> None:
-        """Выгрузить встроенные картинки и подставить их адреса.
+        """Выгрузить встроенные картинки документа и подставить их адреса.
+
+        Вызывается после создания страницы: картинки вкладываются в неё, а
+        страницы до этого мига ещё нет. Заготовки в содержимом человеку не
+        показываются — подстановка идёт в том же запросе.
 
         Без хранилища картинки просто не переносятся: ввоз текста от этого не
         отменяется, и отказ здесь стоил бы человеку всего документа.
@@ -343,11 +370,7 @@ class ImportService:
         преобразованием: обращение к соседнему сервису стоит дороже обхода
         дерева, а результат тот же.
         """
-        if self._storage is None:
-            return
-
-        _, images = docx_to_html(data)
-        if not images:
+        if self._storage is None or not images:
             return
 
         attachments = AttachmentService(self._session, self._storage, self._queue)
@@ -499,7 +522,7 @@ class ImportService:
         for entry in entries:
             folder = posixpath.dirname(entry.path)
             try:
-                title, content = await self.to_document(
+                title, content, images = await self._parsed(
                     posixpath.basename(entry.path), entry.data
                 )
             except Exception:  # noqa: BLE001 — один файл не отменяет архив
@@ -517,6 +540,10 @@ class ImportService:
             )
             if known.get("icon"):
                 page.icon = known["icon"]
+            # Документ Word может лежать и внутри архива. Без этого его
+            # картинки остались бы в содержимом заготовками — на экране битая
+            # картинка, а в хранилище ничего.
+            await self._store_images(page, images, task.creator_id, task.workspace_id)
             created += 1
 
             # Каталог, у которого есть одноимённая страница, становится её

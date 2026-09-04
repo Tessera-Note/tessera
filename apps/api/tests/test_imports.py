@@ -1096,6 +1096,83 @@ class TestDocxImport:
         assert "docx-image:" not in address
 
 
+@needs_database
+class TestDocxInsideArchive:
+    """Документ Word внутри архива.
+
+    Путь другой, а последствие то же: без выгрузки картинок в содержимом
+    остаётся заготовка, на экране это битая картинка, а в хранилище пусто.
+    Ввоз при этом успешен.
+    """
+
+    def _docx(self) -> bytes:
+        import struct
+        import zlib
+
+        from docx import Document
+        from docx.shared import Inches
+
+        def png() -> bytes:
+            def chunk(tag: bytes, data: bytes) -> bytes:
+                body = tag + data
+                return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+            rows = b"".join(b"\x00" + b"\xff\x00\x00" * 2 for _ in range(2))
+            return (
+                b"\x89PNG\r\n\x1a\n"
+                + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+                + chunk(b"IDAT", zlib.compress(rows))
+                + chunk(b"IEND", b"")
+            )
+
+        document = Document()
+        document.add_heading("Из архива", level=1)
+        document.add_picture(io.BytesIO(png()), width=Inches(1))
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    async def test_its_images_are_stored_too(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        storage = _StorageDouble(b"")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [{"type": "image", "attrs": {"src": "docx-image:0"}}],
+                    }
+                },
+            )
+
+        # Задание заводится напрямую, как в соседних проверках архива: очередь
+        # здесь ни при чём, проверяется разбор.
+        task = await _task(session, workspace, owner, space)
+        storage._data = archive({"договор.docx": self._docx()})
+        service = ImportService(
+            session,
+            ContentClient("http://collab:3001", transport=httpx.MockTransport(handler)),
+            storage=storage,
+        )
+        assert await service.run_archive(task.id)
+
+        page = (
+            await session.execute(
+                select(Page)
+                .where(Page.space_id == space.id)
+                .where(Page.title == "Из архива")
+                .where(Page.deleted_at.is_(None))
+            )
+        ).scalars().one()
+
+        assert storage.put_keys, "картинка из архива не легла в хранилище"
+        address = page.content["content"][0]["attrs"]["src"]
+        assert address.startswith("/api/files/"), address
+
+
 def test_the_import_route_is_given_storage() -> None:
     """Маршрут ввоза одного файла обязан получать хранилище.
 

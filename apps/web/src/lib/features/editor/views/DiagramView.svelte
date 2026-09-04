@@ -48,7 +48,12 @@
    */
   async function keep(svg: string) {
     const pageId = (current.data?.page as { id?: string } | undefined)?.id;
-    if (!pageId) return;
+    if (!pageId) {
+      // Молча выйти нельзя: редактор закрылся бы как при успехе, и диаграмма
+      // пропала бы без единого слова. Страницы здесь не бывает только у
+      // предпросмотра шаблона, где вкладывать некуда.
+      throw new Error('Диаграмму некуда вложить: страницы нет');
+    }
 
     const name = kind === 'drawio' ? 'diagram.drawio.svg' : 'diagram.excalidraw.svg';
     const file = new File([svg], name, { type: 'image/svg+xml' });

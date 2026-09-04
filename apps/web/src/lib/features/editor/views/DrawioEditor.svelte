@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
   import { env } from '$env/dynamic/public';
+  import { errorText } from '$lib/api/failure';
   import Button from '$lib/components/ui/Button.svelte';
+  import Notice from '$lib/components/ui/Notice.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
 
   type Props = {
@@ -33,6 +34,7 @@
 
   let frame: HTMLIFrameElement;
   let busy = $state(false);
+  let failure = $state<string | null>(null);
 
   /**
    * Обмен сообщениями с редактором.
@@ -64,11 +66,7 @@
     }
 
     if (message.event === 'export' && message.data) {
-      busy = true;
-      void save(message.data).finally(() => {
-        busy = false;
-        close();
-      });
+      void keep(message.data);
       return;
     }
 
@@ -77,12 +75,31 @@
     }
   }
 
+  /**
+   * Сохранить и закрыть — но только если сохранилось.
+   *
+   * Закрытие в `finally` означало, что при отказе загрузки окно закрывается
+   * так же, как при успехе: правка диаграммы теряется молча, и человеку об
+   * этом не говорится ничего. Отказ показывается, окно остаётся открытым, и
+   * работу можно сохранить второй попыткой.
+   */
+  async function keep(svg: string): Promise<void> {
+    busy = true;
+    failure = null;
+    try {
+      await save(svg);
+      close();
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = false;
+    }
+  }
+
   $effect(() => {
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   });
-
-  onDestroy(() => window.removeEventListener('message', onMessage));
 </script>
 
 <div
@@ -95,5 +112,8 @@
     <p class="text-sm font-medium">{t('Diagram editor')}</p>
     <Button variant="quiet" disabled={busy} onclick={close}>{t('Close')}</Button>
   </div>
+  {#if failure}
+    <div class="px-4 py-2"><Notice message={failure} /></div>
+  {/if}
   <iframe bind:this={frame} class="flex-1" src={address} title={t('Diagram editor')}></iframe>
 </div>
