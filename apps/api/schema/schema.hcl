@@ -746,10 +746,6 @@ table "base_properties" {
       expr = "lower(TRIM(BOTH FROM name))"
     }
   }
-  index "idx_base_properties_page_alive" {
-    columns = [column.page_id, column.position, column.id]
-    where   = "(deleted_at IS NULL)"
-  }
   index "idx_base_properties_page_id" {
     columns = [column.page_id]
   }
@@ -829,10 +825,6 @@ table "base_rows" {
     ref_columns = [table.workspaces.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
-  }
-  index "idx_base_rows_page_alive" {
-    columns = [column.page_id, column.position, column.id]
-    where   = "(deleted_at IS NULL)"
   }
   index "idx_base_rows_page_created" {
     where = "(deleted_at IS NULL)"
@@ -2615,10 +2607,6 @@ table "pages" {
   index "idx_pages_creator_id" {
     columns = [column.creator_id]
   }
-  index "idx_pages_is_base" {
-    columns = [column.space_id, column.position]
-    where   = "((is_base = true) AND (deleted_at IS NULL))"
-  }
   index "idx_pages_parent_page_id" {
     columns = [column.parent_page_id]
     where   = "(deleted_at IS NULL)"
@@ -2632,10 +2620,6 @@ table "pages" {
       desc   = true
       column = column.deleted_at
     }
-  }
-  index "idx_pages_space_parent_position" {
-    columns = [column.space_id, column.parent_page_id, column.position]
-    where   = "(deleted_at IS NULL)"
   }
   index "idx_pages_space_updated" {
     where = "(deleted_at IS NULL)"

@@ -1,4 +1,5 @@
--- Объекты базы, которыми Atlas не управляет.
+-- Объекты базы, которыми Atlas не управляет: расширения, функции и настройка
+-- поиска. Применяется **до** Atlas.
 --
 -- Замерено: Atlas в свободной редакции пропускает триггеры, функции и прочие
 -- объекты сверх таблиц («Skipping triggers, functions, stored procedures and
@@ -8,9 +9,13 @@
 -- Проверено обратным диффом: без gen_uuid_v7 в рабочей базе Atlas не может
 -- построить схему и падает на первой же таблице.
 --
--- Поэтому порядок такой. Сначала применяется этот файл, потом Atlas работает
--- со своими сорока пятью таблицами. Файл ведётся руками и снимается с рабочей
--- базы, порядок снятия описан в docs/v2-migration/03-data-and-migrations.md.
+-- Триггеры сюда не входят и лежат в `triggers.sql`: они ссылаются на таблицы,
+-- а таблицы создаёт Atlas. Пока они были в этом файле, применение на чистую
+-- базу падало на первом же из них — и это выяснилось только тогда, когда
+-- чистая база появилась.
+--
+-- Файл ведётся руками и снимается с рабочей базы, порядок снятия описан в
+-- docs/v2-migration/03-data-and-migrations.md.
 --
 -- Расширения намеренно первыми: от них зависят типы колонок (vector) и
 -- функции (unaccent).
@@ -191,7 +196,3 @@ AS $function$
     $function$
 ;
 CREATE TEXT SEARCH CONFIGURATION tessera_search ( COPY = russian );
-CREATE TRIGGER ai_chat_messages_tsvector_update BEFORE INSERT OR UPDATE ON public.ai_chat_messages FOR EACH ROW EXECUTE FUNCTION ai_chat_messages_tsvector_trigger();
-CREATE TRIGGER attachments_tsvector_update BEFORE INSERT OR UPDATE OF text_content ON public.attachments FOR EACH ROW EXECUTE FUNCTION attachments_tsvector_trigger();
-CREATE TRIGGER pages_tsvector_update BEFORE INSERT OR UPDATE ON public.pages FOR EACH ROW EXECUTE FUNCTION pages_tsvector_trigger();
-CREATE TRIGGER templates_tsvector_update BEFORE INSERT OR UPDATE ON public.templates FOR EACH ROW EXECUTE FUNCTION templates_tsvector_trigger();
