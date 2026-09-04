@@ -95,6 +95,28 @@ function codeFiles(dir: string): string[] {
   return found;
 }
 
+/**
+ * Наборы подписей, которые человек видит рядом друг с другом.
+ *
+ * Внутри набора перевод обязан различать их. Совпадение не ломает ничего
+ * машинно и потому живёт долго: во французском `Table` и `Board` были оба
+ * «Tableau», и переключатель представлений базы предлагал два одинаковых
+ * пункта, из которых один вёл в таблицу, а другой в канбан.
+ */
+const SIDE_BY_SIDE: Record<string, string[]> = {
+  'представления базы': ['Table', 'Board', 'Calendar']
+};
+
+describe('подписи в одном наборе различимы', () => {
+  it.each(locales)('%s', (locale) => {
+    const dictionary = readLocale(locale);
+    for (const [what, keys] of Object.entries(SIDE_BY_SIDE)) {
+      const shown = keys.map((key) => dictionary[key] ?? key);
+      expect(new Set(shown).size, `${what}: ${shown.join(', ')}`).toBe(keys.length);
+    }
+  });
+});
+
 describe('состав словарей', () => {
   it('локали на месте', () => {
     expect(locales).toContain(FALLBACK_LOCALE);
