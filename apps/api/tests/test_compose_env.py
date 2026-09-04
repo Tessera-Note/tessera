@@ -27,10 +27,24 @@ def _read_by_app() -> set[str]:
 
 
 def _passed_by_compose() -> set[str]:
-    text = COMPOSE.read_text(encoding="utf-8")
-    start = text.index("  tessera-v2-api:")
-    end = text.index("  tessera-v2-db:")
-    return set(re.findall(r"^\s+([A-Z][A-Z_0-9]+):", text[start:end], re.M))
+    """Окружение службы приложения.
+
+    Границы блока ищутся по началу строки, а не по подстроке: имя службы
+    встречается ещё и в `depends_on` соседей, с большим отступом, и поиск
+    подстрокой обрывал бы блок на первом же таком упоминании — молча, отдавая
+    пустое множество и роняя проверку там, где всё на месте.
+    """
+    lines = COMPOSE.read_text(encoding="utf-8").splitlines()
+    start = lines.index("  tessera-v2-api:")
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if re.fullmatch(r"  [a-z0-9-]+:", lines[index])
+        ),
+        len(lines),
+    )
+    return set(re.findall(r"^\s+([A-Z][A-Z_0-9]+):", "\n".join(lines[start:end]), re.M))
 
 
 def test_config_is_readable() -> None:
