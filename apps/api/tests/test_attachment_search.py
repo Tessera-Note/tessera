@@ -23,6 +23,7 @@ from tessera_api.domain.roles import SpaceRole, UserRole
 from tessera_api.infrastructure.document_text import (
     extract,
     from_docx,
+    from_odt,
     from_pdf,
     kind_of,
     normalise_extension,
@@ -68,6 +69,15 @@ class TestKindDetection:
         обеим веткам сразу: расширение `.docx` при типе, читаемом как текст.
         """
         assert kind_of("text/plain", ".docx") == "docx"
+
+    def test_odt_is_decided_before_the_archive(self) -> None:
+        """ODT — это ZIP, и по типу архива он попал бы в «разбору не подлежит».
+
+        Проверяется на признаке, который подходит обеим веткам: расширение
+        `.odt` при типе архива. Порядок веток в `kind_of` и решает исход.
+        """
+        assert kind_of("application/vnd.oasis.opendocument.text", None) == "odt"
+        assert kind_of("application/octet-stream", ".odt") == "odt"
 
     def test_binary_is_unsupported(self) -> None:
         assert kind_of("image/png", ".png") is None
@@ -857,3 +867,96 @@ async def test_the_attachment_row_keeps_its_status_column(session: AsyncSession)
     """
     found = await session.execute(select(Attachment.index_status).limit(1))
     assert found is not None
+
+
+def _odt(body: str) -> bytes:
+    """Простейший ODT: ZIP, внутри которого разметка в `content.xml`.
+
+    Собирается здесь, а не берётся файлом: нужен ровно тот набор узлов, чьё
+    поведение проверяется, а двоичная заготовка в репозитории читалась бы
+    глазами не лучше, чем не читалась.
+    """
+    import io
+    import zipfile
+
+    document = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<office:document-content'
+        ' xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+        ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"'
+        ' xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">'
+        f"<office:body><office:text>{body}</office:text></office:body>"
+        "</office:document-content>"
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        archive.writestr("content.xml", document)
+    return buffer.getvalue()
+
+
+class TestOdt:
+    """Разбор ODT своими средствами.
+
+    Библиотеки для этого нет намеренно: новая зависимость в рантайме запрещена
+    правилами проекта, а нужного здесь ровно столько, сколько даёт разбор XML
+    из стандартной библиотеки.
+    """
+
+    def test_paragraphs_and_headings_are_taken(self) -> None:
+        raw = _odt(
+            '<text:h text:outline-level="1">Заголовок</text:h>'
+            "<text:p>Первый абзац.</text:p>"
+            "<text:p>Второй абзац.</text:p>"
+        )
+        found = from_odt(raw)
+        assert "Заголовок" in found
+        assert "Первый абзац." in found
+        assert "Второй абзац." in found
+
+    def test_formatting_inside_a_paragraph_does_not_cut_it(self) -> None:
+        """Оформление режет абзац на куски `text:span`.
+
+        Без сбора вложенного текста в поиск попало бы одно слово из трёх, а
+        отрывок выдачи показывал бы обрубок.
+        """
+        raw = _odt("<text:p>Начало <text:span>середина</text:span> конец</text:p>")
+        assert "Начало" in from_odt(raw)
+        assert "середина" in from_odt(raw)
+        assert "конец" in from_odt(raw)
+
+    def test_table_cells_are_taken_once(self) -> None:
+        """Текст ячейки берётся ровно один раз.
+
+        Перечисление ячейки наравне с абзацем давало бы каждое её слово дважды
+        — один раз от ячейки, второй от абзаца внутри неё, — и документ выглядел
+        бы в поиске так, будто слово встречается в нём вдвое чаще.
+        """
+        raw = _odt(
+            "<table:table><table:table-row>"
+            "<table:table-cell><text:p>Ячейка слева</text:p></table:table-cell>"
+            "<table:table-cell><text:p>Ячейка справа</text:p></table:table-cell>"
+            "</table:table-row></table:table>"
+        )
+        found = from_odt(raw)
+        assert found.count("Ячейка слева") == 1
+        assert found.count("Ячейка справа") == 1
+
+    def test_a_broken_file_gives_an_empty_string(self) -> None:
+        """Битый файл — обычный исход обхода, а не поломка."""
+        assert from_odt(b"not an archive at all") == ""
+
+    def test_an_archive_without_content_gives_an_empty_string(self) -> None:
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        assert from_odt(buffer.getvalue()) == ""
+
+    def test_extract_routes_odt_to_its_own_parser(self) -> None:
+        raw = _odt("<text:p>Слово из документа</text:p>")
+        assert "Слово из документа" in extract(
+            raw, mime="application/vnd.oasis.opendocument.text", extension=None
+        )

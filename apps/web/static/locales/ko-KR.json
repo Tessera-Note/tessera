@@ -2225,7 +2225,7 @@
   "Completed": "완료",
   "Failed": "실패",
   "Export all pages of this space as an archive.": "이 스페이스의 모든 페이지를 아카이브로 내보냅니다.",
-  "Markdown, HTML, Word and PDF files become pages of this space.": "Markdown, HTML, Word, PDF 파일이 이 스페이스의 페이지가 됩니다.",
+  "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.": "Markdown, HTML, Word, OpenDocument, PDF 파일은 이 스페이스의 페이지가 됩니다.",
   "Import file": "파일 가져오기",
   "Import archive": "아카이브 가져오기",
   "An archive is unpacked in the background. Progress is shown below.": "아카이브는 백그라운드에서 풀립니다. 진행 상황은 아래에 표시됩니다.",

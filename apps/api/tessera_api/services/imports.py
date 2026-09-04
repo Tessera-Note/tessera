@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.content import ContentClient
-from tessera_api.infrastructure.document_text import from_docx, from_pdf, tidy
+from tessera_api.infrastructure.document_text import from_docx, from_odt, from_pdf, tidy
 from tessera_api.infrastructure.models import FileTask, Page
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 #: Что принимается одним файлом. Список закрытый: остальные форматы либо
 #: разбираются с потерями, либо не разбираются вовсе, и молчаливая порча хуже
 #: понятного отказа.
-SINGLE_FILE_EXTENSIONS = (".md", ".markdown", ".html", ".htm", ".docx", ".pdf")
+SINGLE_FILE_EXTENSIONS = (".md", ".markdown", ".html", ".htm", ".docx", ".odt", ".pdf")
 
 #: Виды архивов.
 #:
@@ -247,8 +247,10 @@ class ImportService:
             html = data.decode("utf-8", errors="replace")
             return title_from_html(html, file_name), await self._content.html_to_json(html)
 
-        if suffix == ".docx":
-            text = from_docx(data)
+        if suffix in (".docx", ".odt"):
+            # Два формата одной веткой: из обоих берётся голый текст, и
+            # различать их дальше было бы различием без разницы.
+            text = from_docx(data) if suffix == ".docx" else from_odt(data)
             if not text.strip():
                 # Пустой разбор здесь — не пустой документ, а не разобранный:
                 # битый или защищённый файл выглядит так же.

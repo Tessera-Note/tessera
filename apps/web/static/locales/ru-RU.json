@@ -2097,7 +2097,7 @@
   "Completed": "Завершено",
   "Failed": "Не удалось",
   "Export all pages of this space as an archive.": "Выгрузить все страницы пространства архивом.",
-  "Markdown, HTML, Word and PDF files become pages of this space.": "Файлы Markdown, HTML, Word и PDF становятся страницами этого пространства.",
+  "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.": "Файлы Markdown, HTML, Word, OpenDocument и PDF становятся страницами этого пространства.",
   "Import file": "Ввезти файл",
   "Import archive": "Ввезти архив",
   "An archive is unpacked in the background. Progress is shown below.": "Архив разбирается в фоне. Ход показан ниже.",

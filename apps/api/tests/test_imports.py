@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import uuid
 import zipfile
+from pathlib import Path
 
 import httpx
 import pytest
@@ -87,8 +89,12 @@ class TestSupportedFormats:
         приходит спрашивать.
         """
         with pytest.raises(AppError) as error:
-            assert_supported("документ.odt")
+            assert_supported("документ.epub")
         assert ".md" in (error.value.extra or {}).get("params", {}).get("allowed", "")
+
+    def test_an_open_document_is_accepted(self) -> None:
+        """ODT принимается наравне с DOCX: тот же текст, тот же путь ввоза."""
+        assert assert_supported("документ.odt") == ".odt"
 
     def test_every_declared_format_passes(self) -> None:
         for suffix in SINGLE_FILE_EXTENSIONS:
@@ -900,3 +906,43 @@ class TestForeignArchives:
 
         pages = await _pages_of(session, space.id, (NOTION_TOP, NOTION_CHILD))
         assert pages[NOTION_CHILD].parent_page_id == pages[NOTION_TOP].id
+
+
+class TestAcceptedFormatsAreOneList:
+    """Перечень принимаемых форматов существует дважды.
+
+    Сервер отвергает по `SINGLE_FILE_EXTENSIONS`, а окно выбора файла в
+    браузере фильтрует по `IMPORT_ACCEPT`. Разойтись они могут молча, и оба
+    расхождения неприятны по-своему: формат, которого нет в окне выбора,
+    человек просто не найдёт, а формат, которого нет на сервере, выберется и
+    получит отказ уже после загрузки.
+
+    Разбор текста здесь уместен по той же причине, что и в `test_compose_env`:
+    проверяемое свойство и есть свойство двух списков, а исполнимого моста
+    между Python и TypeScript нет.
+    """
+
+    ACCEPT = (
+        Path(__file__).resolve().parents[3]
+        / "apps"
+        / "web"
+        / "src"
+        / "lib"
+        / "features"
+        / "page"
+        / "services"
+        / "transfer.ts"
+    )
+
+    def _from_client(self) -> tuple[str, ...]:
+        text = self.ACCEPT.read_text(encoding="utf-8")
+        found = re.search(r"IMPORT_ACCEPT\s*=\s*'([^']+)'", text)
+        assert found, "перечень в клиенте не найден — имя или запись изменились"
+        return tuple(found.group(1).split(","))
+
+    def test_the_client_list_is_readable(self) -> None:
+        """Сначала проверяется сам разбор: пустой список сравнялся бы с чем угодно."""
+        assert len(self._from_client()) > 3
+
+    def test_both_lists_are_the_same(self) -> None:
+        assert self._from_client() == SINGLE_FILE_EXTENSIONS

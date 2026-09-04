@@ -152,7 +152,7 @@
 
   <Panel title={t('Import pages')}>
     <p class="mb-3 text-sm text-text-muted">
-      {t('Markdown, HTML, Word and PDF files become pages of this space.')}
+      {t('Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.')}
     </p>
     <!-- Выбор файла спрятан за кнопкой: сам `input type=file` рисуется каждым
          браузером по-своему и не встаёт в расстановку экрана. -->

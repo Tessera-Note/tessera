@@ -2225,7 +2225,7 @@
   "Completed": "Voltooid",
   "Failed": "Mislukt",
   "Export all pages of this space as an archive.": "Exporteer alle pagina's van deze ruimte als archief.",
-  "Markdown, HTML, Word and PDF files become pages of this space.": "Markdown-, HTML-, Word- en PDF-bestanden worden pagina's van deze ruimte.",
+  "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.": "Bestanden in Markdown, HTML, Word, OpenDocument en PDF worden pagina's van deze ruimte.",
   "Import file": "Bestand importeren",
   "Import archive": "Archief importeren",
   "An archive is unpacked in the background. Progress is shown below.": "Een archief wordt op de achtergrond uitgepakt. De voortgang staat hieronder.",
