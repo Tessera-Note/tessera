@@ -2275,5 +2275,22 @@
   "Semantic search": "Semantische Suche",
   "Search finds pages by meaning, not only by words.": "Die Suche findet Seiten nach Bedeutung, nicht nur nach Wörtern.",
   "Tool channel (MCP)": "Werkzeugkanal (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "Erlaubt einem externen Programm, in Ihrem Namen mit dem Wiki zu arbeiten."
+  "Lets an outside program work with the wiki on your behalf.": "Erlaubt einem externen Programm, in Ihrem Namen mit dem Wiki zu arbeiten.",
+  "Search across all pages": "Alle Seiten durchsuchen",
+  "Create a new page": "Neue Seite erstellen",
+  "Summarize a page": "Eine Seite zusammenfassen",
+  "Update page content": "Seiteninhalt aktualisieren",
+  "Search for pages about ": "Suche Seiten über ",
+  "Create a new page titled ": "Erstelle eine neue Seite mit dem Titel ",
+  "Summarize the page ": "Fasse die Seite zusammen ",
+  "Update the page ": "Aktualisiere die Seite ",
+  "Steps": "Schritte",
+  "Listed spaces": "Bereiche aufgelistet",
+  "Listed pages": "Seiten aufgelistet",
+  "Read page": "Seite gelesen",
+  "Searched pages": "Seiten durchsucht",
+  "Searched by meaning": "Nach Bedeutung gesucht",
+  "Searched the web": "Im Web gesucht",
+  "Created page": "Seite erstellt",
+  "Updated page": "Seite aktualisiert"
 }

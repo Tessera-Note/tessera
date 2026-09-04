@@ -2293,5 +2293,22 @@
   "Semantic search": "Пошук за змістом",
   "Search finds pages by meaning, not only by words.": "Пошук знаходить сторінки за змістом, а не лише за словами.",
   "Tool channel (MCP)": "Канал інструментів (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "Дозволяє сторонній програмі працювати з вікі від вашого імені."
+  "Lets an outside program work with the wiki on your behalf.": "Дозволяє сторонній програмі працювати з вікі від вашого імені.",
+  "Search across all pages": "Знайти по всіх сторінках",
+  "Create a new page": "Створити сторінку",
+  "Summarize a page": "Стисло переказати сторінку",
+  "Update page content": "Дописати сторінку",
+  "Search for pages about ": "Знайди сторінки про ",
+  "Create a new page titled ": "Створи сторінку з назвою ",
+  "Summarize the page ": "Перекажи стисло сторінку ",
+  "Update the page ": "Доповни сторінку ",
+  "Steps": "Кроки",
+  "Listed spaces": "Переглянув простори",
+  "Listed pages": "Переглянув сторінки",
+  "Read page": "Прочитав сторінку",
+  "Searched pages": "Пошукав по сторінках",
+  "Searched by meaning": "Пошукав за змістом",
+  "Searched the web": "Пошукав в інтернеті",
+  "Created page": "Створив сторінку",
+  "Updated page": "Змінив сторінку"
 }

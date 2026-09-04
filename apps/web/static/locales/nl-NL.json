@@ -2275,5 +2275,22 @@
   "Semantic search": "Zoeken op betekenis",
   "Search finds pages by meaning, not only by words.": "Zoeken vindt pagina's op betekenis, niet alleen op woorden.",
   "Tool channel (MCP)": "Gereedschapskanaal (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "Laat een extern programma namens jou met de wiki werken."
+  "Lets an outside program work with the wiki on your behalf.": "Laat een extern programma namens jou met de wiki werken.",
+  "Search across all pages": "Zoeken in alle pagina's",
+  "Create a new page": "Een nieuwe pagina maken",
+  "Summarize a page": "Een pagina samenvatten",
+  "Update page content": "Pagina-inhoud bijwerken",
+  "Search for pages about ": "Zoek pagina's over ",
+  "Create a new page titled ": "Maak een pagina met de titel ",
+  "Summarize the page ": "Vat de pagina samen ",
+  "Update the page ": "Werk de pagina bij ",
+  "Steps": "Stappen",
+  "Listed spaces": "Ruimtes opgesomd",
+  "Listed pages": "Pagina's opgesomd",
+  "Read page": "Pagina gelezen",
+  "Searched pages": "Pagina's doorzocht",
+  "Searched by meaning": "Gezocht op betekenis",
+  "Searched the web": "Op het web gezocht",
+  "Created page": "Pagina gemaakt",
+  "Updated page": "Pagina bijgewerkt"
 }

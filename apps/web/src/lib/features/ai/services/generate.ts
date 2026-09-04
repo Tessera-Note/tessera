@@ -9,6 +9,7 @@
 import { apiBase } from '$lib/api/base';
 import { ApiError } from '$lib/api/client';
 import { readData } from '$lib/features/ai/services/frames';
+import { locale } from '$lib/stores/i18n.svelte';
 
 /**
  * Действия над текстом. Значения понимает сервер, подписи видит человек.
@@ -31,6 +32,18 @@ export const AI_ACTIONS = [
 type GenerateValues = { content: string; action?: string; prompt?: string };
 
 /**
+ * Язык интерфейса добавляется здесь, а не вызывающим.
+ *
+ * Локаль в учётной записи пуста до первого захода в настройки, а интерфейс
+ * всё это время показан на языке браузера, и сервер отвечал по-английски на
+ * русский вопрос. Место выбрано так, чтобы ни одно место вызова не могло
+ * забыть язык: забытый язык виден только по языку ответа.
+ */
+function withLocale<T extends object>(values: T): T & { locale: string } {
+  return { ...values, locale: locale.current };
+}
+
+/**
  * Переписать текст потоком.
  *
  * Потоком, а не одним ответом: правка длинного куска занимает секунды, и
@@ -46,7 +59,7 @@ export async function* generateStream(
     credentials: 'include',
     signal,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(values)
+    body: JSON.stringify(withLocale(values))
   });
 
   if (!response.ok || !response.body) {

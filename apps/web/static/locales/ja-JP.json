@@ -2275,5 +2275,22 @@
   "Semantic search": "意味による検索",
   "Search finds pages by meaning, not only by words.": "検索は語句だけでなく意味でもページを見つけます。",
   "Tool channel (MCP)": "ツール接続 (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "外部のプログラムがあなたの代わりにウィキを操作できるようにします。"
+  "Lets an outside program work with the wiki on your behalf.": "外部のプログラムがあなたの代わりにウィキを操作できるようにします。",
+  "Search across all pages": "すべてのページを検索",
+  "Create a new page": "新しいページを作成",
+  "Summarize a page": "ページを要約",
+  "Update page content": "ページの内容を更新",
+  "Search for pages about ": "次について書かれたページを探して: ",
+  "Create a new page titled ": "次のタイトルでページを作成して: ",
+  "Summarize the page ": "次のページを要約して: ",
+  "Update the page ": "次のページを更新して: ",
+  "Steps": "ステップ",
+  "Listed spaces": "スペースを一覧表示",
+  "Listed pages": "ページを一覧表示",
+  "Read page": "ページを読み取り",
+  "Searched pages": "ページを検索",
+  "Searched by meaning": "意味で検索",
+  "Searched the web": "ウェブを検索",
+  "Created page": "ページを作成",
+  "Updated page": "ページを更新"
 }

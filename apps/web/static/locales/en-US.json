@@ -2275,5 +2275,22 @@
   "Semantic search": "Semantic search",
   "Search finds pages by meaning, not only by words.": "Search finds pages by meaning, not only by words.",
   "Tool channel (MCP)": "Tool channel (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "Lets an outside program work with the wiki on your behalf."
+  "Lets an outside program work with the wiki on your behalf.": "Lets an outside program work with the wiki on your behalf.",
+  "Search across all pages": "Search across all pages",
+  "Create a new page": "Create a new page",
+  "Summarize a page": "Summarize a page",
+  "Update page content": "Update page content",
+  "Search for pages about ": "Search for pages about ",
+  "Create a new page titled ": "Create a new page titled ",
+  "Summarize the page ": "Summarize the page ",
+  "Update the page ": "Update the page ",
+  "Steps": "Steps",
+  "Listed spaces": "Listed spaces",
+  "Listed pages": "Listed pages",
+  "Read page": "Read page",
+  "Searched pages": "Searched pages",
+  "Searched by meaning": "Searched by meaning",
+  "Searched the web": "Searched the web",
+  "Created page": "Created page",
+  "Updated page": "Updated page"
 }

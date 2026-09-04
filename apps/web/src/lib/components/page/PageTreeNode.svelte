@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { IconDots } from '@tabler/icons-svelte';
   import { errorText } from '$lib/api/failure';
@@ -24,6 +25,12 @@
     spaceSlug: string;
     depth: number;
     activeSlug: string | undefined;
+    /**
+     * Предки открытой страницы. Ветвь, попавшая сюда, раскрывается сама:
+     * иначе открытой страницы в свёрнутом дереве просто нет, и человек не
+     * видит, где находится.
+     */
+    ancestors: Set<string>;
     /** Соседи по ветви: по ним считается ключ порядка при перестановке. */
     siblings: PageSummary[];
     /** Куда можно перенести страницу. Перечень общий на всё дерево. */
@@ -31,7 +38,8 @@
     /** Перечитать ветвь родителя после переноса или удаления. */
     onchanged: () => void;
   };
-  const { node, spaceSlug, depth, activeSlug, siblings, spaces, onchanged }: Props = $props();
+  const { node, spaceSlug, depth, activeSlug, ancestors, siblings, spaces, onchanged }: Props =
+    $props();
 
   let open = $state(false);
   let children = $state<PageSummary[] | null>(null);
@@ -67,6 +75,38 @@
       loading = false;
     }
   }
+
+  /**
+   * Раскрыться, если открытая страница лежит внутри.
+   *
+   * Читается один довод — перечень предков. `open` и `children` обработчик
+   * только пишет, и читает их через `untrack`: эффект, прочитавший то, что сам
+   * записал, подписывается на собственную запись, и Svelte снимает ветвь.
+   *
+   * Свёрнутое вручную не раскрывается заново само: перечень предков меняется
+   * только при переходе на другую страницу.
+   */
+  $effect(() => {
+    const wanted = ancestors;
+    if (!wanted.has(node.id)) return;
+    if (untrack(() => open)) return;
+    open = true;
+    if (untrack(() => children) === null) void load();
+  });
+
+  /**
+   * Показать открытую строку.
+   *
+   * Раскрытия мало: в дереве на тысячу страниц нужная строка оказывается за
+   * пределами окна, и человек по-прежнему её не видит. Прокрутка мягкая и
+   * ближайшая — резкая перестановка списка читается как сбой.
+   */
+  $effect(() => {
+    const mine = activeSlug === node.slugId;
+    const target = row;
+    if (!mine || !target) return;
+    target.scrollIntoView({ block: 'nearest' });
+  });
 
   /** Перечитать свою ветвь: после правки внутри неё. */
   async function reload() {
@@ -174,7 +214,15 @@
   const highlighted = $derived(drag.overId === node.id && drag.pageId !== node.id);
 </script>
 
-<div data-component="PageTreeNode" style="padding-left: {depth * 12}px">
+<!--
+  Отступ ветви задаётся шагом, а не глубиной.
+
+  Дочерние строки лежат внутри родительской, и её отступ они уже получили.
+  Отступ по глубине складывался с родительским, и на восьмом уровне ветвь
+  уходила за край панели: у строк оставался значок, а название сжималось в
+  ничто. Найдено на ввезённой выгрузке, где такая глубина обычна.
+-->
+<div data-component="PageTreeNode" style="padding-left: {depth === 0 ? 0 : 12}px">
   <div
     bind:this={row}
     class="group relative flex items-center gap-1 rounded"
@@ -262,6 +310,7 @@
           {spaceSlug}
           depth={depth + 1}
           {activeSlug}
+          {ancestors}
           siblings={children}
           {spaces}
           onchanged={reload}

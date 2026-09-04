@@ -1,6 +1,7 @@
 import { apiBase } from '$lib/api/base';
 import { ApiError, post } from '$lib/api/client';
 import { readFrames, type Frame } from '$lib/features/ai/services/frames';
+import { locale } from '$lib/stores/i18n.svelte';
 
 export type { Frame };
 
@@ -22,6 +23,18 @@ export type ChatMessage = {
 
 export type ChatBody = Chat & { messages: ChatMessage[] };
 
+/**
+ * Язык интерфейса добавляется здесь, а не вызывающим.
+ *
+ * Локаль в учётной записи пуста до первого захода в настройки, а интерфейс
+ * всё это время показан на языке браузера, и сервер отвечал по-английски на
+ * русский вопрос. Место выбрано так, чтобы ни одно место вызова не могло
+ * забыть язык: забытый язык виден только по языку ответа.
+ */
+function withLocale<T extends object>(values: T): T & { locale: string } {
+  return { ...values, locale: locale.current };
+}
+
 export function listChats(
   cursor?: string,
   fetcher?: typeof fetch,
@@ -32,6 +45,16 @@ export function listChats(
     { cursor },
     { fetcher, headers }
   );
+}
+
+/**
+ * Поиск по разговорам.
+ *
+ * Отдельным обращением, а не отбором на клиенте: список подгружается страницами,
+ * и отбор по загруженному пропускал бы всё, что ещё не пришло.
+ */
+export function searchChats(query: string, fetcher?: typeof fetch) {
+  return post<Chat[]>('/api/ai/chats/search', { query }, { fetcher });
 }
 
 export function chatInfo(chatId: string, fetcher?: typeof fetch, headers?: Record<string, string>) {
@@ -83,7 +106,7 @@ export async function* sendMessage(
     credentials: 'include',
     signal,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(values)
+    body: JSON.stringify(withLocale(values))
   });
 
   if (!response.ok || !response.body) {

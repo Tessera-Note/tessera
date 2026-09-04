@@ -2275,5 +2275,22 @@
   "Semantic search": "의미 기반 검색",
   "Search finds pages by meaning, not only by words.": "검색이 단어뿐 아니라 의미로도 페이지를 찾습니다.",
   "Tool channel (MCP)": "도구 채널 (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "외부 프로그램이 회원님을 대신해 위키를 다룰 수 있게 합니다."
+  "Lets an outside program work with the wiki on your behalf.": "외부 프로그램이 회원님을 대신해 위키를 다룰 수 있게 합니다.",
+  "Search across all pages": "모든 페이지에서 검색",
+  "Create a new page": "새 페이지 만들기",
+  "Summarize a page": "페이지 요약",
+  "Update page content": "페이지 내용 수정",
+  "Search for pages about ": "다음에 대한 페이지를 찾아줘: ",
+  "Create a new page titled ": "다음 제목으로 페이지를 만들어줘: ",
+  "Summarize the page ": "다음 페이지를 요약해줘: ",
+  "Update the page ": "다음 페이지를 수정해줘: ",
+  "Steps": "단계",
+  "Listed spaces": "스페이스 목록 확인",
+  "Listed pages": "페이지 목록 확인",
+  "Read page": "페이지 읽음",
+  "Searched pages": "페이지 검색",
+  "Searched by meaning": "의미 기반 검색",
+  "Searched the web": "웹 검색",
+  "Created page": "페이지 생성",
+  "Updated page": "페이지 수정"
 }

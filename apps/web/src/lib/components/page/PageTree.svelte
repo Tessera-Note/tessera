@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page as current } from '$app/state';
-  import { pageTree, type PageSummary } from '$lib/features/page/services/pages';
+  import { breadcrumbs, pageTree, type PageSummary } from '$lib/features/page/services/pages';
   import { listSpaces, type Space } from '$lib/features/space/services/spaces';
   import { onRealtime } from '$lib/features/realtime/socket';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -28,6 +28,41 @@
         spaces = [];
       });
   });
+  /**
+   * Предки открытой страницы.
+   *
+   * Дерево не знает, где лежит открытая страница: ветви подгружаются по
+   * раскрытию, и в свёрнутом дереве её просто нет. Человек, перешедший по
+   * ссылке или по хлебным крошкам, видел слева один корень и не понимал, где
+   * находится.
+   *
+   * Путь спрашивается у сервера теми же хлебными крошками, что рисуются над
+   * страницей: второго способа узнать предков у клиента нет, а считать их
+   * самому значило бы загружать дерево целиком.
+   */
+  let ancestors = $state<Set<string>>(new Set());
+
+  $effect(() => {
+    // Читается один довод — короткое имя открытой страницы. Всё остальное
+    // обработчик только пишет.
+    const slug = current.params.pageSlug;
+    if (!slug) {
+      ancestors = new Set();
+      return;
+    }
+    let dropped = false;
+    void breadcrumbs(slug)
+      .then((chain) => {
+        if (!dropped) ancestors = new Set(chain.map((one) => one.id));
+      })
+      .catch(() => {
+        // Без пути дерево работает как прежде: ветви раскрываются вручную.
+      });
+    return () => {
+      dropped = true;
+    };
+  });
+
   //: Счётчик перезапросов. Меняется от события канала, и от него же зависит
   //: загрузка: без него обновление пришлось бы звать в обход своего же кода.
   let refresh = $state(0);
@@ -81,6 +116,7 @@
         {spaceSlug}
         depth={0}
         activeSlug={current.params.pageSlug}
+        {ancestors}
         siblings={roots}
         {spaces}
         onchanged={() => (refresh += 1)}

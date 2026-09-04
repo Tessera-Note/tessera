@@ -48,11 +48,19 @@ class GenerateRequest(msgspec.Struct):
     content: str
     action: str | None = None
     prompt: str | None = None
+    #: Язык интерфейса спрашивающего. Повод тот же, что у хода разговора:
+    #: локаль в учётной записи пуста до первого захода в настройки, и
+    #: правка русского абзаца возвращалась переписанной по-английски.
+    locale: str | None = None
 
 
 class AnswersRequest(msgspec.Struct):
     query: str
     spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    #: Язык интерфейса спрашивающего. Повод тот же, что у хода разговора:
+    #: локаль в учётной записи пуста до первого захода в настройки, и
+    #: правка русского абзаца возвращалась переписанной по-английски.
+    locale: str | None = None
 
 
 def _frame(payload: dict) -> str:
@@ -97,7 +105,7 @@ class AiController(Controller):
             content=data.content,
             action=data.action,
             prompt=data.prompt,
-            locale=actor.locale,
+            locale=actor.locale or data.locale,
         )
         return {"content": content}
 
@@ -120,7 +128,7 @@ class AiController(Controller):
                     content=data.content,
                     action=data.action,
                     prompt=data.prompt,
-                    locale=actor.locale,
+                    locale=actor.locale or data.locale,
                 ):
                     yield _frame({"content": piece})
             except AppError as error:
@@ -186,7 +194,7 @@ class AiController(Controller):
                     pages,
                     data.query,
                     workspace_id=principal.workspace_id,
-                    locale=actor.locale,
+                    locale=actor.locale or data.locale,
                 ):
                     yield _frame({"content": piece})
             except AppError as error:

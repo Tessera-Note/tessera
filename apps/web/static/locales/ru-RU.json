@@ -2293,5 +2293,22 @@
   "Semantic search": "Поиск по смыслу",
   "Search finds pages by meaning, not only by words.": "Поиск находит страницы по смыслу, а не только по словам.",
   "Tool channel (MCP)": "Канал инструментов (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "Позволяет посторонней программе работать с вики от вашего имени."
+  "Lets an outside program work with the wiki on your behalf.": "Позволяет посторонней программе работать с вики от вашего имени.",
+  "Search across all pages": "Найти по всем страницам",
+  "Create a new page": "Создать страницу",
+  "Summarize a page": "Кратко пересказать страницу",
+  "Update page content": "Дописать страницу",
+  "Search for pages about ": "Найди страницы про ",
+  "Create a new page titled ": "Создай страницу с названием ",
+  "Summarize the page ": "Перескажи кратко страницу ",
+  "Update the page ": "Дополни страницу ",
+  "Steps": "Шаги",
+  "Listed spaces": "Просмотрел пространства",
+  "Listed pages": "Просмотрел страницы",
+  "Read page": "Прочитал страницу",
+  "Searched pages": "Поискал по страницам",
+  "Searched by meaning": "Поискал по смыслу",
+  "Searched the web": "Поискал в интернете",
+  "Created page": "Создал страницу",
+  "Updated page": "Изменил страницу"
 }

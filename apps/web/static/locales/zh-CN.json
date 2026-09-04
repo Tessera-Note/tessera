@@ -2275,5 +2275,22 @@
   "Semantic search": "语义搜索",
   "Search finds pages by meaning, not only by words.": "搜索按含义查找页面，而不仅仅按词语。",
   "Tool channel (MCP)": "工具通道 (MCP)",
-  "Lets an outside program work with the wiki on your behalf.": "允许外部程序代表你操作维基。"
+  "Lets an outside program work with the wiki on your behalf.": "允许外部程序代表你操作维基。",
+  "Search across all pages": "搜索所有页面",
+  "Create a new page": "新建页面",
+  "Summarize a page": "总结页面",
+  "Update page content": "更新页面内容",
+  "Search for pages about ": "查找关于以下内容的页面：",
+  "Create a new page titled ": "创建标题为以下内容的页面：",
+  "Summarize the page ": "总结这个页面：",
+  "Update the page ": "更新这个页面：",
+  "Steps": "步骤",
+  "Listed spaces": "已列出空间",
+  "Listed pages": "已列出页面",
+  "Read page": "已读取页面",
+  "Searched pages": "已搜索页面",
+  "Searched by meaning": "已按语义搜索",
+  "Searched the web": "已搜索网络",
+  "Created page": "已创建页面",
+  "Updated page": "已更新页面"
 }

@@ -4,7 +4,15 @@
   import { onRealtime } from '$lib/features/realtime/socket';
   import PageTree from '$lib/components/page/PageTree.svelte';
   import { errorText } from '$lib/api/failure';
-  import { deleteChat, listChats, renameChat, type Chat } from '$lib/features/ai/services/chat';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
+  import { chatDate, groupChatsByAge } from '$lib/features/ai/grouping';
+  import {
+    deleteChat,
+    listChats,
+    renameChat,
+    searchChats,
+    type Chat
+  } from '$lib/features/ai/services/chat';
   import { logout } from '$lib/features/auth/services/auth';
   import { locale } from '$lib/stores/i18n.svelte';
   import { theme } from '$lib/stores/theme.svelte';
@@ -54,7 +62,35 @@
   let newTitle = $state('');
   let chatFailure = $state<string | null>(null);
 
-  const chats = $derived([...data.chats.items, ...more]);
+  /**
+   * Поиск по разговорам.
+   *
+   * Запрос уходит не на каждую букву: список у разговорчивого человека большой,
+   * и обращение на каждый набранный знак нагружает и сервер, и модель отбора.
+   */
+  let chatQuery = $state('');
+  let found = $state<Chat[] | null>(null);
+
+  const chats = $derived(found ?? [...data.chats.items, ...more]);
+  const chatGroups = $derived(groupChatsByAge(chats, t));
+  const searching = $derived(chatQuery.trim().length > 0);
+
+  $effect(() => {
+    const query = chatQuery.trim();
+    if (!query) {
+      found = null;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        found = await searchChats(query);
+      } catch (error) {
+        chatFailure = errorText(error, t);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  });
 
   /**
    * Значок непрочитанного обновляется от канала событий.
@@ -189,61 +225,83 @@
         >
           {t('New chat')}
         </a>
+
+        <input
+          class="mb-2 w-full rounded border border-border-input bg-surface px-2.5 py-1 text-sm text-text outline-none focus:border-accent"
+          type="search"
+          placeholder={t('Search chats')}
+          bind:value={chatQuery}
+        />
+
         {#if chatFailure}
           <p class="px-2.5 text-xs text-danger" role="alert">{chatFailure}</p>
         {/if}
-        {#each chats as chat (chat.id)}
-          {#if renaming === chat.id}
-            <div class="flex items-center gap-1 px-1">
-              <input
-                class="min-w-0 flex-1 rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
-                bind:value={newTitle}
-                onkeydown={(event) => {
-                  if (event.key === 'Enter') renameCurrent(chat.id);
-                  if (event.key === 'Escape') renaming = null;
-                }}
-              />
-              <button
-                class="rounded px-1.5 py-1 text-xs text-text-muted hover:bg-surface-hover"
-                onclick={() => renameCurrent(chat.id)}
+
+        {#each chatGroups as group (group.key)}
+          <p class="px-2.5 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-text-muted">
+            {group.label}
+          </p>
+          {#each group.chats as chat (chat.id)}
+            {#if renaming === chat.id}
+              <div class="flex items-center gap-1 px-1">
+                <input
+                  class="min-w-0 flex-1 rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+                  bind:value={newTitle}
+                  onkeydown={(event) => {
+                    if (event.key === 'Enter') renameCurrent(chat.id);
+                    if (event.key === 'Escape') renaming = null;
+                  }}
+                />
+                <button
+                  class="rounded px-1.5 py-1 text-xs text-text-muted hover:bg-surface-hover"
+                  onclick={() => renameCurrent(chat.id)}
+                >
+                  {t('Save')}
+                </button>
+              </div>
+            {:else}
+              <!--
+                Правка и удаление показываются при наведении: две кнопки у каждой
+                строки заслоняли название, а название здесь и есть содержимое.
+              -->
+              <div
+                class="group flex min-h-[30px] items-center rounded pr-1 hover:bg-surface-hover"
+                class:bg-surface-active={page.params.chatId === chat.id}
               >
-                {t('Save')}
-              </button>
-            </div>
-          {:else}
-            <div
-              class="group flex min-h-[30px] items-center rounded pr-1 hover:bg-surface-hover"
-              class:bg-surface-active={page.params.chatId === chat.id}
-            >
-              <a
-                class="min-w-0 flex-1 truncate px-2.5 text-sm text-text-muted hover:text-text"
-                class:text-text={page.params.chatId === chat.id}
-                href="/ai/{chat.id}"
-              >
-                {chat.title ?? t('Untitled')}
-              </a>
-              <button
-                class="rounded px-1.5 py-1 text-xs text-text-muted hover:text-text"
-                onclick={() => {
-                  renaming = chat.id;
-                  newTitle = chat.title ?? '';
-                }}
-              >
-                {t('Rename')}
-              </button>
-              <button
-                class="rounded px-1.5 py-1 text-xs text-text-muted hover:text-text"
-                onclick={() => dropChat(chat.id)}
-              >
-                {t('Delete')}
-              </button>
-            </div>
-          {/if}
+                <a
+                  class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap px-2.5 text-sm text-text-muted hover:text-text"
+                  class:text-text={page.params.chatId === chat.id}
+                  href="/ai/{chat.id}"
+                >
+                  {chat.title ?? t('Untitled chat')}
+                </a>
+                <span class="shrink-0 px-1 text-[11px] text-text-muted group-hover:hidden">
+                  {chatDate(chat.updatedAt, locale.current)}
+                </span>
+                <span class="hidden shrink-0 items-center group-hover:flex">
+                  <button
+                    class="rounded px-1.5 py-1 text-xs text-text-muted hover:text-text"
+                    onclick={() => {
+                      renaming = chat.id;
+                      newTitle = chat.title ?? '';
+                    }}
+                  >
+                    {t('Rename')}
+                  </button>
+                  <Confirm
+                    label={t('Delete')}
+                    question={t('This action cannot be undone.')}
+                    onconfirm={() => dropChat(chat.id)}
+                  />
+                </span>
+              </div>
+            {/if}
+          {/each}
         {:else}
           <p class="px-2.5 text-sm text-text-muted">{t('No chats found')}</p>
         {/each}
 
-        {#if cursor}
+        {#if cursor && !searching}
           <button
             class="flex min-h-[30px] w-full items-center justify-center rounded text-sm text-text-muted hover:bg-surface-hover"
             onclick={loadMoreChats}

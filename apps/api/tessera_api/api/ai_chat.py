@@ -59,6 +59,11 @@ class SendRequest(msgspec.Struct):
     message: str
     chatId: str | None = None  # noqa: N815 — имя поля из v1
     mentionedPageIds: list[str] | None = None  # noqa: N815 — имя поля из v1
+    #: Язык интерфейса спрашивающего. Нужен потому, что локаль в учётной записи
+    #: пуста до первого захода в настройки, а интерфейс всё это время показан
+    #: на языке браузера: без этого поля на русский вопрос без опознавательных
+    #: слов приходил английский ответ.
+    locale: str | None = None
 
 
 class ResolvePlanRequest(msgspec.Struct):
@@ -78,6 +83,7 @@ class AiChatController(Controller):
         realtime: RealtimeService,
         queue: JobQueue,
         storage: Storage,
+        locale: str | None = None,
     ) -> AiChatService:
         """Собрать службу от имени спрашивающего.
 
@@ -106,7 +112,9 @@ class AiChatController(Controller):
             realtime=realtime,
             queue=queue,
             storage=storage,
-            locale=actor.locale,
+            # Выбранное в настройках старше показанного в браузере: язык
+            # интерфейса заполняет пустоту, а не отменяет решение человека.
+            locale=actor.locale or locale,
         )
 
     @post("/create")
@@ -251,7 +259,7 @@ class AiChatController(Controller):
         к этому моменту уже отправлены.
         """
         service = await self._service(
-            request, db_session, settings, throttle, realtime, queue, storage
+            request, db_session, settings, throttle, realtime, queue, storage, data.locale
         )
 
         mentioned: list[uuid.UUID] = []

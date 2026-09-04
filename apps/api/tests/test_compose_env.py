@@ -107,8 +107,12 @@ def test_the_body_limit_is_not_smaller_than_the_declared_import_limit() -> None:
     """
     import os
 
+    # Перечислено всё обязательное, а не часть: недостающая переменная роняет
+    # сборку настроек, и проверка проходила только у того, у кого остальные
+    # уже стояли в оболочке.
     os.environ.setdefault("APP_SECRET", "s" * 32)
     os.environ.setdefault("DATABASE_URL", "postgresql://x:y@localhost/z")
+    os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 
     from tessera_api.app import create_app
     from tessera_api.config import Settings
