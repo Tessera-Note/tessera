@@ -1278,14 +1278,19 @@ class TestNestedArchive:
 class TestNotionTwins:
     """Notion кладёт каждую базу дважды: урезанную и полную."""
 
-    def test_the_trimmed_copy_is_dropped(self) -> None:
+    def test_the_full_copy_takes_the_place_of_the_trimmed_one(self) -> None:
         entries = [
             ArchiveEntry(path="Задачи.csv", data=b"a"),
             ArchiveEntry(path="Задачи_all.csv", data=b"b"),
             ArchiveEntry(path="Страница.md", data=b"c"),
         ]
-        left = [one.path for one in _without_notion_twins(entries)]
-        assert left == ["Задачи_all.csv", "Страница.md"]
+        left = _without_notion_twins(entries)
+
+        # Путь урезанной, содержимое полной. Пометка `_all` — след выгрузки, а
+        # не часть названия: иначе страница называлась бы «Задачи_all», а
+        # ссылки выгрузки ведут на «Задачи.csv» и остались бы висеть.
+        assert [one.path for one in left] == ["Задачи.csv", "Страница.md"]
+        assert left[0].data == b"b"
 
     def test_a_lone_table_stays(self) -> None:
         entries = [ArchiveEntry(path="Задачи.csv", data=b"a")]
@@ -1298,12 +1303,19 @@ def linking_client(documents: dict[str, dict]) -> ContentClient:
     Общий `content_client` отвечает пустым абзацем, и на нём не видно ни
     ссылок, ни картинок. Здесь ответ задаётся текстом записи: проверяется, что
     делает ввоз с адресами внутри готового документа, а не разбор Markdown.
+
+    Совпадение по вхождению, а не по равенству: у Confluence на преобразование
+    уходит разметка страницы целиком, и записывать её в проверку значило бы
+    держать вторую копию обвязки выгрузки.
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
-        text = (body.get("markdown") or body.get("html") or "").strip()
-        return httpx.Response(200, json={"content": documents.get(text, DOC)})
+        text = body.get("markdown") or body.get("html") or ""
+        for mark, document in documents.items():
+            if mark in text:
+                return httpx.Response(200, json={"content": document})
+        return httpx.Response(200, json={"content": DOC})
 
     return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
 
@@ -1491,3 +1503,72 @@ class TestArchiveLinks:
 
         pages = await _pages_of(session, space.id, ("Одна",))
         assert _sources(pages["Одна"]) == ["Одна/image.png"]
+
+
+@needs_database
+class TestArchiveLinksElsewhere:
+    """Тот же класс в двух других местах."""
+
+    async def test_a_link_to_a_trimmed_table_leads_to_the_full_one(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ввоз оставляет полную копию, а ссылки в выгрузке ведут на урезанную.
+
+        Без подмены каждая ссылка на базу Notion оставалась бы висеть.
+        """
+        task = await _task(session, workspace, owner, space, source="notion")
+        client = linking_client({"# Одна": _link_doc("%D0%97%D0%B0%D0%B4%D0%B0%D1%87%D0%B8.csv")})
+
+        await ImportService(session, client)._unpack(
+            task,
+            archive(
+                {
+                    "Одна.md": "# Одна",
+                    "Задачи.csv": "имя,срок\nпервая,завтра\n",
+                    "Задачи_all.csv": "имя,срок\nпервая,завтра\nвторая,послезавтра\n",
+                }
+            ),
+        )
+
+        # Страница названа «Задачи», а не «Задачи_all»: пометка полной копии
+        # — след выгрузки, и полная копия заняла путь урезанной.
+        pages = await _pages_of(session, space.id, ("Одна", "Задачи"))
+        assert _hrefs(pages["Одна"]) == [f"/s/{space.slug}/p/{pages['Задачи'].slug_id}"]
+
+    async def test_a_document_never_becomes_an_attachment(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Неразобранный документ вложением не кладётся.
+
+        Иначе отказ разбора выдавался бы за успех: в содержимом появлялась бы
+        ссылка на файл, который должен был стать страницей.
+        """
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Одна": _link_doc("Битая.pdf")})
+        storage = _StorageDouble(b"")
+
+        await ImportService(session, client, storage=storage)._unpack(
+            task, archive({"Одна.md": "# Одна", "Битая.pdf": "не pdf".encode()})
+        )
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        assert _hrefs(pages["Одна"]) == ["Битая.pdf"]
+
+        rows = await session.execute(
+            select(Attachment).where(Attachment.page_id == pages["Одна"].id)
+        )
+        assert rows.scalars().all() == []
+
+    async def test_a_confluence_link_between_pages_becomes_a_page_address(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """У Confluence страницы ссылаются друг на друга тем же способом."""
+        task = await _task(session, workspace, owner, space, source="confluence")
+        storage = _StorageDouble(_confluence_archive())
+        client = linking_client({"Дамп ежедневно": _link_doc("Prilozhenie_2.html")})
+
+        created = await ImportService(session, client, storage=storage).run_archive(task.id)
+        assert created == 2
+
+        pages = await _pages_of(session, space.id, (CONF_TOP, CONF_CHILD))
+        assert _hrefs(pages[CONF_TOP]) == [f"/s/{space.slug}/p/{pages[CONF_CHILD].slug_id}"]

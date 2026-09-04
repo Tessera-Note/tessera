@@ -187,8 +187,6 @@
 
       answering = false;
       if (streaming) live = [...live, draft('assistant', streaming)];
-      streaming = '';
-      liveCalls = [];
 
       if (started) {
         // Разговор завёлся первой репликой: дальше он живёт по своему адресу.
@@ -197,11 +195,18 @@
         await invalidateAll();
       }
     } catch (error) {
-      // Остановка это не отказ: человек сам прервал ход.
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      // Остановка это не отказ: человек сам прервал ход. Но сказанное до
+      // остановки остаётся на экране: человек читал ответ и прервал его
+      // потому, что прочитанного хватило, — стереть прочитанное значит
+      // наказать за нажатие. Так же в v1 (`hooks/use-chat-stream.ts`).
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        if (streaming) live = [...live, draft('assistant', streaming)];
+      } else {
         failure = errorText(error, t);
       }
     } finally {
+      streaming = '';
+      liveCalls = [];
       busy = false;
       answering = false;
       stopper = null;

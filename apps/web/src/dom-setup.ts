@@ -23,3 +23,11 @@ if (!Element.prototype.scrollIntoView) {
 if (typeof globalThis.PointerEvent === 'undefined') {
   globalThis.PointerEvent = MouseEvent as unknown as typeof PointerEvent;
 }
+
+/**
+ * Прокрутка узла. `Element.scrollTo` в `jsdom` тоже нет, а транскрипт
+ * разговора прилипает к низу и зовёт его на каждый кусок ответа.
+ */
+if (!Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = function scrollTo(): void {};
+}

@@ -367,9 +367,10 @@ class ImportService:
                 raise bad_request("error.import.no_text")
             # Название из имени файла, а не из содержимого: первая строка
             # таблицы — это шапка столбцов, и страница называлась бы
-            # «Название, Статус, Срок».
+            # «Название, Статус, Срок». Расширение отбрасывается: в дереве оно
+            # только шумит, а `title_from_file_name` снимает лишь `.html`.
             return (
-                title_from_file_name(file_name),
+                os.path.splitext(file_name)[0][:250] or file_name,
                 await self._content.html_to_json(html),
                 [],
             )
@@ -637,7 +638,6 @@ class ImportService:
         )
         return created
 
-
     async def _resolve_archive_links(
         self,
         task: FileTask,
@@ -691,6 +691,13 @@ class ImportService:
                     addresses[source] = f"/s/{space_slug}/p/{wanted.slug_id}"
                     continue
 
+                # Документ, не ставший страницей, вложением тоже не становится:
+                # его не разобрали, и класть неразобранное файлом значит
+                # выдавать отказ за успех. Оставленный адрес хотя бы говорит,
+                # куда вела ссылка.
+                if extension_of(target) in SINGLE_FILE_EXTENSIONS:
+                    continue
+
                 stored = files.get(target)
                 if stored is None or attachments is None:
                     continue
@@ -735,6 +742,10 @@ class ImportService:
         pages = PageService(self._session, self._realtime, self._queue)
         created = 0
         taken: set[str] = set()
+        # Ввезённые страницы по пути записи. Ссылки между страницами выгрузки
+        # Confluence — те же относительные пути (`Страница_12345.html`), и без
+        # второго прохода они так же ведут в никуда.
+        made: list[tuple[str, Page]] = []
 
         # Файлы архива по пути от корня выгрузки: по ним находятся вложения,
         # на которые ссылаются страницы.
@@ -759,6 +770,7 @@ class ImportService:
                     await walk(node["children"], parent)
                     continue
                 created += 1
+                made.append((entry.path, page))
                 await walk(node["children"], page.id)
 
         await walk(parse_confluence_tree(index.data.decode("utf-8", errors="replace")), None)
@@ -772,9 +784,12 @@ class ImportService:
             page = await self._confluence_page(task, entry, "", None, pages, by_file)
             if page is not None:
                 created += 1
+                made.append((entry.path, page))
 
         if created == 0:
             raise bad_request("error.import.nothing_to_import")
+
+        await self._resolve_archive_links(task, made, by_path, lambda one: one)
         return created
 
     async def _confluence_page(
@@ -961,10 +976,20 @@ def _without_notion_twins(entries: list[ArchiveEntry]) -> list[ArchiveEntry]:
     придётся угадывать, какая именно.
 
     Остаётся полная. Если полной нет, остаётся та, что есть.
+
+    Полная занимает путь урезанной. Пометка `_all` — след выгрузки, а не часть
+    названия: без переименования страница называлась бы «Задачи_all», а каждая
+    ссылка выгрузки, ведущая на `Задачи.csv`, оставалась бы висеть.
     """
     full = {one.path for one in entries if one.path.endswith("_all.csv")}
     trimmed = {path[: -len("_all.csv")] + ".csv" for path in full}
-    return [one for one in entries if one.path not in trimmed]
+    kept = [one for one in entries if one.path not in trimmed]
+    return [
+        ArchiveEntry(path=f"{one.path[: -len('_all.csv')]}.csv", data=one.data)
+        if one.path in full
+        else one
+        for one in kept
+    ]
 
 
 def _unwrapped(entries: list[ArchiveEntry]) -> list[ArchiveEntry]:
