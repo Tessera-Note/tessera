@@ -3,6 +3,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
@@ -118,8 +119,13 @@
         {#each data.members as member (member.id)}
           <tr class="border-b border-border last:border-0">
             <td class="p-3">
-              <p class="font-medium">{member.name ?? member.email}</p>
-              <p class="text-xs text-text-muted">{member.email}</p>
+              <div class="flex items-center gap-2">
+                <Avatar src={member.avatarUrl} name={member.name ?? member.email} />
+                <div class="min-w-0">
+                  <p class="font-medium">{member.name ?? member.email}</p>
+                  <p class="text-xs text-text-muted">{member.email}</p>
+                </div>
+              </div>
             </td>
             <td class="p-3">
               <select
