@@ -2225,7 +2225,7 @@
   "Completed": "Abgeschlossen",
   "Failed": "Fehlgeschlagen",
   "Export all pages of this space as an archive.": "Alle Seiten dieses Bereichs als Archiv exportieren.",
-  "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.": "Dateien in Markdown, HTML, Word, OpenDocument und PDF werden zu Seiten dieses Bereichs.",
+  "Markdown, HTML, Word, OpenDocument, PDF and CSV files become pages of this space.": "Dateien in Markdown, HTML, Word, OpenDocument, PDF und CSV werden zu Seiten dieses Bereichs.",
   "Import file": "Datei importieren",
   "Import archive": "Archiv importieren",
   "An archive is unpacked in the background. Progress is shown below.": "Ein Archiv wird im Hintergrund entpackt. Der Fortschritt steht unten.",

@@ -39,10 +39,14 @@ from tessera_api.services.imports import (
     STATUS_FAILED,
     STATUS_PROCESSING,
     STATUS_SUCCESS,
+    ArchiveEntry,
     ImportService,
     _listing,
     _parent_for,
+    _unwrapped,
+    _without_notion_twins,
     assert_supported,
+    csv_to_html,
     safe_entries,
     title_from_html,
     title_from_markdown,
@@ -1193,3 +1197,96 @@ def test_the_import_route_is_given_storage() -> None:
     storage = signature.parameters.get("storage")
     assert storage is not None, "маршрут не просит хранилище"
     assert Storage.__name__ in str(storage.annotation)
+
+
+class TestCsvImport:
+    """Таблица из CSV.
+
+    Решение принято настоящей выгрузкой Notion: базы лежат в ней именно `.csv`,
+    и без их разбора половина выгрузки пропадала бы молча.
+    """
+
+    def test_the_first_row_becomes_the_header(self) -> None:
+        html = csv_to_html("Название,Статус\nЗадача,Готово\n".encode())
+        assert "<th>Название</th><th>Статус</th>" in html
+        assert "<td>Задача</td><td>Готово</td>" in html
+
+    def test_the_separator_is_taken_from_the_file(self) -> None:
+        """Выгрузки приходят и с запятой, и с точкой с запятой.
+
+        Файл со вторым разделителем, разобранный по первому, даёт таблицу из
+        одного столбца — без единого отказа.
+        """
+        html = csv_to_html("Название;Статус\nЗадача;Готово\n".encode())
+        assert "<th>Название</th><th>Статус</th>" in html
+
+    def test_cells_are_escaped(self) -> None:
+        """Содержимое таблицы задаёт не наш код."""
+        html = csv_to_html("Название\n<script>alert(1)</script>\n".encode())
+        assert "<script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_a_byte_order_mark_does_not_leak_into_the_header(self) -> None:
+        """Выгрузки из Excel начинаются с метки порядка байтов."""
+        html = csv_to_html("﻿Название,Статус\nа,б\n".encode())
+        assert "<th>Название</th>" in html
+
+    def test_empty_rows_are_dropped(self) -> None:
+        html = csv_to_html("Название\n\nЗадача\n\n".encode())
+        assert html.count("<tr>") == 2
+
+    def test_an_empty_file_gives_nothing(self) -> None:
+        assert csv_to_html(b"") == ""
+        assert csv_to_html(b"   \n\n") == ""
+
+
+class TestNestedArchive:
+    """Архив, внутри которого лежит один архив.
+
+    Так Notion отдаёт крупные выгрузки: снаружи `full-note.zip`, внутри
+    единственный `ExportBlock-…-Part-1.zip`.
+    """
+
+    def test_a_single_inner_archive_is_unwrapped(self) -> None:
+        inner = archive({"страница.md": "# Заголовок"})
+        outer = archive({"ExportBlock-abc-Part-1.zip": inner})
+        found = _unwrapped(safe_entries(outer))
+        assert [one.path for one in found] == ["страница.md"]
+
+    def test_an_ordinary_archive_is_left_alone(self) -> None:
+        found = _unwrapped(safe_entries(archive({"а.md": "1", "б.md": "2"})))
+        assert sorted(one.path for one in found) == ["а.md", "б.md"]
+
+    def test_several_archives_are_left_alone(self) -> None:
+        """Несколько означало бы выгрузку из частей: её страницы надо связывать
+        между частями, а это другая задача, и делать её молча нельзя."""
+        outer = archive(
+            {
+                "часть-1.zip": archive({"а.md": "1"}),
+                "часть-2.zip": archive({"б.md": "2"}),
+            }
+        )
+        found = _unwrapped(safe_entries(outer))
+        assert len(found) == 2
+
+    def test_a_broken_inner_archive_does_not_raise(self) -> None:
+        outer = archive({"битый.zip": b"not an archive"})
+        found = _unwrapped(safe_entries(outer))
+        assert [one.path for one in found] == ["битый.zip"]
+
+
+class TestNotionTwins:
+    """Notion кладёт каждую базу дважды: урезанную и полную."""
+
+    def test_the_trimmed_copy_is_dropped(self) -> None:
+        entries = [
+            ArchiveEntry(path="Задачи.csv", data=b"a"),
+            ArchiveEntry(path="Задачи_all.csv", data=b"b"),
+            ArchiveEntry(path="Страница.md", data=b"c"),
+        ]
+        left = [one.path for one in _without_notion_twins(entries)]
+        assert left == ["Задачи_all.csv", "Страница.md"]
+
+    def test_a_lone_table_stays(self) -> None:
+        entries = [ArchiveEntry(path="Задачи.csv", data=b"a")]
+        assert [one.path for one in _without_notion_twins(entries)] == ["Задачи.csv"]

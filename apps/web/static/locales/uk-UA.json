@@ -2097,7 +2097,7 @@
   "Completed": "Завершено",
   "Failed": "Не вдалося",
   "Export all pages of this space as an archive.": "Вивантажити всі сторінки простору архівом.",
-  "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.": "Файли Markdown, HTML, Word, OpenDocument і PDF стають сторінками цього простору.",
+  "Markdown, HTML, Word, OpenDocument, PDF and CSV files become pages of this space.": "Файли Markdown, HTML, Word, OpenDocument, PDF і CSV стають сторінками цього простору.",
   "Import file": "Ввезти файл",
   "Import archive": "Ввезти архів",
   "An archive is unpacked in the background. Progress is shown below.": "Архів розбирається у фоні. Перебіг показано нижче.",

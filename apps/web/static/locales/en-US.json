@@ -2074,7 +2074,7 @@
   "Completed": "Completed",
   "Failed": "Failed",
   "Export all pages of this space as an archive.": "Export all pages of this space as an archive.",
-  "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.": "Markdown, HTML, Word, OpenDocument and PDF files become pages of this space.",
+  "Markdown, HTML, Word, OpenDocument, PDF and CSV files become pages of this space.": "Markdown, HTML, Word, OpenDocument, PDF and CSV files become pages of this space.",
   "Import file": "Import file",
   "Import archive": "Import archive",
   "An archive is unpacked in the background. Progress is shown below.": "An archive is unpacked in the background. Progress is shown below.",

@@ -95,3 +95,25 @@ def test_secrets_are_required_not_defaulted() -> None:
     text = COMPOSE.read_text(encoding="utf-8")
     for name in ("APP_SECRET", "POSTGRES_PASSWORD"):
         assert f"${{{name}:?" in text, f"{name} должен быть обязательным"
+
+
+def test_the_body_limit_is_not_smaller_than_the_declared_import_limit() -> None:
+    """Предел тела запроса обязан вмещать объявленный предел ввоза.
+
+    Своё умолчание Litestar держит на десяти мегабайтах, и оно молча отменяет
+    объявленные двести: архив отвергается с 413 раньше, чем приложение успевает
+    его прочитать, а человеку показывается «что-то пошло не так». Проверено на
+    настоящей выгрузке Notion в семьдесят мегабайт.
+    """
+    import os
+
+    os.environ.setdefault("APP_SECRET", "s" * 32)
+    os.environ.setdefault("DATABASE_URL", "postgresql://x:y@localhost/z")
+
+    from tessera_api.app import create_app
+    from tessera_api.config import Settings
+
+    settings = Settings.from_env()
+    app = create_app(settings)
+    assert app.request_max_body_size >= settings.file_import_size_limit
+    assert app.request_max_body_size >= settings.file_upload_size_limit

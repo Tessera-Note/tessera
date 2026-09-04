@@ -18,7 +18,7 @@ export const EXPORT_FORMATS = [
 ] as const;
 
 /** Что принимает ввоз одного файла. Совпадает с `SINGLE_FILE_EXTENSIONS`. */
-export const IMPORT_ACCEPT = '.md,.markdown,.html,.htm,.docx,.odt,.pdf';
+export const IMPORT_ACCEPT = '.md,.markdown,.html,.htm,.docx,.odt,.pdf,.csv';
 
 /** Что принимает ввоз архива. */
 export const IMPORT_ZIP_ACCEPT = '.zip';

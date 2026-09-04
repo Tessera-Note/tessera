@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import html as html_escape
 import io
 import json
 import logging
@@ -58,7 +59,20 @@ logger = logging.getLogger(__name__)
 #: Что принимается одним файлом. Список закрытый: остальные форматы либо
 #: разбираются с потерями, либо не разбираются вовсе, и молчаливая порча хуже
 #: понятного отказа.
-SINGLE_FILE_EXTENSIONS = (".md", ".markdown", ".html", ".htm", ".docx", ".odt", ".pdf")
+SINGLE_FILE_EXTENSIONS = (
+    ".md",
+    ".markdown",
+    ".html",
+    ".htm",
+    ".docx",
+    ".odt",
+    ".pdf",
+    # Таблица. Ввозится страницей с таблицей, а не встроенной базой: превращение
+    # страницы в базу в продукте уже есть и делается одним действием, когда это
+    # нужно. Ввоз, заводящий базу сам, решал бы за человека — а типы столбцов
+    # при этом угадываются, и угаданное неверно исправлять дороже, чем назначить.
+    ".csv",
+)
 
 #: Виды архивов.
 #:
@@ -301,6 +315,19 @@ class ImportService:
                 images,
             )
 
+        if suffix == ".csv":
+            html = csv_to_html(data)
+            if not html.strip():
+                raise bad_request("error.import.no_text")
+            # Название из имени файла, а не из содержимого: первая строка
+            # таблицы — это шапка столбцов, и страница называлась бы
+            # «Название, Статус, Срок».
+            return (
+                title_from_file_name(file_name),
+                await self._content.html_to_json(html),
+                [],
+            )
+
         if suffix == ".odt":
             text = from_odt(data)
             if not text.strip():
@@ -493,15 +520,15 @@ class ImportService:
         return created
 
     async def _unpack(self, task: FileTask, data: bytes) -> int:
-        raw = safe_entries(data)
+        raw = _unwrapped(safe_entries(data))
         if task.source == SOURCE_CONFLUENCE:
             return await self._unpack_confluence(task, raw)
         if task.source == SOURCE_NOTION:
             # Имена очищаются до общего разбора: дальше архив Notion устроен
             # так же, как своя выгрузка — дерево задано каталогами.
-            raw = [
-                ArchiveEntry(path=notion_path(one.path), data=one.data) for one in raw
-            ]
+            raw = _without_notion_twins(
+                [ArchiveEntry(path=notion_path(one.path), data=one.data) for one in raw]
+            )
 
         listing = _listing(raw)
         entries = [
@@ -790,6 +817,83 @@ def _parent_for(folder: str, by_folder: dict[str, uuid.UUID]) -> uuid.UUID | Non
             break
         current = parent
     return None
+
+
+def _without_notion_twins(entries: list[ArchiveEntry]) -> list[ArchiveEntry]:
+    """Убрать урезанную копию таблицы.
+
+    Notion кладёт каждую базу дважды: `Задачи.csv` — то, что видно в текущем
+    представлении, и `Задачи_all.csv` — все строки. Ввезти обе значит завести
+    две страницы с одним названием, из которых одна неполная, и человеку
+    придётся угадывать, какая именно.
+
+    Остаётся полная. Если полной нет, остаётся та, что есть.
+    """
+    full = {one.path for one in entries if one.path.endswith("_all.csv")}
+    trimmed = {path[: -len("_all.csv")] + ".csv" for path in full}
+    return [one for one in entries if one.path not in trimmed]
+
+
+def _unwrapped(entries: list[ArchiveEntry]) -> list[ArchiveEntry]:
+    """Развернуть архив, внутри которого лежит один архив.
+
+    Так Notion отдаёт крупные выгрузки: снаружи `full-note.zip`, внутри
+    единственный `ExportBlock-…-Part-1.zip`, и всё содержимое — в нём. Без
+    разворачивания ввоз находит один файл с непонятным расширением и отвечает
+    «нечего ввозить», хотя ввозить есть что.
+
+    Разворачивается только одиночный архив: несколько означало бы выгрузку из
+    нескольких частей, а её страницы надо было бы связывать между частями — это
+    другая задача, и делать её молча нельзя.
+    """
+    if len(entries) != 1 or extension_of(entries[0].path) != ".zip":
+        return entries
+    try:
+        inner = safe_entries(entries[0].data)
+    except Exception:  # noqa: BLE001 — не разобрался, значит обычный файл
+        logger.info("Вложенный архив не развернулся: %s", entries[0].path)
+        return entries
+    return inner or entries
+
+
+def csv_to_html(raw: bytes) -> str:
+    """Таблица из CSV.
+
+    Разделитель определяется по самому файлу: выгрузки приходят и с запятой, и
+    с точкой с запятой, и файл со вторым разделителем, разобранный по первому,
+    даёт таблицу из одного столбца — без единого отказа.
+
+    Первая строка становится шапкой. Это соглашение, а не догадка: и Notion, и
+    таблицы вообще выгружаются с именами столбцов первой строкой, а таблица без
+    шапки читается хуже, чем таблица с лишней жирной строкой.
+    """
+    import csv
+    import io
+
+    text = raw.decode("utf-8-sig", errors="replace")
+    if not text.strip():
+        return ""
+
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
+    except csv.Error:
+        # Один столбец без разделителей — обычный исход, а не поломка.
+        dialect = csv.excel
+
+    rows = [
+        row
+        for row in csv.reader(io.StringIO(text), dialect)
+        if any(one.strip() for one in row)
+    ]
+    if not rows:
+        return ""
+
+    def cells(values: list[str], tag: str) -> str:
+        return "".join(f"<{tag}>{html_escape.escape(one)}</{tag}>" for one in values)
+
+    head = f"<thead><tr>{cells(rows[0], 'th')}</tr></thead>"
+    body = "".join(f"<tr>{cells(row, 'td')}</tr>" for row in rows[1:])
+    return f"<table>{head}<tbody>{body}</tbody></table>"
 
 
 def _title_from_text(text: str, fallback: str) -> str:
