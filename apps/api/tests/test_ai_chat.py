@@ -867,3 +867,39 @@ def _encrypted(value: str) -> str:
     from tessera_api.infrastructure.secrets import encrypt_secret
 
     return encrypt_secret(value, SECRET)
+
+
+class TestSystemPrompt:
+    """Что агент знает о своих возможностях.
+
+    Проверяется не формулировка, а наличие того, без чего он не работает.
+    Прежняя редакция описывала инструменты как «читать и менять вики» и об
+    интернете не говорила: на вопрос о погоде агент отвечал по памяти или
+    отказом, хотя поиск работает и инструмент ему предложен.
+    """
+
+    def _prompt(self) -> str:
+        return AiChatService.system_prompt(
+            object.__new__(AiChatService), "русском", ""
+        )
+
+    def test_the_internet_is_named_as_a_tool(self) -> None:
+        prompt = self._prompt()
+        assert "search_web" in prompt
+        assert "cannot search the internet" in prompt
+
+    def test_the_wiki_tools_are_named(self) -> None:
+        """Инструмент, о котором не сказано, модель не вызовет."""
+        prompt = self._prompt()
+        for name in ("search_workspace", "search_semantic", "create_page", "update_page"):
+            assert name in prompt, name
+
+    def test_the_language_is_decided_for_the_model(self) -> None:
+        """Язык решает сервер: на смешанном тексте модель угадывает по-разному."""
+        assert "Write in русском" in self._prompt()
+
+    def test_the_referred_pages_are_appended(self) -> None:
+        prompt = AiChatService.system_prompt(
+            object.__new__(AiChatService), "русском", "Страница про отпуска"
+        )
+        assert "Страница про отпуска" in prompt
