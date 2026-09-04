@@ -29,6 +29,7 @@ from tessera_api.services.ai_settings import (
     DEFAULT_COMPLETION_MODELS,
     DEFAULT_EMBEDDING_MODELS,
     DRIVERS,
+    FEATURE_DEFAULTS,
     AiDriver,
     AiSettingsService,
     ResolvedAi,
@@ -518,24 +519,42 @@ class TestUpdate:
 
 
 class TestFeatureFlags:
-    def test_a_missing_section_means_off(self) -> None:
-        """Настроенный провайдер и включённая возможность — разные вещи.
+    def test_a_missing_record_means_the_default_not_off(self) -> None:
+        """Отсутствие записи — «не выбирали», а не «выключено».
 
-        Пространство может иметь ключ и держать чат выключенным.
+        Прежде отсутствие означало отказ, и возможность, у которой не было
+        выключателя, оставалась закрытой навсегда: помощник в новом рабочем
+        пространстве отвечал «выключен», а включить его было нечем.
         """
-        assert feature_enabled(Workspace(settings=None), "chat") is False
-        assert feature_enabled(Workspace(settings={}), "chat") is False
-        assert feature_enabled(None, "chat") is False
+        for empty in (Workspace(settings=None), Workspace(settings={}), None):
+            assert feature_enabled(empty, "chat") is True
+            assert feature_enabled(empty, "search") is True
+            assert feature_enabled(empty, "mcp") is False
+
+    def test_the_defaults_differ_by_feature(self) -> None:
+        """Помощник и поиск — свои возможности продукта, в v1 у них выключателя
+        нет вовсе. Канал инструментов открывает вики посторонней программе, и
+        в v1 он выключен: такое включают осознанно."""
+        assert FEATURE_DEFAULTS == {"chat": True, "search": True, "mcp": False}
+
+    def test_an_unknown_feature_is_off(self) -> None:
+        """Незнакомое имя не должно оказаться включённым само собой."""
+        assert feature_enabled(Workspace(settings={}), "чего-то новое") is False
 
     def test_a_flag_is_read(self) -> None:
         workspace = Workspace(settings={"ai": {"chat": True, "search": False}})
         assert feature_enabled(workspace, "chat") is True
         assert feature_enabled(workspace, "search") is False
 
-    def test_rubbish_does_not_raise(self) -> None:
+    def test_turning_a_feature_off_is_obeyed(self) -> None:
+        """Явное «нет» сильнее умолчания, иначе выключатель ничего не значит."""
+        assert feature_enabled(Workspace(settings={"ai": {"chat": False}}), "chat") is False
+
+    def test_rubbish_falls_back_to_the_default(self) -> None:
         """Колонка принимает произвольный jsonb, полагаться на её вид нельзя."""
-        assert feature_enabled(Workspace(settings={"ai": "да"}), "chat") is False
-        assert feature_enabled(Workspace(settings=["не объект"]), "chat") is False
+        assert feature_enabled(Workspace(settings={"ai": "да"}), "chat") is True
+        assert feature_enabled(Workspace(settings=["не объект"]), "chat") is True
+        assert feature_enabled(Workspace(settings={"ai": "да"}), "mcp") is False
 
 
 def test_the_two_roles_have_their_own_default() -> None:
@@ -803,3 +822,38 @@ class TestModelsAndProbe:
         assert answer["ok"] is True
         assert AiDriver.OPENAI in answer["message"]
         assert "gpt-x" in answer["message"]
+
+
+def test_every_feature_has_a_way_to_turn_it_on() -> None:
+    """У каждой возможности ИИ есть путь записи.
+
+    Это и был дефект: `feature_enabled(workspace, "chat")` читал
+    `settings.ai.chat`, а записать туда было нечем — ни поля в запросе, ни
+    строки в перечне признаков. Помощник отвечал «выключен в этом рабочем
+    пространстве» всегда, и включить его человек не мог никак.
+
+    Проверка сверяет два перечня: что читает `feature_enabled` и что умеет
+    записывать настройка пространства.
+    """
+    from tessera_api.services.workspace import JSON_FLAGS
+
+    writable = {path[1] for path in JSON_FLAGS.values() if path[0] == "ai"}
+    assert set(FEATURE_DEFAULTS) <= writable, sorted(set(FEATURE_DEFAULTS) - writable)
+
+
+def test_the_features_are_offered_to_the_screen() -> None:
+    """Поле запроса без ответного поля означает выключатель, который не видно.
+
+    Экран рисует положение по ответу: без поля он показывал бы «выключено» на
+    включённой возможности.
+    """
+    import msgspec
+
+    from tessera_api.api.workspace import UpdateWorkspaceRequest, WorkspaceSettingsView
+    from tessera_api.services.workspace import JSON_FLAGS
+
+    fields = {name for name, path in JSON_FLAGS.items() if path[0] == "ai"}
+    asked = {one.name for one in msgspec.structs.fields(UpdateWorkspaceRequest)}
+    answered = {one.name for one in msgspec.structs.fields(WorkspaceSettingsView)}
+    assert fields <= asked, sorted(fields - asked)
+    assert fields <= answered, sorted(fields - answered)

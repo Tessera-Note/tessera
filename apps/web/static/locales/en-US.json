@@ -2268,5 +2268,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "Single sign-on failed. Try again or sign in with a password.",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
   "Confluence export": "Confluence export",
-  "Notion export": "Notion export"
+  "Notion export": "Notion export",
+  "Features": "Features",
+  "Assistant": "Assistant",
+  "Members can ask the assistant questions about the wiki.": "Members can ask the assistant questions about the wiki.",
+  "Semantic search": "Semantic search",
+  "Search finds pages by meaning, not only by words.": "Search finds pages by meaning, not only by words.",
+  "Tool channel (MCP)": "Tool channel (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "Lets an outside program work with the wiki on your behalf."
 }

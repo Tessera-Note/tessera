@@ -2268,5 +2268,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "通过提供方登录失败。请重试或使用密码登录。",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "密钥在环境变量中设置：GOOGLE_CLIENT_ID 和 GOOGLE_CLIENT_SECRET。",
   "Confluence export": "Confluence 导出",
-  "Notion export": "Notion 导出"
+  "Notion export": "Notion 导出",
+  "Features": "功能",
+  "Assistant": "助手",
+  "Members can ask the assistant questions about the wiki.": "成员可以就维基内容向助手提问。",
+  "Semantic search": "语义搜索",
+  "Search finds pages by meaning, not only by words.": "搜索按含义查找页面，而不仅仅按词语。",
+  "Tool channel (MCP)": "工具通道 (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "允许外部程序代表你操作维基。"
 }

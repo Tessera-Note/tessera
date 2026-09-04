@@ -2268,5 +2268,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "공급자를 통한 로그인에 실패했습니다. 다시 시도하거나 비밀번호로 로그인하세요.",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "키는 환경 변수에서 설정합니다: GOOGLE_CLIENT_ID 및 GOOGLE_CLIENT_SECRET.",
   "Confluence export": "Confluence 내보내기",
-  "Notion export": "Notion 내보내기"
+  "Notion export": "Notion 내보내기",
+  "Features": "기능",
+  "Assistant": "어시스턴트",
+  "Members can ask the assistant questions about the wiki.": "구성원이 위키에 대해 어시스턴트에게 질문할 수 있습니다.",
+  "Semantic search": "의미 기반 검색",
+  "Search finds pages by meaning, not only by words.": "검색이 단어뿐 아니라 의미로도 페이지를 찾습니다.",
+  "Tool channel (MCP)": "도구 채널 (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "외부 프로그램이 회원님을 대신해 위키를 다룰 수 있게 합니다."
 }

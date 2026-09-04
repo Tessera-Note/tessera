@@ -2268,5 +2268,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "Die Anmeldung über den Anbieter ist fehlgeschlagen. Versuchen Sie es erneut oder melden Sie sich mit einem Passwort an.",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "Die Schlüssel stehen in der Umgebung: GOOGLE_CLIENT_ID und GOOGLE_CLIENT_SECRET.",
   "Confluence export": "Confluence-Export",
-  "Notion export": "Notion-Export"
+  "Notion export": "Notion-Export",
+  "Features": "Funktionen",
+  "Assistant": "Assistent",
+  "Members can ask the assistant questions about the wiki.": "Mitglieder können den Assistenten zum Wiki befragen.",
+  "Semantic search": "Semantische Suche",
+  "Search finds pages by meaning, not only by words.": "Die Suche findet Seiten nach Bedeutung, nicht nur nach Wörtern.",
+  "Tool channel (MCP)": "Werkzeugkanal (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "Erlaubt einem externen Programm, in Ihrem Namen mit dem Wiki zu arbeiten."
 }

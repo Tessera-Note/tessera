@@ -44,9 +44,11 @@ JSON_FLAGS = {
     "restrictApiToAdmins": ("api", "restrictToAdmins"),
     "allowMemberTemplates": ("templates", "allowMemberTemplates"),
     "allowPersonalSpaces": ("spaces", "allowPersonal"),
-    # Канал MCP. Путь тот же, что читает `feature_enabled(workspace, "mcp")`:
-    # без записи по этому пути канал включить нечем, и маршрут `/api/mcp`
-    # отвечает отказом всегда.
+    # Возможности ИИ. Пути те же, что читает `feature_enabled`: без записи по
+    # ним возможность включить нечем, и маршрут отвечает отказом всегда —
+    # именно это и случилось с помощником, у которого записи не было.
+    "aiChatEnabled": ("ai", "chat"),
+    "aiSearchEnabled": ("ai", "search"),
     "mcpEnabled": ("ai", "mcp"),
 }
 

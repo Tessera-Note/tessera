@@ -12,6 +12,10 @@ export type WorkspaceSettings = {
   restrictApiToAdmins: boolean;
   allowMemberTemplates: boolean;
   allowPersonalSpaces: boolean;
+  /** Помощник. Включён, пока его не выключили: в v1 выключателя нет вовсе. */
+  aiChatEnabled: boolean;
+  /** Умный поиск по смыслу. Включён по той же причине, что и помощник. */
+  aiSearchEnabled: boolean;
   /** Включён ли канал MCP. Тот же признак читает маршрут `/api/mcp`. */
   mcpEnabled: boolean;
 };

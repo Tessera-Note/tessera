@@ -2286,5 +2286,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "Вход через провайдера не удался. Попробуйте ещё раз или войдите по паролю.",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "Ключи задаются в окружении: GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET.",
   "Confluence export": "Выгрузка Confluence",
-  "Notion export": "Выгрузка Notion"
+  "Notion export": "Выгрузка Notion",
+  "Features": "Возможности",
+  "Assistant": "Помощник",
+  "Members can ask the assistant questions about the wiki.": "Участники могут спрашивать помощника о содержимом вики.",
+  "Semantic search": "Поиск по смыслу",
+  "Search finds pages by meaning, not only by words.": "Поиск находит страницы по смыслу, а не только по словам.",
+  "Tool channel (MCP)": "Канал инструментов (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "Позволяет посторонней программе работать с вики от вашего имени."
 }

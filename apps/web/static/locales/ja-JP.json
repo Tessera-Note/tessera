@@ -2268,5 +2268,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "プロバイダー経由のログインに失敗しました。もう一度試すか、パスワードでログインしてください。",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "鍵は環境変数で設定します: GOOGLE_CLIENT_ID と GOOGLE_CLIENT_SECRET。",
   "Confluence export": "Confluence の書き出し",
-  "Notion export": "Notion の書き出し"
+  "Notion export": "Notion の書き出し",
+  "Features": "機能",
+  "Assistant": "アシスタント",
+  "Members can ask the assistant questions about the wiki.": "メンバーはウィキについてアシスタントに質問できます。",
+  "Semantic search": "意味による検索",
+  "Search finds pages by meaning, not only by words.": "検索は語句だけでなく意味でもページを見つけます。",
+  "Tool channel (MCP)": "ツール接続 (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "外部のプログラムがあなたの代わりにウィキを操作できるようにします。"
 }

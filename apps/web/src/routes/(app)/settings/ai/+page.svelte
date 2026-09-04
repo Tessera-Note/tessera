@@ -5,6 +5,8 @@
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
+  import Toggle from '$lib/components/ui/Toggle.svelte';
+  import { updateWorkspace } from '$lib/features/workspace/services/settings';
   import { errorText } from '$lib/api/failure';
   import {
     AI_DRIVERS,
@@ -23,6 +25,46 @@
   const { data }: Props = $props();
 
   const t = $derived(locale.t);
+
+  /** Возможности, которые можно включать и выключать. */
+  type Feature = 'aiChatEnabled' | 'aiSearchEnabled' | 'mcpEnabled';
+
+  /**
+   * Нажатое, но ещё не подтверждённое сервером.
+   *
+   * Своим состоянием держится только оно, а показанное берётся из данных
+   * маршрута. Копия данных в состоянии была бы снимком первой отрисовки:
+   * перечитывание страницы её не обновляет, и переключатель показывал бы
+   * прежнее положение, ничего об этом не говоря.
+   */
+  let pending = $state<Partial<Record<Feature, boolean>>>({});
+  let switching = $state<Feature | null>(null);
+  let switchFailure = $state<string | null>(null);
+
+  const features = $derived({
+    aiChatEnabled: pending.aiChatEnabled ?? data.workspace.aiChatEnabled,
+    aiSearchEnabled: pending.aiSearchEnabled ?? data.workspace.aiSearchEnabled,
+    mcpEnabled: pending.mcpEnabled ?? data.workspace.mcpEnabled
+  });
+
+  /** Переключить возможность. Отказ возвращает переключатель на место. */
+  async function flip(name: Feature, checked: boolean): Promise<void> {
+    pending = { ...pending, [name]: checked };
+    switching = name;
+    switchFailure = null;
+    try {
+      await updateWorkspace({ [name]: checked });
+      await invalidateAll();
+    } catch (error) {
+      switchFailure = errorText(error, t);
+    } finally {
+      // Нажатое снимается в обоих исходах: при успехе его заменяют данные
+      // маршрута, при отказе — прежнее значение оттуда же.
+      const { [name]: _, ...rest } = pending;
+      pending = rest;
+      switching = null;
+    }
+  }
 
   let driver = $state('');
   let baseUrl = $state('');
@@ -190,6 +232,42 @@
         {data.settings.resolved.driver} · {data.settings.resolved.chatModel}
       </p>
     {/if}
+  </Panel>
+
+  <!--
+    Выключатели возможностей. Стоят здесь, а не в общих настройках рабочего
+    пространства: человек ищет их там, где настраивает провайдера, и раньше не
+    находил нигде — записи у них не было вовсе, и помощник отвечал «выключен»,
+    хотя выключать его никто не просил.
+  -->
+  <Panel title={t('Features')}>
+    {#if switchFailure}
+      <Notice message={switchFailure} />
+    {/if}
+
+    <Toggle
+      checked={features.aiChatEnabled}
+      label={t('Assistant')}
+      hint={t('Members can ask the assistant questions about the wiki.')}
+      disabled={switching === 'aiChatEnabled'}
+      onchange={(checked) => flip('aiChatEnabled', checked)}
+    />
+
+    <Toggle
+      checked={features.aiSearchEnabled}
+      label={t('Semantic search')}
+      hint={t('Search finds pages by meaning, not only by words.')}
+      disabled={switching === 'aiSearchEnabled'}
+      onchange={(checked) => flip('aiSearchEnabled', checked)}
+    />
+
+    <Toggle
+      checked={features.mcpEnabled}
+      label={t('Tool channel (MCP)')}
+      hint={t('Lets an outside program work with the wiki on your behalf.')}
+      disabled={switching === 'mcpEnabled'}
+      onchange={(checked) => flip('mcpEnabled', checked)}
+    />
   </Panel>
 
   <form

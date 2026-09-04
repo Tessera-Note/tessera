@@ -2268,5 +2268,12 @@
   "Single sign-on failed. Try again or sign in with a password.": "Aanmelden via de aanbieder is mislukt. Probeer het opnieuw of meld u aan met een wachtwoord.",
   "Keys are set in the environment: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.": "De sleutels staan in de omgeving: GOOGLE_CLIENT_ID en GOOGLE_CLIENT_SECRET.",
   "Confluence export": "Confluence-export",
-  "Notion export": "Notion-export"
+  "Notion export": "Notion-export",
+  "Features": "Functies",
+  "Assistant": "Assistent",
+  "Members can ask the assistant questions about the wiki.": "Leden kunnen de assistent vragen stellen over de wiki.",
+  "Semantic search": "Zoeken op betekenis",
+  "Search finds pages by meaning, not only by words.": "Zoeken vindt pagina's op betekenis, niet alleen op woorden.",
+  "Tool channel (MCP)": "Gereedschapskanaal (MCP)",
+  "Lets an outside program work with the wiki on your behalf.": "Laat een extern programma namens jou met de wiki werken."
 }

@@ -17,6 +17,7 @@ from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import AuthProvider, User, Workspace
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
+from tessera_api.services.ai_settings import feature_enabled
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.workspace import WorkspaceService
 
@@ -68,6 +69,8 @@ class UpdateWorkspaceRequest(msgspec.Struct):
     restrictApiToAdmins: bool | None = None  # noqa: N815 — имя поля из v1
     allowMemberTemplates: bool | None = None  # noqa: N815 — имя поля из v1
     allowPersonalSpaces: bool | None = None  # noqa: N815 — имя поля из v1
+    aiChatEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
+    aiSearchEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
     mcpEnabled: bool | None = None  # noqa: N815 — имя поля из v1
 
 
@@ -89,6 +92,8 @@ class WorkspaceSettingsView(msgspec.Struct):
     restrictApiToAdmins: bool  # noqa: N815 — имя поля из v1
     allowMemberTemplates: bool  # noqa: N815 — имя поля из v1
     allowPersonalSpaces: bool  # noqa: N815 — имя поля из v1
+    aiChatEnabled: bool  # noqa: N815 — рядом с остальными признаками
+    aiSearchEnabled: bool  # noqa: N815 — рядом с остальными признаками
     mcpEnabled: bool  # noqa: N815 — имя поля из v1
 
 
@@ -111,7 +116,12 @@ def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
         restrictApiToAdmins=flag(workspace, ("api", "restrictToAdmins")),
         allowMemberTemplates=flag(workspace, ("templates", "allowMemberTemplates")),
         allowPersonalSpaces=flag(workspace, ("spaces", "allowPersonal")),
-        mcpEnabled=flag(workspace, ("ai", "mcp")),
+        # Возможности ИИ читаются с умолчанием, а не как обычный признак:
+        # отсутствие записи у них означает «не выбирали», и обычное чтение
+        # показало бы выключенным то, что на деле работает.
+        aiChatEnabled=feature_enabled(workspace, "chat"),
+        aiSearchEnabled=feature_enabled(workspace, "search"),
+        mcpEnabled=feature_enabled(workspace, "mcp"),
     )
 
 
@@ -244,6 +254,8 @@ class WorkspaceController(Controller):
                 "restrictApiToAdmins": data.restrictApiToAdmins,
                 "allowMemberTemplates": data.allowMemberTemplates,
                 "allowPersonalSpaces": data.allowPersonalSpaces,
+                "aiChatEnabled": data.aiChatEnabled,
+                "aiSearchEnabled": data.aiSearchEnabled,
                 "mcpEnabled": data.mcpEnabled,
             },
         )
