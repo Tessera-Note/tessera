@@ -63,7 +63,8 @@ describe('Экран поиска', () => {
     const box = render();
     await settle();
 
-    expect(searchPages).toHaveBeenCalledWith('отчёт');
+    // Второй довод — отбор по пространству: без выбора уходит пустым.
+    expect(searchPages).toHaveBeenCalledWith('отчёт', null);
     expect(box.textContent).toContain('Отчёт');
   });
 

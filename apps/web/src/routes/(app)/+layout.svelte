@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { onRealtime } from '$lib/features/realtime/socket';
   import PageTree from '$lib/components/page/PageTree.svelte';
+  import QuickSearch from '$lib/components/search/QuickSearch.svelte';
   import { errorText } from '$lib/api/failure';
   import Confirm from '$lib/components/ui/Confirm.svelte';
   import { chatDate, groupChatsByAge } from '$lib/features/ai/grouping';
@@ -146,6 +147,25 @@
     }
   }
 
+  /**
+   * Быстрый поиск по сочетанию клавиш.
+   *
+   * В v1 он открывается откуда угодно (`Spotlight`, `mod+K`), и это самый
+   * частый способ попасть на страницу. Здесь поиск был отдельным экраном, куда
+   * надо сначала перейти.
+   */
+  let quickOpen = $state(false);
+
+  $effect(() => {
+    function onkeydown(event: KeyboardEvent) {
+      if (event.key !== 'k' || !(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      quickOpen = true;
+    }
+    window.addEventListener('keydown', onkeydown);
+    return () => window.removeEventListener('keydown', onkeydown);
+  });
+
   async function signOut() {
     await logout();
     await invalidateAll();
@@ -162,12 +182,15 @@
       {data.session?.workspace.name ?? 'Tessera'}
     </a>
 
-    <a
-      class="hidden h-8 flex-1 items-center rounded border border-border px-3 text-sm text-text-muted hover:bg-surface-hover sm:flex sm:max-w-md"
-      href="/search"
+    <button
+      class="hidden h-8 flex-1 items-center justify-between rounded border border-border px-3 text-sm text-text-muted hover:bg-surface-hover sm:flex sm:max-w-md"
+      type="button"
+      onclick={() => (quickOpen = true)}
     >
-      {t('Search')}
-    </a>
+      <span>{t('Search')}</span>
+      <!-- Подсказка сочетания: без неё о нём узнают только те, кто его знал. -->
+      <kbd class="rounded border border-border px-1 text-xs">Ctrl K</kbd>
+    </button>
 
     <div class="flex items-center gap-1 text-sm">
       <a
@@ -363,6 +386,8 @@
       {data.session?.user.email}
     </p>
   </aside>
+
+  <QuickSearch spaces={data.spaces} open={quickOpen} onclose={() => (quickOpen = false)} />
 
   <main class="ml-sidebar min-w-0 pt-header">
     <div class={inSettings ? 'mx-auto max-w-[900px] p-4 pb-20' : 'p-4'}>

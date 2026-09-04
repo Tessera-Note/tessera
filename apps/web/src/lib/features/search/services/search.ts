@@ -29,3 +29,27 @@ export function searchPages(
     { fetcher, headers }
   );
 }
+
+/** Находка в приложенном файле. Поля другие: находится файл, а не страница. */
+export type AttachmentHit = {
+  id: string;
+  fileName: string;
+  pageId: string | null;
+  spaceId: string;
+  highlight: string | null;
+  rank: number;
+};
+
+/**
+ * Поиск по тексту, извлечённому из вложений.
+ *
+ * Отдельным обращением, а не признаком у поиска по страницам: у выдачи другой
+ * состав полей и другой смысл. Так же на сервере — отдельный маршрут.
+ */
+export function searchAttachments(query: string, spaceId?: string | null, fetcher?: typeof fetch) {
+  return post<AttachmentHit[]>(
+    '/api/search-attachments',
+    { query, spaceId: spaceId || undefined },
+    { fetcher }
+  );
+}
