@@ -946,3 +946,173 @@ class TestAcceptedFormatsAreOneList:
 
     def test_both_lists_are_the_same(self) -> None:
         assert self._from_client() == SINGLE_FILE_EXTENSIONS
+
+
+@needs_database
+class TestDocxImport:
+    """Ввоз документа Word: разметка и картинки.
+
+    До этой работы из DOCX брался голый текст, и ввезённый документ терял
+    заголовки, списки, таблицу и все встроенные картинки. Ввоз при этом был
+    успешен — потерю нечем было заметить.
+    """
+
+    def _document(self, *, with_picture: bool = False) -> bytes:
+        import struct
+        import zlib
+
+        from docx import Document
+        from docx.shared import Inches
+
+        def png() -> bytes:
+            def chunk(tag: bytes, data: bytes) -> bytes:
+                body = tag + data
+                return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+            rows = b"".join(b"\x00" + b"\xff\x00\x00" * 2 for _ in range(2))
+            return (
+                b"\x89PNG\r\n\x1a\n"
+                + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+                + chunk(b"IDAT", zlib.compress(rows))
+                + chunk(b"IEND", b"")
+            )
+
+        document = Document()
+        document.add_heading("Договор поставки", level=1)
+        document.add_paragraph("Обычный абзац.")
+        if with_picture:
+            document.add_picture(io.BytesIO(png()), width=Inches(1))
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    async def test_the_document_goes_through_html_not_plain_text(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Разметка доходит до преобразования.
+
+        Проверяется то, что ушло соседнему сервису: сам он в проверках отвечает
+        пустым документом, и смотреть на его ответ значило бы смотреть на
+        подмену.
+        """
+        seen: list = []
+        service = ImportService(session, content_client(seen))
+        await service.import_file(
+            file_name="договор.docx",
+            data=self._document(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+
+        sent = [one for one in seen if "html" in one]
+        assert sent, "разбор ушёл не как HTML"
+        assert "<h1>Договор поставки</h1>" in sent[0]["html"]
+        assert "<p>Обычный абзац.</p>" in sent[0]["html"]
+
+    async def test_the_title_comes_from_the_heading(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        service = ImportService(session, content_client())
+        page = await service.import_file(
+            file_name="договор.docx",
+            data=self._document(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+        assert page.title == "Договор поставки"
+
+    async def test_a_broken_document_is_refused(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Пустой разбор — не пустой документ, а не разобранный."""
+        with pytest.raises(AppError) as error:
+            await ImportService(session, content_client()).import_file(
+                file_name="битый.docx",
+                data=b"PK\x03\x04 not a document",
+                user_id=owner.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        assert error.value.code == "error.import.no_text"
+
+    async def test_without_storage_the_text_still_arrives(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Картинки не переносятся, но документ ввозится.
+
+        Отказ здесь стоил бы человеку всего документа ради одной картинки.
+        """
+        page = await ImportService(session, content_client()).import_file(
+            file_name="с картинкой.docx",
+            data=self._document(with_picture=True),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+        assert page.id is not None
+
+    async def test_an_image_is_stored_and_its_address_substituted(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Картинка кладётся вложением страницы, заготовка заменяется адресом.
+
+        Без подстановки в содержимом остаётся `docx-image:0` — на экране это
+        пустое место, и человек видит документ без печати, не понимая, почему.
+        """
+        storage = _StorageDouble(b"")
+        # Содержимое приходит от соседнего сервиса; здесь он отвечает готовым
+        # документом с картинкой, чтобы проверить именно подстановку адреса.
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [
+                            {"type": "image", "attrs": {"src": "docx-image:0"}},
+                        ],
+                    }
+                },
+            )
+
+        service = ImportService(
+            session,
+            ContentClient("http://collab:3001", transport=httpx.MockTransport(handler)),
+            storage=storage,
+        )
+        page = await service.import_file(
+            file_name="с картинкой.docx",
+            data=self._document(with_picture=True),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+
+        assert storage.put_keys, "картинка не легла в хранилище"
+        address = page.content["content"][0]["attrs"]["src"]
+        assert address.startswith("/api/files/"), address
+        assert "docx-image:" not in address
+
+
+def test_the_import_route_is_given_storage() -> None:
+    """Маршрут ввоза одного файла обязан получать хранилище.
+
+    Без него картинки документа Word не переносятся, и заметить это по коду
+    службы нельзя: она молча пропускает их, потому что так и задумано — отказ
+    ради одной картинки стоил бы всего документа. Проверяется поэтому сам
+    маршрут: объявлен ли у него довод.
+    """
+    import inspect
+
+    from tessera_api.api.imports import ImportController
+    from tessera_api.infrastructure.storage import Storage
+
+    # Обработчик обёрнут Litestar: доводы объявлены у самой функции, а не у
+    # объекта маршрута.
+    handler = ImportController.import_file
+    signature = inspect.signature(getattr(handler, "fn", handler))
+    storage = signature.parameters.get("storage")
+    assert storage is not None, "маршрут не просит хранилище"
+    assert Storage.__name__ in str(storage.annotation)

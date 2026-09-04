@@ -131,6 +131,7 @@ class ImportController(Controller):
         queue: NamedDependency[JobQueue],
         realtime: NamedDependency[RealtimeService],
         settings: NamedDependency[Settings],
+        storage: NamedDependency[Storage],
     ) -> dict:
         principal: Principal = request.scope["principal"]
 
@@ -146,8 +147,11 @@ class ImportController(Controller):
             raise bad_request("error.import.file_too_large")
 
         parent = data.get("parentPageId")
+        # Хранилище нужно картинкам из документа Word: они вкладываются в
+        # созданную страницу. Без него текст ввозится, а картинки не
+        # переносятся — отказ здесь стоил бы человеку всего документа.
         page = await ImportService(
-            db_session, content, realtime=realtime, queue=queue
+            db_session, content, realtime=realtime, queue=queue, storage=storage
         ).import_file(
             file_name=file_name,
             data=body,

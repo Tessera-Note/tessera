@@ -36,11 +36,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.content import ContentClient
-from tessera_api.infrastructure.document_text import from_docx, from_odt, from_pdf, tidy
+from tessera_api.infrastructure.document_text import from_odt, from_pdf, tidy
 from tessera_api.infrastructure.models import FileTask, Page
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService
+from tessera_api.services.docx_import import PLACEHOLDER, docx_to_html
 from tessera_api.services.import_archives import (
     extract_confluence_page,
     is_confluence_export,
@@ -206,6 +207,25 @@ def _inside(name: str) -> bool:
     return not normalised.startswith(("..", "/"))
 
 
+def _with_image_addresses(content: object, addresses: dict[str, str]) -> object:
+    """Подставить настоящие адреса картинок в готовый документ.
+
+    Обход дерева, а не замена в строке: содержимое хранится разобранным, и
+    подмена в его текстовом представлении зависела бы от того, как именно оно
+    записано. Заготовка без адреса оставляется как есть — картинку не
+    перенесли, и пустая ссылка выглядела бы как потерянная разметка.
+    """
+    if isinstance(content, dict):
+        made = {key: _with_image_addresses(value, addresses) for key, value in content.items()}
+        source = made.get("src")
+        if isinstance(source, str) and source in addresses:
+            made["src"] = addresses[source]
+        return made
+    if isinstance(content, list):
+        return [_with_image_addresses(one, addresses) for one in content]
+    return content
+
+
 class ImportService:
     def __init__(
         self,
@@ -247,13 +267,21 @@ class ImportService:
             html = data.decode("utf-8", errors="replace")
             return title_from_html(html, file_name), await self._content.html_to_json(html)
 
-        if suffix in (".docx", ".odt"):
-            # Два формата одной веткой: из обоих берётся голый текст, и
-            # различать их дальше было бы различием без разницы.
-            text = from_docx(data) if suffix == ".docx" else from_odt(data)
-            if not text.strip():
+        if suffix == ".docx":
+            # Разметка сохраняется, как в v1: документ Word превращается в
+            # HTML, а дальше работает обычный путь ввоза HTML. Голый текст
+            # здесь означал бы страницу без заголовков, без списков и без
+            # таблицы — и без единого признака, что что-то потеряно.
+            html, _ = docx_to_html(data)
+            if not html.strip():
                 # Пустой разбор здесь — не пустой документ, а не разобранный:
                 # битый или защищённый файл выглядит так же.
+                raise bad_request("error.import.no_text")
+            return title_from_html(html, file_name), await self._content.html_to_json(html)
+
+        if suffix == ".odt":
+            text = from_odt(data)
+            if not text.strip():
                 raise bad_request("error.import.no_text")
             return _title_from_text(text, file_name), (
                 await self._content.markdown_to_json(text)
@@ -283,7 +311,7 @@ class ImportService:
         пространство, и своя проверка здесь разошлась бы с ней.
         """
         title, content = await self.to_document(file_name, data)
-        return await PageService(self._session, self._realtime, self._queue).create(
+        page = await PageService(self._session, self._realtime, self._queue).create(
             user_id=user_id,
             workspace_id=workspace_id,
             space_id=space_id,
@@ -291,6 +319,61 @@ class ImportService:
             content=content,
             parent_page_id=parent_page_id,
         )
+
+        # Картинки документа Word выгружаются после создания страницы: они
+        # вкладываются в неё, а страницы до этого мига ещё нет. Заготовки в
+        # содержимом человеку не показываются — правка идёт в том же запросе.
+        if assert_supported(file_name) == ".docx":
+            await self._store_docx_images(page, data, user_id, workspace_id)
+        return page
+
+    async def _store_docx_images(
+        self,
+        page: Page,
+        data: bytes,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+    ) -> None:
+        """Выгрузить встроенные картинки и подставить их адреса.
+
+        Без хранилища картинки просто не переносятся: ввоз текста от этого не
+        отменяется, и отказ здесь стоил бы человеку всего документа.
+
+        Адреса подставляются в готовый документ, а не в HTML с повторным
+        преобразованием: обращение к соседнему сервису стоит дороже обхода
+        дерева, а результат тот же.
+        """
+        if self._storage is None:
+            return
+
+        _, images = docx_to_html(data)
+        if not images:
+            return
+
+        attachments = AttachmentService(self._session, self._storage, self._queue)
+        addresses: dict[str, str] = {}
+        for one in images:
+            try:
+                saved = await attachments.upload_page_file(
+                    page_id_or_slug=str(page.id),
+                    file_name=one.file_name,
+                    data=one.data,
+                    user_id=user_id,
+                    workspace_id=workspace_id,
+                    size_limit=self._upload_limit,
+                )
+            except Exception:  # noqa: BLE001 — одна картинка не отменяет документ
+                logger.info("Картинка документа не завезена: %s", one.file_name)
+                continue
+            addresses[f"{PLACEHOLDER}{one.index}"] = (
+                f"/api/files/{saved.id}/{quote(saved.file_name)}"
+            )
+
+        if not addresses:
+            return
+
+        page.content = _with_image_addresses(page.content, addresses)
+        await self._session.commit()
 
     # --- архив ------------------------------------------------------------
 
