@@ -30,15 +30,17 @@ import posixpath
 import re
 import uuid
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.document_text import from_odt, from_pdf, tidy
-from tessera_api.infrastructure.models import FileTask, Page
+from tessera_api.infrastructure.models import FileTask, Page, Space
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService
@@ -221,23 +223,67 @@ def _inside(name: str) -> bool:
     return not normalised.startswith(("..", "/"))
 
 
-def _with_image_addresses(content: object, addresses: dict[str, str]) -> object:
-    """Подставить настоящие адреса картинок в готовый документ.
+def _with_addresses(content: object, addresses: dict[str, str]) -> object:
+    """Подставить настоящие адреса в готовый документ.
 
     Обход дерева, а не замена в строке: содержимое хранится разобранным, и
     подмена в его текстовом представлении зависела бы от того, как именно оно
-    записано. Заготовка без адреса оставляется как есть — картинку не
-    перенесли, и пустая ссылка выглядела бы как потерянная разметка.
+    записано. Адрес без замены оставляется как есть — файл не перенесли, и
+    пустая ссылка выглядела бы как потерянная разметка.
+
+    Оба поля сразу: картинка держит адрес в `src`, ссылка на соседнюю страницу
+    — в `href` пометки. Разделять их незачем, разбор один и тот же.
     """
     if isinstance(content, dict):
-        made = {key: _with_image_addresses(value, addresses) for key, value in content.items()}
-        source = made.get("src")
-        if isinstance(source, str) and source in addresses:
-            made["src"] = addresses[source]
+        made = {key: _with_addresses(value, addresses) for key, value in content.items()}
+        for field in ("src", "href"):
+            value = made.get(field)
+            if isinstance(value, str) and value in addresses:
+                made[field] = addresses[value]
         return made
     if isinstance(content, list):
-        return [_with_image_addresses(one, addresses) for one in content]
+        return [_with_addresses(one, addresses) for one in content]
     return content
+
+
+def _addresses_of(content: object, found: set[str]) -> None:
+    """Собрать адреса, встречающиеся в документе."""
+    if isinstance(content, dict):
+        for field in ("src", "href"):
+            value = content.get(field)
+            if isinstance(value, str) and value:
+                found.add(value)
+        for value in content.values():
+            _addresses_of(value, found)
+    elif isinstance(content, list):
+        for one in content:
+            _addresses_of(one, found)
+
+
+#: Начала адресов, которые ведут не внутрь архива.
+_OUTSIDE = ("http://", "https://", "//", "/", "data:", "#", "mailto:", "tel:")
+
+
+def _archive_target(source: str, folder: str) -> str | None:
+    """Путь внутри архива, на который указывает относительный адрес.
+
+    Выгрузка ссылается на соседние файлы относительным путём, и он приходит
+    закодированным: пробел записан как `%20`, тире как `%E2%80%94`. Без
+    раскодирования такой путь не совпадает ни с одной записью архива, и ссылка
+    остаётся указывать в пустоту.
+    """
+    if not source or source.startswith(_OUTSIDE):
+        return None
+
+    address = unquote(source.split("#")[0].split("?")[0])
+    if not address:
+        return None
+
+    target = posixpath.normpath(posixpath.join(folder, address))
+    if target.startswith(".."):
+        # Путь ведёт наружу архива. Такого файла у нас нет.
+        return None
+    return target
 
 
 class ImportService:
@@ -422,7 +468,7 @@ class ImportService:
         if not addresses:
             return
 
-        page.content = _with_image_addresses(page.content, addresses)
+        page.content = _with_addresses(page.content, addresses)
         await self._session.commit()
 
     # --- архив ------------------------------------------------------------
@@ -544,6 +590,9 @@ class ImportService:
 
         pages = PageService(self._session, self._realtime, self._queue)
         by_folder: dict[str, uuid.UUID] = {}
+        # Ввезённые страницы по пути записи: по ним вторым проходом
+        # связываются ссылки между страницами выгрузки.
+        made: list[tuple[str, Page]] = []
         created = 0
 
         for entry in entries:
@@ -571,6 +620,7 @@ class ImportService:
             # картинки остались бы в содержимом заготовками — на экране битая
             # картинка, а в хранилище ничего.
             await self._store_images(page, images, task.creator_id, task.workspace_id)
+            made.append((entry.path, page))
             created += 1
 
             # Каталог, у которого есть одноимённая страница, становится её
@@ -579,8 +629,91 @@ class ImportService:
             stem = posixpath.splitext(entry.path)[0]
             by_folder[stem] = page.id
 
+        await self._resolve_archive_links(
+            task,
+            made,
+            {one.path: one for one in raw},
+            notion_path if task.source == SOURCE_NOTION else (lambda one: one),
+        )
         return created
 
+
+    async def _resolve_archive_links(
+        self,
+        task: FileTask,
+        made: list[tuple[str, Page]],
+        files: dict[str, ArchiveEntry],
+        clean: Callable[[str], str],
+    ) -> None:
+        """Связать ввезённые страницы между собой и перенести их файлы.
+
+        Выгрузка ссылается на соседние файлы относительным путём: страница на
+        страницу — `Название 3afe8a7a.md`, картинка — `Название/image.png`.
+        После ввоза таких путей на нашей стороне не существует: ссылка вела в
+        никуда, а картинка показывалась битой. Найдено на настоящей выгрузке
+        Notion.
+
+        Вторым проходом, а не по ходу создания: ссылка идёт и вперёд, и назад,
+        и на первом проходе половина целей ещё не заведена.
+
+        Имена целей чистятся тем же способом, что и пути записей: у Notion в
+        каждом имени сидит идентификатор, и путь из ссылки иначе не совпадает
+        с путём записи.
+        """
+        if not made:
+            return
+
+        space_slug = await self._session.scalar(
+            select(Space.slug).where(Space.id == task.space_id)
+        )
+        by_path = {path: page for path, page in made}
+        attachments = (
+            AttachmentService(self._session, self._storage, self._queue)
+            if self._storage is not None
+            else None
+        )
+        changed = False
+
+        for path, page in made:
+            folder = posixpath.dirname(path)
+            found: set[str] = set()
+            _addresses_of(page.content, found)
+
+            addresses: dict[str, str] = {}
+            for source in found:
+                target = _archive_target(source, folder)
+                if target is None:
+                    continue
+                target = clean(target)
+
+                wanted = by_path.get(target)
+                if wanted is not None:
+                    addresses[source] = f"/s/{space_slug}/p/{wanted.slug_id}"
+                    continue
+
+                stored = files.get(target)
+                if stored is None or attachments is None:
+                    continue
+                try:
+                    saved = await attachments.upload_page_file(
+                        page_id_or_slug=str(page.id),
+                        file_name=posixpath.basename(target),
+                        data=stored.data,
+                        user_id=task.creator_id,
+                        workspace_id=task.workspace_id,
+                        size_limit=self._upload_limit,
+                    )
+                except Exception:  # noqa: BLE001 — один файл не отменяет страницу
+                    logger.info("Файл выгрузки не завезён: %s", target)
+                    continue
+                addresses[source] = f"/api/files/{saved.id}/{quote(saved.file_name)}"
+
+            if addresses:
+                page.content = _with_addresses(page.content, addresses)
+                changed = True
+
+        if changed:
+            await self._session.commit()
 
     async def _unpack_confluence(self, task: FileTask, raw: list[ArchiveEntry]) -> int:
         """Ввезти выгрузку Confluence.

@@ -1290,3 +1290,204 @@ class TestNotionTwins:
     def test_a_lone_table_stays(self) -> None:
         entries = [ArchiveEntry(path="Задачи.csv", data=b"a")]
         assert [one.path for one in _without_notion_twins(entries)] == ["Задачи.csv"]
+
+
+def linking_client(documents: dict[str, dict]) -> ContentClient:
+    """Преобразователь, отвечающий заданным документом на заданный текст.
+
+    Общий `content_client` отвечает пустым абзацем, и на нём не видно ни
+    ссылок, ни картинок. Здесь ответ задаётся текстом записи: проверяется, что
+    делает ввоз с адресами внутри готового документа, а не разбор Markdown.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        text = (body.get("markdown") or body.get("html") or "").strip()
+        return httpx.Response(200, json={"content": documents.get(text, DOC)})
+
+    return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
+
+
+def _link_doc(href: str) -> dict:
+    return {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "туда",
+                        "marks": [{"type": "link", "attrs": {"href": href}}],
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def _image_doc(src: str) -> dict:
+    return {
+        "type": "doc",
+        "content": [{"type": "image", "attrs": {"src": src, "alt": "картинка"}}],
+    }
+
+
+def _addresses(content: object, field: str, found: list[str]) -> None:
+    if isinstance(content, dict):
+        value = content.get(field)
+        if isinstance(value, str):
+            found.append(value)
+        for one in content.values():
+            _addresses(one, field, found)
+    elif isinstance(content, list):
+        for one in content:
+            _addresses(one, field, found)
+
+
+def _hrefs(page: Page) -> list[str]:
+    found: list[str] = []
+    _addresses(page.content, "href", found)
+    return found
+
+
+def _sources(page: Page) -> list[str]:
+    found: list[str] = []
+    _addresses(page.content, "src", found)
+    return found
+
+
+class TestArchiveTarget:
+    """Разбор относительного адреса записи архива."""
+
+    def test_an_encoded_name_is_decoded(self) -> None:
+        # Выгрузка кодирует пробел как `%20`, тире как `%E2%80%94`. Без
+        # раскодирования путь не совпадает ни с одной записью архива.
+        assert (
+            module._archive_target("NEWS%20%E2%80%94%203afe.md", "Папка")
+            == "Папка/NEWS — 3afe.md"
+        )
+
+    def test_the_folder_of_the_page_is_the_starting_point(self) -> None:
+        assert module._archive_target("Название/image.png", "") == "Название/image.png"
+
+    def test_an_outside_address_is_left_alone(self) -> None:
+        outside = (
+            "https://example.com/a.png",
+            "/api/files/1/a.png",
+            "data:image/png;base64,x",
+        )
+        for source in outside:
+            assert module._archive_target(source, "Папка") is None
+
+    def test_an_anchor_and_a_query_do_not_become_part_of_the_path(self) -> None:
+        assert module._archive_target("Сосед.md#раздел", "") == "Сосед.md"
+        assert module._archive_target("Сосед.md?v=2", "") == "Сосед.md"
+
+    def test_a_path_leading_outside_the_archive_is_refused(self) -> None:
+        assert module._archive_target("../../etc/passwd", "Папка") is None
+
+    def test_an_empty_address_is_not_a_path(self) -> None:
+        assert module._archive_target("", "Папка") is None
+
+
+@needs_database
+class TestArchiveLinks:
+    async def test_a_link_to_a_neighbour_becomes_a_page_address(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ссылка выгрузки вела в никуда: такого адреса на нашей стороне нет."""
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Первая": _link_doc("%D0%92%D1%82%D0%BE%D1%80%D0%B0%D1%8F.md")})
+
+        created = await ImportService(session, client)._unpack(
+            task, archive({"Первая.md": "# Первая", "Вторая.md": "# Вторая"})
+        )
+        assert created == 2
+
+        pages = await _pages_of(session, space.id, ("Первая", "Вторая"))
+        assert _hrefs(pages["Первая"]) == [f"/s/{space.slug}/p/{pages['Вторая'].slug_id}"]
+
+    async def test_a_link_to_a_missing_neighbour_is_left_alone(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Подменять на пустоту нечем: адрес хотя бы говорит, куда вела ссылка."""
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Одна": _link_doc("Пропавшая.md")})
+
+        await ImportService(session, client)._unpack(task, archive({"Одна.md": "# Одна"}))
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        assert _hrefs(pages["Одна"]) == ["Пропавшая.md"]
+
+    async def test_an_outside_link_survives_untouched(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Одна": _link_doc("https://example.com/a")})
+
+        await ImportService(session, client)._unpack(task, archive({"Одна.md": "# Одна"}))
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        assert _hrefs(pages["Одна"]) == ["https://example.com/a"]
+
+    async def test_a_notion_link_matches_despite_the_identifier(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """У Notion идентификатор сидит и в имени файла, и в самой ссылке.
+
+        Пути записей от него очищаются, а ссылка приходит с ним: без такой же
+        чистки цели ни одна внутренняя ссылка выгрузки не совпадает.
+        """
+        task = await _task(session, workspace, owner, space, source="notion")
+        target = "%D0%92%D1%82%D0%BE%D1%80%D0%B0%D1%8F%203afe8a7a2ce981d2a2cee370c40a3ba9.md"
+        client = linking_client({"# Первая": _link_doc(target)})
+
+        await ImportService(session, client)._unpack(
+            task,
+            archive(
+                {
+                    "Первая 1afe8a7a2ce981d2a2cee370c40a3ba9.md": "# Первая",
+                    "Вторая 3afe8a7a2ce981d2a2cee370c40a3ba9.md": "# Вторая",
+                }
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Первая", "Вторая"))
+        assert _hrefs(pages["Первая"]) == [f"/s/{space.slug}/p/{pages['Вторая'].slug_id}"]
+
+    async def test_an_image_of_the_archive_is_carried_over(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Картинка выгрузки лежит соседним файлом и никуда не переносилась."""
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Одна": _image_doc("%D0%9E%D0%B4%D0%BD%D0%B0/image.png")})
+        storage = _StorageDouble(b"")
+
+        await ImportService(session, client, storage=storage)._unpack(
+            task, archive({"Одна.md": "# Одна", "Одна/image.png": b"\x89PNG\r\n\x1a\n"})
+        )
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        assert _sources(pages["Одна"])[0].startswith("/api/files/")
+
+        rows = await session.execute(
+            select(Attachment).where(Attachment.page_id == pages["Одна"].id)
+        )
+        saved = rows.scalars().all()
+        assert [one.file_name for one in saved] == ["image.png"]
+
+    async def test_without_storage_the_text_still_arrives(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отказ переноса картинки не должен стоить человеку всего документа."""
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Одна": _image_doc("Одна/image.png")})
+
+        created = await ImportService(session, client)._unpack(
+            task, archive({"Одна.md": "# Одна", "Одна/image.png": b"\x89PNG"})
+        )
+        assert created == 1
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        assert _sources(pages["Одна"]) == ["Одна/image.png"]
