@@ -1,8 +1,8 @@
 /**
- * `$env/static/public` для проверок разметки.
+ * `$env/dynamic/public` для проверок разметки.
  *
  * Пустой адрес API означает «тот же источник, что и страница» — то же, что и в
  * браузере при обычном развёртывании. Запросов в проверках нет: компоненты
  * получают данные доводами.
  */
-export const PUBLIC_API_URL = '';
+export const env: Record<string, string | undefined> = { PUBLIC_API_URL: '' };

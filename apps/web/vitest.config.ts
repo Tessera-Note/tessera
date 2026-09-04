@@ -30,10 +30,11 @@ const domAlias = {
   '$app/environment': fileURLToPath(
     new URL('./src/test-stubs/app-environment.ts', import.meta.url)
   ),
-  '$env/static/public': fileURLToPath(
-    new URL('./src/test-stubs/env-static-public.ts', import.meta.url)
+  '$env/dynamic/public': fileURLToPath(
+    new URL('./src/test-stubs/env-dynamic-public.ts', import.meta.url)
   ),
-  '$app/navigation': fileURLToPath(new URL('./src/test-stubs/app-navigation.ts', import.meta.url))
+  '$app/navigation': fileURLToPath(new URL('./src/test-stubs/app-navigation.ts', import.meta.url)),
+  '$app/state': fileURLToPath(new URL('./src/test-stubs/app-state.ts', import.meta.url))
 };
 
 /**

@@ -20,7 +20,6 @@
   import type { Editor as TiptapEditor } from '@tiptap/core';
   import { locale } from '$lib/stores/i18n.svelte';
   import { pagelessBlocks } from './blocks';
-  import { editorExtensions } from './extensions';
   import { EMOJI, MENTION, SLASH } from './suggest';
   import { Suggest } from './menus/suggest.svelte';
   import InsertMenu from './menus/InsertMenu.svelte';
@@ -59,8 +58,13 @@
 
     void (async () => {
       // Библиотека грузится по требованию: она весит сотни килобайт, а на
-      // страницах без правки не нужна вовсе.
-      const { Editor } = await import('@tiptap/core');
+      // страницах без правки не нужна вовсе. Набор расширений — с ней: обычный
+      // импорт затянул бы его в отрисовку на сервере, а там пакет на CommonJS
+      // падает с `require is not defined` и роняет страницу целиком.
+      const [{ Editor }, { editorExtensions }] = await Promise.all([
+        import('@tiptap/core'),
+        import('./extensions')
+      ]);
       if (cancelled) return;
 
       const made = new Editor({

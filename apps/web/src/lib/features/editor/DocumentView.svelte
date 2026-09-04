@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { editorExtensions } from './extensions';
   import { locale } from '$lib/stores/i18n.svelte';
   import { plainText } from '$lib/features/page/document';
 
@@ -24,8 +23,14 @@
     void (async () => {
       try {
         // Библиотека грузится здесь, а не сверху: она весит сотни килобайт, а
-        // страница по ссылке открывается посторонним, часто с телефона.
-        const { Editor } = await import('@tiptap/core');
+        // страница по ссылке открывается посторонним, часто с телефона. Набор
+        // расширений — с ней: обычный импорт затянул бы его в отрисовку на
+        // сервере, а там пакет на CommonJS падает с `require is not defined` и
+        // роняет страницу целиком.
+        const [{ Editor }, { editorExtensions }] = await Promise.all([
+          import('@tiptap/core'),
+          import('./extensions')
+        ]);
         if (cancelled) return;
 
         const made = new Editor({

@@ -26,7 +26,6 @@
   import { errorText } from '$lib/api/failure';
   import { locale } from '$lib/stores/i18n.svelte';
   import { collabAddress, collabToken, documentName } from './collab';
-  import { editorExtensions } from './extensions';
   import { Suggest } from './menus/suggest.svelte';
   import AskAi from './menus/AskAi.svelte';
   import BubbleMenu from './menus/BubbleMenu.svelte';
@@ -154,15 +153,26 @@
     void (async () => {
       try {
         // Библиотеки редактора грузятся здесь, а не сверху: они весят сотни
-        // килобайт и на страницах без редактора не нужны вовсе.
-        const [{ Editor }, { Collaboration }, { CollaborationCaret }, { HocuspocusProvider }, Y] =
-          await Promise.all([
-            import('@tiptap/core'),
-            import('@tiptap/extension-collaboration'),
-            import('@tiptap/extension-collaboration-caret'),
-            import('@hocuspocus/provider'),
-            import('yjs')
-          ]);
+        // килобайт и на страницах без редактора не нужны вовсе. Набор
+        // расширений — с ними: обычный импорт затянул бы его в отрисовку на
+        // сервере, где есть пакет на CommonJS, падающий с `require is not
+        // defined` и роняющий страницу. Заметно это только по прямой ссылке:
+        // переходы внутри приложения идут в браузере и работают.
+        const [
+          { Editor },
+          { Collaboration },
+          { CollaborationCaret },
+          { HocuspocusProvider },
+          Y,
+          { editorExtensions }
+        ] = await Promise.all([
+          import('@tiptap/core'),
+          import('@tiptap/extension-collaboration'),
+          import('@tiptap/extension-collaboration-caret'),
+          import('@hocuspocus/provider'),
+          import('yjs'),
+          import('./extensions')
+        ]);
 
         const { token } = await collabToken();
         if (cancelled) return;

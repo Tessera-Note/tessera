@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { PUBLIC_API_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 /**
  * Куда обращаться. Адреса два, и это не дублирование.
@@ -13,6 +13,11 @@ import { PUBLIC_API_URL } from '$env/static/public';
  * Адрес для отрисовки на сервере ставится один раз при запуске
  * (`hooks.server.ts`): читать его здесь нельзя, этот файл общий с браузером, а
  * приватное окружение туда попадать не должно.
+ *
+ * Окружение динамическое, а не статическое, и это не вкусовщина. Статическое
+ * SvelteKit печёт в сборку, то есть в образ: развёртывание задаёт `PUBLIC_*`
+ * при запуске контейнера, и с печёным значением эта настройка молча ничего не
+ * меняла бы. Отказом такое не проявляется — просто запросы уходят не туда.
  */
 let serverBase = '';
 
@@ -21,5 +26,5 @@ export function setServerApiBase(value: string): void {
 }
 
 export function apiBase(): string {
-  return browser ? (PUBLIC_API_URL || '').replace(/\/+$/, '') : serverBase;
+  return browser ? (env.PUBLIC_API_URL || '').replace(/\/+$/, '') : serverBase;
 }

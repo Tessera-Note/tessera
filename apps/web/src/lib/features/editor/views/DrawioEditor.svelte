@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { PUBLIC_DRAWIO_URL } from '$env/static/public';
+  import { env } from '$env/dynamic/public';
   import Button from '$lib/components/ui/Button.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
 
@@ -21,8 +21,11 @@
    * Свой сервис рядом в развёртывании, а не `diagrams.net` в интернете:
    * экземпляр работает без обращений наружу. За обратным прокси он открыт по
    * пути `/drawio/`, и это же значение стоит умолчанием.
+   *
+   * Окружение динамическое: статическое печётся в образ, и заданный при
+   * запуске адрес молча не применялся бы.
    */
-  const base = PUBLIC_DRAWIO_URL || '/drawio/';
+  const base = env.PUBLIC_DRAWIO_URL || '/drawio/';
 
   const address = $derived(
     `${base.replace(/\/+$/, '')}/?embed=1&proto=json&spin=1&libraries=1&saveAndExit=1&noSaveBtn=1&ui=kennedy`
