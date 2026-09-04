@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
@@ -11,7 +14,7 @@
   type Props = { data: LayoutData };
   const { data }: Props = $props();
 
-  let query = $state('');
+  let query = $state(page.url.searchParams.get('q') ?? '');
   let busy = $state(false);
   let asked = $state(false);
   let hits = $state<SearchHit[]>([]);
@@ -22,20 +25,49 @@
   // и из короткого имени самой страницы.
   const slugs = $derived(new Map(data.spaces.map((one) => [one.id, one.slug])));
 
-  async function submit(event: SubmitEvent) {
-    event.preventDefault();
-    if (!query.trim()) return;
-
+  /**
+   * Запрос живёт в адресе, а не только в поле.
+   *
+   * Иначе адрес обещает больше, чем делает: он показывает `?q=…`, а открытая по
+   * нему страница пуста — и это видно только тому, кто такой ссылкой
+   * поделился или просто обновил вкладку.
+   */
+  async function run(text: string): Promise<void> {
     busy = true;
     failure = null;
     try {
-      hits = await searchPages(query);
+      const found = await searchPages(text);
+      hits = found;
       asked = true;
     } catch (error) {
       failure = errorText(error, t);
     } finally {
       busy = false;
     }
+  }
+
+  $effect(() => {
+    // Читается ровно один довод — запрос из адреса. Всё остальное этот
+    // обработчик только пишет: эффект, прочитавший то, что сам записал,
+    // подписывается на собственную запись, и Svelte снимает ветвь целиком.
+    const wanted = page.url.searchParams.get('q') ?? '';
+    if (!wanted.trim()) return;
+    untrack(() => {
+      query = wanted;
+    });
+    void run(wanted);
+  });
+
+  /** Отправка только правит адрес. Сам поиск идёт от адреса, одним путём. */
+  async function submit(event: SubmitEvent) {
+    event.preventDefault();
+    const text = query.trim();
+    if (!text) return;
+    await goto(`/search?q=${encodeURIComponent(text)}`, {
+      replaceState: true,
+      keepFocus: true,
+      noScroll: true
+    });
   }
 </script>
 
