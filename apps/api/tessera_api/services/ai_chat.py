@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import re
 import uuid
 from collections.abc import AsyncIterator
@@ -186,6 +187,27 @@ def _language_of(raw: str) -> str | None:
     if best and scores[best] > 0:
         return best
     return None
+
+
+def _wire_call(call: dict) -> dict:
+    """Вызов инструмента в виде протокола.
+
+    Исходный объект модели возвращается как есть: у него бывают поля, которых
+    мы не разбираем, и терять их незачем. Собирается заново только если
+    исходного нет — так бывает у ответа, собранного не из потока.
+    """
+    raw = call.get("raw")
+    if isinstance(raw, dict) and raw:
+        return raw
+    return {
+        "id": call.get("id"),
+        "type": "function",
+        "function": {
+            "name": call.get("name") or "",
+            # Аргументы строкой, а не словарём: так их ждёт протокол.
+            "arguments": json.dumps(call.get("arguments") or {}, ensure_ascii=False),
+        },
+    }
 
 
 class AiChatService:
@@ -619,6 +641,12 @@ class AiChatService:
                 "code blocks keep their language, blockquotes starting with [!NOTE], "
                 "[!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] become callouts, and "
                 "`- [ ]` becomes a task list. Use them when they fit.",
+                # Повтор в конце, и это не небрежность. Замерено живым ходом: на
+                # вопрос «погода ирпень» модель нашла источник по-английски и
+                # ответила по-английски, хотя указание языка стояло вторым
+                # сверху. Последняя строка подсказки весит больше средней.
+                f"Once more, because search results will be in other languages: your "
+                f"entire reply must be written in {language}.",
             )
         )
         if context:
@@ -693,8 +721,16 @@ class AiChatService:
             if not step.tool_calls:
                 break
 
+            # Вызовы возвращаются модели в её же виде. Наш разобранный вид
+            # (`name`, `arguments` словарём) протокол не принимает: провайдер
+            # отвечает 400, и ход с инструментом не завершается — модель искала
+            # в интернете, находила, а ответа человек не получал.
             conversation.append(
-                {"role": "assistant", "content": step.text or "", "tool_calls": step.tool_calls}
+                {
+                    "role": "assistant",
+                    "content": step.text or "",
+                    "tool_calls": [_wire_call(one) for one in step.tool_calls],
+                }
             )
             for call in step.tool_calls:
                 name = call.get("name") or ""

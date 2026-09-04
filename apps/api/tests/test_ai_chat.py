@@ -37,6 +37,7 @@ from tessera_api.services.ai_chat import (
     READ,
     WRITE,
     AiChatService,
+    _wire_call,
     detect_language,
 )
 from tessera_api.services.ai_settings import AiDriver
@@ -903,3 +904,51 @@ class TestSystemPrompt:
             object.__new__(AiChatService), "русском", "Страница про отпуска"
         )
         assert "Страница про отпуска" in prompt
+
+
+class TestToolCallRoundTrip:
+    """Возврат вызова инструмента модели.
+
+    Это был самый дорогой отказ чата: модель просила инструмент, инструмент
+    отрабатывал, а следующий заход к провайдеру отвергался с 400 — ход не
+    завершался ни разу. Внешне выглядело как «поиск не работает», хотя поиск
+    отрабатывал: в журнале виден и удачный запрос к поисковому сервису, и
+    следом 400 от провайдера.
+    """
+
+    def test_the_original_call_is_returned_unchanged(self) -> None:
+        """У протокола свой вид, и наш разобранный он не принимает."""
+        raw = {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "search_web", "arguments": '{"queries":["погода"]}'},
+        }
+        call = {"id": "call_1", "name": "search_web", "arguments": {}, "raw": raw}
+        assert _wire_call(call) is raw
+
+    def test_without_the_original_the_wire_shape_is_rebuilt(self) -> None:
+        """Аргументы уходят строкой, а не словарём: так их ждёт протокол."""
+        import json as _json
+
+        made = _wire_call({"id": "c1", "name": "search_web", "arguments": {"queries": ["а"]}})
+        assert made["type"] == "function"
+        assert made["function"]["name"] == "search_web"
+        assert _json.loads(made["function"]["arguments"]) == {"queries": ["а"]}
+
+    def test_the_rebuilt_arguments_keep_non_ascii(self) -> None:
+        """Экранированная кириллица тратит место в запросе и читается хуже."""
+        made = _wire_call({"id": "c1", "name": "t", "arguments": {"q": "погода"}})
+        assert "погода" in made["function"]["arguments"]
+
+
+def test_the_language_is_stated_at_both_ends_of_the_prompt() -> None:
+    """Последняя строка подсказки весит больше средней.
+
+    Замерено живым ходом: указание языка стояло вторым сверху, модель нашла
+    источник по-английски и ответила по-английски. Повтор в конце — не
+    небрежность.
+    """
+    prompt = AiChatService.system_prompt(object.__new__(AiChatService), "русском", "")
+    lines = [one for one in prompt.split("\n") if one.strip()]
+    assert "русском" in lines[1], "язык не назван в начале"
+    assert "русском" in lines[-1], "язык не назван в конце"

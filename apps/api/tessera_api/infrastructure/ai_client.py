@@ -277,7 +277,18 @@ class AiClient:
                 # разбора оборвал бы весь ход.
                 arguments = {}
             calls.append(
-                {"id": one.get("id"), "name": function.get("name"), "arguments": arguments}
+                {
+                    "id": one.get("id"),
+                    "name": function.get("name"),
+                    "arguments": arguments,
+                    # Вызов в том виде, в каком его прислала модель. Он уходит
+                    # обратно следующим ходом, и уйти должен неизменным: у
+                    # протокола свой вид (`type`, `function.arguments` строкой),
+                    # а разобранный нами — для нашего же кода. Отправка
+                    # разобранного вида отвергается провайдером с 400, то есть
+                    # ход с инструментом не завершается никогда.
+                    "raw": one,
+                }
             )
 
         return ToolStep(text=message.get("content") or "", tool_calls=calls)
