@@ -20,6 +20,7 @@ import { pathToFileURL } from 'node:url';
 
 import { attachCollab, closeCollab, createCollabServer, startSweep } from './collab.js';
 import { docxFromJson } from './docx.js';
+import { htmlFromPdf } from './pdf.js';
 
 import {
   addUniqueIdsToDoc,
@@ -40,6 +41,16 @@ const HOST = process.env.HOST || '0.0.0.0';
 /** Предел размера тела. Документ страницы измеряется килобайтами; всё, что
  * заметно больше, — это ошибка вызывающего, а не большая страница. */
 const MAX_BODY = 8 * 1024 * 1024;
+
+/**
+ * Свой предел у разбора PDF.
+ *
+ * Сюда приходит целый файл в base64, и общий предел в восемь мегабайт отсёк бы
+ * обычную книгу. Значение согласовано с пределом ввоза на стороне приложения
+ * (`FILE_IMPORT_SIZE_LIMIT`, по умолчанию 200 МБ) с запасом на разрастание при
+ * кодировании.
+ */
+const MAX_PDF_BODY = Number(process.env.MAX_PDF_BODY || 280 * 1024 * 1024);
 
 function jsonFromHtml(html) {
   const document = generateJSON(html || '', tiptapExtensions);
@@ -77,18 +88,25 @@ const handlers = {
       'base64',
     ),
   }),
+  // Файл приходит в base64 по той же причине, по какой в нём уходит DOCX: у
+  // сервиса один вид тела, и двоичное потребовало бы второго ради одного
+  // маршрута.
+  'pdf-to-html': async (body) => ({ html: await htmlFromPdf(body.pdf || '') }),
 };
+
+/** У разбора PDF свой предел тела: сюда приходит целый файл. */
+const LIMITS = { 'pdf-to-html': MAX_PDF_BODY };
 
 function emptyDocument() {
   return { type: 'doc', content: [] };
 }
 
-async function readBody(request) {
+async function readBody(request, limit = MAX_BODY) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > MAX_BODY) {
+    if (size > limit) {
       throw new Error('body too large');
     }
     chunks.push(chunk);
@@ -131,7 +149,7 @@ export function createTransformServer(stats = () => ({ connections: 0, documents
     }
 
     try {
-      const body = await readBody(request);
+      const body = await readBody(request, LIMITS[name] ?? MAX_BODY);
       send(response, 200, await handler(body));
     } catch (error) {
       // Разбор чужого документа отказывает на битом входе, и это обычный

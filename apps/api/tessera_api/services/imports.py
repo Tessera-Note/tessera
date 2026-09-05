@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.infrastructure.content import ContentClient
-from tessera_api.infrastructure.document_text import from_odt, from_pdf, tidy
+from tessera_api.infrastructure.document_text import from_odt, tidy
 from tessera_api.infrastructure.models import FileTask, Page, Space
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
@@ -385,15 +385,14 @@ class ImportService:
                 [],
             )
 
-        text = from_pdf(data)
-        if not text.strip():
-            # Скан без текстового слоя. Достать из него текст можно только
-            # распознаванием, которого в развёртывании нет, и пустая страница
-            # вместо документа выглядела бы успешным ввозом.
-            raise bad_request("error.import.no_text_layer")
+        # PDF разбирает сервис преобразования: заголовки и списки — свойство
+        # библиотеки, а не языка, и своим разбором на Python документ терял всю
+        # структуру. Отказы (пустой файл, битый файл, скан без текстового слоя)
+        # приходят оттуда кодами и здесь не повторяются.
+        html = await self._content.pdf_to_html(data)
         return (
-            _title_from_text(text, file_name),
-            await self._content.markdown_to_json(text),
+            title_from_html(html, file_name),
+            await self._content.html_to_json(html),
             [],
         )
 

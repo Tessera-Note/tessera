@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import re
@@ -23,7 +24,11 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
-from tessera_api.infrastructure.content import ContentClient
+from tessera_api.infrastructure.content import (
+    PDF_FAILURES,
+    ContentClient,
+    _failure_code,
+)
 from tessera_api.infrastructure.models import (
     Attachment,
     FileTask,
@@ -56,16 +61,24 @@ from tests.conftest import RealtimeDouble, needs_database
 DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 
 
-def content_client(seen: list | None = None) -> ContentClient:
+def content_client(seen: list | None = None, *, pdf: str | None = None) -> ContentClient:
     """Сервис преобразования, отвечающий пустым документом.
 
     Настоящий здесь не нужен: схема узлов живёт в нём, и проверять её второй
     раз значило бы завести второе описание того же.
+
+    Разбор PDF по умолчанию отвечает отказом «нет текстового слоя»: разбирать
+    PDF умеет только настоящий сервис, а проверкам нужен предсказуемый ответ.
+    Разметка задаётся доводом `pdf` там, где проверяется успешный ввоз.
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
         if seen is not None:
             seen.append(json.loads(request.content))
+        if request.url.path.endswith("/pdf-to-html"):
+            if pdf is None:
+                return httpx.Response(400, json={"error": "pdf_no_text_layer"})
+            return httpx.Response(200, json={"html": pdf})
         return httpx.Response(200, json={"content": DOC})
 
     return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
@@ -1572,3 +1585,87 @@ class TestArchiveLinksElsewhere:
 
         pages = await _pages_of(session, space.id, (CONF_TOP, CONF_CHILD))
         assert _hrefs(pages[CONF_TOP]) == [f"/s/{space.slug}/p/{pages[CONF_CHILD].slug_id}"]
+
+
+@needs_database
+class TestPdfImport:
+    """Ввоз PDF идёт через сервис преобразования.
+
+    Разбор своим средством на Python отдавал голый текст: ввезённый документ
+    терял заголовки и списки, а ввоз при этом был успешен — потерю нечем было
+    заметить.
+    """
+
+    async def test_the_file_goes_to_the_transform_service(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        seen: list = []
+        service = ImportService(
+            session, content_client(seen, pdf="<h1>Регламент</h1><p>текст</p>")
+        )
+        await service.import_file(
+            file_name="регламент.pdf",
+            data=_pdf_without_text(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+
+        # Файл уходит в base64: у сервиса один вид тела.
+        sent = next(one for one in seen if "pdf" in one)
+        assert base64.b64decode(sent["pdf"]) == _pdf_without_text()
+
+    async def test_the_title_comes_from_the_markup(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Заголовок берётся из разобранного документа, а не из имени файла."""
+        service = ImportService(session, content_client(pdf="<h1>Регламент</h1>"))
+        page = await service.import_file(
+            file_name="untitled.pdf",
+            data=_pdf_without_text(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+        assert page.title == "Регламент"
+
+    async def test_the_refusal_of_the_service_reaches_the_person(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Причина отказа называется своим кодом, а не общим «не удалось».
+
+        У разбора PDF причин три, и человеку они говорят разное: пустой файл,
+        неразобранный файл и скан без текстового слоя.
+        """
+        service = ImportService(session, content_client())
+        with pytest.raises(AppError) as error:
+            await service.import_file(
+                file_name="скан.pdf",
+                data=_pdf_without_text(),
+                user_id=owner.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        assert error.value.code == "error.import.no_text_layer"
+
+
+class TestTransformFailures:
+    """Перевод причины отказа соседа в код приложения."""
+
+    def test_a_named_reason_becomes_its_code(self) -> None:
+        response = httpx.Response(400, json={"error": "pdf_no_text_layer"})
+        assert _failure_code(response, PDF_FAILURES) == "error.import.no_text_layer"
+
+    def test_an_unnamed_reason_stays_a_general_refusal(self) -> None:
+        response = httpx.Response(400, json={"error": "чего-то новое"})
+        assert _failure_code(response, PDF_FAILURES) == "error.content.transform_failed"
+
+    def test_a_body_that_is_not_ours_stays_a_general_refusal(self) -> None:
+        # Так отвечает не сервис, а что-то на его месте: обратный прокси,
+        # заглушка развёртывания, чужой процесс на том же порту.
+        response = httpx.Response(502, text="<html>502</html>")
+        assert _failure_code(response, PDF_FAILURES) == "error.content.transform_failed"
+
+    def test_without_a_mapping_every_refusal_is_general(self) -> None:
+        response = httpx.Response(400, json={"error": "pdf_no_text_layer"})
+        assert _failure_code(response, None) == "error.content.transform_failed"

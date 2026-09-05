@@ -4,7 +4,12 @@
 # файла зависимостей у сервиса нет намеренно — файл блокировки принадлежит
 # пакетному менеджеру, и второй набор объявлений заставил бы его
 # перегенерировать.
-FROM node:22-alpine AS deps
+#
+# База с glibc, а не Alpine. Разбор PDF идёт через `@docmost/pdf-inspector`,
+# и это природный модуль: собранные бинарники в нём есть под glibc, под musl —
+# нет. На Alpine он отказывает «Cannot find native binding» при первом же
+# обращении. Тот же образ у первой версии, и по той же причине.
+FROM node:22-slim AS deps
 
 WORKDIR /app
 RUN corepack enable
@@ -25,7 +30,7 @@ COPY packages ./packages
 # иначе в образ пришлось бы тянуть TypeScript.
 RUN pnpm --filter @tessera/editor-ext build
 
-FROM node:22-alpine
+FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
