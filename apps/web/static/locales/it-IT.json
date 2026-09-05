@@ -2299,5 +2299,6 @@
   "Copying failed": "Copia non riuscita",
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "Chiedi",
-  "Unknown user": "Utente sconosciuto"
+  "Unknown user": "Utente sconosciuto",
+  "Delete permanently": "Elimina definitivamente"
 }

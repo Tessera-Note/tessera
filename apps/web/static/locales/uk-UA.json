@@ -2317,5 +2317,6 @@
   "Copying failed": "Скопіювати не вдалося",
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "Запитати",
-  "Unknown user": "Невідомий"
+  "Unknown user": "Невідомий",
+  "Delete permanently": "Видалити назавжди"
 }

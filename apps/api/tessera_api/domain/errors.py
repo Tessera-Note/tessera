@@ -83,6 +83,9 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.label.name_required": "The label needs a name",
     "error.attachment.attachment_not_found": "Attachment not found",
     "error.page.version_not_found": "Page version not found",
+    "error.page.only_space_admins_can_permanently_delete": (
+        "Only space admins can delete a page permanently"
+    ),
     "error.share.share_not_found": "This link is not valid",
     "error.base.base_not_found": "Base not found",
     "error.base.property_not_found": "Property not found",

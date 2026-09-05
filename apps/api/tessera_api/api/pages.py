@@ -101,6 +101,13 @@ class PageIdRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
 
 
+class DeletePageRequest(msgspec.Struct):
+    pageId: str  # noqa: N815 — имя поля из v1
+    #: Удалить насовсем, а не в корзину. Признак в теле, а не второй маршрут:
+    #: предмет один и тот же, разница только в необратимости. Имя поля из v1.
+    permanentlyDelete: bool = False  # noqa: N815 — имя поля из v1
+
+
 class MoveRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
     position: str | None = None
@@ -253,15 +260,25 @@ class PageController(Controller):
     @post("/delete")
     async def delete(
         self,
-        data: PageIdRequest,
+        data: DeletePageRequest,
         request: Request,
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
         queue: NamedDependency[JobQueue],
+        storage: NamedDependency[Storage],
     ) -> dict:
+        """Убрать страницу в корзину либо удалить насовсем."""
         principal: Principal = request.scope["principal"]
+        service = PageService(db_session, realtime, queue)
+
+        if data.permanentlyDelete:
+            await service.force_delete(
+                _page_uuid(data.pageId), principal.user_id, storage=storage
+            )
+            return {"status": "ok"}
+
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        await PageService(db_session, realtime, queue).move_to_trash(page, principal.user_id)
+        await service.move_to_trash(page, principal.user_id)
         return {"status": "ok"}
 
     @post("/restore")

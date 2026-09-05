@@ -3,7 +3,8 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import { errorText } from '$lib/api/failure';
-  import { restorePage } from '$lib/features/page/services/pages';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
+  import { deletePage, restorePage } from '$lib/features/page/services/pages';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -14,6 +15,26 @@
 
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
+
+  /**
+   * Удалить насовсем.
+   *
+   * Срок в корзине истекает и сам, но ждать его человек не обязан: страницу
+   * удаляют насовсем именно тогда, когда её содержимое не должно остаться
+   * нигде. Право распорядителя пространства проверяет сервер.
+   */
+  async function purge(pageId: string) {
+    busy = pageId;
+    failure = null;
+    try {
+      await deletePage(pageId, true);
+      await invalidateAll();
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = null;
+    }
+  }
 
   async function restore(pageId: string) {
     busy = pageId;
@@ -53,9 +74,17 @@
             {new Date(page.deletedAt).toLocaleString(locale.current)}
           </p>
         </div>
-        <Button variant="quiet" disabled={busy === page.id} onclick={() => restore(page.id)}>
-          {busy === page.id ? t('Loading...') : t('Restore')}
-        </Button>
+        <div class="flex shrink-0 items-center gap-2">
+          <Button variant="quiet" disabled={busy === page.id} onclick={() => restore(page.id)}>
+            {busy === page.id ? t('Loading...') : t('Restore')}
+          </Button>
+          <Confirm
+            label={t('Delete permanently')}
+            question={t('This action cannot be undone.')}
+            disabled={busy === page.id}
+            onconfirm={() => purge(page.id)}
+          />
+        </div>
       </li>
     {:else}
       <li class="text-text-muted">{t('No pages in trash')}</li>

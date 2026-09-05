@@ -615,3 +615,97 @@ class TestDescendants:
         session.expire(child)
         moved = await session.get(Page, child_id)
         assert moved.space_id == other_id
+
+
+@needs_database
+class TestForceDelete:
+    """Удаление из корзины насовсем.
+
+    Срок в корзине истекает и сам, но ждать его человек не обязан: страницу
+    удаляют насовсем именно тогда, когда её содержимое не должно остаться
+    нигде.
+    """
+
+    async def test_the_branch_goes_together(self, session: AsyncSession, world) -> None:
+        service = PageService(session)
+        root = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Корень насовсем",
+        )
+        child = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Потомок насовсем",
+            parent_page_id=root.id,
+        )
+
+        await service.move_to_trash(root, world["owner"].id)
+        await service.force_delete(root.id, world["owner"].id)
+
+        assert await session.get(Page, root.id) is None
+        assert await session.get(Page, child.id) is None
+
+    async def test_a_live_page_is_not_removed_this_way(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Живая страница сперва уходит в корзину, откуда её ещё можно вернуть."""
+        service = PageService(session)
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Живая",
+        )
+
+        with pytest.raises(AppError) as failure:
+            await service.force_delete(page.id, world["owner"].id)
+        assert failure.value.code == "error.page.page_not_found"
+        assert await session.get(Page, page.id) is not None
+
+    async def test_only_a_space_manager_may(self, session: AsyncSession, world) -> None:
+        """Обычное удаление обратимо, это — нет.
+
+        Решать за всех, что страницы больше не будет, вправе тот, кто отвечает
+        за пространство.
+        """
+        service = PageService(session)
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Чужая насовсем",
+        )
+        await service.move_to_trash(page, world["owner"].id)
+
+        writer_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=writer_id,
+                email=f"writer-{uuid.uuid4().hex[:8]}@example.com",
+                role="member",
+                workspace_id=world["workspace"].id,
+            )
+        )
+        await session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=writer_id,
+                space_id=world["space"].id,
+                role=SpaceRole.WRITER,
+                added_by_id=world["owner"].id,
+            )
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await service.force_delete(page.id, writer_id)
+        assert failure.value.code == "error.page.only_space_admins_can_permanently_delete"
+        assert await session.get(Page, page.id) is not None
+
+    async def test_a_missing_page_is_not_found(self, session: AsyncSession, world) -> None:
+        with pytest.raises(AppError) as failure:
+            await PageService(session).force_delete(uuid.uuid4(), world["owner"].id)
+        assert failure.value.code == "error.page.page_not_found"

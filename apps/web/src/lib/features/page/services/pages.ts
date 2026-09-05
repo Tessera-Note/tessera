@@ -71,8 +71,18 @@ export function updatePage(
   return post<PageBody>('/api/pages/update', values, { fetcher });
 }
 
-export function deletePage(pageId: string, fetcher?: typeof fetch) {
-  return post<{ status: string }>('/api/pages/delete', { pageId }, { fetcher });
+/**
+ * Убрать страницу в корзину либо удалить насовсем.
+ *
+ * Один маршрут на оба действия: предмет тот же, разница в необратимости.
+ * Удалять насовсем вправе распорядитель пространства — сервер это проверяет.
+ */
+export function deletePage(pageId: string, permanently = false, fetcher?: typeof fetch) {
+  return post<{ status: string }>(
+    '/api/pages/delete',
+    { pageId, permanentlyDelete: permanently },
+    { fetcher }
+  );
 }
 
 /**

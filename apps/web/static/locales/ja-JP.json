@@ -2299,5 +2299,6 @@
   "Copying failed": "コピーできませんでした",
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "質問",
-  "Unknown user": "不明なユーザー"
+  "Unknown user": "不明なユーザー",
+  "Delete permanently": "完全に削除"
 }

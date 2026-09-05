@@ -457,6 +457,46 @@ class PageService:
                 allowed.append(one)
         return allowed
 
+    async def force_delete(self, page_id: uuid.UUID, user_id: uuid.UUID, storage=None) -> None:  # noqa: ANN001 — хранилище приходит из слоя приложения
+        """Убрать страницу из корзины насовсем, вместе с ветвью.
+
+        Право распорядителя пространства, а не правки: обычное удаление
+        обратимо, а это — нет, и решать за всех, что страницы больше не будет,
+        вправе тот, кто отвечает за пространство. Так же в v1.
+
+        Срок в корзине истекает и сам (`services/maintenance.py`), но ждать его
+        человек не обязан: страницу удаляют насовсем именно тогда, когда её
+        содержимое не должно остаться нигде.
+
+        Вложения снимаются до записи: после удаления строки страницы найти их
+        будет нечем, и файлы остались бы в хранилище навсегда. Без хранилища
+        строки удаляются всё равно — иначе отказ уборки запирал бы корзину.
+        """
+        from tessera_api.domain.roles import can_manage_space
+        from tessera_api.services.attachments import AttachmentService
+
+        page = await self._session.get(Page, page_id)
+        if page is None:
+            raise not_found("error.page.page_not_found")
+        if page.deleted_at is None:
+            # Живую страницу удаляют обычным способом: она сначала уходит в
+            # корзину, откуда её ещё можно вернуть.
+            raise bad_request("error.page.page_not_found")
+
+        role = await self._members.role_in_space(user_id, page.space_id)
+        if not can_manage_space(role):
+            raise forbidden("error.page.only_space_admins_can_permanently_delete")
+
+        ids = [page_id, *await self._descendants(page_id, include_deleted=True)]
+        if storage is not None:
+            await AttachmentService(self._session, storage, self._queue).delete_page_attachments(
+                ids
+            )
+        await self._session.execute(delete(Page).where(Page.id.in_(ids)))
+        await self._session.commit()
+        await self._refresh_tree(page)
+        await self._drop_index(ids)
+
     async def restore(self, page_id: uuid.UUID, user_id: uuid.UUID) -> Page:
         """Вернуть страницу из корзины вместе с ветвью.
 

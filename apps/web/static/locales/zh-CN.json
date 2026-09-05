@@ -2299,5 +2299,6 @@
   "Copying failed": "复制失败",
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "提问",
-  "Unknown user": "未知用户"
+  "Unknown user": "未知用户",
+  "Delete permanently": "永久删除"
 }
