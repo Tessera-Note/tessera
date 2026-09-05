@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import { errorText } from '$lib/api/failure';
@@ -93,7 +94,10 @@
         class:border-accent={!one.readAt}
       >
         <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
+          <!-- Картинка того, кто сделал. Без неё строки извещений
+               неразличимы между собой. Так же в v1. -->
+          <Avatar src={one.actor?.avatarUrl} name={one.actor?.name} size={28} />
+          <div class="min-w-0 flex-1">
             <p class="text-sm">
               {parts[0]}<strong class="font-medium">{parts[1]}</strong>{parts[2]}
             </p>

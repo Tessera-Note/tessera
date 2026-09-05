@@ -41,15 +41,20 @@
       <li
         class="flex items-center justify-between gap-4 card-soft rounded-md border border-border bg-surface-raised p-5"
       >
-        <a class="min-w-0" href="/s/{favorite.spaceSlug}/p/{favorite.slugId}">
-          <span class="block truncate font-medium">
+        <div class="min-w-0">
+          <a class="block truncate font-medium" href="/s/{favorite.spaceSlug}/p/{favorite.slugId}">
             {#if favorite.icon}<span class="mr-1">{favorite.icon}</span>{/if}
             {favorite.title ?? t('Untitled')}
-          </span>
-          <span class="block truncate text-xs text-text-muted">
+          </a>
+          <!-- Пространство ссылкой, а не подписью: в v1 это значок, по
+               которому переходят к самому пространству. -->
+          <a
+            class="mt-0.5 inline-block truncate rounded bg-surface-muted px-1.5 text-xs text-text-muted hover:text-text"
+            href="/s/{favorite.spaceSlug}"
+          >
             {favorite.spaceName ?? favorite.spaceSlug}
-          </span>
-        </a>
+          </a>
+        </div>
         <Button
           variant="quiet"
           disabled={busy === favorite.pageId}
