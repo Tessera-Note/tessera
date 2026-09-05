@@ -1,18 +1,27 @@
 <script lang="ts">
+  import { labelColor } from '$lib/features/label/colors';
   import { locale } from '$lib/stores/i18n.svelte';
+  import { theme } from '$lib/stores/theme.svelte';
   import type { PageData } from './$types';
 
   type Props = { data: PageData };
   const { data }: Props = $props();
 
   const t = $derived(locale.t);
+  const color = $derived(labelColor(data.name, theme.current === 'dark' ? 'dark' : 'light'));
 </script>
 
 <svelte:head><title>{data.name} · Tessera</title></svelte:head>
 
 <section data-route="label" class="mx-auto max-w-3xl">
   <p class="text-sm text-text-muted">{t('Labels')}</p>
-  <h1 class="mb-6 mt-1 text-2xl font-semibold">{data.name}</h1>
+  <h1 class="mb-6 mt-1 flex items-center gap-2 text-2xl font-semibold">
+    <!-- Цвет метки тот же, что у значка на странице: без него перечень
+         выглядит чужим экраном, а не продолжением метки. -->
+    <span class="h-3 w-3 shrink-0 rounded-full" style="background: {color.dot}" aria-hidden="true"
+    ></span>
+    {data.name}
+  </h1>
 
   <ul data-component="LabelledPages" class="space-y-2">
     {#each data.pages as page (page.id)}

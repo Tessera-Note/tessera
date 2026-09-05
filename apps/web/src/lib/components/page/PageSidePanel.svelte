@@ -2,6 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import { IconX } from '@tabler/icons-svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import LabelChip from './LabelChip.svelte';
   import PageComments from './PageComments.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
@@ -334,21 +335,15 @@
   {:else if tab === 'labels'}
     <ul class="mb-3 flex flex-wrap gap-1">
       {#each labels as label (label.id)}
-        <li class="flex items-center gap-1 rounded bg-surface px-2 py-0.5 text-xs">
+        <li>
           <!-- Метка это ссылка на перечень страниц с ней: иначе она украшение,
                а не способ найти соседние страницы. -->
-          <a class="hover:underline" href="/labels/{encodeURIComponent(label.name)}">
-            {label.name}
-          </a>
-          <button
-            class="text-text-muted hover:text-text"
-            type="button"
-            disabled={busy}
-            aria-label={t('Remove')}
-            onclick={() => dropLabel(label.id)}
-          >
-            ×
-          </button>
+          <LabelChip
+            name={label.name}
+            href="/labels/{encodeURIComponent(label.name)}"
+            onremove={() => dropLabel(label.id)}
+            removeLabel={t('Remove')}
+          />
         </li>
       {:else}
         <li class="text-sm text-text-muted">{t('No labels yet')}</li>
