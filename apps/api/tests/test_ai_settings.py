@@ -556,6 +556,22 @@ class TestFeatureFlags:
         assert feature_enabled(Workspace(settings=["не объект"]), "chat") is True
         assert feature_enabled(Workspace(settings={"ai": "да"}), "mcp") is False
 
+    def test_the_flag_goes_out_with_the_session(self) -> None:
+        """Поле обращения к помощнику стоит на главной, у всех.
+
+        Настройки читает только администратор, поэтому признак уходит вместе со
+        входом — тем же путём, что и разрешение личных пространств. Без него
+        участник видел бы поле, которое отвечает отказом.
+        """
+        from tessera_api.api.auth import _workspace_view
+
+        space = Workspace(id=uuid.uuid4(), name="Вики", hostname=None, logo=None)
+        space.settings = {"ai": {"chat": False}}
+        assert _workspace_view(space).aiChatEnabled is False
+
+        space.settings = {}
+        assert _workspace_view(space).aiChatEnabled is True
+
 
 def test_the_two_roles_have_their_own_default() -> None:
     """Беседа и переписывание — разные роли и разная цена обращения.

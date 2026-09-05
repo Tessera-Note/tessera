@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import ChatEmptyState from '$lib/components/ai/ChatEmptyState.svelte';
@@ -216,6 +218,25 @@
   function stop() {
     stopper?.abort();
   }
+
+  /**
+   * Вопрос, заданный с главной.
+   *
+   * Приходит доводом адреса и отправляется сам: человек уже нажал «отправить»
+   * там, и требовать второго нажатия здесь незачем. Довод сразу убирается из
+   * адреса — иначе обновление вкладки задаёт тот же вопрос заново.
+   */
+  let asked = false;
+
+  $effect(() => {
+    const wanted = page.url.searchParams.get('ask');
+    if (!wanted || asked || busy) return;
+    asked = true;
+    untrack(() => {
+      question = wanted;
+    });
+    void goto('/ai', { replaceState: true, noScroll: true, keepFocus: true }).then(ask);
+  });
 
   /** Enter отправляет, Shift+Enter переносит строку. Как в v1. */
   function onKeydown(event: KeyboardEvent) {

@@ -27,6 +27,7 @@ from tessera_api.domain.errors import bad_request, not_found, unauthorized
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.throttle import AUTH_LIMIT, Throttle, client_ip
+from tessera_api.services.ai_settings import feature_enabled
 from tessera_api.services.auth import AuthService
 from tessera_api.services.password_reset import PasswordResetService
 from tessera_api.services.realtime import RealtimeService
@@ -69,6 +70,9 @@ def _workspace_view(workspace) -> WorkspaceView:
         # Признак личных пространств уходит вместе с входом: настройки читает
         # только администратор, а кнопка «завести своё» нужна участнику.
         allowPersonalSpaces=_personal_spaces_allowed(workspace),
+        # Тем же путём и по той же причине — признак помощника: поле обращения
+        # к нему стоит на главной, у всех, а настройки видит администратор.
+        aiChatEnabled=feature_enabled(workspace, "chat"),
     )
 
 
