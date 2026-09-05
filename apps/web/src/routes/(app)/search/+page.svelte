@@ -6,7 +6,10 @@
   import Notice from '$lib/components/ui/Notice.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
+  import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
+  import { answerHtml } from '$lib/features/ai/answer';
+  import { askWiki, type AnswerSource } from '$lib/features/search/services/answers';
   import { highlightHtml } from '$lib/features/search/highlight';
   import {
     searchAttachments,
@@ -108,6 +111,52 @@
     });
   }
 
+  /**
+   * Ответ по вики словами.
+   *
+   * Режим «Ask» из v1: тот же запрос уходит модели, она читает найденное и
+   * отвечает, указывая источники. Маршрут на сервере был, обращения к нему в
+   * интерфейсе не было вовсе.
+   */
+  let asking = $state(false);
+  let answer = $state('');
+  let sources = $state<AnswerSource[]>([]);
+  let answering = $state(false);
+  let stopper: AbortController | null = null;
+
+  async function ask() {
+    const text = query.trim();
+    if (!text || answering) return;
+
+    answering = true;
+    answer = '';
+    sources = [];
+    failure = null;
+    stopper = new AbortController();
+    try {
+      for await (const frame of askWiki(text, space || null, stopper.signal)) {
+        if ('sources' in frame) sources = frame.sources;
+        else if ('content' in frame) answer += frame.content;
+        else if ('error' in frame) {
+          // Через общий разбор: в кадре приходит код, и показывать его нельзя.
+          failure = errorText(new ApiError(500, frame.error, '', {}), t);
+        }
+      }
+    } catch (error) {
+      // Остановка это не отказ: человек сам прервал ответ.
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        failure = errorText(error, t);
+      }
+    } finally {
+      answering = false;
+      stopper = null;
+    }
+  }
+
+  function stopAsking() {
+    stopper?.abort();
+  }
+
   function addressOf(hit: SearchHit): string {
     return `/s/${spaces.get(hit.spaceId)?.slug ?? ''}/p/${hit.slugId}`;
   }
@@ -123,6 +172,15 @@
       <TextInput bind:value={query} type="search" placeholder={t('Search')} />
     </div>
     <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Search')}</Button>
+    <!--
+      Спросить, а не искать: модель читает найденное и отвечает словами. В v1
+      это тот же режим в том же окне (кнопка «Ask»).
+    -->
+    {#if answering}
+      <Button variant="quiet" onclick={stopAsking}>{t('Cancel')}</Button>
+    {:else}
+      <Button variant="quiet" disabled={!query.trim()} onclick={ask}>{t('Ask')}</Button>
+    {/if}
   </form>
 
   <div data-component="SearchFilters" class="mb-6 flex flex-wrap gap-2">
@@ -143,6 +201,38 @@
   </div>
 
   {#if failure}<Notice message={failure} />{/if}
+
+  {#if answering || answer || sources.length > 0}
+    <section
+      data-component="WikiAnswer"
+      class="card-soft mb-6 rounded-md border border-border bg-surface-raised p-4"
+    >
+      {#if sources.length > 0}
+        <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-muted">
+          {t('Sources')}
+        </p>
+        <ul class="mb-3 space-y-1">
+          {#each sources as source (source.pageId)}
+            <li>
+              <a class="text-sm hover:underline" href="/s/{source.spaceSlug}/p/{source.slugId}">
+                {source.title ?? t('Untitled')}
+              </a>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if answer}
+        <!--
+          Ответ — разметка Markdown, тот же путь, что в разговоре: показ
+          обычным текстом выводил бы ссылки и списки как есть.
+        -->
+        <div class="chat-answer text-sm">{@html answerHtml(answer)}</div>
+      {:else if answering}
+        <p class="text-sm text-text-muted">{t('Thinking')}</p>
+      {/if}
+    </section>
+  {/if}
 
   <ul data-component="SearchResults" class="space-y-2">
     {#if kind === 'attachment'}

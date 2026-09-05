@@ -57,6 +57,10 @@ class GenerateRequest(msgspec.Struct):
 class AnswersRequest(msgspec.Struct):
     query: str
     spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    #: Язык интерфейса спрашивающего. Повод тот же, что у хода разговора:
+    #: локаль в учётной записи пуста до первого захода в настройки, и ответ
+    #: по вики приходил по-английски на русский вопрос.
+    locale: str | None = None
 
 
 def _frame(payload: dict) -> str:
@@ -190,7 +194,7 @@ class AiController(Controller):
                     pages,
                     data.query,
                     workspace_id=principal.workspace_id,
-                    locale=actor.locale,
+                    locale=actor.locale or data.locale,
                 ):
                     yield _frame({"content": piece})
             except AppError as error:
