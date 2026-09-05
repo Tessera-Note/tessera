@@ -2,6 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import { IconX } from '@tabler/icons-svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import PageComments from './PageComments.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
@@ -26,6 +27,7 @@
     type VerificationInfo
   } from '$lib/features/verification/services/page';
   import type { Backlink } from '$lib/features/page/services/backlinks';
+  import type { Comment } from '$lib/features/page/services/comments';
   import type { PagePermission, PermissionInfo } from '$lib/features/page/services/permissions';
   import {
     addPermission,
@@ -51,6 +53,12 @@
     stats?: { words: number; characters: number } | null;
     createdAt?: string | null;
     updatedAt?: string | null;
+    /** Обсуждение страницы. Показывается вкладкой, как в v1. */
+    comments: Comment[];
+    /** Кто смотрит: по нему решается, что из реплик можно править. */
+    userId?: string;
+    /** Какую вкладку открыть. Приходит от полосы действий. */
+    want?: string | null;
     /** Закрыть панель. Кнопка стоит и здесь: закрывать там же, где смотришь. */
     onclose: () => void;
   };
@@ -67,6 +75,9 @@
     stats,
     createdAt = null,
     updatedAt = null,
+    comments,
+    userId,
+    want = null,
     onclose
   }: Props = $props();
 
@@ -89,7 +100,29 @@
     obsolete: 'Obsolete'
   };
 
-  let tab = $state<'history' | 'labels' | 'links' | 'access' | 'check' | 'stats'>('history');
+  /**
+   * Что открыто в панели.
+   *
+   * Обсуждение первым: в v1 оно и есть основное содержимое правой панели
+   * (`components/layouts/global/aside.tsx`), а остальное лежит во вкладке
+   * «Подробности». Здесь оно стояло списком под текстом страницы, и длинная
+   * ветка отодвигала конец страницы на экран вниз.
+   */
+  type Tab = 'comments' | 'history' | 'labels' | 'links' | 'access' | 'check' | 'stats';
+
+  const TABS: Tab[] = ['comments', 'history', 'labels', 'links', 'access', 'check', 'stats'];
+
+  let tab = $state<Tab>('comments');
+
+  // Вкладку задаёт и полоса действий: кнопка «Комментарии» открывает панель
+  // сразу на нужном месте, а не на том, что осталось с прошлого раза.
+  $effect(() => {
+    // Значение приходит строкой из полосы действий: незнакомое имя вкладку не
+    // меняет, иначе панель открылась бы пустой.
+    const wanted = TABS.find((one) => one === want);
+    if (!wanted) return;
+    tab = wanted;
+  });
 
   /** Дата в языке человека. Пусто, когда даты нет. */
   const when = $derived((value: string | null) =>
@@ -249,7 +282,7 @@
   </div>
 
   <nav class="mb-4 flex flex-wrap gap-1 text-sm">
-    {#each [['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')], ['stats', t('Stats')]] as [key, title] (key)}
+    {#each [['comments', t('Comments')], ['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')], ['stats', t('Stats')]] as [key, title] (key)}
       <button
         class="rounded px-2 py-1 hover:bg-surface"
         class:bg-surface={tab === key}
@@ -269,7 +302,9 @@
 
   {#if failure}<Notice message={failure} />{/if}
 
-  {#if tab === 'history'}
+  {#if tab === 'comments'}
+    <PageComments {pageId} {comments} {userId} {spaceId} bare />
+  {:else if tab === 'history'}
     <ul class="space-y-1 text-sm">
       {#each versions as version (version.id)}
         <li>

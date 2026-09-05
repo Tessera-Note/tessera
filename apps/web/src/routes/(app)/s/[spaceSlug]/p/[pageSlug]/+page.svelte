@@ -12,6 +12,7 @@
     IconFileTypePdf,
     IconFolderSymlink,
     IconLayoutSidebarRight,
+    IconMessage,
     IconLink,
     IconMoodSmile,
     IconPrinter,
@@ -308,6 +309,24 @@
   $effect(() => {
     sidePanel.hydrate();
   });
+
+  /**
+   * Какую вкладку панели открыть.
+   *
+   * Панель одна, а поводов её открыть два: посмотреть обсуждение и посмотреть
+   * сведения о странице. Кнопка задаёт место, иначе человек попадает туда, где
+   * был в прошлый раз.
+   */
+  let panelTab = $state<string | null>(null);
+
+  function openPanel(wanted: string) {
+    if (sidePanel.open && panelTab === wanted) {
+      sidePanel.toggle();
+      return;
+    }
+    panelTab = wanted;
+    if (!sidePanel.open) sidePanel.toggle();
+  }
 </script>
 
 <svelte:head><title>{data.page.title ?? t('Untitled')} · Tessera</title></svelte:head>
@@ -396,11 +415,19 @@
           />
         {/if}
 
+        <!-- Обсуждение открывается своей кнопкой, как в v1: панель одна, а
+             попадать в неё надо на нужное место. -->
+        <IconButton
+          icon={IconMessage}
+          label={t('Comments')}
+          active={sidePanel.open && panelTab === 'comments'}
+          onclick={() => openPanel('comments')}
+        />
         <IconButton
           icon={IconLayoutSidebarRight}
           label={t('Details')}
-          active={sidePanel.open}
-          onclick={() => sidePanel.toggle()}
+          active={sidePanel.open && panelTab !== 'comments'}
+          onclick={() => openPanel('history')}
         />
 
         {#if exporting}
@@ -495,13 +522,6 @@
       spaceId={data.page.spaceId}
       oncount={(counted) => (stats = counted)}
     />
-
-    <PageComments
-      pageId={data.page.id}
-      comments={data.comments}
-      userId={data.session?.user.id}
-      spaceId={data.page.spaceId}
-    />
   </article>
 
   {#if sidePanel.open}
@@ -518,6 +538,9 @@
       {stats}
       createdAt={data.page.createdAt ?? null}
       updatedAt={data.page.updatedAt ?? null}
+      comments={data.comments}
+      userId={data.session?.user.id}
+      want={panelTab}
       onclose={() => sidePanel.toggle()}
     />
   {/if}

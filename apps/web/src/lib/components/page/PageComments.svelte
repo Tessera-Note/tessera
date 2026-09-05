@@ -17,13 +17,15 @@
   import { locale } from '$lib/stores/i18n.svelte';
 
   type Props = {
+    /** Показ внутри панели: без заголовка и отбивки. */
+    bare?: boolean;
     pageId: string;
     comments: Comment[];
     userId?: string | null;
     /** Пространство страницы. Сужает поиск страниц при упоминании. */
     spaceId?: string | null;
   };
-  const { pageId, comments, userId, spaceId = null }: Props = $props();
+  const { pageId, comments, userId, spaceId = null, bare = false }: Props = $props();
 
   const t = $derived(locale.t);
 
@@ -93,8 +95,14 @@
   }
 </script>
 
-<section data-component="PageComments" class="mt-12 border-t border-border pt-6">
-  <h2 class="mb-4 text-lg font-medium">{t('Comments')}</h2>
+<!--
+  Внутри панели заголовок и отбивка не нужны: вкладка уже названа, а линия
+  сверху делит панель пополам без повода. `bare` включается панелью.
+-->
+<section data-component="PageComments" class={bare ? '' : 'mt-12 border-t border-border pt-6'}>
+  {#if !bare}
+    <h2 class="mb-4 text-lg font-medium">{t('Comments')}</h2>
+  {/if}
 
   <ul class="mb-6 space-y-3">
     {#each comments as comment (comment.id)}
