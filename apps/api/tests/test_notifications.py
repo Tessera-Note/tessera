@@ -782,3 +782,48 @@ class TestPermissionGranted:
             group_ids=[],
         )
         assert await _notifications_for(session, owner.id) == []
+
+
+@needs_database
+class TestCommentAuthors:
+    """Кто написал комментарий.
+
+    Панель показывала одну дату: имя автора в ответе не приходило вовсе, и
+    обсуждение читалось как список ничьих реплик.
+    """
+
+    async def test_the_author_comes_with_the_comment(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        service = CommentService(session)
+        await service.create(page=world["root"], user_id=owner.id, content=_doc())
+
+        found = await service.list_for_page(world["root"], owner.id)
+        authors = await service.authors(found)
+
+        assert authors[owner.id].name == owner.name
+
+    async def test_one_query_for_the_whole_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """У обсуждения на сотню реплик запрос на строку — сотня обращений."""
+        world = await _world(session, workspace, owner, space)
+        service = CommentService(session)
+        for _ in range(3):
+            await service.create(page=world["root"], user_id=owner.id, content=_doc())
+
+        found = await service.list_for_page(world["root"], owner.id)
+        assert len(found) == 3
+        assert len(await service.authors(found)) == 1
+
+    async def test_a_comment_without_an_author_does_not_break_the_list(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Колонка допускает пустоту: так остаются реплики удалённого человека."""
+        world = await _world(session, workspace, owner, space)
+        service = CommentService(session)
+        comment = await service.create(page=world["root"], user_id=owner.id, content=_doc())
+        comment.creator_id = None
+
+        assert await service.authors([comment]) == {}

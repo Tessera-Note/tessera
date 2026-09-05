@@ -509,12 +509,20 @@ class AttachmentSearchController(Controller):
         return {"processed": processed}
 
 
-def _comment_view(comment) -> dict:  # noqa: ANN001 — модель базы
-    """Комментарий так, как его ждёт панель. Один вид на все маршруты."""
+def _comment_view(comment, authors=None) -> dict:  # noqa: ANN001 — модели базы
+    """Комментарий так, как его ждёт панель. Один вид на все маршруты.
+
+    Имя и картинка автора идут вместе с комментарием: без них панель
+    показывала одну дату, и понять, кто что написал, было нельзя. Второй
+    запрос за именем по каждой строке был бы дороже самого перечня.
+    """
+    author = (authors or {}).get(comment.creator_id)
     return {
         "id": comment.id,
         "content": comment.content,
         "creatorId": comment.creator_id,
+        "creatorName": author.name if author else None,
+        "creatorAvatarUrl": author.avatar_url if author else None,
         "parentCommentId": comment.parent_comment_id,
         "selection": comment.selection,
         "resolvedAt": comment.resolved_at,
@@ -677,10 +685,10 @@ class CommentController(Controller):
     ) -> list[dict]:
         principal: Principal = request.scope["principal"]
         page = await PageAccessService(db_session).load_page(data.pageId, principal.workspace_id)
-        found = await CommentService(db_session, realtime, mailer).list_for_page(
-            page, principal.user_id
-        )
-        return [_comment_view(one) for one in found]
+        service = CommentService(db_session, realtime, mailer)
+        found = await service.list_for_page(page, principal.user_id)
+        authors = await service.authors(found)
+        return [_comment_view(one, authors) for one in found]
 
     @post("/info")
     async def info(
@@ -693,10 +701,9 @@ class CommentController(Controller):
     ) -> dict:
         """Один комментарий. Право проверяется по его странице."""
         principal: Principal = request.scope["principal"]
-        found = await CommentService(db_session, realtime, mailer).info(
-            _comment_uuid(data.commentId), principal.user_id
-        )
-        return _comment_view(found)
+        service = CommentService(db_session, realtime, mailer)
+        found = await service.info(_comment_uuid(data.commentId), principal.user_id)
+        return _comment_view(found, await service.authors([found]))
 
     @post("/update")
     async def update_comment(
@@ -708,10 +715,11 @@ class CommentController(Controller):
         mailer: NamedDependency[NotificationMailer],
     ) -> dict:
         principal: Principal = request.scope["principal"]
-        changed = await CommentService(db_session, realtime, mailer).update(
+        service = CommentService(db_session, realtime, mailer)
+        changed = await service.update(
             _comment_uuid(data.commentId), principal.user_id, data.content
         )
-        return _comment_view(changed)
+        return _comment_view(changed, await service.authors([changed]))
 
     @post("/delete")
     async def delete_comment(
@@ -739,10 +747,11 @@ class CommentController(Controller):
     ) -> dict:
         """Пометить обсуждение решённым или снять пометку."""
         principal: Principal = request.scope["principal"]
-        changed = await CommentService(db_session, realtime, mailer).resolve(
+        service = CommentService(db_session, realtime, mailer)
+        changed = await service.resolve(
             _comment_uuid(data.commentId), principal.user_id, data.resolved
         )
-        return _comment_view(changed)
+        return _comment_view(changed, await service.authors([changed]))
 
     @post("/create")
     async def create(

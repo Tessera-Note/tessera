@@ -2298,5 +2298,6 @@
   "Avatar": "Avatar",
   "Copying failed": "Échec de la copie",
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
-  "Ask": "Demander"
+  "Ask": "Demander",
+  "Unknown user": "Utilisateur inconnu"
 }

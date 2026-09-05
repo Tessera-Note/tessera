@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
-from tessera_api.infrastructure.models import Comment, Page
+from tessera_api.infrastructure.models import Comment, Page, User
 from tessera_api.services.backlinks import extract_user_mentions
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.notifications import NotificationService
@@ -70,6 +70,22 @@ class CommentService:
             .order_by(Comment.created_at.asc())
         )
         return list((await self._session.execute(stmt)).scalars().all())
+
+    async def authors(self, comments: list[Comment]) -> dict[uuid.UUID, User]:
+        """Кто написал перечисленные комментарии.
+
+        Одним запросом на весь перечень, а не по человеку на строку: у
+        обсуждения на сотню реплик это сотня обращений к базе за тем же
+        десятком имён.
+
+        Связей между моделями в этом проекте нет намеренно, поэтому имя
+        подбирается здесь, а не грузится вместе с комментарием.
+        """
+        ids = {one.creator_id for one in comments if one.creator_id}
+        if not ids:
+            return {}
+        found = await self._session.execute(select(User).where(User.id.in_(ids)))
+        return {one.id: one for one in found.scalars().all()}
 
     async def create(
         self,

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import RichText from '$lib/components/page/RichText.svelte';
@@ -98,6 +99,21 @@
   <ul class="mb-6 space-y-3">
     {#each comments as comment (comment.id)}
       <li class="card-soft rounded-md border border-border bg-surface-raised p-3">
+        <!-- Кто написал. Без этого в панели стояла одна дата, и обсуждение
+             читалось как список ничьих реплик. Так же в v1. -->
+        <div class="mb-2 flex items-center gap-2">
+          <Avatar src={comment.creatorAvatarUrl} name={comment.creatorName} size={24} />
+          <span class="text-sm font-medium">
+            {comment.creatorName ?? t('Unknown user')}
+          </span>
+          <span class="text-xs text-text-muted">
+            {new Date(comment.createdAt).toLocaleString(locale.current)}
+          </span>
+          {#if comment.resolvedAt}
+            <span class="text-xs text-text-muted">{t('Resolved')}</span>
+          {/if}
+        </div>
+
         {#if comment.selection}
           <!-- Процитированный кусок страницы: без него обсуждение выделения
                читается как обсуждение страницы целиком. -->
@@ -128,10 +144,6 @@
         {/if}
 
         <p class="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-          <span>{new Date(comment.createdAt).toLocaleString(locale.current)}</span>
-          {#if comment.resolvedAt}
-            <span>{t('Resolved')}</span>
-          {/if}
           <button
             class="hover:underline"
             type="button"

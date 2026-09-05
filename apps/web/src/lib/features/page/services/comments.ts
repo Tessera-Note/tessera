@@ -4,6 +4,10 @@ export type Comment = {
   id: string;
   content: unknown;
   creatorId: string | null;
+  /** Имя и картинка автора приходят вместе с комментарием: без них панель
+   *  показывала одну дату, и понять, кто что написал, было нельзя. */
+  creatorName?: string | null;
+  creatorAvatarUrl?: string | null;
   parentCommentId: string | null;
   /** Процитированный кусок страницы. `null` у обсуждения страницы целиком. */
   selection?: string | null;
