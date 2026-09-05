@@ -72,13 +72,14 @@
       {/if}
     {/if}
 
-    {#each shown.slice(1) as crumb (crumb.id)}
+    {#each shown.slice(1) as crumb, index (crumb.id)}
       <span aria-hidden="true">/</span>
       <a
-        class="max-w-[200px] truncate text-text hover:underline"
+        class="max-w-[200px] truncate hover:underline"
+        class:text-text={index === shown.length - 2}
         href="/s/{spaceSlug}/p/{crumb.slugId}"
         title={crumb.title ?? t('Untitled')}
-        aria-current="page"
+        aria-current={index === shown.length - 2 ? 'page' : undefined}
       >
         {crumb.title ?? t('Untitled')}
       </a>

@@ -2295,5 +2295,7 @@
   "Updated page": "페이지 수정",
   "Advanced search": "고급 검색",
   "No attachments match your search.": "검색과 일치하는 첨부 파일이 없습니다.",
-  "Avatar": "아바타"
+  "Avatar": "아바타",
+  "Copying failed": "복사하지 못했습니다",
+  "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com"
 }

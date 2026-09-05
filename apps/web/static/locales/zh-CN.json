@@ -2295,5 +2295,7 @@
   "Updated page": "已更新页面",
   "Advanced search": "高级搜索",
   "No attachments match your search.": "没有符合搜索条件的附件。",
-  "Avatar": "头像"
+  "Avatar": "头像",
+  "Copying failed": "复制失败",
+  "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com"
 }

@@ -2313,5 +2313,7 @@
   "Updated page": "Змінив сторінку",
   "Advanced search": "Розширений пошук",
   "No attachments match your search.": "Вкладень за запитом не знайдено.",
-  "Avatar": "Аватар"
+  "Avatar": "Аватар",
+  "Copying failed": "Скопіювати не вдалося",
+  "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com"
 }

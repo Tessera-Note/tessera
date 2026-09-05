@@ -15,6 +15,7 @@ import type { Space } from '$lib/features/space/services/spaces';
 // Подмена перехода живёт в подпорке среды, а не в объявлении модуля: тип
 // настоящего `$app/navigation` записи вызовов не знает.
 const { calls } = await import('../../../test-stubs/app-navigation');
+const { reactiveProps } = await import('../../../test-stubs/reactive-props.svelte');
 
 let host: HTMLElement | null = null;
 let component: Record<string, unknown> | null = null;
@@ -100,6 +101,30 @@ describe('QuickSearch', () => {
     await settle();
 
     expect(calls.goto).toEqual(['/s/general/p/bbb']);
+  });
+
+  it('закрытие забывает прошлую выдачу', async () => {
+    // Иначе следующее открытие показывает найденное прошлый раз, будто это
+    // ответ на новый запрос. Свойство меняется у того же самого компонента:
+    // пересоздание дало бы чистое состояние само по себе, и проверка проходила
+    // бы и без исправления.
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    const props = reactiveProps({ spaces, open: true, onclose: () => {} });
+    component = mount(QuickSearch, { target: host, props }) as Record<string, unknown>;
+    flushSync();
+
+    type(host, 'рег');
+    await settle();
+    expect(host.textContent).toContain('Регламент');
+
+    props.open = false;
+    flushSync();
+    props.open = true;
+    flushSync();
+
+    expect(host.querySelector('input')?.value).toBe('');
+    expect(host.textContent).not.toContain('Регламент');
   });
 
   it('пустой запрос ничего не спрашивает', async () => {

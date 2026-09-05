@@ -62,6 +62,16 @@ describe('Breadcrumbs', () => {
     expect(box.querySelector('[aria-expanded]')).not.toBeNull();
   });
 
+  it('текущая страница помечена одна', () => {
+    // Пометка стояла на каждой крошке, кроме первой: при трёх уровнях
+    // промежуточная тоже объявлялась текущей страницей.
+    const box = render(3);
+    const marked = [...box.querySelectorAll('[aria-current="page"]')].map((one) =>
+      (one.textContent ?? '').trim()
+    );
+    expect(marked).toEqual(['Уровень 2']);
+  });
+
   it('спрятанные уровни открываются кнопкой и остаются ссылками', () => {
     const box = render(7);
     const more = box.querySelector('[aria-expanded]') as HTMLButtonElement;

@@ -2295,5 +2295,7 @@
   "Updated page": "Seite aktualisiert",
   "Advanced search": "Erweiterte Suche",
   "No attachments match your search.": "Keine Anhänge zu Ihrer Suche gefunden.",
-  "Avatar": "Avatar"
+  "Avatar": "Avatar",
+  "Copying failed": "Kopieren fehlgeschlagen",
+  "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com"
 }

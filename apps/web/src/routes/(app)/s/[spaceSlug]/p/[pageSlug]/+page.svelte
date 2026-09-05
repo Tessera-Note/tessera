@@ -20,7 +20,8 @@
     IconStarFilled,
     IconTemplate,
     IconTextCaption,
-    IconTrash
+    IconTrash,
+    IconTrashX
   } from '@tabler/icons-svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
@@ -240,6 +241,36 @@
       savedTemplate = true;
     });
 
+  /**
+   * Удаление спрашивает второй раз.
+   *
+   * Значок стоит в ряду с девятью такими же, и промах по соседнему уносил
+   * страницу без вопроса. Удаление мягкое, но возвращать из корзины —
+   * отдельная работа, а в v1 здесь стоит окно с подтверждением. Спрашивается
+   * на месте, а не окном: окну нужна ловушка фокуса и выход по Escape, то есть
+   * куда больше кода ради того же одного вопроса.
+   */
+  let removing = $state(false);
+  let removeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function askRemove() {
+    if (removing) {
+      removing = false;
+      if (removeTimer) clearTimeout(removeTimer);
+      void remove();
+      return;
+    }
+    removing = true;
+    if (removeTimer) clearTimeout(removeTimer);
+    // Вопрос снимается сам: иначе кнопка остаётся заряженной, и следующий
+    // случайный щелчок по ней срабатывает без вопроса.
+    removeTimer = setTimeout(() => (removing = false), 4000);
+  }
+
+  $effect(() => () => {
+    if (removeTimer) clearTimeout(removeTimer);
+  });
+
   const remove = () =>
     act(async () => {
       // Удаление мягкое: страница уходит в корзину, откуда её возвращают.
@@ -372,7 +403,13 @@
             disabled={busy}
             onclick={() => (moving = !moving)}
           />
-          <IconButton icon={IconTrash} label={t('Delete')} disabled={busy} onclick={remove} />
+          <IconButton
+            icon={removing ? IconTrashX : IconTrash}
+            label={removing ? t('Confirm') : t('Delete')}
+            active={removing}
+            disabled={busy}
+            onclick={askRemove}
+          />
         {/if}
 
         <IconButton

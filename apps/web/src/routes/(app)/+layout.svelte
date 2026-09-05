@@ -86,6 +86,7 @@
     const timer = setTimeout(async () => {
       try {
         found = await searchChats(query);
+        chatFailure = null;
       } catch (error) {
         chatFailure = errorText(error, t);
       }
@@ -119,6 +120,9 @@
       const next = await listChats(cursor);
       more = [...more, ...next.items];
       cursor = next.nextCursor;
+      // Отказ снимается удавшимся действием. Иначе одна неудача оставляет
+      // красную строку в панели навсегда, поверх всего, что вышло потом.
+      chatFailure = null;
     } catch (error) {
       chatFailure = errorText(error, t);
     }
@@ -131,6 +135,7 @@
       await renameChat(chatId, title);
       renaming = null;
       newTitle = '';
+      chatFailure = null;
       await invalidateAll();
     } catch (error) {
       chatFailure = errorText(error, t);
@@ -140,6 +145,7 @@
   async function dropChat(chatId: string) {
     try {
       await deleteChat(chatId);
+      chatFailure = null;
       if (page.params.chatId === chatId) await goto('/ai');
       else await invalidateAll();
     } catch (error) {
@@ -155,6 +161,18 @@
    * надо сначала перейти.
    */
   let quickOpen = $state(false);
+
+  /**
+   * Как это сочетание называется на этой машине.
+   *
+   * Обработчик принимает и Ctrl, и Cmd, а подсказка называла Ctrl всем: на
+   * Mac она указывала не на ту клавишу. Определяется по платформе браузера, а
+   * на сервере остаётся Ctrl — там платформы читающего не знают.
+   */
+  const shortcut = $derived.by(() => {
+    if (typeof navigator === 'undefined') return 'Ctrl K';
+    return /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent) ? '⌘ K' : 'Ctrl K';
+  });
 
   $effect(() => {
     function onkeydown(event: KeyboardEvent) {
@@ -189,7 +207,7 @@
     >
       <span>{t('Search')}</span>
       <!-- Подсказка сочетания: без неё о нём узнают только те, кто его знал. -->
-      <kbd class="rounded border border-border px-1 text-xs">Ctrl K</kbd>
+      <kbd class="rounded border border-border px-1 text-xs">{shortcut}</kbd>
     </button>
 
     <div class="flex items-center gap-1 text-sm">

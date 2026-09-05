@@ -35,7 +35,15 @@
   let field: HTMLInputElement | undefined = $state();
 
   $effect(() => {
-    if (!open) return;
+    if (!open) {
+      // Закрытое окно забывает прошлое: иначе следующее открытие показывает
+      // выдачу и отказ прошлого раза, будто их только что нашли.
+      query = '';
+      hits = [];
+      asked = false;
+      failure = null;
+      return;
+    }
     // Поле получает ввод сразу: окно открывают, чтобы печатать.
     field?.focus();
   });

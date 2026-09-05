@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page as current } from '$app/state';
+  import { copyText } from '$lib/features/clipboard';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { NodeViewProps } from '../node-view.svelte';
 
@@ -18,11 +19,12 @@
    * спросит у источника сам. Копируется адресом, потому что вставка идёт в
    * другой документ, а межстраничного буфера у редактора нет.
    */
-  function copyReference() {
+  async function copyReference() {
     const host = current.data?.page as { id: string } | undefined;
     if (!host || !blockId) return;
-    void navigator.clipboard?.writeText(`${host.id}#${blockId}`);
-    copied = true;
+    // Признак ставится по ответу, а не заранее: в незащищённом соединении
+    // буфера у браузера нет, и «скопировано» было бы неправдой.
+    copied = await copyText(`${host.id}#${blockId}`);
     setTimeout(() => (copied = false), 2000);
   }
 </script>

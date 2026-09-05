@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import CopyButton from '$lib/components/ui/CopyButton.svelte';
   import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
@@ -47,10 +48,12 @@
     failure = null;
     try {
       await action();
-      await invalidateAll();
     } catch (error) {
       failure = errorText(error, t);
     } finally {
+      // Перечитывание и после отказа: выбор роли односторонний, и без него в
+      // таблице осталась бы роль, которую сервер не принял.
+      await invalidateAll();
       busy = null;
     }
   }
@@ -86,7 +89,7 @@
     <h2 class="mb-4 text-lg font-medium">{t('Invite members')}</h2>
 
     <Field label={t('Email')}>
-      <TextInput bind:value={emails} placeholder="anna@example.com, ivan@example.com" />
+      <TextInput bind:value={emails} placeholder={t('anna@example.com, ivan@example.com')} />
     </Field>
 
     <Field label={t('Role')}>
@@ -178,9 +181,7 @@
     <Panel title={t('Invite link')} hint={t('Anyone with this link can join this workspace.')}>
       <p class="mb-3 break-all rounded bg-surface px-3 py-2 font-mono text-sm">{link}</p>
       <div class="flex gap-2">
-        <Button variant="quiet" onclick={() => navigator.clipboard?.writeText(link ?? '')}>
-          {t('Copy')}
-        </Button>
+        <CopyButton text={link ?? ''} />
         <Button variant="quiet" onclick={() => (link = null)}>{t('Close')}</Button>
       </div>
     </Panel>

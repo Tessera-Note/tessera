@@ -35,6 +35,18 @@
   let profileBusy = $state(false);
   let profileFailure = $state<string | null>(null);
   let profileSaved = $state(false);
+  let passwordSaved = $state(false);
+
+  /**
+   * Сообщение об успехе гаснет само.
+   *
+   * «Сохранено» висело до ухода с экрана и через минуту относилось уже
+   * неизвестно к чему: человек успевал поправить поля заново.
+   */
+  function fades(set: (value: boolean) => void) {
+    set(true);
+    setTimeout(() => set(false), 4000);
+  }
 
   /**
    * Аватар учётной записи.
@@ -82,7 +94,6 @@
   let newPassword = $state('');
   let passwordBusy = $state(false);
   let passwordFailure = $state<string | null>(null);
-  let passwordSaved = $state(false);
 
   async function saveProfile(event: SubmitEvent) {
     event.preventDefault();
@@ -94,7 +105,7 @@
       // Язык берётся из учётной записи слоем приложения: без перечитывания
       // страница осталась бы на прежнем языке до перезагрузки.
       await invalidateAll();
-      profileSaved = true;
+      fades((value) => (profileSaved = value));
     } catch (error) {
       profileFailure = errorText(error, t);
     } finally {
@@ -111,7 +122,7 @@
       await changePassword(oldPassword, newPassword);
       oldPassword = '';
       newPassword = '';
-      passwordSaved = true;
+      fades((value) => (passwordSaved = value));
     } catch (error) {
       passwordFailure = errorText(error, t);
     } finally {

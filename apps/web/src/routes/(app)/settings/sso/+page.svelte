@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import CopyButton from '$lib/components/ui/CopyButton.svelte';
   import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
@@ -371,12 +372,7 @@
     >
       <p class="mb-3 break-all rounded bg-surface px-3 py-2 font-mono text-sm">{created.token}</p>
       <div class="flex gap-2">
-        <Button
-          variant="quiet"
-          onclick={() => navigator.clipboard?.writeText(created?.token ?? '')}
-        >
-          {t('Copy')}
-        </Button>
+        <CopyButton text={created?.token ?? ''} />
         <Button variant="quiet" onclick={() => (created = null)}>{t('Close')}</Button>
       </div>
     </Panel>

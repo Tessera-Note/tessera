@@ -156,3 +156,48 @@ export function trashedPages(
 export function restorePage(pageId: string, fetcher?: typeof fetch) {
   return post<{ status: string }>('/api/pages/restore', { pageId }, { fetcher });
 }
+
+/**
+ * Строка перечня страниц: название, адрес и пространство.
+ *
+ * Отдельный вид, а не `PageSummary`: тому пространство приходит
+ * идентификатором, а перечню нужно и короткое имя для ссылки, и название для
+ * показа — иначе экрану пришлось бы искать их по всем пространствам.
+ */
+export type PageListing = {
+  id: string;
+  slugId: string;
+  title: string | null;
+  icon: string | null;
+  spaceId: string;
+  spaceSlug: string;
+  spaceName: string | null;
+  updatedAt: string | null;
+  createdAt: string | null;
+};
+
+/** Что правили последним. Без пространства — по всем доступным. */
+export function recentPages(
+  spaceId?: string | null,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<PageListing[]>(
+    '/api/pages/recent',
+    { spaceId: spaceId || undefined },
+    { fetcher, headers }
+  );
+}
+
+/** Что человек завёл сам. Без идентификатора — спрашивающий. */
+export function pagesCreatedBy(
+  userId?: string | null,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<PageListing[]>(
+    '/api/pages/created-by-user',
+    { userId: userId || undefined },
+    { fetcher, headers }
+  );
+}

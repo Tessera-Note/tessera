@@ -255,7 +255,12 @@
         class:bg-surface={tab === key}
         class:font-medium={tab === key}
         type="button"
-        onclick={() => (tab = key as typeof tab)}
+        onclick={() => {
+          tab = key as typeof tab;
+          // Открытая версия относится к вкладке истории: под меткой или
+          // доступом её текст стоял бы без всякой связи с показанным.
+          preview = null;
+        }}
       >
         {title}
       </button>
