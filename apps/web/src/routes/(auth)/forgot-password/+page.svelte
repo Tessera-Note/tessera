@@ -35,10 +35,10 @@
 
 <form
   data-route="forgot-password"
-  class="card-soft rounded-md border border-border bg-surface-raised p-8 shadow-sm"
+  class="card-soft rounded border border-border bg-surface-raised p-8 shadow-[0_2px_45px_4px_rgba(0,0,0,0.07)]"
   onsubmit={submit}
 >
-  <h1 class="mb-6 text-xl font-semibold">{t('Forgot password')}</h1>
+  <h1 class="mb-6 text-center text-2xl font-medium">{t('Forgot password')}</h1>
 
   {#if sent}
     <Notice
@@ -48,12 +48,18 @@
     <a class="text-sm underline" href="/login">{t('Back to login')}</a>
   {:else}
     <Field label={t('Email')}>
-      <TextInput bind:value={email} type="email" autocomplete="username" required />
+      <TextInput
+        bind:value={email}
+        type="email"
+        autocomplete="username"
+        placeholder="email@example.com"
+        required
+      />
     </Field>
 
     {#if failure}<Notice message={failure} />{/if}
 
-    <Button type="submit" disabled={busy}>
+    <Button type="submit" wide disabled={busy}>
       {busy ? t('Loading...') : t('Send reset link')}
     </Button>
     <a class="mt-4 block text-sm underline" href="/login">{t('Back to login')}</a>

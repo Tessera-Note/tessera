@@ -37,10 +37,10 @@
 
 <form
   data-route="login-mfa"
-  class="card-soft rounded-md border border-border bg-surface-raised p-8 shadow-sm"
+  class="card-soft rounded border border-border bg-surface-raised p-8 shadow-[0_2px_45px_4px_rgba(0,0,0,0.07)]"
   onsubmit={submit}
 >
-  <h1 class="mb-2 text-xl font-semibold">{t('Two-factor authentication')}</h1>
+  <h1 class="mb-2 text-center text-2xl font-medium">{t('Two-factor authentication')}</h1>
   <p class="mb-6 text-sm text-text-muted">
     {t('Enter the 6-digit code found in your authenticator app')}
   </p>
@@ -56,7 +56,7 @@
 
   {#if failure}<Notice message={failure} />{/if}
 
-  <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Verify')}</Button>
+  <Button type="submit" wide disabled={busy}>{busy ? t('Loading...') : t('Verify')}</Button>
 
   <a class="mt-4 block text-sm underline" href="/login">{t('Back to login')}</a>
 </form>

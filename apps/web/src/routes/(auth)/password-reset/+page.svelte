@@ -4,6 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import PasswordInput from '$lib/components/ui/PasswordInput.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
   import { resetPassword } from '$lib/features/auth/services/auth';
@@ -46,24 +47,26 @@
 
 <form
   data-route="password-reset"
-  class="card-soft rounded-md border border-border bg-surface-raised p-8 shadow-sm"
+  class="card-soft rounded border border-border bg-surface-raised p-8 shadow-[0_2px_45px_4px_rgba(0,0,0,0.07)]"
   onsubmit={submit}
 >
-  <h1 class="mb-6 text-xl font-semibold">{t('Reset password')}</h1>
+  <h1 class="mb-6 text-center text-2xl font-medium">{t('Reset password')}</h1>
 
   {#if !token}
     <Notice message={t('The link is invalid or has expired')} />
     <a class="text-sm underline" href="/forgot-password">{t('Forgot password')}</a>
   {:else}
     <Field label={t('New password')}>
-      <TextInput bind:value={password} type="password" autocomplete="new-password" required />
+      <PasswordInput bind:value={password} autocomplete="new-password" required />
     </Field>
     <Field label={t('Confirm password')}>
-      <TextInput bind:value={confirmation} type="password" autocomplete="new-password" required />
+      <PasswordInput bind:value={confirmation} autocomplete="new-password" required />
     </Field>
 
     {#if failure}<Notice message={failure} />{/if}
 
-    <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Reset password')}</Button>
+    <Button type="submit" wide disabled={busy}
+      >{busy ? t('Loading...') : t('Reset password')}</Button
+    >
   {/if}
 </form>

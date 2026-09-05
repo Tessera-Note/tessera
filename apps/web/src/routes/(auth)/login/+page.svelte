@@ -4,7 +4,10 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import PasswordInput from '$lib/components/ui/PasswordInput.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
+  /** Подсказка в поле почты. Та же, что в v1. */
+  const EMAIL_HINT = 'email@example.com';
   import { errorText } from '$lib/api/failure';
   import { login } from '$lib/features/auth/services/auth';
   import SsoLogin from '$lib/features/sso/components/SsoLogin.svelte';
@@ -56,10 +59,10 @@
 
 <form
   data-route="login"
-  class="card-soft rounded-md border border-border bg-surface-raised p-8 shadow-sm"
+  class="card-soft rounded border border-border bg-surface-raised p-8 shadow-[0_2px_45px_4px_rgba(0,0,0,0.07)]"
   onsubmit={submit}
 >
-  <h1 class="mb-6 text-xl font-semibold">{t('Login')}</h1>
+  <h1 class="mb-6 text-center text-2xl font-medium">{t('Login')}</h1>
 
   <SsoLogin
     workspace={data.workspace}
@@ -68,15 +71,30 @@
   />
 
   <Field label={t('Email')}>
-    <TextInput bind:value={email} type="email" autocomplete="username" required />
+    <TextInput
+      bind:value={email}
+      type="email"
+      autocomplete="username"
+      placeholder={EMAIL_HINT}
+      required
+    />
   </Field>
   <Field label={t('Password')}>
-    <TextInput bind:value={password} type="password" autocomplete="current-password" required />
+    <PasswordInput
+      bind:value={password}
+      autocomplete="current-password"
+      placeholder={t('Your password')}
+      required
+    />
   </Field>
+
+  <!-- Ссылка над кнопкой и справа, как в v1: под кнопкой она читается как
+       второе действие формы, а не как выход из неё. -->
+  <p class="mb-4 text-right">
+    <a class="text-sm underline" href="/forgot-password">{t('Forgot your password?')}</a>
+  </p>
 
   {#if failure}<Notice message={failure} />{/if}
 
-  <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Sign In')}</Button>
-
-  <a class="mt-4 block text-sm underline" href="/forgot-password">{t('Forgot password')}</a>
+  <Button type="submit" wide disabled={busy}>{busy ? t('Loading...') : t('Sign In')}</Button>
 </form>

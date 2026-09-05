@@ -55,9 +55,9 @@
 
 <section
   data-route="login-mfa-setup"
-  class="card-soft rounded-md border border-border bg-surface-raised p-8 shadow-sm"
+  class="card-soft rounded border border-border bg-surface-raised p-8 shadow-[0_2px_45px_4px_rgba(0,0,0,0.07)]"
 >
-  <h1 class="mb-2 text-xl font-semibold">{t('Set up two-factor authentication')}</h1>
+  <h1 class="mb-2 text-center text-2xl font-medium">{t('Set up two-factor authentication')}</h1>
   <p class="mb-6 text-sm text-text-muted">
     {t(
       'To continue accessing your workspace, you must set up two-factor authentication. This adds an extra layer of security to your account.'
@@ -92,7 +92,7 @@
       <Field label={t('Enter the 6-digit code found in your authenticator app')}>
         <TextInput bind:value={code} placeholder="123456" required />
       </Field>
-      <Button type="submit" disabled={busy}>{busy ? t('Loading...') : t('Continue')}</Button>
+      <Button type="submit" wide disabled={busy}>{busy ? t('Loading...') : t('Continue')}</Button>
     </form>
   {:else}
     <Button disabled={busy} onclick={begin}>
