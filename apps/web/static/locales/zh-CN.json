@@ -2300,5 +2300,8 @@
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "提问",
   "Unknown user": "未知用户",
-  "Delete permanently": "永久删除"
+  "Delete permanently": "永久删除",
+  "Index attachments": "索引附件",
+  "Index attachment text so it can be found by search.": "索引附件文本，使其可被搜索到。",
+  "Processed {{count}} files": "已处理 {{count}} 个文件"
 }

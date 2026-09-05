@@ -22,6 +22,19 @@ from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.workspace import WorkspaceService
 
 
+def _identifier(raw: str, code: str) -> uuid.UUID:
+    """Идентификатор из тела запроса.
+
+    Голый `uuid.UUID` отвечает на опечатку пятисотым: обработчик отказов знает
+    только `AppError`, а `ValueError` до него не доходит. Код отказа называет
+    предмет — «не найдено» у того, чей это идентификатор.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found(code) from error
+
+
 class ChangeRoleRequest(msgspec.Struct):
     userId: str  # noqa: N815 — имя поля из v1
     role: str
@@ -282,7 +295,10 @@ class WorkspaceController(Controller):
     ) -> MemberView:
         actor, principal = await self._actor(request, db_session)
         updated = await WorkspaceService(db_session, realtime).change_role(
-            actor, uuid.UUID(data.userId), data.role, principal.workspace_id
+            actor,
+            _identifier(data.userId, "error.common.user_not_found"),
+            data.role,
+            principal.workspace_id,
         )
         return _member_view(updated)
 
@@ -293,7 +309,10 @@ class WorkspaceController(Controller):
     ) -> MemberView:
         actor, principal = await self._actor(request, db_session)
         updated = await WorkspaceService(db_session, realtime).set_active(
-            actor, uuid.UUID(data.userId), False, principal.workspace_id
+            actor,
+            _identifier(data.userId, "error.common.user_not_found"),
+            False,
+            principal.workspace_id,
         )
         return _member_view(updated)
 
@@ -314,7 +333,9 @@ class WorkspaceController(Controller):
         """
         actor, principal = await self._actor(request, db_session)
         await WorkspaceService(db_session, realtime, storage).delete_member(
-            actor, uuid.UUID(data.userId), principal.workspace_id
+            actor,
+            _identifier(data.userId, "error.common.user_not_found"),
+            principal.workspace_id,
         )
         return {"success": True}
 
@@ -325,6 +346,9 @@ class WorkspaceController(Controller):
     ) -> MemberView:
         actor, principal = await self._actor(request, db_session)
         updated = await WorkspaceService(db_session, realtime).set_active(
-            actor, uuid.UUID(data.userId), True, principal.workspace_id
+            actor,
+            _identifier(data.userId, "error.common.user_not_found"),
+            True,
+            principal.workspace_id,
         )
         return _member_view(updated)

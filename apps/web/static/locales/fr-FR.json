@@ -2300,5 +2300,8 @@
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "Demander",
   "Unknown user": "Utilisateur inconnu",
-  "Delete permanently": "Supprimer définitivement"
+  "Delete permanently": "Supprimer définitivement",
+  "Index attachments": "Indexer les pièces jointes",
+  "Index attachment text so it can be found by search.": "Indexer le texte des pièces jointes pour qu'il soit trouvé par la recherche.",
+  "Processed {{count}} files": "{{count}} fichiers traités"
 }

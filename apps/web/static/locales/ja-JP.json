@@ -2300,5 +2300,8 @@
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "質問",
   "Unknown user": "不明なユーザー",
-  "Delete permanently": "完全に削除"
+  "Delete permanently": "完全に削除",
+  "Index attachments": "添付ファイルを索引化",
+  "Index attachment text so it can be found by search.": "添付ファイルの本文を索引化して検索できるようにします。",
+  "Processed {{count}} files": "{{count}} 件のファイルを処理"
 }

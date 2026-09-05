@@ -65,6 +65,31 @@ def _version_uuid(raw: str) -> uuid.UUID:
         raise not_found("error.page.version_not_found") from error
 
 
+def _space_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор пространства из тела запроса.
+
+    По тем же основаниям, что и у страницы. Голый `uuid.UUID` отвечал бы
+    пятисотым на опечатку: обработчик отказов знает только `AppError`.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.space.space_not_found") from error
+
+
+def _user_uuid(raw: str) -> uuid.UUID:
+    """Идентификатор человека из тела запроса.
+
+    Свой помощник, а не общий с страницей: отказ называет предмет, и «страница
+    не найдена» в ответ на негодный идентификатор человека сбивает с толку
+    того, кто читает ответ.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found("error.common.user_not_found") from error
+
+
 def _page_uuid(raw: str) -> uuid.UUID:
     """Идентификатор страницы из тела запроса.
 
@@ -634,12 +659,12 @@ class WatcherController(Controller):
     ) -> list[dict]:
         """Страницы, заведённые человеком. Пустой — свои."""
         principal: Principal = request.scope["principal"]
-        author = _page_uuid(data.userId) if data.userId else principal.user_id
+        author = _user_uuid(data.userId) if data.userId else principal.user_id
         found = await PageService(db_session).created_by(
             author,
             principal.user_id,
             principal.workspace_id,
-            space_id=_page_uuid(data.spaceId) if data.spaceId else None,
+            space_id=_space_uuid(data.spaceId) if data.spaceId else None,
             limit=data.limit or 50,
         )
         return [_listing_view(page, space) for page, space in found]
@@ -854,7 +879,7 @@ class LabelController(Controller):
             principal.user_id,
             label_id=_label_uuid(data.labelId) if data.labelId else None,
             name=data.name,
-            space_id=uuid.UUID(data.spaceId) if data.spaceId else None,
+            space_id=_space_uuid(data.spaceId) if data.spaceId else None,
         )
         return [
             {

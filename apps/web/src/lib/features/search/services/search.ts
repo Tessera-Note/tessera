@@ -46,6 +46,17 @@ export type AttachmentHit = {
  * Отдельным обращением, а не признаком у поиска по страницам: у выдачи другой
  * состав полей и другой смысл. Так же на сервере — отдельный маршрут.
  */
+/**
+ * Разобрать вложения, которые ещё не разбирались.
+ *
+ * Право администратора: проход читает файлы всего рабочего пространства,
+ * включая приложенные к закрытым страницам. Без него поиск по вложениям молча
+ * не находит ничего — искать не в чем.
+ */
+export function indexAttachments(fetcher?: typeof fetch) {
+  return post<{ processed: number }>('/api/search-attachments/indexing', {}, { fetcher });
+}
+
 export function searchAttachments(query: string, spaceId?: string | null, fetcher?: typeof fetch) {
   return post<AttachmentHit[]>(
     '/api/search-attachments',

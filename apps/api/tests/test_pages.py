@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tessera_api.api import pages as pages_api
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import Page, Space, SpaceMember, User
@@ -709,3 +710,43 @@ class TestForceDelete:
         with pytest.raises(AppError) as failure:
             await PageService(session).force_delete(uuid.uuid4(), world["owner"].id)
         assert failure.value.code == "error.page.page_not_found"
+
+
+class TestIdentifiersFromTheBody:
+    """Негодный идентификатор — отказ «не найдено», а не пятисотый.
+
+    Обработчик отказов знает только `AppError`; `ValueError` до него не
+    доходит и превращается в ответ о поломке сервера. Разные отказы на «не
+    существует» и «не разобрано» вдобавок позволяют перебором нащупывать
+    формат чужих идентификаторов.
+    """
+
+    def test_a_good_value_parses(self) -> None:
+        wanted = uuid.uuid4()
+        assert pages_api._space_uuid(str(wanted)) == wanted
+        assert pages_api._user_uuid(str(wanted)) == wanted
+
+    def test_rubbish_is_refused_by_the_subject(self) -> None:
+        # Код отказа называет предмет: «страница не найдена» в ответ на
+        # негодный идентификатор человека сбивает с толку читающего ответ.
+        with pytest.raises(AppError) as space:
+            pages_api._space_uuid("не идентификатор")
+        assert space.value.code == "error.space.space_not_found"
+
+        with pytest.raises(AppError) as person:
+            pages_api._user_uuid("не идентификатор")
+        assert person.value.code == "error.common.user_not_found"
+
+    def test_nothing_is_refused_too(self) -> None:
+        with pytest.raises(AppError):
+            pages_api._space_uuid(None)  # type: ignore[arg-type]
+
+    def test_the_same_rule_holds_in_the_other_routes(self) -> None:
+        """Тот же класс правился ещё в двух файлах маршрутов."""
+        from tessera_api.api.page_verification import _identifier as verification_id
+        from tessera_api.api.workspace import _identifier as workspace_id
+
+        for parse in (verification_id, workspace_id):
+            with pytest.raises(AppError) as failure:
+                parse("не идентификатор", "error.space.space_not_found")
+            assert failure.value.status_code == 404

@@ -2318,5 +2318,8 @@
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "Спросить",
   "Unknown user": "Неизвестный",
-  "Delete permanently": "Удалить насовсем"
+  "Delete permanently": "Удалить насовсем",
+  "Index attachments": "Разобрать вложения",
+  "Index attachment text so it can be found by search.": "Разобрать текст вложений, чтобы он находился поиском.",
+  "Processed {{count}} files": "Разобрано файлов: {{count}}"
 }

@@ -11,6 +11,7 @@ from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api.guards import Principal
+from tessera_api.domain.errors import not_found
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.page_verification import (
@@ -19,6 +20,19 @@ from tessera_api.services.page_verification import (
     PageVerificationService,
 )
 from tessera_api.services.realtime import RealtimeService
+
+
+def _identifier(raw: str, code: str) -> uuid.UUID:
+    """Идентификатор из тела запроса.
+
+    Голый `uuid.UUID` отвечает на опечатку пятисотым: обработчик отказов знает
+    только `AppError`, а `ValueError` до него не доходит. Код отказа называет
+    предмет — «не найдено» у того, чей это идентификатор.
+    """
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError) as error:
+        raise not_found(code) from error
 
 
 class PageIdRequest(msgspec.Struct):
@@ -68,7 +82,11 @@ class PageVerificationController(Controller):
         return await PageVerificationService(db_session, realtime, mailer).listing(
             principal.user_id,
             principal.workspace_id,
-            space_id=uuid.UUID(data.spaceId) if data.spaceId else None,
+            space_id=(
+                _identifier(data.spaceId, "error.space.space_not_found")
+                if data.spaceId
+                else None
+            ),
             status=data.status,
             limit=data.limit or DEFAULT_LIST,
         )

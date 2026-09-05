@@ -2300,5 +2300,8 @@
   "anna@example.com, ivan@example.com": "anna@example.com, ivan@example.com",
   "Ask": "Vragen",
   "Unknown user": "Onbekende gebruiker",
-  "Delete permanently": "Definitief verwijderen"
+  "Delete permanently": "Definitief verwijderen",
+  "Index attachments": "Bijlagen indexeren",
+  "Index attachment text so it can be found by search.": "Indexeer de tekst van bijlagen zodat zoeken die vindt.",
+  "Processed {{count}} files": "{{count}} bestanden verwerkt"
 }
