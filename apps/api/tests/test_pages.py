@@ -273,6 +273,47 @@ class TestListings:
         )
         assert theirs == []
 
+    async def test_created_by_narrows_to_a_space(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Отбор делает запрос, а не вызывающий.
+
+        Предел в полсотни строк берётся до отбора: отсев на стороне клиента
+        показывал бы пустой перечень там, где страницы есть, — просто не попали
+        в первую полусотню.
+        """
+        service = PageService(session)
+        mine = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Моя в пространстве",
+        )
+
+        found = await service.created_by(
+            world["owner"].id,
+            world["owner"].id,
+            world["workspace"].id,
+            space_id=world["space"].id,
+        )
+        assert mine.id in [one[0].id for one in found]
+        assert {one[0].space_id for one in found} == {world["space"].id}
+
+    async def test_created_by_refuses_a_space_that_is_not_open(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Чужое пространство доводом не открывается."""
+        service = PageService(session)
+        assert (
+            await service.created_by(
+                world["owner"].id,
+                world["owner"].id,
+                world["workspace"].id,
+                space_id=uuid.uuid4(),
+            )
+            == []
+        )
+
 
 class TestTrash:
     async def test_branch_goes_together(self, session: AsyncSession, world) -> None:

@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
   const [recent, favorites, mine] = await Promise.all([
     recentPages(null, fetch, headers).catch((): PageListing[] => []),
     listFavorites(fetch, headers).catch((): Favorite[] => []),
-    pagesCreatedBy(null, fetch, headers).catch((): PageListing[] => [])
+    pagesCreatedBy(null, null, fetch, headers).catch((): PageListing[] => [])
   ]);
 
   return { recent, favorites, mine };

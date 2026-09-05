@@ -577,6 +577,7 @@ class RecentPagesRequest(msgspec.Struct):
 
 class CreatedByRequest(msgspec.Struct):
     userId: str | None = None  # noqa: N815 — имя поля из v1
+    spaceId: str | None = None  # noqa: N815 — имя поля из v1
     limit: int | None = None
 
 
@@ -618,7 +619,11 @@ class WatcherController(Controller):
         principal: Principal = request.scope["principal"]
         author = _page_uuid(data.userId) if data.userId else principal.user_id
         found = await PageService(db_session).created_by(
-            author, principal.user_id, principal.workspace_id, limit=data.limit or 50
+            author,
+            principal.user_id,
+            principal.workspace_id,
+            space_id=_page_uuid(data.spaceId) if data.spaceId else None,
+            limit=data.limit or 50,
         )
         return [_listing_view(page, space) for page, space in found]
 
@@ -905,6 +910,9 @@ class FavoriteController(Controller):
                 "title": page.title,
                 "slugId": page.slug_id,
                 "icon": page.icon,
+                # Идентификатор рядом с коротким именем: по нему экран
+                # пространства отбирает своё, а короткое имя нужно ссылке.
+                "spaceId": space.id,
                 "spaceSlug": space.slug,
                 "spaceName": space.name,
             }

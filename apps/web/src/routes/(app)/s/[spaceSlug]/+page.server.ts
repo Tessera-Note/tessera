@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { ApiError } from '$lib/api/client';
 import { getSpace, spaceWatchStatus } from '$lib/features/space/services/spaces';
-import { pageTree } from '$lib/features/page/services/pages';
+import { listFavorites, type Favorite } from '$lib/features/page/services/favorites';
+import { pagesCreatedBy, recentPages, type PageListing } from '$lib/features/page/services/pages';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, fetch, request }) => {
@@ -10,14 +11,21 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
 
   try {
     const space = await getSpace(params.spaceSlug, fetch, headers);
-    // Корень дерева: у страниц верхнего уровня родителя нет.
-    const pages = await pageTree(space.id, null, fetch, headers);
     // Состояние подписки не должно ронять экран: пространство открывается и
     // без него, а кнопка просто покажет «подписаться».
     const watching = await spaceWatchStatus(space.id, fetch, headers).catch(() => ({
       isWatching: false
     }));
-    return { space, pages, watching };
+
+    // Те же три перечня, что на главной. Отказ одного не отменяет экран:
+    // пространство должно открыться и с двумя из трёх.
+    const [recent, favorites, mine] = await Promise.all([
+      recentPages(space.id, fetch, headers).catch((): PageListing[] => []),
+      listFavorites(fetch, headers).catch((): Favorite[] => []),
+      pagesCreatedBy(null, space.id, fetch, headers).catch((): PageListing[] => [])
+    ]);
+
+    return { space, watching, recent, favorites, mine };
   } catch (failure) {
     if (failure instanceof ApiError) {
       // Код отказа доходит до экрана: он и есть ключ перевода, а текст с

@@ -14,6 +14,7 @@ export type Favorite = {
   title: string | null;
   slugId: string;
   icon: string | null;
+  spaceId: string;
   spaceSlug: string;
   spaceName: string | null;
 };

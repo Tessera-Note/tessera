@@ -189,15 +189,22 @@ export function recentPages(
   );
 }
 
-/** Что человек завёл сам. Без идентификатора — спрашивающий. */
+/**
+ * Что человек завёл сам. Без идентификатора — спрашивающий.
+ *
+ * Пространство отбирает сервер: предел в полсотни строк берётся до отбора, и
+ * отсев на стороне клиента показывал бы пустой перечень там, где страницы
+ * есть, — просто не попали в первую полусотню.
+ */
 export function pagesCreatedBy(
   userId?: string | null,
+  spaceId?: string | null,
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
   return post<PageListing[]>(
     '/api/pages/created-by-user',
-    { userId: userId || undefined },
+    { userId: userId || undefined, spaceId: spaceId || undefined },
     { fetcher, headers }
   );
 }

@@ -379,14 +379,22 @@ class PageService:
         viewer_id: uuid.UUID,
         workspace_id: uuid.UUID,
         *,
+        space_id: uuid.UUID | None = None,
         limit: int = 50,
     ) -> list[tuple[Page, Space]]:
         """Страницы, заведённые человеком.
 
         Право проверяется по смотрящему, а не по автору: перечень своих страниц
         человек видит целиком, а чужих — ровно в той части, которая ему открыта.
+
+        Отбор по пространству делает запрос, а не вызывающий: предел в полсотни
+        строк берётся до отбора, и отсев на стороне клиента показывал бы пустой
+        перечень там, где страницы есть, — просто не попали в первую полусотню.
         """
         space_ids = await self._members.space_ids_for(viewer_id)
+        if space_id is not None:
+            # Своё пространство — только если оно доступно смотрящему.
+            space_ids = [one for one in space_ids if one == space_id]
         if not space_ids:
             return []
 

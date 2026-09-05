@@ -4,6 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import PageListTabs from '$lib/components/page/PageListTabs.svelte';
   import { errorText } from '$lib/api/failure';
   import { createPage } from '$lib/features/page/services/pages';
   import { unwatchSpace, watchSpace } from '$lib/features/space/services/spaces';
@@ -96,19 +97,18 @@
 
   {#if failure}<Notice message={failure} />{/if}
 
-  <ul data-component="SpacePageList" class="mt-6 space-y-1">
-    {#each data.pages as page (page.id)}
-      <li>
-        <a
-          class="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-surface"
-          href="/s/{data.space.slug}/p/{page.slugId}"
-        >
-          <span aria-hidden="true">{page.icon ?? '📄'}</span>
-          <span class="truncate">{page.title ?? t('Untitled')}</span>
-        </a>
-      </li>
-    {:else}
-      <li class="px-2 text-text-muted">{t('No pages in this space')}</li>
-    {/each}
-  </ul>
+  <!--
+    Те же три перечня, что на главной, но по этому пространству. В v1 экран
+    пространства и есть эти вкладки (`features/space/components/space-home-tabs.tsx`);
+    здесь стоял плоский список корневых страниц, по которому нельзя было
+    понять, что в пространстве происходило.
+  -->
+  <div class="mt-6">
+    <PageListTabs
+      recent={data.recent}
+      favorites={data.favorites}
+      mine={data.mine}
+      spaceId={data.space.id}
+    />
+  </div>
 </section>
