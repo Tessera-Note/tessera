@@ -1,6 +1,5 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
-  import Button from '$lib/components/ui/Button.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import {
     IconBell,
@@ -19,15 +18,14 @@
     IconStar,
     IconStarFilled,
     IconTemplate,
-    IconTextCaption,
     IconTrash,
     IconTrashX
   } from '@tabler/icons-svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
-  import TextInput from '$lib/components/ui/TextInput.svelte';
   import Editor from '$lib/features/editor/Editor.svelte';
   import Breadcrumbs from '$lib/components/page/Breadcrumbs.svelte';
   import PageComments from '$lib/components/page/PageComments.svelte';
+  import PageTitle from '$lib/components/page/PageTitle.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
@@ -83,14 +81,8 @@
   /** Счёт слов и знаков. Приходит от редактора: считает он, показывает панель. */
   let stats = $state<{ words: number; characters: number } | null>(null);
 
-  let renaming = $state(false);
-  let title = $state('');
   let busy = $state(false);
   let failure = $state<string | null>(null);
-
-  $effect(() => {
-    title = data.page.title ?? '';
-  });
 
   async function act(action: () => Promise<unknown>) {
     busy = true;
@@ -104,15 +96,12 @@
     }
   }
 
-  const rename = (event: SubmitEvent) => {
-    event.preventDefault();
-    return act(async () => {
+  const rename = (title: string) =>
+    act(async () => {
       await updatePage({ pageId: data.page.id, title });
-      renaming = false;
       // Название видно и в дереве, и в хлебных крошках: перечитать надо всё.
       await invalidateAll();
     });
-  };
 
   const toggleFavorite = () =>
     act(async () => {
@@ -371,11 +360,6 @@
             onclick={() => (editing = !editing)}
           />
           <IconButton
-            icon={IconTextCaption}
-            label={t('Rename')}
-            onclick={() => (renaming = true)}
-          />
-          <IconButton
             icon={IconTemplate}
             label={t('New template')}
             disabled={busy}
@@ -450,47 +434,43 @@
       </div>
     </div>
 
-    <div class="mb-6">
-      {#if renaming}
-        <form class="flex gap-2" onsubmit={rename}>
-          <div class="flex-1"><TextInput bind:value={title} required /></div>
-          <Button type="submit" disabled={busy}>{t('Save')}</Button>
-          <Button variant="quiet" onclick={() => (renaming = false)}>{t('Cancel')}</Button>
-        </form>
-      {:else}
-        <h1 class="relative text-3xl font-semibold">
-          {#if canEdit}
-            <!-- Значок страницы это эмодзи в самой странице, а не файл: так же
-                 в v1, и дерево показывает его без второго запроса. -->
-            <button
-              class="mr-2 rounded hover:bg-surface-hover"
-              type="button"
-              title={t('Choose icon')}
-              aria-label={t('Choose icon')}
-              aria-expanded={choosing}
-              onclick={() => (choosing = !choosing)}
-            >
-              {#if data.page.icon}
-                <span aria-hidden="true">{data.page.icon}</span>
-              {:else}
-                <IconMoodSmile size={26} stroke={1.6} />
-              {/if}
-            </button>
-            {#if choosing}
-              <EmojiPicker
-                current={data.page.icon}
-                onpick={setIcon}
-                onclear={clearIcon}
-                onclose={() => (choosing = false)}
-              />
-            {/if}
-          {:else if data.page.icon}
-            <span class="mr-2" aria-hidden="true">{data.page.icon}</span>
+    <h1 class="relative mb-6 flex items-start gap-2">
+      {#if canEdit}
+        <!-- Значок страницы это эмодзи в самой странице, а не файл: так же
+             в v1, и дерево показывает его без второго запроса. -->
+        <button
+          class="mt-0.5 shrink-0 rounded text-3xl leading-tight hover:bg-surface-hover"
+          type="button"
+          title={t('Choose icon')}
+          aria-label={t('Choose icon')}
+          aria-expanded={choosing}
+          onclick={() => (choosing = !choosing)}
+        >
+          {#if data.page.icon}
+            <span aria-hidden="true">{data.page.icon}</span>
+          {:else}
+            <IconMoodSmile size={26} stroke={1.6} />
           {/if}
-          {data.page.title ?? t('Untitled')}
-        </h1>
+        </button>
+        {#if choosing}
+          <EmojiPicker
+            current={data.page.icon}
+            onpick={setIcon}
+            onclear={clearIcon}
+            onclose={() => (choosing = false)}
+          />
+        {/if}
+      {:else if data.page.icon}
+        <span class="shrink-0 text-3xl leading-tight" aria-hidden="true">{data.page.icon}</span>
       {/if}
-    </div>
+
+      <PageTitle
+        title={data.page.title}
+        editable={canEdit && editing}
+        onsave={rename}
+        onleave={() => document.querySelector<HTMLElement>('.tiptap')?.focus()}
+      />
+    </h1>
 
     {#if failure}<Notice message={failure} />{/if}
     {#if savedTemplate}<Notice tone="info" message={t('Template created successfully')} />{/if}
