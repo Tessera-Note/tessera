@@ -115,7 +115,7 @@ TypeScript у сервера `strict: true`, но с послаблениями 
 | `docker-compose.yml` | локальный стек: приложение, PostgreSQL с pgvector, Redis, Gotenberg |
 | `deploy/docker-compose.vps.yml` | продакшен-стек на VPS |
 | `deploy/nginx/*.conf` | обратный прокси, http и https варианты |
-| `crowdin.yml` | синхронизация переводов, источник `en-US/translation.json` |
+| `crowdin.yml` | синхронизация переводов **выключена**, причина и порядок включения в самом файле |
 | `patches/scimmy@1.3.5.patch` | патч зависимости |
 | `apps/client/{vite,vitest}.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.js` | конфиги клиента |
 | `apps/server/{nest-cli.json,tsconfig.json,tsconfig.build.json,eslint.config.mjs,.prettierrc}` | конфиги сервера |
@@ -178,7 +178,11 @@ TypeScript у сервера `strict: true`, но с послаблениями 
 
 Словарь плоский, ключ это английская фраза целиком (`"Add members": "Добавить участников"`). Namespace нет. Интерполяция в формате i18next `{{variable}}`.
 
-Текущее состояние: `en-US` и `pt-BR` по 1338 ключей, `ru-RU` и `uk-UA` по 1291. Переводы синхронизируются через Crowdin по `crowdin.yml`, исходник `en-US`.
+Первая версия: `en-US` и `pt-BR` по 1338 ключей, `ru-RU` и `uk-UA` по 1291.
+
+Вторая версия: словари лежат по одному файлу на локаль в `apps/web/static/locales`, наборы ключей совпадают — 2318 у десяти локалей и 2336 у `ru-RU` и `uk-UA` (разница это славянские формы `_few` и `_many` у девяти множественных семейств). Совпадение наборов проверяет `apps/web/src/lib/i18n/dictionaries.test.ts`.
+
+Переводы **не** синхронизируются: Crowdin выключен, словари ведутся в репозитории и правятся напрямую. Довод и порядок включения в `crowdin.yml`. Не-английский словарь править можно — перезаписывать его больше нечему.
 
 ## Порты и сеть
 
