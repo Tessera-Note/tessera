@@ -145,7 +145,7 @@ class TestCreation:
         assert status["typeOptions"]["choices"]
         assert status["typeOptions"]["choiceOrder"]
         assert info["views"][0]["type"] == "kanban"
-        assert info["views"][0]["config"]["groupBy"] == status["id"]
+        assert info["views"][0]["config"]["groupByPropertyId"] == status["id"]
 
     async def test_a_view_config_is_an_object_not_nothing(
         self, session: AsyncSession, workspace, space
@@ -204,6 +204,52 @@ class TestCreation:
         info = await service.convert(page_id, user_id, workspace.id)
         assert len(info["properties"]) == 1
         assert len(info["views"]) == 1
+
+    async def test_converting_to_a_board_brings_a_status_property(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Чип «Канбан» на пустой странице просит доску, а не таблицу."""
+        user_id = await self._member(session, workspace, space)
+        page_id = uuid.uuid4()
+        await session.execute(
+            insert(Page).values(
+                id=page_id,
+                slug_id=uuid.uuid4().hex[:10],
+                title="Обычная",
+                space_id=space.id,
+                workspace_id=workspace.id,
+                is_base=False,
+            )
+        )
+        await session.commit()
+
+        info = await BaseService(session, RealtimeDouble()).convert(
+            page_id, user_id, workspace.id, template="kanban"
+        )
+        status = next(one for one in info["properties"] if one["type"] == "status")
+        assert info["views"][0]["type"] == "kanban"
+        assert info["views"][0]["config"]["groupByPropertyId"] == status["id"]
+
+    async def test_a_board_reuses_a_property_it_can_group_by(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Второе свойство состояния дало бы доску, сгруппированную не по тому."""
+        user_id = await self._member(session, workspace, space)
+        made = await BaseService(session, RealtimeDouble()).create(
+            user_id=user_id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            template="kanban",
+        )
+        page_id = uuid.UUID(made["id"])
+        chosen = next(one for one in made["properties"] if one["type"] == "status")
+
+        info = await BaseService(session, RealtimeDouble()).convert(
+            page_id, user_id, workspace.id, template="kanban"
+        )
+        assert [one["id"] for one in info["properties"] if one["type"] == "status"] == [
+            chosen["id"]
+        ]
 
     async def test_a_reader_cannot_create(
         self, session: AsyncSession, workspace, space

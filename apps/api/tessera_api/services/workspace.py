@@ -37,6 +37,14 @@ MAX_NAME = 64
 #: Предел срока хранения корзины. Тот же порядок, что у журнала: десять лет.
 MAX_TRASH_DAYS = 3650
 
+#: Режим, с которого новый участник открывает страницу. Не признак, а одно из
+#: двух значений, поэтому живёт отдельно от таблицы признаков.
+PAGE_EDIT_MODE = ("preferences", "defaultPageEditMode")
+
+#: Что принимается за режим. Иной строкой клиент открывал бы страницу неизвестно
+#: как: разбирает её он сам, и незнакомое значение молча падало бы в чтение.
+PAGE_EDIT_MODES = ("read", "edit")
+
 #: Настройки, живущие в JSON рабочего пространства. Путь до значения и имя
 #: поля запроса. Имена полей из v1: их же понимает уже написанный клиент.
 JSON_FLAGS = {
@@ -89,6 +97,8 @@ class WorkspaceService:
         enforce_mfa: bool | None = None,
         enforce_sso: bool | None = None,
         flags: dict[str, bool] | None = None,
+        default_page_edit_mode: str | None = None,
+        scim_enabled: bool | None = None,
     ) -> Workspace:
         """Правка общих настроек рабочего пространства.
 
@@ -141,6 +151,19 @@ class WorkspaceService:
             workspace.enforce_sso = enforce_sso
             changed.append("enforceSso")
 
+        # Колонка, а не признак в JSON: её читает проверка токена SCIM, и
+        # заведена она отдельным полем ещё в схеме v1.
+        if scim_enabled is not None and bool(workspace.is_scim_enabled) != scim_enabled:
+            workspace.is_scim_enabled = scim_enabled
+            changed.append("isScimEnabled")
+
+        if default_page_edit_mode is not None:
+            if default_page_edit_mode not in PAGE_EDIT_MODES:
+                raise bad_request("error.workspace.invalid_page_edit_mode")
+            if default_page_edit_mode != self.page_edit_mode(workspace):
+                self._set_value(workspace, PAGE_EDIT_MODE, default_page_edit_mode)
+                changed.append("defaultPageEditMode")
+
         for field, path in JSON_FLAGS.items():
             value = (flags or {}).get(field)
             if value is None:
@@ -189,8 +212,32 @@ class WorkspaceService:
         return bool(settings)
 
     @staticmethod
+    def page_edit_mode(workspace: Workspace | None) -> str:
+        """С чего новый участник открывает страницу.
+
+        Умолчание «чтение», как и у самого клиента: случайная правка чужой
+        страницы хуже лишнего нажатия. Незнакомое значение считается чтением по
+        той же причине.
+        """
+        settings: object = (workspace.settings if workspace is not None else None) or {}
+        if not isinstance(settings, dict):
+            return "read"
+        block = settings.get(PAGE_EDIT_MODE[0])
+        value = block.get(PAGE_EDIT_MODE[1]) if isinstance(block, dict) else None
+        return value if value in PAGE_EDIT_MODES else "read"
+
+    @staticmethod
     def _set_flag(workspace: Workspace, path: tuple[str, str], value: bool) -> None:
         """Записать признак в JSON настроек.
+
+        Словарь пересобирается целиком: правка вложенного словаря на месте не
+        помечает поле изменённым, и SQLAlchemy такую правку не сохраняет.
+        """
+        WorkspaceService._set_value(workspace, path, value)
+
+    @staticmethod
+    def _set_value(workspace: Workspace, path: tuple[str, str], value: object) -> None:
+        """Записать значение в JSON настроек.
 
         Словарь пересобирается целиком: правка вложенного словаря на месте не
         помечает поле изменённым, и SQLAlchemy такую правку не сохраняет.

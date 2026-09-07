@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 import httpx
 import jwt
@@ -33,11 +34,13 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found, unauthorized
-from tessera_api.infrastructure.models import FileTask, Page
+from tessera_api.infrastructure.models import FileTask, Page, User
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService
+from tessera_api.services.shares import ShareService
+from tessera_api.services.tokens import TokenService
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +148,13 @@ class PdfExportService:
 
         return {"fileTaskId": str(task_id)}
 
+    async def _locale_of(self, user_id: uuid.UUID | None) -> str | None:
+        """Язык человека. Пусто, если его нет: тогда лист берёт запасной."""
+        if user_id is None:
+            return None
+        user = await self._session.get(User, user_id)
+        return (user.locale or None) if user is not None else None
+
     async def _viewable_branch(self, page: Page, user_id: uuid.UUID) -> list[uuid.UUID]:
         """Страница и её потомки, доступные этому человеку.
 
@@ -217,12 +227,18 @@ class PdfExportService:
         order = {one: index for index, one in enumerate(wanted)}
         rows = sorted(rows, key=lambda one: order.get(one.id, 0))
 
+        # Вложения подписываются, как для страницы по ссылке: у браузера
+        # печати нет ни входа, ни куки, и без токенов картинки и диаграммы
+        # уходят в PDF битыми ссылками. Подготовка берётся общая — второе её
+        # описание разошлось бы с первым на первом же новом виде узла.
+        shares = ShareService(self._session)
+        tokens = TokenService(self._secret)
         return {
             "pages": [
                 {
                     "pageId": str(one.id),
                     "title": one.title,
-                    "content": one.content,
+                    "content": await shares.public_content(one, tokens),
                 }
                 for one in rows
             ]
@@ -260,6 +276,12 @@ class PdfExportService:
 
         token = self.issue_render_token(task.id, task.workspace_id)
         address = f"{self._render_base_url}/pdf-render/{task.page_id}?token={token}"
+        # Язык заказавшего печать: у браузера печати нет ни входа, ни куки, и
+        # без этого подписи от приложения — оглавление — уходят на листе
+        # по-английски тому, кто по-английски не читает.
+        speech = await self._locale_of(task.creator_id)
+        if speech:
+            address = f"{address}&locale={quote(speech)}"
 
         form = {
             "url": (None, address),

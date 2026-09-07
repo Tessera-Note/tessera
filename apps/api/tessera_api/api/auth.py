@@ -32,7 +32,9 @@ from tessera_api.services.auth import AuthService
 from tessera_api.services.password_reset import PasswordResetService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.setup import SetupService
+from tessera_api.services.templates import member_templates_allowed
 from tessera_api.services.tokens import DEFAULT_EXPIRES, MFA_EXPIRES, TokenService
+from tessera_api.services.workspace import WorkspaceService
 
 
 def _user_view(user) -> UserView:
@@ -73,6 +75,13 @@ def _workspace_view(workspace) -> WorkspaceView:
         # Тем же путём и по той же причине — признак помощника: поле обращения
         # к нему стоит на главной, у всех, а настройки видит администратор.
         aiChatEnabled=feature_enabled(workspace, "chat"),
+        # И признак шаблонов участника: кнопка «Новый шаблон» показывается по
+        # нему. Читается тем же способом, что и проверка на сервере, — иначе
+        # кнопка и отказ разошлись бы.
+        allowMemberTemplates=member_templates_allowed(workspace),
+        # Умолчание режима правки: экран страницы решает по нему, с чего
+        # открыться, если человек своего выбора не делал.
+        defaultPageEditMode=WorkspaceService.page_edit_mode(workspace),
     )
 
 

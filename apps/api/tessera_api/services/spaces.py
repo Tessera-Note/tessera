@@ -63,9 +63,16 @@ def slugify(text: str | None) -> str:
     return re.sub(r"-{2,}", "-", cleaned).strip("-")[:MAX_SLUG]
 
 
-def _flag(workspace: Workspace, path: tuple[str, str]) -> bool:
-    """Признак из настроек рабочего пространства."""
-    settings: object = workspace.settings or {}
+#: Запрет публикации наружу и разрешение читателю комментировать. Пути те же,
+#: что читают служба ссылок и проверка права комментировать: второе имя развело
+#: бы запись с чтением, и переключатель перестал бы на что-либо влиять.
+SHARING_DISABLED = ("sharing", "disabled")
+VIEWER_COMMENTS = ("comments", "allowViewerComments")
+
+
+def _flag(holder: Workspace | Space, path: tuple[str, str]) -> bool:
+    """Признак из настроек рабочего пространства либо пространства."""
+    settings: object = holder.settings or {}
     for key in path:
         if not isinstance(settings, dict):
             return False
@@ -73,6 +80,25 @@ def _flag(workspace: Workspace, path: tuple[str, str]) -> bool:
         if settings is None:
             return False
     return bool(settings)
+
+
+def space_flag(space: Space, path: tuple[str, str]) -> bool:
+    """Признак настроек пространства. Наружу — для сборки ответа маршрутом."""
+    return _flag(space, path)
+
+
+def _set_flag(holder: Workspace | Space, path: tuple[str, str], value: bool) -> None:
+    """Записать признак в JSON настроек.
+
+    Словарь пересобирается целиком: правка вложенного словаря на месте не
+    помечает поле изменённым, и SQLAlchemy такую правку не сохраняет.
+    """
+    section, field = path
+    settings = dict(holder.settings or {})
+    block = dict(settings.get(section) or {})
+    block[field] = value
+    settings[section] = block
+    holder.settings = settings
 
 
 class SpaceService:
@@ -248,8 +274,10 @@ class SpaceService:
         name: str | None = None,
         description: str | None = None,
         slug: str | None = None,
+        disable_public_sharing: bool | None = None,
+        allow_viewer_comments: bool | None = None,
     ) -> Space:
-        """Поправить имя, короткое имя или описание.
+        """Поправить имя, короткое имя, описание или признаки безопасности.
 
         Поле, которого нет в запросе, не трогается: экран шлёт изменённое.
         """
@@ -282,6 +310,17 @@ class SpaceService:
         if description is not None:
             space.description = description.strip() or None
             changed.append("description")
+
+        for value, path in (
+            (disable_public_sharing, SHARING_DISABLED),
+            (allow_viewer_comments, VIEWER_COMMENTS),
+        ):
+            if value is None or _flag(space, path) == bool(value):
+                continue
+            _set_flag(space, path, bool(value))
+            # В журнал уходит имя поля запроса, а не путь в JSON: журнал читает
+            # человек, и «disabled» без раздела в нём ничего не значит.
+            changed.append("disablePublicSharing" if path is SHARING_DISABLED else path[1])
 
         if not changed:
             return space

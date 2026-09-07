@@ -96,9 +96,9 @@ class CommentService:
         parent_comment_id: uuid.UUID | None = None,
         selection: str | None = None,
     ) -> Comment:
-        # Комментировать может тот, кто видит страницу: право правки для этого
-        # не нужно, читатель обсуждает, не меняя.
-        await self._access.validate_can_view(page, user_id)
+        # Комментировать может пишущий, а читатель — только если это разрешено
+        # настройкой пространства. Правило и умолчание из v1.
+        await self._access.validate_can_comment(page, user_id)
 
         if not content:
             raise bad_request("error.comment.content_required")

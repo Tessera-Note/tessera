@@ -85,6 +85,12 @@ class UpdateWorkspaceRequest(msgspec.Struct):
     aiChatEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
     aiSearchEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
     mcpEnabled: bool | None = None  # noqa: N815 — имя поля из v1
+    #: Режим, с которого новый участник открывает страницу. Не признак:
+    #: одно из двух значений, и таблица признаков его не описывает.
+    defaultPageEditMode: str | None = None  # noqa: N815 — имя поля из v1
+    #: Синхронизация учётных записей по SCIM. Отдельная колонка, а не признак
+    #: в JSON: её читает проверка токена.
+    isScimEnabled: bool | None = None  # noqa: N815 — имя поля из v1
 
 
 class MemberIdRequest(msgspec.Struct):
@@ -108,6 +114,8 @@ class WorkspaceSettingsView(msgspec.Struct):
     aiChatEnabled: bool  # noqa: N815 — рядом с остальными признаками
     aiSearchEnabled: bool  # noqa: N815 — рядом с остальными признаками
     mcpEnabled: bool  # noqa: N815 — имя поля из v1
+    defaultPageEditMode: str = "read"  # noqa: N815 — имя поля из v1
+    isScimEnabled: bool = False  # noqa: N815 — имя поля из v1
 
 
 def _flag(workspace: Workspace, path: tuple[str, str]) -> bool:
@@ -135,6 +143,8 @@ def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
         aiChatEnabled=feature_enabled(workspace, "chat"),
         aiSearchEnabled=feature_enabled(workspace, "search"),
         mcpEnabled=feature_enabled(workspace, "mcp"),
+        defaultPageEditMode=WorkspaceService.page_edit_mode(workspace),
+        isScimEnabled=bool(workspace.is_scim_enabled),
     )
 
 
@@ -271,6 +281,8 @@ class WorkspaceController(Controller):
                 "aiSearchEnabled": data.aiSearchEnabled,
                 "mcpEnabled": data.mcpEnabled,
             },
+            default_page_edit_mode=data.defaultPageEditMode,
+            scim_enabled=data.isScimEnabled,
         )
         return _settings_view(updated)
 

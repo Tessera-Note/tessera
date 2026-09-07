@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, insert, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
@@ -62,6 +62,36 @@ REJECTABLE_FROM = (Status.PENDING_APPROVAL,)
 #: и его потолок. Экран этот открывают, чтобы окинуть взглядом.
 DEFAULT_LIST = 50
 MAX_LIST = 100
+
+
+@dataclass(frozen=True, slots=True)
+class VerificationPage:
+    """Страница перечня и курсор для следующей."""
+
+    items: list[dict]
+    next_cursor: str | None
+
+
+def _encode_cursor(record: PageVerification) -> str:
+    return f"{record.created_at.isoformat()}|{record.id}"
+
+
+def _decode_cursor(raw: str | None) -> tuple[datetime, uuid.UUID] | None:
+    """Разобрать курсор. Негодный молча означает «с начала».
+
+    Курсор приходит из запроса, и отказ на испорченном значении означал бы
+    пятисотый ответ на сохранённую вкладку.
+    """
+    if not raw:
+        return None
+    moment, _, last_id = raw.rpartition("|")
+    try:
+        parsed = datetime.fromisoformat(moment)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed, uuid.UUID(last_id)
+    except (TypeError, ValueError):
+        return None
 
 #: Режимы срока: считать от подтверждения или взять назначенную дату.
 MODE_PERIOD = "period"
@@ -509,23 +539,27 @@ class PageVerificationService:
         *,
         space_id: uuid.UUID | None = None,
         status: str | None = None,
+        query: str | None = None,
+        verifier_id: uuid.UUID | None = None,
+        cursor: str | None = None,
         limit: int = DEFAULT_LIST,
-    ) -> list[dict]:
+    ) -> VerificationPage:
         """Проверяемые страницы в пространствах, где человек состоит.
 
-        Расхождение с v1 намеренное: там выдача постраничная, с многопроходным
-        просмотром — отбор по правам выбрасывает строки уже после выборки, и
-        страница выходит короче запрошенной. Здесь выдача ограничена потолком
-        и отдаётся целиком: экран этот открывают, чтобы окинуть взглядом, а не
-        листать, и сотня строк для этого достаточна. Если станет мало,
-        постраничность вводится вместе с курсором, как в журнале аудита.
+        Выдача постраничная, курсором по паре «заведено, идентификатор» — тем
+        же способом, что журнал аудита. Отбор по правам выбрасывает строки уже
+        после выборки, поэтому страница бывает короче запрошенной; это не
+        конец перечня, и курсор берётся от последней прочитанной строки, а не
+        от последней показанной. Иначе страница, целиком отсеянная правами,
+        обрывала бы перечень на середине.
 
-        Право проверяется постранично: строка несёт название страницы.
+        Право проверяется построчно: строка несёт название страницы.
         """
         space_ids = await self._members.space_ids_for(user_id)
         if not space_ids:
-            return []
+            return VerificationPage(items=[], next_cursor=None)
 
+        portion = max(1, min(limit, MAX_LIST))
         stmt = (
             select(PageVerification, Page, Space)
             .join(Page, Page.id == PageVerification.page_id)
@@ -533,15 +567,51 @@ class PageVerificationService:
             .where(PageVerification.workspace_id == workspace_id)
             .where(Page.deleted_at.is_(None))
             .where(PageVerification.space_id.in_(space_ids))
-            .order_by(PageVerification.created_at.desc())
-            .limit(max(1, min(limit, MAX_LIST)))
         )
         if space_id is not None:
             stmt = stmt.where(PageVerification.space_id == space_id)
         if status:
             stmt = stmt.where(PageVerification.status == status)
 
+        # Поиск по названию: обычное вхождение без учёта регистра, не полнотекст.
+        # Экран открывают, чтобы найти известную страницу, а не искать по смыслу;
+        # полнотекстовый разбор здесь дал бы промах на середине слова.
+        wanted = (query or "").strip()
+        if wanted:
+            stmt = stmt.where(Page.title.ilike(f"%{wanted}%"))
+
+        # Отбор по подтверждающему — запросом, а не после выборки: иначе потолок
+        # выдачи съедали бы строки, которые всё равно отбрасываются.
+        if verifier_id is not None:
+            stmt = stmt.where(
+                PageVerification.id.in_(
+                    select(PageVerifier.page_verification_id).where(
+                        PageVerifier.user_id == verifier_id
+                    )
+                )
+            )
+
+        after = _decode_cursor(cursor)
+        if after is not None:
+            moment, last_id = after
+            # Кортежное сравнение, а не два условия через ИЛИ: оно совпадает с
+            # порядком сортировки, поэтому индекс по паре работает.
+            stmt = stmt.where(
+                text(
+                    "(page_verifications.created_at, page_verifications.id)"
+                    " < (:cursor_at, :cursor_id)"
+                ).bindparams(cursor_at=moment, cursor_id=last_id)
+            )
+
+        # На одну запись больше, чем нужно: так видно, есть ли продолжение, без
+        # второго запроса на счёт.
+        stmt = stmt.order_by(
+            PageVerification.created_at.desc(), PageVerification.id.desc()
+        ).limit(portion + 1)
         rows = (await self._session.execute(stmt)).all()
+
+        has_more = len(rows) > portion
+        rows = rows[:portion]
 
         found: list[dict] = []
         for record, page, space in rows:
@@ -563,7 +633,12 @@ class PageVerificationService:
                     "spaceSlug": space.slug,
                 }
             )
-        return found
+        return VerificationPage(
+            items=found,
+            # От последней прочитанной строки, а не от последней показанной:
+            # иначе отсеянные правами строки читались бы снова и снова.
+            next_cursor=_encode_cursor(rows[-1][0]) if has_more and rows else None,
+        )
 
     async def info(self, page: Page, user_id: uuid.UUID) -> dict:
         rights = await self.rights(page, user_id)

@@ -71,6 +71,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.space.access_denied": "You do not have access to this space",
     "error.page.page_not_found": "Page not found",
     "error.page.access_denied": "You do not have access to this page",
+    "error.page.comment_denied": "You cannot comment on this page",
     "error.page.edit_denied": "You cannot edit this page",
     "error.page.title_required": "The page needs a title or content",
     "error.page.parent_in_other_space": "The parent page is in another space",

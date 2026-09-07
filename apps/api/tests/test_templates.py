@@ -135,6 +135,44 @@ class TestWorkspaceScope:
         assert "content" in body
 
 
+class TestTheFlagGoesOutWithTheSession:
+    """Кнопка «Новый шаблон» показывается по признаку из настроек.
+
+    Настройки читает только администратор, поэтому признак уходит вместе со
+    входом — тем же путём, что разрешение личных пространств. Без него участник
+    видел бы кнопку, которая отвечает отказом.
+
+    Проверки без базы: вид собирается из одного объекта настроек.
+    """
+
+    def test_the_setting_is_carried_over(self) -> None:
+        from tessera_api.api.auth import _workspace_view
+
+        place = Workspace(id=uuid.uuid4(), name="Вики", hostname=None, logo=None)
+        place.settings = {"templates": {"allowMemberTemplates": True}}
+        assert _workspace_view(place).allowMemberTemplates is True
+
+    def test_without_the_setting_it_is_off(self) -> None:
+        # Умолчание здесь именно «нельзя»: тот же ответ даёт проверка на
+        # сервере, и кнопка не должна обещать больше неё.
+        from tessera_api.api.auth import _workspace_view
+
+        place = Workspace(id=uuid.uuid4(), name="Вики", hostname=None, logo=None)
+        place.settings = {}
+        assert _workspace_view(place).allowMemberTemplates is False
+
+        place.settings = {"templates": {"allowMemberTemplates": False}}
+        assert _workspace_view(place).allowMemberTemplates is False
+
+    def test_rubbish_in_the_column_does_not_open_it(self) -> None:
+        """Колонка принимает произвольный jsonb, полагаться на её вид нельзя."""
+        from tessera_api.api.auth import _workspace_view
+
+        place = Workspace(id=uuid.uuid4(), name="Вики", hostname=None, logo=None)
+        place.settings = {"templates": "да"}
+        assert _workspace_view(place).allowMemberTemplates is False
+
+
 class TestSpaceScope:
     async def test_space_writer_creates_a_space_template(
         self, session: AsyncSession, workspace, owner, space
@@ -228,7 +266,7 @@ class TestListing:
         """
         service = TemplateService(session)
         await service.create(user=owner, workspace=workspace, title="Общий")
-        listed = await service.list(owner, workspace.id)
+        listed = (await service.list(owner, workspace.id)).items
         assert listed
         assert all("content" not in one for one in listed)
 
@@ -249,7 +287,7 @@ class TestListing:
         stranger = await _person(
             session, workspace, space, owner, role=UserRole.MEMBER, space_role=None
         )
-        listed = await service.list(stranger, workspace.id)
+        listed = (await service.list(stranger, workspace.id)).items
         ids = {one["id"] for one in listed}
         assert hidden["id"] not in ids
         assert общий["id"] in ids
@@ -275,9 +313,53 @@ class TestListing:
         member = await _person(
             session, workspace, space, owner, role=UserRole.MEMBER, space_role=SpaceRole.READER
         )
-        ids = {one["id"] for one in await service.list(member, workspace.id)}
+        ids = {one["id"] for one in (await service.list(member, workspace.id)).items}
         assert visible["id"] in ids
         assert hidden["id"] not in ids
+
+    async def test_the_list_is_handed_out_in_pages(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Без страниц рабочее пространство с сотнями шаблонов присылало их все."""
+        service = TemplateService(session)
+        for number in range(3):
+            await service.create(user=owner, workspace=workspace, title=f"Шаблон {number}")
+
+        first = await service.list(owner, workspace.id, limit=2)
+        assert len(first.items) == 2
+        assert first.next_cursor is not None
+
+        second = await service.list(owner, workspace.id, limit=2, cursor=first.next_cursor)
+        # Продолжение, а не повтор: страницы не пересекаются.
+        assert {one["id"] for one in second.items}.isdisjoint(
+            {one["id"] for one in first.items}
+        )
+        assert second.next_cursor is None
+
+    async def test_a_broken_cursor_starts_over(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отказ на испорченном курсоре означал бы пятисотый ответ на закладку."""
+        service = TemplateService(session)
+        await service.create(user=owner, workspace=workspace, title="Общий")
+
+        assert (await service.list(owner, workspace.id, cursor="мусор")).items
+
+    async def test_the_filter_by_space_is_applied_by_the_server(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отбор на клиенте давал бы пустую страницу при том, что дальше есть
+        подходящие."""
+        service = TemplateService(session)
+        second = await _second_space(session, workspace, owner)
+        here = await service.create(
+            user=owner, workspace=workspace, title="Здесь", space_id=space.id
+        )
+        await service.create(user=owner, workspace=workspace, title="Там", space_id=second.id)
+        await service.create(user=owner, workspace=workspace, title="Общий")
+
+        found = await service.list(owner, workspace.id, space_id=space.id)
+        assert [one["id"] for one in found.items] == [here["id"]]
 
 
 class TestEditing:

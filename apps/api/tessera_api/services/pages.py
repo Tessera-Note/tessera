@@ -305,6 +305,7 @@ class PageService:
                     "spaceId": page.space_id,
                     "creatorId": page.creator_id,
                     "hasChildren": page.id in parents,
+                    "isBase": bool(page.is_base),
                     "canEdit": rights.can_edit,
                     "restricted": rights.restricted,
                 }

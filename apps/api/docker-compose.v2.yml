@@ -293,7 +293,7 @@ services:
       GOTENBERG_URL: ${GOTENBERG_URL:-http://tessera-v2-gotenberg:3000}
       # Откуда браузер печати берёт страницу отрисовки. Внутреннее имя, а не
       # внешний адрес: наружу он не ходит.
-      PDF_RENDER_BASE_URL: ${PDF_RENDER_BASE_URL:-http://tessera-v2-web:3000}
+      PDF_RENDER_BASE_URL: ${PDF_RENDER_BASE_URL:-http://tessera-v2-proxy}
       PDF_EXPORT_TIMEOUT: ${PDF_EXPORT_TIMEOUT:-120}
       # Тот же секрет, что у соседа. Пустое значение выключает внутренние
       # маршруты совместного редактирования вовсе.
@@ -404,7 +404,7 @@ services:
       GOTENBERG_URL: ${GOTENBERG_URL:-http://tessera-v2-gotenberg:3000}
       # Откуда браузер печати берёт страницу отрисовки. Внутреннее имя, а не
       # внешний адрес: наружу он не ходит.
-      PDF_RENDER_BASE_URL: ${PDF_RENDER_BASE_URL:-http://tessera-v2-web:3000}
+      PDF_RENDER_BASE_URL: ${PDF_RENDER_BASE_URL:-http://tessera-v2-proxy}
       PDF_EXPORT_TIMEOUT: ${PDF_EXPORT_TIMEOUT:-120}
     restart: unless-stopped
 
@@ -488,15 +488,21 @@ services:
   # страницы живёт на клиенте, и второй её рисовальщик на сервере расходился бы
   # с тем, что человек видит на экране.
   #
-  # Список разрешённых адресов сужен до собственного маршрута отрисовки: браузер
-  # печати не должен ходить никуда, кроме него, — иначе ссылка внутри страницы
-  # превращает его в средство обхода сети развёртывания.
+  # Список разрешённых адресов сужен до своего же приложения: браузер печати не
+  # должен ходить никуда наружу, иначе ссылка внутри страницы превращает его в
+  # средство обхода сети развёртывания.
+  #
+  # Одним маршрутом отрисовки обойтись нельзя. Страница показывает документ
+  # редактором, а он лежит под `/_app/`; без него печатается запасной плоский
+  # текст без картинок и таблиц. Вложения приходят из `/api/files/`, словарь
+  # интерфейса — из `/locales/`. Всё это на том же узле, и дальше него список
+  # не пускает.
   tessera-v2-gotenberg:
     image: gotenberg/gotenberg:8
     container_name: tessera-v2-gotenberg
     command:
       - "gotenberg"
-      - "--chromium-allow-list=^http://tessera-v2-web:3000/pdf-render/.*"
+      - "--chromium-allow-list=${PDF_ALLOW_LIST:-^http://tessera-v2-proxy/(pdf-render/|_app/|api/files/|locales/)}"
       - "--chromium-disable-javascript=false"
     restart: unless-stopped
 

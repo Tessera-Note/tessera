@@ -41,7 +41,12 @@ class PageIdRequest(msgspec.Struct):
 
 class VerificationListRequest(msgspec.Struct):
     spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    #: Поиск по названию страницы и отбор по подтверждающему. Оба из v1.
+    query: str | None = None
+    verifierId: str | None = None  # noqa: N815 — имя поля из v1
     status: str | None = None
+    #: Откуда продолжать. Приходит из прошлой выдачи.
+    cursor: str | None = None
     limit: int | None = None
 
 
@@ -76,10 +81,10 @@ class PageVerificationController(Controller):
         db_session: NamedDependency[AsyncSession],
         realtime: NamedDependency[RealtimeService],
         mailer: NamedDependency[NotificationMailer],
-    ) -> list[dict]:
+    ) -> dict:
         """Проверяемые страницы доступных пространств. Путь из v1."""
         principal: Principal = request.scope["principal"]
-        return await PageVerificationService(db_session, realtime, mailer).listing(
+        page = await PageVerificationService(db_session, realtime, mailer).listing(
             principal.user_id,
             principal.workspace_id,
             space_id=(
@@ -88,8 +93,16 @@ class PageVerificationController(Controller):
                 else None
             ),
             status=data.status,
+            query=data.query,
+            verifier_id=(
+                _identifier(data.verifierId, "error.common.user_not_found")
+                if data.verifierId
+                else None
+            ),
+            cursor=data.cursor,
             limit=data.limit or DEFAULT_LIST,
         )
+        return {"items": page.items, "meta": {"nextCursor": page.next_cursor}}
 
     @post("/verification-info")
     async def info(

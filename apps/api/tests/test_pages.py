@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.api import pages as pages_api
@@ -478,6 +479,24 @@ class TestSidebar:
 
         assert [(row["id"], row["hasChildren"]) for row in rows] == [(child.id, False)]
 
+    async def test_a_base_is_marked_as_a_base(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Без признака база в дереве неотличима от страницы и открывается
+        пустым редактором вместо таблицы."""
+        root, _ = await self._branch(session, world)
+        await session.execute(
+            update(Page).where(Page.id == root.id).values(is_base=True)
+        )
+        await session.commit()
+
+        rows = await PageService(session).sidebar(
+            None, world["space"].id, world["owner"].id
+        )
+
+        by_id = {row["id"]: row for row in rows}
+        assert by_id[root.id]["isBase"] is True
+
     async def test_the_right_to_edit_comes_along(
         self, session: AsyncSession, world
     ) -> None:
@@ -750,3 +769,43 @@ class TestIdentifiersFromTheBody:
             with pytest.raises(AppError) as failure:
                 parse("не идентификатор", "error.space.space_not_found")
             assert failure.value.status_code == 404
+
+
+class TestPageView:
+    """Вид страницы для клиента.
+
+    Признак базы читает и загрузка страницы, и дерево, и перечни: по нему
+    страница уходит на экран базы и получает свой значок. Без него база
+    открывается пустым редактором.
+    """
+
+    def _page(self, **over):
+        values = {
+            "id": uuid.uuid4(),
+            "slug_id": "abc",
+            "title": "Проекты",
+            "icon": None,
+            "content": None,
+            "parent_page_id": None,
+            "space_id": uuid.uuid4(),
+            "creator_id": None,
+            "created_at": None,
+            "updated_at": None,
+            "is_base": False,
+        }
+        values.update(over)
+        return SimpleNamespace(**values)
+
+    def test_a_base_is_marked(self) -> None:
+        body = pages_api._page_view(self._page(is_base=True))
+        assert body["isBase"] is True
+
+    def test_a_page_is_not(self) -> None:
+        body = pages_api._page_view(self._page())
+        assert body["isBase"] is False
+
+    def test_the_listing_carries_it_too(self) -> None:
+        # Перечни «недавнее» и «созданные мной» рисуют тот же значок.
+        space = SimpleNamespace(slug="general", name="General")
+        body = pages_api._listing_view(self._page(is_base=True), space)
+        assert body["isBase"] is True

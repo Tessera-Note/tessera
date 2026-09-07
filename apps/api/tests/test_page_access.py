@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -21,6 +21,7 @@ from tessera_api.infrastructure.models import (
     Page,
     PageAccess,
     PagePermission,
+    Space,
     SpaceMember,
     User,
 )
@@ -374,6 +375,80 @@ class TestValidators:
 
         with pytest.raises(AppError) as failure:
             await PageAccessService(session).validate_can_view(world["child"], world["outsider_id"])
+        assert "access_denied" in str(failure.value.extra)
+
+    async def test_a_writer_may_always_comment(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        rights = await PageAccessService(session).validate_can_comment(
+            world["root"], world["outsider_id"]
+        )
+        assert rights.can_edit is True
+
+    async def test_a_reader_may_not_comment_by_default(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Право читать не даёт права писать в обсуждение.
+
+        Умолчание из v1: читателя в закрытое пространство пускают шире, чем
+        того, кто в нём что-либо оставляет.
+        """
+        world = await _world(session, workspace, owner, space)
+        await session.execute(
+            update(SpaceMember)
+            .where(SpaceMember.user_id == world["outsider_id"])
+            .where(SpaceMember.space_id == space.id)
+            .values(role=SpaceRole.READER)
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await PageAccessService(session).validate_can_comment(
+                world["root"], world["outsider_id"]
+            )
+        assert "comment_denied" in str(failure.value.extra)
+
+    async def test_the_space_setting_lets_a_reader_comment(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        await session.execute(
+            update(SpaceMember)
+            .where(SpaceMember.user_id == world["outsider_id"])
+            .where(SpaceMember.space_id == space.id)
+            .values(role=SpaceRole.READER)
+        )
+        await session.execute(
+            update(Space)
+            .where(Space.id == space.id)
+            .values(settings={"comments": {"allowViewerComments": True}})
+        )
+        await session.flush()
+
+        rights = await PageAccessService(session).validate_can_comment(
+            world["root"], world["outsider_id"]
+        )
+        assert rights.can_view is True
+        assert rights.can_edit is False
+
+    async def test_a_stranger_is_refused_before_the_setting_is_read(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Разрешение читателю не открывает страницу тому, кто её не видит."""
+        world = await _world(session, workspace, owner, space)
+        await _restrict(session, world, world["child"])
+        await session.execute(
+            update(Space)
+            .where(Space.id == space.id)
+            .values(settings={"comments": {"allowViewerComments": True}})
+        )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await PageAccessService(session).validate_can_comment(
+                world["child"], world["outsider_id"]
+            )
         assert "access_denied" in str(failure.value.extra)
 
     async def test_filter_drops_closed_pages(

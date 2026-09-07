@@ -54,6 +54,7 @@ class UpdateBaseRequest(msgspec.Struct):
 
 class ConvertRequest(msgspec.Struct):
     pageId: str  # noqa: N815 — имя поля из v1
+    template: str | None = None
 
 
 class ListBasesRequest(msgspec.Struct):
@@ -231,7 +232,10 @@ class BaseController(Controller):
     ) -> dict:
         who = self._who(request)
         return await BaseService(db_session, realtime).convert(
-            _uuid(data.pageId, "error.page.page_not_found"), who.user_id, who.workspace_id
+            _uuid(data.pageId, "error.page.page_not_found"),
+            who.user_id,
+            who.workspace_id,
+            template=data.template,
         )
 
     @post()

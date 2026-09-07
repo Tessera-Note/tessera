@@ -289,12 +289,43 @@ class TestListing:
         )
         return world, service
 
+    async def test_the_search_narrows_by_title(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Экран открывают, чтобы найти известную страницу."""
+        world, service = await self._setup(session, workspace, owner, space)
+
+        found = await service.listing(owner.id, workspace.id, query=world["root"].title[:4])
+        assert [one["pageId"] for one in found.items] == [world["root"].id]
+
+        assert (await service.listing(owner.id, workspace.id, query="такого нет")).items == []
+
+    async def test_the_search_ignores_case(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world, service = await self._setup(session, workspace, owner, space)
+        found = await service.listing(owner.id, workspace.id, query=world["root"].title.upper())
+        assert [one["pageId"] for one in found.items] == [world["root"].id]
+
+    async def test_the_filter_by_verifier_keeps_only_theirs(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отбор идёт запросом: иначе потолок выдачи съедали бы чужие строки."""
+        world, service = await self._setup(session, workspace, owner, space)
+
+        mine = await service.listing(owner.id, workspace.id, verifier_id=owner.id)
+        assert [one["pageId"] for one in mine.items] == [world["root"].id]
+
+        assert (
+            await service.listing(owner.id, workspace.id, verifier_id=uuid.uuid4())
+        ).items == []
+
     async def test_the_row_carries_the_page_and_the_space(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
         world, service = await self._setup(session, workspace, owner, space)
 
-        rows = await service.listing(owner.id, workspace.id)
+        rows = (await service.listing(owner.id, workspace.id)).items
 
         mine = [one for one in rows if one["pageId"] == world["root"].id]
         assert len(mine) == 1
@@ -317,7 +348,9 @@ class TestListing:
         )
         await session.flush()
 
-        assert await PageVerificationService(session).listing(stranger_id, workspace.id) == []
+        assert (
+            await PageVerificationService(session).listing(stranger_id, workspace.id)
+        ).items == []
 
     async def test_the_status_filter_narrows_the_list(
         self, session: AsyncSession, workspace, owner, space
@@ -327,8 +360,45 @@ class TestListing:
         pending = await service.listing(owner.id, workspace.id, status=Status.PENDING)
         verified = await service.listing(owner.id, workspace.id, status=Status.VERIFIED)
 
-        assert any(one["pageId"] == world["root"].id for one in pending)
-        assert all(one["pageId"] != world["root"].id for one in verified)
+        assert any(one["pageId"] == world["root"].id for one in pending.items)
+        assert all(one["pageId"] != world["root"].id for one in verified.items)
+
+    async def test_the_list_is_handed_out_in_pages(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Без страниц перечень обрывался на потолке молча."""
+        world, service = await self._setup(session, workspace, owner, space)
+        # Вторая проверка: с одной страница выходит последней, и продолжения у
+        # неё нет по существу, а не из-за счёта.
+        await service.create(
+            page=world["child"],
+            user_id=owner.id,
+            mode=MODE_PERIOD,
+            period_amount=1,
+            period_unit="month",
+            verifier_ids=[owner.id],
+        )
+
+        first = await service.listing(owner.id, workspace.id, limit=1)
+        assert len(first.items) == 1
+        assert first.next_cursor is not None
+
+        second = await service.listing(
+            owner.id, workspace.id, limit=1, cursor=first.next_cursor
+        )
+        # Продолжение, а не повтор.
+        assert {one["id"] for one in second.items}.isdisjoint(
+            {one["id"] for one in first.items}
+        )
+
+    async def test_a_broken_cursor_starts_over(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отказ на испорченном курсоре означал бы пятисотый ответ на закладку."""
+        await self._setup(session, workspace, owner, space)
+        service = PageVerificationService(session)
+
+        assert (await service.listing(owner.id, workspace.id, cursor="мусор")).items
 
 
 class TestVerifiers:

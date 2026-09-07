@@ -297,6 +297,103 @@ class TestFlags:
         assert updated.settings["sharing"]["disabled"] is False
 
 
+class TestDefaultPageEditMode:
+    """С чего новый участник открывает страницу.
+
+    Умолчание жило зашитым в клиенте, и поменять его было нечем.
+    """
+
+    async def test_the_mode_is_stored(self, session: AsyncSession, workspace) -> None:
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        updated = await WorkspaceService(session).update(
+            admin, workspace.id, default_page_edit_mode="edit"
+        )
+        assert WorkspaceService.page_edit_mode(updated) == "edit"
+
+    async def test_without_a_choice_it_is_reading(self, session: AsyncSession, workspace) -> None:
+        # То же умолчание, что у клиента: случайная правка чужой страницы хуже
+        # лишнего нажатия.
+        assert WorkspaceService.page_edit_mode(workspace) == "read"
+
+    async def test_rubbish_is_refused(self, session: AsyncSession, workspace) -> None:
+        """Иной строкой клиент открывал бы страницу неизвестно как."""
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        with pytest.raises(AppError) as failure:
+            await WorkspaceService(session).update(
+                admin, workspace.id, default_page_edit_mode="как-нибудь"
+            )
+        assert failure.value.code == "error.workspace.invalid_page_edit_mode"
+
+    async def test_rubbish_in_the_column_reads_as_reading(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Колонка принимает произвольный jsonb, полагаться на её вид нельзя."""
+        workspace.settings = {"preferences": "да"}
+        assert WorkspaceService.page_edit_mode(workspace) == "read"
+
+    async def test_it_does_not_erase_neighbouring_settings(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        service = WorkspaceService(session)
+        await service.update(admin, workspace.id, flags={"disablePublicSharing": True})
+
+        updated = await service.update(admin, workspace.id, default_page_edit_mode="edit")
+        assert updated.settings["sharing"]["disabled"] is True
+        assert WorkspaceService.page_edit_mode(updated) == "edit"
+
+
+class TestScimSwitch:
+    """Синхронизация по SCIM.
+
+    Проверка токена отказывает, пока выключатель выключен, а включить его было
+    нечем: колонка заведена с умолчанием «нет» и нигде не менялась.
+    """
+
+    async def test_it_can_be_turned_on(self, session: AsyncSession, workspace) -> None:
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        updated = await WorkspaceService(session).update(
+            admin, workspace.id, scim_enabled=True
+        )
+        assert bool(updated.is_scim_enabled) is True
+
+    async def test_it_can_be_turned_off(self, session: AsyncSession, workspace) -> None:
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        service = WorkspaceService(session)
+        await service.update(admin, workspace.id, scim_enabled=True)
+
+        updated = await service.update(admin, workspace.id, scim_enabled=False)
+        assert bool(updated.is_scim_enabled) is False
+
+    async def test_a_member_cannot_turn_it_on(self, session: AsyncSession, workspace) -> None:
+        """Тот же порядок, что у остальных настроек: правит администратор."""
+        member = await _person(session, workspace, UserRole.MEMBER)
+        with pytest.raises(AppError):
+            await WorkspaceService(session).update(member, workspace.id, scim_enabled=True)
+
+    async def test_the_switch_reaches_the_token_check(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Ради этого выключатель и заводится: без него токен не работает."""
+        from tessera_api.services.scim_tokens import ScimTokenService
+
+        admin = await _person(session, workspace, UserRole.ADMIN)
+        made = await ScimTokenService(session).create(admin, workspace, "Каталог")
+
+        refused = await ScimTokenService(session).authenticate(
+            workspace, f"Bearer {made['token']}"
+        )
+        assert refused is None
+
+        updated = await WorkspaceService(session).update(
+            admin, workspace.id, scim_enabled=True
+        )
+        accepted = await ScimTokenService(session).authenticate(
+            updated, f"Bearer {made['token']}"
+        )
+        assert accepted is not None
+
+
 class TestDeleteMember:
     """Удаление участника.
 

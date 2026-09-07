@@ -285,7 +285,9 @@ class BaseService:
                 },
             )
             view_type = "kanban"
-            config = {"groupBy": status_id}
+            # Ключ именно такой: клиент читает `groupByPropertyId`, и под любым
+            # другим именем доска группируется по первому попавшемуся свойству.
+            config = {"groupByPropertyId": status_id}
 
         await self._add_view(
             page_id, workspace_id, name="Default", kind=view_type, position="h0", config=config
@@ -295,12 +297,21 @@ class BaseService:
         return await self.info(page_id, user_id, workspace_id)
 
     async def convert(
-        self, page_id: uuid.UUID, user_id: uuid.UUID, workspace_id: uuid.UUID
+        self,
+        page_id: uuid.UUID,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        template: str | None = None,
     ) -> dict:
         """Превратить обычную страницу в базу.
 
         Свойство и представление добавляются только если их ещё нет: повторный
         вызов не должен плодить вторую колонку названия.
+
+        `template='kanban'` заводит доску. Свойство группировки берётся из
+        имеющихся: страница уже могла быть базой с подходящим свойством, и
+        второе такое же дало бы доску, сгруппированную не по тому.
         """
         page = await self._session.get(Page, page_id)
         if page is None or page.deleted_at is not None or page.workspace_id != workspace_id:
@@ -313,7 +324,8 @@ class BaseService:
             .values(is_base=True, base_schema_version=max(page.base_schema_version or 0, 1))
         )
 
-        if not await self._properties(page_id):
+        existing = await self._properties(page_id)
+        if not existing:
             await self._add_property(
                 page_id,
                 workspace_id,
@@ -322,14 +334,37 @@ class BaseService:
                 position="h0",
                 is_primary=True,
             )
+
+        kanban = template == "kanban"
+        group_by = next((one.id for one in existing if one.type in {"select", "status"}), None)
+        if kanban and group_by is None:
+            group_by = await self._add_property(
+                page_id,
+                workspace_id,
+                name=await self._free_name(page_id, "Status"),
+                kind="status",
+                # За последним имеющимся, а не на месте «h1»: у страницы,
+                # которая уже была базой, там стоит чужое свойство, и доска
+                # получила бы два свойства с одним ключом порядка.
+                position=next_position(existing[-1].position if existing else "h0"),
+                type_options={
+                    "choices": [
+                        {"id": "todo", "name": "To do", "color": "gray"},
+                        {"id": "doing", "name": "In progress", "color": "blue"},
+                        {"id": "done", "name": "Done", "color": "green"},
+                    ],
+                    "choiceOrder": ["todo", "doing", "done"],
+                },
+            )
+
         if not await self._views(page_id):
             await self._add_view(
                 page_id,
                 workspace_id,
                 name="Default",
-                kind="table",
+                kind="kanban" if kanban else "table",
                 position="h0",
-                config={},
+                config={"groupByPropertyId": group_by} if kanban and group_by else {},
                 creator_id=user_id,
             )
 

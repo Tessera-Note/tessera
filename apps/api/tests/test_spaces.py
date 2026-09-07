@@ -233,6 +233,87 @@ class TestUpdate:
         assert updated.name == "Другое имя"
 
 
+class TestSecurityFlags:
+    """Признаки безопасности пространства.
+
+    Их читают в двух других местах — служба ссылок и проверка права
+    комментировать, — а писать было нечем: раздел «Безопасность» из v1
+    отсутствовал целиком.
+    """
+
+    async def test_flags_are_written_into_the_settings(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        space = await _own_space(session, workspace, owner)
+        updated = await SpaceService(session).update(
+            owner,
+            space.id,
+            workspace.id,
+            disable_public_sharing=True,
+            allow_viewer_comments=True,
+        )
+        # Пути те же, что читают служба ссылок и проверка комментирования:
+        # другое имя оставило бы переключатель без действия.
+        assert updated.settings["sharing"]["disabled"] is True
+        assert updated.settings["comments"]["allowViewerComments"] is True
+
+    async def test_one_flag_does_not_reset_the_other(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        space = await _own_space(session, workspace, owner)
+        service = SpaceService(session)
+        await service.update(owner, space.id, workspace.id, disable_public_sharing=True)
+
+        updated = await service.update(
+            owner, space.id, workspace.id, allow_viewer_comments=True
+        )
+        assert updated.settings["sharing"]["disabled"] is True
+        assert updated.settings["comments"]["allowViewerComments"] is True
+
+    async def test_turning_a_flag_off_is_obeyed(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        space = await _own_space(session, workspace, owner)
+        service = SpaceService(session)
+        await service.update(owner, space.id, workspace.id, disable_public_sharing=True)
+
+        updated = await service.update(
+            owner, space.id, workspace.id, disable_public_sharing=False
+        )
+        assert updated.settings["sharing"]["disabled"] is False
+
+    async def test_a_writer_cannot_change_them(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Те же права, что у остальных настроек: администратор пространства."""
+        space = await _own_space(session, workspace, owner)
+        writer = await _person(session, workspace)
+        await SpaceService(session).add_members(
+            owner, space.id, workspace.id, role=SpaceRole.WRITER, user_ids=[writer.id]
+        )
+
+        with pytest.raises(AppError):
+            await SpaceService(session).update(
+                writer, space.id, workspace.id, disable_public_sharing=True
+            )
+
+    async def test_the_flags_reach_the_view(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Экран настроек показывает переключатели по этим полям."""
+        from tessera_api.api.spaces import _space_view
+
+        space = await _own_space(session, workspace, owner)
+        assert _space_view(space, SpaceRole.ADMIN).disablePublicSharing is False
+
+        updated = await SpaceService(session).update(
+            owner, space.id, workspace.id, disable_public_sharing=True
+        )
+        view = _space_view(updated, SpaceRole.ADMIN)
+        assert view.disablePublicSharing is True
+        assert view.allowViewerComments is False
+
+
 class TestMembers:
     async def test_adding_a_person_and_a_group(
         self, session: AsyncSession, workspace, owner

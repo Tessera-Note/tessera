@@ -12,7 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.guards import Principal
 from tessera_api.domain.errors import not_found
 from tessera_api.infrastructure.models import User, Workspace
-from tessera_api.services.templates import TemplateService
+from tessera_api.services.templates import DEFAULT_LIST, TemplateService
+
+
+class ListTemplatesRequest(msgspec.Struct):
+    """Отбор и место продолжения. Имена полей из v1."""
+
+    spaceId: uuid.UUID | None = None  # noqa: N815 — имя поля из v1
+    cursor: str | None = None
+    limit: int = DEFAULT_LIST
 
 
 class TemplateIdRequest(msgspec.Struct):
@@ -58,11 +66,21 @@ class TemplateController(Controller):
 
     @post("/")
     async def list_templates(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[dict]:
+        self,
+        data: ListTemplatesRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+    ) -> dict:
         principal: Principal = request.scope["principal"]
         user, workspace = await _actor(db_session, principal)
-        return await TemplateService(db_session).list(user, workspace.id)
+        page = await TemplateService(db_session).list(
+            user,
+            workspace.id,
+            space_id=data.spaceId,
+            cursor=data.cursor,
+            limit=data.limit,
+        )
+        return {"items": page.items, "meta": {"nextCursor": page.next_cursor}}
 
     @post("/info")
     async def info(

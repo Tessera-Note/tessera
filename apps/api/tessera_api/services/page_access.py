@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import SPACE_RANK, SpaceRole, can_write_space
-from tessera_api.infrastructure.models import Page
+from tessera_api.infrastructure.models import Page, Space
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 
 #: Уровень доступа, записываемый при ограничении страницы.
@@ -156,6 +156,25 @@ class PageAccessService:
             raise forbidden("error.page.access_denied")
         if not rights.can_edit:
             raise forbidden("error.page.edit_denied")
+        return rights
+
+    async def validate_can_comment(self, page: Page, user_id: uuid.UUID) -> PageRights:
+        """Кто вправе писать в обсуждение страницы.
+
+        Правило v1: пишущий комментирует всегда, читатель — только если это
+        разрешено настройкой пространства. Умолчание «нельзя»: право читать
+        закрытое пространство раздают шире, чем право что-либо в нём оставлять,
+        и обсуждение здесь не исключение.
+        """
+        rights = await self.validate_can_view(page, user_id)
+        if rights.can_edit:
+            return rights
+
+        space = await self._session.get(Space, page.space_id)
+        settings = (space.settings if space is not None else None) or {}
+        comments = settings.get("comments") if isinstance(settings, dict) else None
+        if not (isinstance(comments, dict) and comments.get("allowViewerComments") is True):
+            raise forbidden("error.page.comment_denied")
         return rights
 
     async def filter_viewable(

@@ -13,13 +13,14 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import (
     FileTask,
+    Page,
     PageAccess,
     PagePermission,
     SpaceMember,
@@ -209,6 +210,78 @@ class TestRenderToken:
 
         assert [one["pageId"] for one in data["pages"]] == [str(page.id)]
         assert data["pages"][0]["title"] == "Печатаемая"
+
+    async def test_the_language_of_the_one_who_asked_goes_along(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """У браузера печати нет ни входа, ни куки.
+
+        Без языка в адресе подписи от приложения — оглавление — уходят на лист
+        по-английски тому, кто по-английски не читает.
+        """
+        await session.execute(update(User).where(User.id == owner.id).values(locale="uk-UA"))
+        page = await _page(session, workspace, owner, space, "Печатаемая")
+        service = _service(session)
+        made = await service.create_task(
+            page_id=str(page.id),
+            include_children=False,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        task = await session.get(FileTask, uuid.UUID(made["fileTaskId"]))
+
+        assert await service._locale_of(task.creator_id) == "uk-UA"
+
+    async def test_without_a_language_the_sheet_takes_the_spare_one(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        assert await _service(session)._locale_of(None) is None
+
+    async def test_attachments_go_out_signed(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Без токена картинка в PDF — битая ссылка.
+
+        У браузера печати нет ни входа, ни куки, а маршрут выдачи файла требует
+        прав. Подготовка здесь та же, что у страницы по ссылке.
+        """
+        attachment_id = uuid.uuid4()
+        page = await _page(session, workspace, owner, space, "С картинкой")
+        await session.execute(
+            update(Page)
+            .where(Page.id == page.id)
+            .values(
+                content={
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "image",
+                            "attrs": {
+                                "attachmentId": str(attachment_id),
+                                "src": f"/api/files/{attachment_id}/снимок.png",
+                            },
+                        }
+                    ],
+                }
+            )
+        )
+        await session.flush()
+
+        service = _service(session)
+        made = await service.create_task(
+            page_id=str(page.id),
+            include_children=False,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        task_id = uuid.UUID(made["fileTaskId"])
+
+        data = await service.render_data(service.issue_render_token(task_id, workspace.id))
+        src = data["pages"][0]["content"]["content"][0]["attrs"]["src"]
+
+        # Адрес открытый и с токеном: иначе выдача файла ответит отказом.
+        assert "/api/files/public/" in src
+        assert "jwt=" in src
 
     async def test_a_forged_token_is_refused(self, session: AsyncSession) -> None:
         import jwt
