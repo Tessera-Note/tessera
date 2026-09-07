@@ -28,7 +28,10 @@
       "Bash(docker compose ps:*)",
       "Bash(docker compose logs:*)",
       "Bash(pkill -f \"nest start\")",
-      "Bash(pkill -f \"vite\")"
+      "Bash(pkill -f \"vite\")",
+      "Bash(docker cp scripts/stand-session.py tessera-v2-api:/tmp/stand-session.py)",
+      "Bash(docker exec tessera-v2-api python /tmp/stand-session.py)",
+      "Bash(python3 scripts/stand-cookie.py)"
     ],
     "deny": [
       "Bash(rm -rf:*)",

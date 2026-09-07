@@ -1,6 +1,9 @@
 .env
 .env.*
 !.env.example
+
+# Токен сеанса стенда: учётные данные, см. scripts/stand-session.py
+.stand-session
 data
 
 # Секреты и ключи не кладутся в индекс ни под каким именем.
