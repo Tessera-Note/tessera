@@ -14,6 +14,7 @@
     exportSpace,
     importArchive,
     importFile,
+    isTable,
     importTaskInfo,
     type FileTask
   } from '$lib/features/page/services/transfer';
@@ -27,6 +28,14 @@
 
   let format = $state<string>(EXPORT_FORMATS[0].value);
   let attachments = $state(false);
+  //: Полная выгрузка: обсуждение, метки, проверка и открытые ссылки. Отдельной
+  //: галочкой, а не всегда: снимок несёт почту участников обсуждения, и
+  //: уносить её вместе с архивом надо осознанно.
+  let context = $state(false);
+  //: Ввозить таблицу базой, а не страницей с таблицей. Признаком, а не
+  //: догадкой: типы столбцов угадываются, и человеку, которому нужен документ,
+  //: база досталась бы против его желания.
+  let tableAsBase = $state(false);
   let source = $state<string>(IMPORT_SOURCES[0].value);
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
@@ -91,6 +100,7 @@
         spaceId: data.space.id,
         format,
         includeAttachments: attachments,
+        includeContext: context,
         fallbackName: `${data.space.slug}-space-export.zip`
       })
     );
@@ -99,7 +109,11 @@
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
     if (!file) return;
     return act('file', async () => {
-      const page = await importFile({ file, spaceId: data.space.id });
+      const page = await importFile({
+        file,
+        spaceId: data.space.id,
+        asBase: tableAsBase && isTable(file.name)
+      });
       if (filePicker) filePicker.value = '';
       await goto(`/s/${data.space.slug}/p/${page.slugId}`);
     });
@@ -145,6 +159,12 @@
       label={t('Include attachments')}
       onchange={(next) => (attachments = next)}
     />
+    <Toggle
+      checked={context}
+      label={t('Include comments, labels, verification and share links')}
+      hint={t('The archive will carry the email addresses of everyone who commented.')}
+      onchange={(next) => (context = next)}
+    />
     <Button disabled={busy === 'export'} onclick={save}>
       {busy === 'export' ? t('Loading...') : t('Export')}
     </Button>
@@ -152,8 +172,18 @@
 
   <Panel title={t('Import pages')}>
     <p class="mb-3 text-sm text-text-muted">
-      {t('Markdown, HTML, Word, OpenDocument, PDF and CSV files become pages of this space.')}
+      {t('Markdown, HTML, Word, OpenDocument, PDF, CSV and XLSX files become pages of this space.')}
     </p>
+    <!-- Выбор до открытия окна файла: после выбора файла ввоз начинается сразу,
+         и спрашивать было бы поздно. -->
+    <div class="mb-3">
+      <Toggle
+        checked={tableAsBase}
+        label={t('Import a table as a base')}
+        hint={t('Column names come from the first row, types are guessed from the values.')}
+        onchange={(next) => (tableAsBase = next)}
+      />
+    </div>
     <!-- Выбор файла спрятан за кнопкой: сам `input type=file` рисуется каждым
          браузером по-своему и не встаёт в расстановку экрана. -->
     <input

@@ -291,7 +291,7 @@ class TestImportRoutes:
         async with _client(session, StorageDouble(), QueueDouble()) as client:
             answer = await client.post(
                 "/api/pages/import",
-                files={"file": ("таблица.xlsx", "двоичное", "application/vnd.ms-excel")},
+                files={"file": ("заметка.rtf", "текст", "application/rtf")},
                 data={"spaceId": str(space.id)},
                 cookies={AUTH_COOKIE: token},
             )
@@ -666,7 +666,7 @@ class TestRefusalShape:
         async with _client(session, StorageDouble(), QueueDouble()) as client:
             answer = await client.post(
                 "/api/pages/import",
-                files={"file": ("таблица.xlsx", "двоичное", "application/vnd.ms-excel")},
+                files={"file": ("заметка.rtf", "текст", "application/rtf")},
                 data={"spaceId": str(space.id)},
                 cookies={AUTH_COOKIE: token},
             )
@@ -683,7 +683,7 @@ class TestRefusalShape:
         async with _client(session, StorageDouble(), QueueDouble()) as client:
             answer = await client.post(
                 "/api/pages/import",
-                files={"file": ("таблица.xlsx", "двоичное", "application/vnd.ms-excel")},
+                files={"file": ("заметка.rtf", "текст", "application/rtf")},
                 data={"spaceId": str(space.id)},
                 cookies={AUTH_COOKIE: token},
             )
@@ -734,7 +734,7 @@ class TestSizeLimits:
             answer = await client.post(
                 "/api/pages/import",
                 files={
-                    "file": ("таблица.xlsx", "двоичное" * 100, "application/vnd.ms-excel")
+                    "file": ("заметка.rtf", "текст" * 100, "application/rtf")
                 },
                 data={"spaceId": str(space.id)},
                 cookies={AUTH_COOKIE: token},

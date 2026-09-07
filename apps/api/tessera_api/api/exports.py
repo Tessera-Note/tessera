@@ -55,6 +55,11 @@ class ExportSpaceRequest(msgspec.Struct):
     spaceId: str  # noqa: N815 — имя поля из v1
     format: str
     includeAttachments: bool = False  # noqa: N815 — имя поля из v1
+    #: Положить в оглавление то, что документом не является: обсуждение, метки,
+    #: проверку и открытые ссылки. Отдельным признаком, а не всегда: снимок
+    #: несёт почту участников обсуждения, и уносить её вместе с архивом надо
+    #: осознанно.
+    includeContext: bool = False  # noqa: N815 — имя поля в стиле соседей
 
 
 def _file(exported: Exported) -> Response:
@@ -222,6 +227,7 @@ class ExportController(Controller):
             principal.workspace_id,
             data.format,
             include_attachments=data.includeAttachments,
+            include_context=data.includeContext,
         )
 
         await AuditService(db_session).log(
@@ -235,6 +241,7 @@ class ExportController(Controller):
             metadata={
                 "format": data.format,
                 "includeAttachments": data.includeAttachments,
+                "includeContext": data.includeContext,
             },
         )
         await db_session.commit()

@@ -37,7 +37,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, not_found
 from tessera_api.infrastructure.content import ContentClient
-from tessera_api.infrastructure.models import Attachment, Page, Space, User
+from tessera_api.infrastructure.models import (
+    Attachment,
+    BaseProperty,
+    BaseRow,
+    BaseView,
+    Comment,
+    Label,
+    Page,
+    PageLabel,
+    PageVerification,
+    PageVerifier,
+    Share,
+    Space,
+    User,
+)
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.page_access import PageAccessService
 
@@ -170,6 +184,11 @@ def collect(content: dict | None) -> tuple[set[uuid.UUID], set[uuid.UUID], set[u
         if kind == "mention":
             target = users if attrs.get("entityType") == "user" else pages
             _add(target, attrs.get("entityId"))
+        elif kind == "base":
+            # Встроенная база указывает на страницу идентификатором. Она нужна
+            # среди целей ссылок: в markdown узла базы нет, и он выводится
+            # ссылкой на её страницу.
+            _add(pages, attrs.get("pageId"))
         elif kind in ATTACHMENT_NODES:
             _add(files, attrs.get("attachmentId"))
         for child in node.get("content") or []:
@@ -210,6 +229,7 @@ class Rewriter:
         current: str,
         base_url: str,
         bundled: set[uuid.UUID],
+        markdown: bool = False,
     ) -> None:
         self._names = names
         self._targets = targets
@@ -217,6 +237,14 @@ class Rewriter:
         self._current = current
         self._base_url = base_url.rstrip("/")
         self._bundled = bundled
+        #: Выгрузка в markdown. Узла встроенной базы там нет, и он выводится
+        #: ссылкой; в HTML узел переживает выгрузку и ввоз как есть.
+        self._markdown = markdown
+        #: Упоминания страниц, ставшие ссылками: адрес и подпись каждой.
+        #: Ввоз возвращает их упоминаниями по этому списку, а не угадывает по
+        #: адресу — иначе всякая ссылка на свою страницу становилась бы
+        #: упоминанием.
+        self.mentions: list[dict] = []
 
     def apply(self, content: dict | None) -> dict | None:
         if not content:
@@ -231,6 +259,8 @@ class Rewriter:
             replaced = self._mention(copy)
             if replaced is not None:
                 return replaced
+        elif kind == "base" and self._markdown:
+            return self._base(copy)
         elif kind in ATTACHMENT_NODES:
             copy = self._attachment(copy)
 
@@ -277,7 +307,35 @@ class Rewriter:
         href = self._page_href(target)
         if href is None:
             return {"type": "text", "text": title}
+        self.mentions.append({"href": href, "label": title})
         return {"type": "text", "text": title, "marks": [{"type": "link", "attrs": {"href": href}}]}
+
+    def _base(self, node: dict) -> dict:
+        """Встроенная база в markdown — ссылка на её страницу.
+
+        Узла базы в markdown нет, и без замены он пропадал молча: со страницы
+        исчезала и таблица, и всякий след того, что она там была. Так же
+        поступает упоминание страницы, только у него замена очевиднее.
+
+        Строки базы при этом не выводятся: они не документ, их несёт оглавление
+        архива — и несёт целиком, вместе со свойствами и представлениями.
+        """
+        attrs = node.get("attrs") or {}
+        title = _UNTITLED
+        target = None
+        with contextlib.suppress(TypeError, ValueError):
+            target = self._targets.get(uuid.UUID(str(attrs.get("pageId"))))
+
+        if target is None:
+            # Базы нет среди доступных: ни названия, ни адреса выдавать нельзя.
+            return {"type": "paragraph", "content": [{"type": "text", "text": title}]}
+
+        title = target.title or title
+        href = self._page_href(target)
+        text = {"type": "text", "text": title}
+        if href is not None:
+            text["marks"] = [{"type": "link", "attrs": {"href": href}}]
+        return {"type": "paragraph", "content": [text]}
 
     def _page_href(self, target: LinkTarget) -> str | None:
         local = self._paths.get(target.slug_id)
@@ -407,6 +465,7 @@ class ExportService:
         fmt: str,
         *,
         include_attachments: bool = False,
+        include_context: bool = False,
     ) -> Exported:
         _assert_format(fmt)
 
@@ -418,7 +477,9 @@ class ExportService:
         if not placed:
             raise bad_request("error.export.nothing_to_export")
 
-        archive = await self._archive(placed, user_id, fmt, include_attachments)
+        archive = await self._archive(
+            placed, user_id, fmt, include_attachments, include_context=include_context
+        )
         return Exported(
             file_name=f"{safe_name(space.name, space.slug)}-space-export.zip",
             media_type="application/zip",
@@ -520,11 +581,18 @@ class ExportService:
             current="",
             base_url=self._base_url,
             bundled=set(),
+            markdown=fmt == FORMAT_MARKDOWN,
         )
         return await self._render(page, rewriter.apply(page.content), fmt)
 
     async def _archive(
-        self, placed: list[_Placed], user_id: uuid.UUID, fmt: str, include_attachments: bool
+        self,
+        placed: list[_Placed],
+        user_id: uuid.UUID,
+        fmt: str,
+        include_attachments: bool,
+        *,
+        include_context: bool = False,
     ) -> bytes:
         bundled = (
             await self._accessible_attachments(placed, user_id) if include_attachments else {}
@@ -549,6 +617,7 @@ class ExportService:
                     current=quote(one.path),
                     base_url=self._base_url,
                     bundled=set(bundled),
+                    markdown=fmt == FORMAT_MARKDOWN,
                 )
                 content = rewriter.apply(one.page.content)
                 archive.writestr(one.path, await self._render(one.page, content, fmt))
@@ -566,6 +635,13 @@ class ExportService:
                     "createdAt": _moment(one.page.created_at),
                     "updatedAt": _moment(one.page.updated_at),
                 }
+                base = await self._base_of(one.page)
+                if base is not None:
+                    listing[one.path]["base"] = base
+                if include_context:
+                    listing[one.path].update(await self._context_of(one.page))
+                    if rewriter.mentions:
+                        listing[one.path]["mentions"] = rewriter.mentions
 
             # Оглавление кладётся всегда, даже пустое: его отсутствие ввоз
             # читает как «архив не наш» и теряет значки с порядком.
@@ -574,6 +650,190 @@ class ExportService:
                 json.dumps({"source": "tessera", "pages": listing}, ensure_ascii=False, indent=2),
             )
         return buffer.getvalue()
+
+    async def _context_of(self, page: Page) -> dict:
+        """Снимок того, что документом не является.
+
+        Обсуждение, метки, проверка и открытая ссылка живут не в теле страницы,
+        а рядом с ней, и ни markdown, ни HTML их не несут. Поэтому они кладутся
+        в оглавление архива — туда же, где уже лежит устройство базы.
+
+        Люди записываются почтой, а не идентификатором: идентификатор
+        принадлежит той вике, из которой сделана выгрузка, и в другой не значит
+        ничего, а почта — то немногое, по чему человека узнают обе.
+
+        Ключ открытой ссылки **не** записывается. Ключ и есть учётные данные
+        того, кто открывает страницу без входа: положить его в архив значило бы
+        раздать доступ вместе с файлом. Ввоз заводит ссылку заново, своим
+        ключом.
+        """
+        snapshot: dict = {}
+
+        comments = (
+            (
+                await self._session.execute(
+                    select(Comment, User)
+                    .outerjoin(User, User.id == Comment.creator_id)
+                    .where(Comment.page_id == page.id)
+                    .where(Comment.deleted_at.is_(None))
+                    .order_by(Comment.created_at.asc())
+                )
+            )
+            .all()
+        )
+        if comments:
+            # Порядок ветвления передаётся номером родителя в этом же списке:
+            # идентификаторы при ввозе будут другими, а порядок — тот же.
+            at_index = {one[0].id: number for number, one in enumerate(comments)}
+            snapshot["comments"] = [
+                {
+                    "content": comment.content,
+                    "selection": comment.selection,
+                    "type": comment.type,
+                    "parentIndex": at_index.get(comment.parent_comment_id),
+                    "resolvedAt": _moment(comment.resolved_at),
+                    "createdAt": _moment(comment.created_at),
+                    "authorEmail": author.email if author is not None else None,
+                    "authorName": author.name if author is not None else None,
+                }
+                for comment, author in comments
+            ]
+
+        labels = (
+            (
+                await self._session.execute(
+                    select(Label.name)
+                    .join(PageLabel, PageLabel.label_id == Label.id)
+                    .where(PageLabel.page_id == page.id)
+                    .order_by(Label.name.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if labels:
+            snapshot["labels"] = list(labels)
+
+        verification = (
+            await self._session.execute(
+                select(PageVerification).where(PageVerification.page_id == page.id)
+            )
+        ).scalar_one_or_none()
+        if verification is not None:
+            snapshot["verification"] = {
+                "type": verification.type,
+                "status": verification.status,
+                "mode": verification.mode,
+                "periodAmount": verification.period_amount,
+                "periodUnit": verification.period_unit,
+                "verifiedAt": _moment(verification.verified_at),
+                "expiresAt": _moment(verification.expires_at),
+                "verifierEmails": await self._verifier_emails(verification.id),
+            }
+
+        share = (
+            await self._session.execute(
+                select(Share)
+                .where(Share.page_id == page.id)
+                .where(Share.deleted_at.is_(None))
+            )
+        ).scalar_one_or_none()
+        if share is not None:
+            snapshot["share"] = {
+                "includeSubPages": bool(share.include_sub_pages),
+                "searchIndexing": bool(share.search_indexing),
+                "createdAt": _moment(share.created_at),
+            }
+
+        return snapshot
+
+    async def _verifier_emails(self, verification_id: uuid.UUID) -> list[str]:
+        rows = (
+            (
+                await self._session.execute(
+                    select(User.email)
+                    .join(PageVerifier, PageVerifier.user_id == User.id)
+                    .where(PageVerifier.page_verification_id == verification_id)
+                    .where(User.deleted_at.is_(None))
+                    .order_by(User.email.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [one for one in rows if one]
+
+    async def _base_of(self, page: Page) -> dict | None:
+        """Устройство базы: свойства, представления и строки.
+
+        Документа у базы нет — её содержимое в строках, — поэтому ни markdown,
+        ни HTML её не несут. Идентификаторы свойств сохраняются как есть: на них
+        ссылаются и ячейки строк, и настройки представлений, и подмена их при
+        ввозе развалила бы и то и другое.
+        """
+        if not page.is_base:
+            return None
+
+        properties = (
+            (
+                await self._session.execute(
+                    select(BaseProperty)
+                    .where(BaseProperty.page_id == page.id)
+                    .where(BaseProperty.deleted_at.is_(None))
+                    .order_by(BaseProperty.position.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        views = (
+            (
+                await self._session.execute(
+                    select(BaseView)
+                    .where(BaseView.page_id == page.id)
+                    .order_by(BaseView.position.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        rows = (
+            (
+                await self._session.execute(
+                    select(BaseRow)
+                    .where(BaseRow.page_id == page.id)
+                    .where(BaseRow.deleted_at.is_(None))
+                    .order_by(BaseRow.position.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        return {
+            "schemaVersion": page.base_schema_version or 1,
+            "properties": [
+                {
+                    "id": one.id,
+                    "name": one.name,
+                    "type": one.type,
+                    "position": one.position,
+                    "typeOptions": one.type_options,
+                    "isPrimary": bool(one.is_primary),
+                }
+                for one in properties
+            ],
+            "views": [
+                {
+                    "name": one.name,
+                    "type": one.type,
+                    "position": one.position,
+                    "config": one.config or {},
+                }
+                for one in views
+            ],
+            "rows": [{"cells": one.cells or {}, "position": one.position} for one in rows],
+        }
 
     async def _write_files(
         self,

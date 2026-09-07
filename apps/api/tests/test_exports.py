@@ -16,7 +16,7 @@ import zipfile
 
 import httpx
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -24,9 +24,17 @@ from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.models import (
     Attachment,
+    BaseProperty,
+    BaseRow,
+    BaseView,
+    Comment,
+    Label,
     Page,
     PageAccess,
+    PageLabel,
     PagePermission,
+    PageVerification,
+    Share,
     User,
 )
 from tessera_api.services.exports import (
@@ -458,6 +466,71 @@ class TestArchive:
         )
         assert METADATA_NAME in _names(exported.data)
 
+    async def test_the_listing_carries_the_base(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Содержимое базы лежит в строках, а не в документе.
+
+        Ни markdown, ни HTML их не несут, и без оглавления вывезенная база
+        возвращалась пустой страницей с одним заголовком.
+        """
+        page = await _page(session, workspace, owner, space, "Задачи")
+        await session.execute(
+            update(Page).where(Page.id == page.id).values(is_base=True, base_schema_version=1)
+        )
+        await session.execute(
+            insert(BaseProperty).values(
+                id="p1",
+                page_id=page.id,
+                name="Название",
+                type="title",
+                position="h0",
+                is_primary=True,
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(BaseView).values(
+                id=uuid.uuid4(),
+                page_id=page.id,
+                name="Таблица",
+                type="table",
+                position="h0",
+                config={"groupByPropertyId": "p1"},
+                workspace_id=workspace.id,
+            )
+        )
+        await session.execute(
+            insert(BaseRow).values(
+                id=uuid.uuid4(),
+                page_id=page.id,
+                cells={"p1": "Первая"},
+                position="h0",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        exported = await _service(session).export_page(
+            page, owner.id, FORMAT_MARKDOWN, include_children=True
+        )
+        described = json.loads(_read(exported.data, METADATA_NAME))["pages"]["Задачи.md"]["base"]
+
+        # Идентификаторы свойств сохраняются: на них ссылаются и ячейки, и
+        # настройки представления.
+        assert [one["id"] for one in described["properties"]] == ["p1"]
+        assert described["views"][0]["config"] == {"groupByPropertyId": "p1"}
+        assert described["rows"] == [{"cells": {"p1": "Первая"}, "position": "h0"}]
+
+    async def test_an_ordinary_page_carries_no_base(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "Обычная")
+        exported = await _service(session).export_page(
+            page, owner.id, FORMAT_MARKDOWN, include_children=True
+        )
+        assert "base" not in json.loads(_read(exported.data, METADATA_NAME))["pages"]["Обычная.md"]
+
     async def test_two_children_with_one_title_get_two_files(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
@@ -500,6 +573,119 @@ class TestArchive:
             space.id, owner.id, workspace.id, FORMAT_MARKDOWN
         )
         assert "Закрытый/Открытый потомок.md" in _names(exported.data)
+
+    async def test_the_listing_carries_the_context_when_asked(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Обсуждение, метки и проверка живут рядом со страницей, а не в теле.
+
+        Ни markdown, ни HTML их не несут, поэтому они кладутся в оглавление —
+        туда же, где уже лежит устройство базы.
+        """
+        page = await _page(session, workspace, owner, space, "С обсуждением")
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        await session.execute(
+            insert(Comment).values(
+                id=uuid.uuid4(),
+                content={
+                    "type": "doc",
+                    "content": [
+                        {"type": "paragraph", "content": [{"type": "text", "text": "Реплика"}]}
+                    ],
+                },
+                creator_id=owner.id,
+                page_id=page.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        )
+        label_id = uuid.uuid4()
+        await session.execute(
+            insert(Label).values(id=label_id, name=name, workspace_id=workspace.id)
+        )
+        await session.execute(
+            insert(PageLabel).values(id=uuid.uuid4(), page_id=page.id, label_id=label_id)
+        )
+        await session.execute(
+            insert(PageVerification).values(
+                id=uuid.uuid4(),
+                page_id=page.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                type="manual",
+                status="verified",
+            )
+        )
+        await session.flush()
+
+        exported = await _service(session).export_space(
+            space.id, owner.id, workspace.id, FORMAT_MARKDOWN, include_context=True
+        )
+        listing = json.loads(_read(exported.data, METADATA_NAME))["pages"]
+        about = listing["С обсуждением.md"]
+
+        assert about["comments"][0]["content"]["content"][0]["type"] == "paragraph"
+        # Человек записан почтой: идентификатор принадлежит этой вике и в
+        # другой не значит ничего.
+        assert about["comments"][0]["authorEmail"] == owner.email
+        assert about["labels"] == [name]
+        assert about["verification"]["status"] == "verified"
+
+    async def test_without_the_flag_the_listing_stays_documents_only(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Снимок несёт почту участников, и уносить её надо осознанно."""
+        page = await _page(session, workspace, owner, space, "С обсуждением")
+        await session.execute(
+            insert(Comment).values(
+                id=uuid.uuid4(),
+                content={"type": "doc", "content": []},
+                creator_id=owner.id,
+                page_id=page.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+            )
+        )
+        await session.flush()
+
+        exported = await _service(session).export_space(
+            space.id, owner.id, workspace.id, FORMAT_MARKDOWN
+        )
+        listing = json.loads(_read(exported.data, METADATA_NAME))["pages"]
+
+        assert "comments" not in listing["С обсуждением.md"]
+
+    async def test_the_share_key_never_leaves_the_wiki(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ключ и есть учётные данные того, кто открывает страницу без входа.
+
+        Положить его в архив значило бы раздать доступ вместе с файлом.
+        """
+        page = await _page(session, workspace, owner, space, "Открытая")
+        await session.execute(
+            insert(Share).values(
+                id=uuid.uuid4(),
+                key="секретный-ключ",
+                page_id=page.id,
+                include_sub_pages=True,
+                search_indexing=False,
+                creator_id=owner.id,
+                space_id=space.id,
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+
+        exported = await _service(session).export_space(
+            space.id, owner.id, workspace.id, FORMAT_MARKDOWN, include_context=True
+        )
+        body = _read(exported.data, METADATA_NAME)
+        about = json.loads(body)["pages"]["Открытая.md"]
+
+        assert about["share"]["includeSubPages"] is True
+        assert "key" not in about["share"]
+        assert "секретный-ключ" not in body
 
     async def test_an_unknown_space_is_refused(
         self, session: AsyncSession, workspace, owner
@@ -717,6 +903,55 @@ async def _stranger(session: AsyncSession, workspace, space) -> uuid.UUID:
 
 
 @needs_database
+class TestEmbeddedBase:
+    """Встроенная база при выгрузке.
+
+    В HTML узел переживает выгрузку и ввоз как есть — там он и остаётся. В
+    markdown такого узла нет, и без замены он пропадал молча: со страницы
+    исчезала и таблица, и всякий след того, что она там была.
+    """
+
+    def test_markdown_gets_a_link_to_the_base_page(self) -> None:
+        base = uuid.uuid4()
+        result = rewriter(
+            markdown=True,
+            targets={base: LinkTarget(slug_id="abc", title="Задачи", space_slug="общее")},
+        ).apply(doc({"type": "base", "attrs": {"pageId": str(base)}}))
+
+        node = result["content"][0]
+        assert node["type"] == "paragraph"
+        text = node["content"][0]
+        assert text["text"] == "Задачи"
+        assert text["marks"][0]["attrs"]["href"].endswith("abc")
+
+    def test_html_keeps_the_node(self) -> None:
+        # Разметка несёт `data-page-id`, и ввоз подставляет по нему новый
+        # идентификатор. Заменять узел здесь значило бы терять таблицу там, где
+        # она восстанавливается полностью.
+        base = uuid.uuid4()
+        result = rewriter(
+            targets={base: LinkTarget(slug_id="abc", title="Задачи", space_slug="общее")},
+        ).apply(doc({"type": "base", "attrs": {"pageId": str(base)}}))
+
+        assert result["content"][0]["type"] == "base"
+
+    def test_an_unavailable_base_becomes_plain_text(self) -> None:
+        """Ни названия, ни адреса закрытой страницы наружу не уходит."""
+        result = rewriter(markdown=True).apply(
+            doc({"type": "base", "attrs": {"pageId": str(uuid.uuid4())}})
+        )
+
+        node = result["content"][0]
+        assert node["type"] == "paragraph"
+        assert node["content"][0].get("marks") is None
+
+    def test_the_base_page_gets_into_the_link_targets(self) -> None:
+        """Без сбора идентификатора замена не нашла бы ни названия, ни адреса."""
+        base = uuid.uuid4()
+        _users, pages, _files = collect(doc({"type": "base", "attrs": {"pageId": str(base)}}))
+        assert pages == {base}
+
+
 class TestMentionAccess:
     async def test_a_mention_of_a_closed_page_stays_text(
         self, session: AsyncSession, workspace, owner, space

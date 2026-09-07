@@ -147,6 +147,10 @@ class ImportController(Controller):
             raise bad_request("error.import.file_too_large")
 
         parent = data.get("parentPageId")
+        # Таблицу можно ввезти базой, а не страницей с таблицей. Признаком, а не
+        # всегда: типы столбцов при этом угадываются, и человек, которому нужен
+        # документ, получал бы базу.
+        as_base = str(data.get("asBase") or "").strip().lower() in ("1", "true", "on", "yes")
         # Хранилище нужно картинкам из документа Word: они вкладываются в
         # созданную страницу. Без него текст ввозится, а картинки не
         # переносятся — отказ здесь стоил бы человеку всего документа.
@@ -159,6 +163,7 @@ class ImportController(Controller):
             workspace_id=principal.workspace_id,
             space_id=space_id,
             parent_page_id=uuid.UUID(str(parent)) if parent else None,
+            as_base=as_base,
         )
 
         await AuditService(db_session).log(
@@ -169,7 +174,7 @@ class ImportController(Controller):
             workspace_id=principal.workspace_id,
             space_id=space_id,
             actor_type=ActorType.USER,
-            metadata={"fileName": file_name, "source": "file"},
+            metadata={"fileName": file_name, "source": "file", "asBase": as_base},
         )
         await db_session.commit()
 

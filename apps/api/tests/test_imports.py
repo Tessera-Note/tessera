@@ -20,7 +20,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
@@ -31,8 +31,17 @@ from tessera_api.infrastructure.content import (
 )
 from tessera_api.infrastructure.models import (
     Attachment,
+    BaseProperty,
+    BaseRow,
+    BaseView,
+    Comment,
     FileTask,
+    Label,
     Page,
+    PageLabel,
+    PageVerification,
+    PageVerifier,
+    Share,
     SpaceMember,
     User,
 )
@@ -51,8 +60,10 @@ from tessera_api.services.imports import (
     _unwrapped,
     _without_notion_twins,
     assert_supported,
-    csv_to_html,
+    drop_title_heading,
+    read_table,
     safe_entries,
+    table_to_html,
     title_from_html,
     title_from_markdown,
 )
@@ -153,6 +164,48 @@ class TestTitles:
 
     def test_a_leading_empty_line_does_not_hide_the_heading(self) -> None:
         assert title_from_markdown("\n\n# Название", "файл.md") == "Название"
+
+
+class TestTitleHeading:
+    """Снятие заголовка, повторяющего название.
+
+    Вывоз пишет название первым заголовком тела, ввоз берёт название оттуда же.
+    Без снятия оборот «вывоз — ввоз» добавлял странице по заголовку за раз.
+    """
+
+    def _doc(self, *nodes) -> dict:
+        return {"type": "doc", "content": list(nodes)}
+
+    def _heading(self, text: str, level: int = 1) -> dict:
+        return {
+            "type": "heading",
+            "attrs": {"level": level},
+            "content": [{"type": "text", "text": text}],
+        }
+
+    def test_the_repeated_heading_goes(self) -> None:
+        body = self._doc(self._heading("Отчёт"), {"type": "paragraph"})
+        assert drop_title_heading(body, "Отчёт")["content"] == [{"type": "paragraph"}]
+
+    def test_another_heading_stays(self) -> None:
+        # Заголовок, не совпадающий с названием, — часть документа.
+        body = self._doc(self._heading("Раздел"), {"type": "paragraph"})
+        assert len(drop_title_heading(body, "Отчёт")["content"]) == 2
+
+    def test_a_lower_level_heading_stays(self) -> None:
+        body = self._doc(self._heading("Отчёт", level=2), {"type": "paragraph"})
+        assert len(drop_title_heading(body, "Отчёт")["content"]) == 2
+
+    def test_a_document_of_one_heading_keeps_a_paragraph(self) -> None:
+        # Пустой документ редактор не принимает.
+        body = self._doc(self._heading("Отчёт"))
+        assert drop_title_heading(body, "Отчёт")["content"] == [{"type": "paragraph"}]
+
+    def test_an_empty_document_is_left_alone(self) -> None:
+        assert drop_title_heading({"type": "doc", "content": []}, "Отчёт") == {
+            "type": "doc",
+            "content": [],
+        }
 
 
 class TestArchiveSafety:
@@ -357,6 +410,167 @@ class TestSingleFile:
 
 
 @needs_database
+class TestTableImport:
+    """Ввоз таблицы.
+
+    По умолчанию таблица становится страницей с таблицей, и это осознанно:
+    превращение страницы в базу в продукте уже есть и делается одним действием.
+    Базой она ввозится по просьбе — типы столбцов при этом угадываются, и
+    человеку, которому нужен документ, база досталась бы против его желания.
+    """
+
+    async def test_a_table_becomes_a_page_by_default(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await ImportService(session, content_client()).import_file(
+            file_name="Задачи.csv",
+            data="Задача,Готово\nПервая,да\n".encode(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+        await session.refresh(page)
+        assert page.is_base is not True
+
+    async def test_a_table_becomes_a_base_when_asked(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await ImportService(session, content_client()).import_file(
+            file_name="Задачи.csv",
+            data="Задача,Готово,Срок\nПервая,да,2026-01-01\nВторая,нет,2026-02-01\n".encode(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            as_base=True,
+        )
+        await session.refresh(page)
+        assert page.is_base is True
+        assert page.title == "Задачи"
+
+        properties = (
+            (
+                await session.execute(
+                    select(BaseProperty)
+                    .where(BaseProperty.page_id == page.id)
+                    .order_by(BaseProperty.position.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [one.name for one in properties] == ["Задача", "Готово", "Срок"]
+        # Первый столбец — название строки: без свойства-названия база не
+        # открывается вовсе.
+        assert properties[0].type == "title"
+        assert properties[0].is_primary is True
+        assert properties[1].type == "checkbox"
+        assert properties[2].type == "date"
+
+        rows = (
+            (
+                await session.execute(
+                    select(BaseRow)
+                    .where(BaseRow.page_id == page.id)
+                    .order_by(BaseRow.position.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2
+        assert rows[0].cells[properties[0].id] == "Первая"
+        assert rows[0].cells[properties[1].id] is True
+        assert rows[1].cells[properties[1].id] is False
+
+        views = (
+            (await session.execute(select(BaseView).where(BaseView.page_id == page.id)))
+            .scalars()
+            .all()
+        )
+        # Без представления база открывается пустой: показывать строки нечем.
+        assert len(views) == 1
+
+    async def test_a_table_of_only_a_header_is_refused(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """База из одной шапки вышла бы пустой, а причина понятнее пустого экрана."""
+        with pytest.raises(AppError) as failure:
+            await ImportService(session, content_client()).import_file(
+                file_name="Пустая.csv",
+                data="Задача,Готово\n".encode(),
+                user_id=owner.id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                as_base=True,
+            )
+        assert failure.value.code == "error.import.no_text"
+
+    async def test_a_document_is_never_a_base(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Просьба относится к таблицам: строк с одинаковым набором полей в
+        документе нет, и база из него вышла бы бессмысленной."""
+        page = await ImportService(session, content_client()).import_file(
+            file_name="Заметка.md",
+            data="# Заметка\n\nТекст\n".encode(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            as_base=True,
+        )
+        await session.refresh(page)
+        assert page.is_base is not True
+
+    async def test_an_xlsx_is_accepted(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Книга разбирается своими средствами: новой зависимости у ввоза нет."""
+        sheet = (
+            '<sheetData>'
+            '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>'
+            '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>7</v></c></row>'
+            "</sheetData>"
+        )
+        namespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as book:
+            book.writestr(
+                "xl/worksheets/sheet1.xml",
+                f'<worksheet xmlns="{namespace}">{sheet}</worksheet>',
+            )
+            book.writestr(
+                "xl/sharedStrings.xml",
+                f'<sst xmlns="{namespace}">'
+                "<si><t>Задача</t></si><si><t>Часы</t></si><si><t>Первая</t></si>"
+                "</sst>",
+            )
+
+        page = await ImportService(session, content_client()).import_file(
+            file_name="План.xlsx",
+            data=buffer.getvalue(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            as_base=True,
+        )
+        await session.refresh(page)
+        assert page.is_base is True
+
+        properties = (
+            (
+                await session.execute(
+                    select(BaseProperty)
+                    .where(BaseProperty.page_id == page.id)
+                    .order_by(BaseProperty.position.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [one.name for one in properties] == ["Задача", "Часы"]
+        assert properties[1].type == "number"
+
+
 class TestArchiveTask:
     async def test_the_tree_follows_the_folders(
         self, session: AsyncSession, workspace, owner, space
@@ -392,6 +606,494 @@ class TestArchiveTask:
         )
         pages = await _pages_of(session, space.id, ("Со значком",))
         assert pages["Со значком"].icon == "📘"
+
+    async def test_the_base_from_the_listing_is_restored(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Содержимое базы приходит оглавлением, а не документом.
+
+        В самом файле у базы один заголовок: строки и свойства в документе не
+        живут. Без восстановления ввезённая база оставалась пустой страницей.
+        """
+        task = await _task(session, workspace, owner, space)
+        meta = {
+            "pages": {
+                "Задачи.md": {
+                    "base": {
+                        "schemaVersion": 1,
+                        "properties": [
+                            {
+                                "id": "p1",
+                                "name": "Название",
+                                "type": "title",
+                                "position": "h0",
+                                "isPrimary": True,
+                                "typeOptions": None,
+                            }
+                        ],
+                        "views": [
+                            {
+                                "name": "Таблица",
+                                "type": "table",
+                                "position": "h0",
+                                "config": {"groupByPropertyId": "p1"},
+                            }
+                        ],
+                        "rows": [{"cells": {"p1": "Первая"}, "position": "h0"}],
+                    }
+                }
+            }
+        }
+        await ImportService(session, content_client())._unpack(
+            task,
+            archive({"tessera-metadata.json": json.dumps(meta), "Задачи.md": "# Задачи"}),
+        )
+
+        pages = await _pages_of(session, space.id, ("Задачи",))
+        page = pages["Задачи"]
+        await session.refresh(page)
+        assert page.is_base is True
+
+        properties = (
+            (
+                await session.execute(
+                    select(BaseProperty).where(BaseProperty.page_id == page.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # Идентификатор переносится как есть: на него ссылаются и ячейки, и
+        # настройки представления.
+        assert [one.id for one in properties] == ["p1"]
+
+        views = (
+            (await session.execute(select(BaseView).where(BaseView.page_id == page.id)))
+            .scalars()
+            .all()
+        )
+        assert views[0].config == {"groupByPropertyId": "p1"}
+
+        rows = (
+            (await session.execute(select(BaseRow).where(BaseRow.page_id == page.id)))
+            .scalars()
+            .all()
+        )
+        assert [one.cells for one in rows] == [{"p1": "Первая"}]
+
+    async def test_the_embedded_base_points_at_the_imported_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Встроенная база после ввоза находит свою страницу.
+
+        Узел встроенной базы держит идентификатор страницы, а не адрес. При
+        ввозе идентификаторы новые, и без подстановки на месте таблицы
+        показывалось «база не найдена» — при том, что сама база ввезена рядом
+        и целиком. Найдено глазами на стенде после оборота «вывоз — ввоз».
+        """
+        was = "5ae4c423-5ca7-4779-886b-a21f1a260028"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [{"type": "base", "attrs": {"pageId": was}}],
+                    }
+                },
+            )
+
+        client = ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
+        task = await _task(session, workspace, owner, space)
+        meta = {
+            "pages": {
+                "Задачи.md": {
+                    "pageId": was,
+                    "base": {
+                        "schemaVersion": 1,
+                        "properties": [
+                            {
+                                "id": "p1",
+                                "name": "Название",
+                                "type": "title",
+                                "position": "h0",
+                                "isPrimary": True,
+                                "typeOptions": None,
+                            }
+                        ],
+                        "views": [],
+                        "rows": [],
+                    },
+                },
+                "Страница.md": {"pageId": "9d3a6c1e-0000-4000-8000-000000000001"},
+            }
+        }
+        await ImportService(session, client)._unpack(
+            task,
+            archive(
+                {
+                    "tessera-metadata.json": json.dumps(meta),
+                    "Задачи.md": "# Задачи",
+                    "Страница.md": "# Страница",
+                }
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Задачи", "Страница"))
+        embedded = pages["Страница"].content["content"][0]["attrs"]["pageId"]
+        assert embedded == str(pages["Задачи"].id)
+
+    async def test_an_unknown_embedded_base_is_left_alone(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Чужой идентификатор остаётся как есть.
+
+        Базы этой выгрузки в архиве нет, подставлять нечего. Угадывание по
+        названию поставило бы на её место чужую базу — это хуже, чем честное
+        «база не найдена».
+        """
+        was = "5ae4c423-5ca7-4779-886b-a21f1a260028"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [{"type": "base", "attrs": {"pageId": was}}],
+                    }
+                },
+            )
+
+        client = ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
+        task = await _task(session, workspace, owner, space)
+        meta = {"pages": {"Страница.md": {"pageId": "9d3a6c1e-0000-4000-8000-000000000001"}}}
+        await ImportService(session, client)._unpack(
+            task,
+            archive(
+                {"tessera-metadata.json": json.dumps(meta), "Страница.md": "# Страница"}
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Страница",))
+        assert pages["Страница"].content["content"][0]["attrs"]["pageId"] == was
+
+    async def test_the_context_from_the_listing_is_restored(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Обсуждение, метки и проверка приходят оглавлением, а не документом.
+
+        Ни markdown, ни HTML их не несут: они живут рядом со страницей. Без
+        восстановления полная выгрузка теряла бы всё, кроме текста.
+        """
+        task = await _task(session, workspace, owner, space)
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        meta = {
+            "pages": {
+                "Страница.md": {
+                    "comments": [
+                        {
+                            "content": {
+                                "type": "doc",
+                                "content": [
+                                    {
+                                        "type": "paragraph",
+                                        "content": [{"type": "text", "text": "Первая"}],
+                                    }
+                                ],
+                            },
+                            "authorEmail": owner.email,
+                            "createdAt": "2026-01-01T00:00:00+00:00",
+                        },
+                        {
+                            "content": {
+                                "type": "doc",
+                                "content": [
+                                    {
+                                        "type": "paragraph",
+                                        "content": [{"type": "text", "text": "Ответ"}],
+                                    }
+                                ],
+                            },
+                            "parentIndex": 0,
+                            "authorEmail": "нет-такого@example.com",
+                        },
+                    ],
+                    "labels": [name],
+                    "verification": {
+                        "type": "manual",
+                        "status": "verified",
+                        "verifiedAt": "2026-02-01T00:00:00+00:00",
+                        "verifierEmails": [owner.email],
+                    },
+                }
+            }
+        }
+        await ImportService(session, content_client())._unpack(
+            task,
+            archive(
+                {"tessera-metadata.json": json.dumps(meta), "Страница.md": "# Страница"}
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Страница",))
+        page = pages["Страница"]
+
+        comments = (
+            (
+                await session.execute(
+                    select(Comment)
+                    .where(Comment.page_id == page.id)
+                    .order_by(Comment.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(comments) == 2
+        # Автор найден по почте, а не по идентификатору: тот принадлежит
+        # прежней вике.
+        assert comments[0].creator_id == owner.id
+        # Ветвление сохранено номером в перечне: идентификаторы после ввоза
+        # другие, а порядок тот же.
+        assert comments[1].parent_comment_id == comments[0].id
+        # Неизвестный автор не отменяет реплику: она достаётся ввозящему.
+        assert comments[1].creator_id == task.creator_id
+
+        labels = (
+            (
+                await session.execute(
+                    select(Label.name)
+                    .join(PageLabel, PageLabel.label_id == Label.id)
+                    .where(PageLabel.page_id == page.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert list(labels) == [name]
+
+        verification = (
+            await session.execute(
+                select(PageVerification).where(PageVerification.page_id == page.id)
+            )
+        ).scalar_one()
+        assert verification.status == "verified"
+        verifiers = (
+            (
+                await session.execute(
+                    select(PageVerifier.user_id).where(
+                        PageVerifier.page_verification_id == verification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert list(verifiers) == [owner.id]
+
+    async def test_a_mention_comes_back_as_a_mention(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Упоминание, ставшее при вывозе ссылкой, возвращается упоминанием.
+
+        Вывоз разворачивает его намеренно: узла упоминания в чужом редакторе
+        нет. Обратно оно возвращается по списку из оглавления, а не по виду
+        адреса — иначе всякая ссылка на свою страницу становилась бы
+        упоминанием.
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            markdown = str(body.get("markdown") or body.get("html") or "")
+            # Ссылка на соседний файл архива — то, во что вывоз превратил
+            # упоминание.
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "Соседняя",
+                                        "marks": [
+                                            {
+                                                "type": "link",
+                                                "attrs": {"href": "Соседняя.md"},
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                    if "Ссылающаяся" in markdown
+                    else {"type": "doc", "content": [{"type": "paragraph"}]}
+                },
+            )
+
+        client = ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
+        task = await _task(session, workspace, owner, space)
+        meta = {
+            "pages": {
+                "Ссылающаяся.md": {"mentions": [{"href": "Соседняя.md", "label": "Соседняя"}]},
+                "Соседняя.md": {},
+            }
+        }
+        await ImportService(session, client)._unpack(
+            task,
+            archive(
+                {
+                    "tessera-metadata.json": json.dumps(meta),
+                    "Ссылающаяся.md": "# Ссылающаяся",
+                    "Соседняя.md": "# Соседняя",
+                }
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Ссылающаяся", "Соседняя"))
+        node = pages["Ссылающаяся"].content["content"][0]["content"][0]
+        assert node["type"] == "mention"
+        assert node["attrs"]["entityType"] == "page"
+        assert node["attrs"]["entityId"] == str(pages["Соседняя"].id)
+        assert node["attrs"]["slugId"] == pages["Соседняя"].slug_id
+
+    async def test_an_ordinary_link_stays_a_link(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ссылка, которой не было в списке, остаётся ссылкой.
+
+        На одну и ту же страницу в тексте бывает и упоминание, и обычная
+        ссылка: превращать в упоминание обе значило бы решать за человека.
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            markdown = str(body.get("markdown") or body.get("html") or "")
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "смотри тут",
+                                        "marks": [
+                                            {
+                                                "type": "link",
+                                                "attrs": {"href": "Соседняя.md"},
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                    if "Ссылающаяся" in markdown
+                    else {"type": "doc", "content": [{"type": "paragraph"}]}
+                },
+            )
+
+        client = ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
+        task = await _task(session, workspace, owner, space)
+        meta = {
+            "pages": {
+                # Подпись в списке другая: это упоминание, а не эта ссылка.
+                "Ссылающаяся.md": {"mentions": [{"href": "Соседняя.md", "label": "Соседняя"}]},
+                "Соседняя.md": {},
+            }
+        }
+        await ImportService(session, client)._unpack(
+            task,
+            archive(
+                {
+                    "tessera-metadata.json": json.dumps(meta),
+                    "Ссылающаяся.md": "# Ссылающаяся",
+                    "Соседняя.md": "# Соседняя",
+                }
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Ссылающаяся", "Соседняя"))
+        node = pages["Ссылающаяся"].content["content"][0]["content"][0]
+        assert node["type"] == "text"
+        # Адрес при этом подставлен настоящий: ссылка обязана работать.
+        assert node["marks"][0]["attrs"]["href"].endswith(pages["Соседняя"].slug_id)
+
+    async def test_a_share_is_restored_with_a_new_key(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Ключ заводится свой.
+
+        Ключ и есть учётные данные того, кто открывает страницу без входа:
+        перенос ключа раздавал бы доступ вместе с файлом архива.
+        """
+        task = await _task(session, workspace, owner, space)
+        meta = {
+            "pages": {
+                "Открытая.md": {
+                    "share": {"includeSubPages": True, "searchIndexing": False},
+                }
+            }
+        }
+        await ImportService(session, content_client())._unpack(
+            task,
+            archive(
+                {"tessera-metadata.json": json.dumps(meta), "Открытая.md": "# Открытая"}
+            ),
+        )
+
+        pages = await _pages_of(session, space.id, ("Открытая",))
+        share = (
+            await session.execute(
+                select(Share).where(Share.page_id == pages["Открытая"].id)
+            )
+        ).scalar_one()
+        assert share.key
+        assert bool(share.include_sub_pages) is True
+
+    async def test_a_foreign_archive_restores_nothing_extra(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Чужая выгрузка снимка не несёт, и шаг не делает ничего."""
+        task = await _task(session, workspace, owner, space)
+        await ImportService(session, content_client())._unpack(
+            task, archive({"Страница.md": "# Страница"})
+        )
+
+        pages = await _pages_of(session, space.id, ("Страница",))
+        found = (
+            await session.execute(
+                select(func.count())
+                .select_from(Comment)
+                .where(Comment.page_id == pages["Страница"].id)
+            )
+        ).scalar_one()
+        assert found == 0
+
+    async def test_a_base_without_properties_stays_an_ordinary_page(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """База без единого свойства не открывается: показывать нечего."""
+        task = await _task(session, workspace, owner, space)
+        meta = {"pages": {"Задачи.md": {"base": {"properties": [], "views": [], "rows": []}}}}
+        await ImportService(session, content_client())._unpack(
+            task,
+            archive({"tessera-metadata.json": json.dumps(meta), "Задачи.md": "# Задачи"}),
+        )
+
+        pages = await _pages_of(session, space.id, ("Задачи",))
+        await session.refresh(pages["Задачи"])
+        assert pages["Задачи"].is_base is False
 
     async def test_an_unreadable_entry_does_not_cancel_the_archive(
         self, session: AsyncSession, workspace, owner, space
@@ -1220,7 +1922,7 @@ class TestCsvImport:
     """
 
     def test_the_first_row_becomes_the_header(self) -> None:
-        html = csv_to_html("Название,Статус\nЗадача,Готово\n".encode())
+        html = table_to_html(read_table(".csv", "Название,Статус\nЗадача,Готово\n".encode()))
         assert "<th>Название</th><th>Статус</th>" in html
         assert "<td>Задача</td><td>Готово</td>" in html
 
@@ -1230,27 +1932,27 @@ class TestCsvImport:
         Файл со вторым разделителем, разобранный по первому, даёт таблицу из
         одного столбца — без единого отказа.
         """
-        html = csv_to_html("Название;Статус\nЗадача;Готово\n".encode())
+        html = table_to_html(read_table(".csv", "Название;Статус\nЗадача;Готово\n".encode()))
         assert "<th>Название</th><th>Статус</th>" in html
 
     def test_cells_are_escaped(self) -> None:
         """Содержимое таблицы задаёт не наш код."""
-        html = csv_to_html("Название\n<script>alert(1)</script>\n".encode())
+        html = table_to_html(read_table(".csv", "Название\n<script>alert(1)</script>\n".encode()))
         assert "<script>" not in html
         assert "&lt;script&gt;" in html
 
     def test_a_byte_order_mark_does_not_leak_into_the_header(self) -> None:
         """Выгрузки из Excel начинаются с метки порядка байтов."""
-        html = csv_to_html("﻿Название,Статус\nа,б\n".encode())
+        html = table_to_html(read_table(".csv", "﻿Название,Статус\nа,б\n".encode()))
         assert "<th>Название</th>" in html
 
     def test_empty_rows_are_dropped(self) -> None:
-        html = csv_to_html("Название\n\nЗадача\n\n".encode())
+        html = table_to_html(read_table(".csv", "Название\n\nЗадача\n\n".encode()))
         assert html.count("<tr>") == 2
 
     def test_an_empty_file_gives_nothing(self) -> None:
-        assert csv_to_html(b"") == ""
-        assert csv_to_html(b"   \n\n") == ""
+        assert table_to_html(read_table(".csv", b"")) == ""
+        assert table_to_html(read_table(".csv", b"   \n\n")) == ""
 
 
 class TestNestedArchive:
@@ -1346,6 +2048,19 @@ def _link_doc(href: str) -> dict:
                         "marks": [{"type": "link", "attrs": {"href": href}}],
                     }
                 ],
+            }
+        ],
+    }
+
+
+def _attachment_doc(url: str) -> dict:
+    """Документ с приложенным файлом. Адрес у него в `url`, а не в `src`."""
+    return {
+        "type": "doc",
+        "content": [
+            {
+                "type": "attachment",
+                "attrs": {"url": url, "name": "note.txt", "mime": "text/plain", "size": 7},
             }
         ],
     }
@@ -1501,6 +2216,70 @@ class TestArchiveLinks:
         )
         saved = rows.scalars().all()
         assert [one.file_name for one in saved] == ["image.png"]
+
+    async def test_an_attached_file_of_the_archive_is_carried_over(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Узел вложения держит адрес в `url`, а не в `src`.
+
+        Пока разбор смотрел только на `src` и `href`, приложенный файл не
+        завозился вовсе, а в документе оставался путь внутрь архива — ссылка
+        вела в пустоту.
+        """
+        task = await _task(session, workspace, owner, space)
+        client = linking_client({"# Одна": _attachment_doc("%D0%9E%D0%B4%D0%BD%D0%B0/note.txt")})
+        storage = _StorageDouble(b"")
+
+        await ImportService(session, client, storage=storage)._unpack(
+            task, archive({"Одна.md": "# Одна", "Одна/note.txt": "заметка".encode()})
+        )
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        found: list[str] = []
+        _addresses(pages["Одна"].content, "url", found)
+        assert found and found[0].startswith("/api/files/")
+
+        rows = await session.execute(
+            select(Attachment).where(Attachment.page_id == pages["Одна"].id)
+        )
+        assert [one.file_name for one in rows.scalars().all()] == ["note.txt"]
+
+    async def test_the_attachment_id_follows_the_file(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Прежний идентификатор принадлежит чужой вики.
+
+        На вид всё цело — картинка показывается по адресу, — но по
+        идентификатору ходит замена файла на месте и правка диаграммы, которая
+        перезаписывает своё вложение.
+        """
+        task = await _task(session, workspace, owner, space)
+        stale = str(uuid.uuid4())
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "image",
+                    "attrs": {"src": "%D0%9E%D0%B4%D0%BD%D0%B0/image.png", "attachmentId": stale},
+                }
+            ],
+        }
+        client = linking_client({"# Одна": doc})
+        storage = _StorageDouble(b"")
+
+        await ImportService(session, client, storage=storage)._unpack(
+            task, archive({"Одна.md": "# Одна", "Одна/image.png": b"\x89PNG"})
+        )
+
+        pages = await _pages_of(session, space.id, ("Одна",))
+        ids: list[str] = []
+        _addresses(pages["Одна"].content, "attachmentId", ids)
+        rows = await session.execute(
+            select(Attachment).where(Attachment.page_id == pages["Одна"].id)
+        )
+        saved = rows.scalars().all()
+        assert ids == [str(saved[0].id)]
+        assert stale not in ids
 
     async def test_without_storage_the_text_still_arrives(
         self, session: AsyncSession, workspace, owner, space

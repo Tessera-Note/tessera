@@ -32,18 +32,33 @@ import uuid
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import quote, unquote
 
-from sqlalchemy import select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.domain.errors import bad_request, forbidden, not_found
+from tessera_api.domain.errors import AppError, bad_request, forbidden, not_found
 from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.document_text import from_odt, tidy
-from tessera_api.infrastructure.models import FileTask, Page, Space
+from tessera_api.infrastructure.models import (
+    BaseProperty,
+    BaseRow,
+    BaseView,
+    Comment,
+    FileTask,
+    Label,
+    Page,
+    PageLabel,
+    PageVerification,
+    PageVerifier,
+    Space,
+    User,
+)
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService
+from tessera_api.services.bases import next_position, property_id
 from tessera_api.services.docx_import import PLACEHOLDER, EmbeddedImage, docx_to_html
 from tessera_api.services.import_archives import (
     extract_confluence_page,
@@ -55,6 +70,13 @@ from tessera_api.services.import_archives import (
 )
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
+from tessera_api.services.shares import ShareService
+from tessera_api.services.spreadsheet import (
+    as_cell,
+    columns_of,
+    read_csv,
+    read_xlsx,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +91,18 @@ SINGLE_FILE_EXTENSIONS = (
     ".docx",
     ".odt",
     ".pdf",
-    # Таблица. Ввозится страницей с таблицей, а не встроенной базой: превращение
-    # страницы в базу в продукте уже есть и делается одним действием, когда это
-    # нужно. Ввоз, заводящий базу сам, решал бы за человека — а типы столбцов
-    # при этом угадываются, и угаданное неверно исправлять дороже, чем назначить.
+    # Таблицы. По умолчанию ввозятся страницей с таблицей: превращение страницы
+    # в базу в продукте уже есть и делается одним действием. Заводить базу
+    # молча значило бы решать за человека — типы столбцов при этом угадываются,
+    # а угаданное неверно исправлять дороже, чем назначить. Поэтому базой
+    # таблица ввозится по просьбе, признаком `as_base`.
     ".csv",
+    ".xlsx",
 )
+
+#: Что ввозится базой, когда об этом просят. Остальные форматы — документы, и
+#: строк с одинаковым набором полей в них нет.
+TABLE_EXTENSIONS = (".csv", ".xlsx")
 
 #: Виды архивов.
 #:
@@ -167,6 +195,40 @@ def title_from_markdown(markdown: str, fallback: str) -> str:
     return os.path.splitext(fallback or "")[0][:250] or "Untitled"
 
 
+def drop_title_heading(content: dict, title: str) -> dict:
+    """Снять первый заголовок, если он и есть название страницы.
+
+    Название вывоз пишет заголовком в тело: без него отдельный файл
+    открывается безымянным. Ввоз берёт название оттуда же, и оставленный
+    заголовок повторял бы его — каждый оборот «вывоз — ввоз» добавлял бы
+    странице по заголовку. Так же в v1 (`extractTitleAndRemoveHeading`).
+
+    Сверяется именно текст: заголовок, не совпадающий с названием, это часть
+    документа, и снимать его нельзя.
+    """
+    nodes = list((content or {}).get("content") or [])
+    if not nodes:
+        return content
+
+    first = nodes[0]
+    if not isinstance(first, dict) or first.get("type") != "heading":
+        return content
+    if (first.get("attrs") or {}).get("level") != 1:
+        return content
+
+    text = "".join(
+        one.get("text") or "" for one in (first.get("content") or []) if isinstance(one, dict)
+    ).strip()
+    if not text or text != (title or "").strip():
+        return content
+
+    nodes = nodes[1:]
+    # Пустой документ редактор не принимает: узел абзаца обязателен.
+    if not nodes:
+        nodes = [{"type": "paragraph"}]
+    return {**content, "content": nodes}
+
+
 @dataclass(frozen=True, slots=True)
 class ArchiveEntry:
     """Файл архива, прошедший проверки."""
@@ -223,7 +285,15 @@ def _inside(name: str) -> bool:
     return not normalised.startswith(("..", "/"))
 
 
-def _with_addresses(content: object, addresses: dict[str, str]) -> object:
+#: Где в дереве документа встречается адрес файла или страницы. `url` — у узла
+#: вложения: без него приложенный файл после ввоза оставался ссылкой внутрь
+#: архива, то есть в пустоту.
+_ADDRESS_FIELDS = ("src", "href", "url")
+
+
+def _with_addresses(
+    content: object, addresses: dict[str, str], ids: dict[str, str] | None = None
+) -> object:
     """Подставить настоящие адреса в готовый документ.
 
     Обход дерева, а не замена в строке: содержимое хранится разобранным, и
@@ -231,25 +301,100 @@ def _with_addresses(content: object, addresses: dict[str, str]) -> object:
     записано. Адрес без замены оставляется как есть — файл не перенесли, и
     пустая ссылка выглядела бы как потерянная разметка.
 
-    Оба поля сразу: картинка держит адрес в `src`, ссылка на соседнюю страницу
-    — в `href` пометки. Разделять их незачем, разбор один и тот же.
+    Все три поля сразу: картинка держит адрес в `src`, ссылка на соседнюю
+    страницу — в `href` пометки, приложенный файл — в `url`. Разделять их
+    незачем, разбор один и тот же.
     """
     if isinstance(content, dict):
-        made = {key: _with_addresses(value, addresses) for key, value in content.items()}
-        for field in ("src", "href"):
+        made = {key: _with_addresses(value, addresses, ids) for key, value in content.items()}
+        for field in _ADDRESS_FIELDS:
             value = made.get(field)
             if isinstance(value, str) and value in addresses:
                 made[field] = addresses[value]
+                # Идентификатор вложения меняется вместе с адресом: прежний
+                # принадлежит той вики, из которой сделана выгрузка, и здесь
+                # указывает в пустоту. По нему ходит замена файла на месте и
+                # правка диаграммы, которая перезаписывает своё вложение.
+                if ids and value in ids and "attachmentId" in made:
+                    made["attachmentId"] = ids[value]
         return made
     if isinstance(content, list):
-        return [_with_addresses(one, addresses) for one in content]
+        return [_with_addresses(one, addresses, ids) for one in content]
+    return content
+
+
+def _with_page_ids(content: object, pages: dict[str, str]) -> object:
+    """Подставить новые идентификаторы страниц во встроенные базы.
+
+    Узел встроенной базы держит не адрес, а идентификатор страницы-базы
+    (`data-page-id` в разметке). Прежний принадлежит той вики, из которой
+    сделана выгрузка, и после ввоза указывает в пустоту: на месте таблицы
+    показывается «база не найдена», хотя сама база рядом и ввезена целиком.
+
+    Соответствие берётся из оглавления: у каждой записи там записан прежний
+    идентификатор страницы. Без оглавления замены нет — угадывать базу по
+    названию значило бы подставить не ту.
+    """
+    if isinstance(content, dict):
+        made = {key: _with_page_ids(value, pages) for key, value in content.items()}
+        attrs = made.get("attrs")
+        if made.get("type") == "base" and isinstance(attrs, dict):
+            wanted = attrs.get("pageId")
+            if isinstance(wanted, str) and wanted in pages:
+                made["attrs"] = {**attrs, "pageId": pages[wanted]}
+        return made
+    if isinstance(content, list):
+        return [_with_page_ids(one, pages) for one in content]
+    return content
+
+
+def _with_mentions(content: object, wanted: dict[str, dict], creator_id: uuid.UUID) -> object:
+    """Вернуть упоминания страниц, ставшие при вывозе ссылками.
+
+    Вывоз разворачивает упоминание в ссылку намеренно: узла упоминания в чужом
+    редакторе нет, и архив иначе не читается ничем, кроме Tessera. Обратно оно
+    возвращается по списку из оглавления, а не по виду адреса: угадывание
+    превращало бы в упоминание всякую ссылку на свою страницу.
+
+    Сверяется и адрес, и подпись: на одну и ту же страницу в тексте бывает и
+    упоминание, и обычная ссылка, и различить их больше нечем.
+    """
+    if isinstance(content, dict):
+        marks = content.get("marks")
+        if (
+            content.get("type") == "text"
+            and isinstance(marks, list)
+            and isinstance(content.get("text"), str)
+        ):
+            for mark in marks:
+                if not isinstance(mark, dict) or mark.get("type") != "link":
+                    continue
+                href = str((mark.get("attrs") or {}).get("href") or "")
+                found = wanted.get(href)
+                if found is None or found["label"] != content["text"]:
+                    continue
+                return {
+                    "type": "mention",
+                    "attrs": {
+                        "id": str(uuid.uuid4()),
+                        "label": found["label"],
+                        "entityType": "page",
+                        "entityId": found["entityId"],
+                        "slugId": found["slugId"],
+                        "creatorId": str(creator_id),
+                        "anchorId": None,
+                    },
+                }
+        return {key: _with_mentions(value, wanted, creator_id) for key, value in content.items()}
+    if isinstance(content, list):
+        return [_with_mentions(one, wanted, creator_id) for one in content]
     return content
 
 
 def _addresses_of(content: object, found: set[str]) -> None:
     """Собрать адреса, встречающиеся в документе."""
     if isinstance(content, dict):
-        for field in ("src", "href"):
+        for field in _ADDRESS_FIELDS:
             value = content.get(field)
             if isinstance(value, str) and value:
                 found.add(value)
@@ -284,6 +429,20 @@ def _archive_target(source: str, folder: str) -> str | None:
         # Путь ведёт наружу архива. Такого файла у нас нет.
         return None
     return target
+
+
+def _moment(raw: object) -> datetime | None:
+    """Момент из снимка. Негодное значение — это его отсутствие.
+
+    Снимок приходит файлом, а файл бывает каким угодно: отказ на испорченной
+    дате означал бы, что архив не ввозится целиком из-за одной строки.
+    """
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        return None
 
 
 class ImportService:
@@ -331,17 +490,19 @@ class ImportService:
 
         if suffix in (".md", ".markdown"):
             markdown = data.decode("utf-8", errors="replace")
+            title = title_from_markdown(markdown, file_name)
             return (
-                title_from_markdown(markdown, file_name),
-                await self._content.markdown_to_json(markdown),
+                title,
+                drop_title_heading(await self._content.markdown_to_json(markdown), title),
                 [],
             )
 
         if suffix in (".html", ".htm"):
             html = data.decode("utf-8", errors="replace")
+            title = title_from_html(html, file_name)
             return (
-                title_from_html(html, file_name),
-                await self._content.html_to_json(html),
+                title,
+                drop_title_heading(await self._content.html_to_json(html), title),
                 [],
             )
 
@@ -361,8 +522,8 @@ class ImportService:
                 images,
             )
 
-        if suffix == ".csv":
-            html = csv_to_html(data)
+        if suffix in TABLE_EXTENSIONS:
+            html = table_to_html(read_table(suffix, data))
             if not html.strip():
                 raise bad_request("error.import.no_text")
             # Название из имени файла, а не из содержимого: первая строка
@@ -405,12 +566,27 @@ class ImportService:
         workspace_id: uuid.UUID,
         space_id: uuid.UUID,
         parent_page_id: uuid.UUID | None = None,
+        as_base: bool = False,
     ) -> Page:
         """Ввезти один файл страницей.
 
         Права проверяет обычное создание страницы: ввоз это тот же вход в
         пространство, и своя проверка здесь разошлась бы с ней.
+
+        `as_base` заводит из таблицы базу, а не страницу с таблицей. По просьбе,
+        а не всегда: типы столбцов при этом угадываются, и человек, которому это
+        не нужно, получал бы базу там, где хотел документ.
         """
+        if as_base and extension_of(file_name) in TABLE_EXTENSIONS:
+            return await self._import_base(
+                file_name=file_name,
+                data=data,
+                user_id=user_id,
+                workspace_id=workspace_id,
+                space_id=space_id,
+                parent_page_id=parent_page_id,
+            )
+
         title, content, images = await self._parsed(file_name, data)
         page = await PageService(self._session, self._realtime, self._queue).create(
             user_id=user_id,
@@ -422,6 +598,102 @@ class ImportService:
         )
         await self._store_images(page, images, user_id, workspace_id)
         return page
+
+    async def _import_base(
+        self,
+        *,
+        file_name: str,
+        data: bytes,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        space_id: uuid.UUID,
+        parent_page_id: uuid.UUID | None = None,
+    ) -> Page:
+        """Ввезти таблицу базой.
+
+        Имена столбцов берутся из первой строки, виды — по содержимому столбца
+        целиком. Первый столбец становится названием строки: без свойства-названия
+        база не открывается, а первый столбец таблицы это и есть её название.
+
+        Угаданное неверно правится на экране базы одним выбором. Поэтому
+        сомнительное угадывается в сторону текста: он вмещает что угодно, а
+        неверно угаданное число выбрасывает то, что в него не поместилось.
+        """
+        suffix = extension_of(file_name)
+        rows = read_table(suffix, data)
+        if len(rows) < 2:
+            # Одна строка — это шапка без данных. База из неё вышла бы пустой, а
+            # причина отказа человеку понятнее пустого экрана.
+            raise bad_request("error.import.no_text")
+
+        names, kinds = columns_of(rows)
+        if not names:
+            raise bad_request("error.import.no_text")
+
+        page = await PageService(self._session, self._realtime, self._queue).create(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            space_id=space_id,
+            title=os.path.splitext(file_name)[0][:250] or file_name,
+            content={"type": "doc", "content": [{"type": "paragraph"}]},
+            parent_page_id=parent_page_id,
+        )
+        await self._session.execute(
+            update(Page)
+            .where(Page.id == page.id)
+            .values(is_base=True, base_schema_version=1)
+        )
+
+        ids: list[str] = []
+        position = None
+        for at, name in enumerate(names):
+            property_key = property_id()
+            ids.append(property_key)
+            position = next_position(position)
+            await self._session.execute(
+                insert(BaseProperty).values(
+                    id=property_key,
+                    page_id=page.id,
+                    name=name,
+                    type=kinds[at],
+                    position=position,
+                    is_primary=at == 0,
+                    workspace_id=workspace_id,
+                )
+            )
+
+        await self._session.execute(
+            insert(BaseView).values(
+                id=uuid.uuid4(),
+                page_id=page.id,
+                name="Table",
+                type="table",
+                position=next_position(None),
+                config={},
+                workspace_id=workspace_id,
+            )
+        )
+
+        position = None
+        for row in rows[1:]:
+            position = next_position(position)
+            cells = {
+                ids[at]: as_cell(row[at] if at < len(row) else "", kinds[at])
+                for at in range(len(ids))
+            }
+            await self._session.execute(
+                insert(BaseRow).values(
+                    id=uuid.uuid4(),
+                    page_id=page.id,
+                    cells={key: value for key, value in cells.items() if value is not None},
+                    position=position,
+                    creator_id=user_id,
+                    workspace_id=workspace_id,
+                )
+            )
+
+        await self._session.commit()
+        return await self._session.get(Page, page.id)
 
     async def _store_images(
         self,
@@ -629,13 +901,315 @@ class ImportService:
             stem = posixpath.splitext(entry.path)[0]
             by_folder[stem] = page.id
 
+            await self._restore_base(page, known.get("base"), task)
+            await self._restore_context(page, known, task)
+
+        # Прежние идентификаторы страниц: по ним встроенная база находит свою
+        # страницу после ввоза. Берутся из оглавления, у чужих выгрузок его
+        # нет — и замены тоже.
+        pages_by_old_id: dict[str, str] = {}
+        for path, page in made:
+            was = listing.about(path).get("pageId")
+            if isinstance(was, str) and was:
+                pages_by_old_id[was] = str(page.id)
+
+        mentions_by_path: dict[str, list[dict]] = {}
+        for path, _page in made:
+            found_mentions = listing.about(path).get("mentions")
+            if isinstance(found_mentions, list) and found_mentions:
+                mentions_by_path[path] = found_mentions
+
         await self._resolve_archive_links(
             task,
             made,
             {one.path: one for one in raw},
             notion_path if task.source == SOURCE_NOTION else (lambda one: one),
+            pages_by_old_id,
+            mentions_by_path,
         )
         return created
+
+    async def _restore_context(self, page: Page, known: dict, task: FileTask) -> None:
+        """Вернуть странице то, что документом не является.
+
+        Обсуждение, метки, проверка и открытая ссылка живут рядом со страницей,
+        а не в её теле, поэтому приходят снимком в оглавлении своей же выгрузки
+        (`includeContext` при вывозе). Чужая выгрузка их не несёт, и тогда этот
+        шаг не делает ничего.
+
+        Люди сопоставляются по почте: идентификатор принадлежит той вике, из
+        которой сделана выгрузка. Не нашёлся — запись всё равно восстанавливается,
+        а автором становится тот, кто ввозит. Терять обсуждение целиком из-за
+        одного уволившегося человека хуже, чем показать его чужим именем.
+        """
+        by_email = await self._people(known)
+
+        described = known.get("comments")
+        if isinstance(described, list) and described:
+            await self._restore_comments(page, described, task, by_email)
+
+        labels = known.get("labels")
+        if isinstance(labels, list) and labels:
+            await self._restore_labels(page, labels, task)
+
+        verification = known.get("verification")
+        if isinstance(verification, dict):
+            await self._restore_verification(page, verification, task, by_email)
+
+        share = known.get("share")
+        if isinstance(share, dict):
+            await self._restore_share(page, share, task)
+
+    async def _people(self, known: dict) -> dict[str, uuid.UUID]:
+        """Люди снимка, найденные в этой вике по почте."""
+        wanted: set[str] = set()
+        for one in known.get("comments") or []:
+            if isinstance(one, dict) and one.get("authorEmail"):
+                wanted.add(str(one["authorEmail"]).lower())
+        verification = known.get("verification")
+        if isinstance(verification, dict):
+            for one in verification.get("verifierEmails") or []:
+                wanted.add(str(one).lower())
+        if not wanted:
+            return {}
+
+        rows = (
+            await self._session.execute(
+                select(User.id, User.email).where(func.lower(User.email).in_(wanted))
+            )
+        ).all()
+        return {str(email).lower(): user_id for user_id, email in rows}
+
+    async def _restore_comments(
+        self, page: Page, described: list, task: FileTask, by_email: dict[str, uuid.UUID]
+    ) -> None:
+        """Вернуть обсуждение вместе с ветвлением.
+
+        Родитель задан номером в этом же списке: идентификаторы после ввоза
+        другие, а порядок тот же. Ветвь глубже одного уровня схема не знает, и
+        родитель ищется только среди уже заведённых.
+        """
+        # Пропуск помечается пустотой, а не выбрасывается: номер родителя
+        # считает позиции в исходном списке, и сдвиг сломал бы ветвление.
+        made: list[uuid.UUID | None] = []
+        for one in described:
+            if not isinstance(one, dict) or not isinstance(one.get("content"), dict):
+                # Реплика без тела — не реплика. Пустая строка в обсуждении
+                # выглядит как потерянное сообщение.
+                made.append(None)
+                continue
+
+            parent = None
+            at = one.get("parentIndex")
+            if isinstance(at, int) and 0 <= at < len(made):
+                parent = made[at]
+
+            comment_id = uuid.uuid4()
+            email = str(one.get("authorEmail") or "").lower()
+            await self._session.execute(
+                insert(Comment).values(
+                    id=comment_id,
+                    content=one["content"],
+                    selection=one.get("selection"),
+                    type=one.get("type"),
+                    creator_id=by_email.get(email, task.creator_id),
+                    page_id=page.id,
+                    parent_comment_id=parent,
+                    workspace_id=task.workspace_id,
+                    space_id=task.space_id,
+                    resolved_at=_moment(one.get("resolvedAt")),
+                )
+            )
+            made.append(comment_id)
+        await self._session.commit()
+
+    async def _restore_labels(self, page: Page, names: list, task: FileTask) -> None:
+        """Вернуть метки. Незаведённая метка заводится, заведённая берётся как есть."""
+        for raw in names:
+            name = str(raw or "").strip()
+            if not name:
+                continue
+
+            label_id = (
+                await self._session.execute(
+                    select(Label.id)
+                    .where(Label.workspace_id == task.workspace_id)
+                    .where(func.lower(Label.name) == name.lower())
+                )
+            ).scalar_one_or_none()
+
+            if label_id is None:
+                label_id = uuid.uuid4()
+                await self._session.execute(
+                    insert(Label).values(
+                        id=label_id, name=name, workspace_id=task.workspace_id
+                    )
+                )
+
+            already = (
+                await self._session.execute(
+                    select(PageLabel.id)
+                    .where(PageLabel.page_id == page.id)
+                    .where(PageLabel.label_id == label_id)
+                )
+            ).scalar_one_or_none()
+            if already is None:
+                await self._session.execute(
+                    insert(PageLabel).values(
+                        id=uuid.uuid4(), page_id=page.id, label_id=label_id
+                    )
+                )
+        await self._session.commit()
+
+    async def _restore_verification(
+        self, page: Page, described: dict, task: FileTask, by_email: dict[str, uuid.UUID]
+    ) -> None:
+        """Вернуть настройку проверки и её состояние.
+
+        Подтверждающие, которых в этой вике нет, просто не попадают в список:
+        подтверждать некому, а запись с чужим идентификатором была бы ссылкой
+        в пустоту.
+        """
+        kind = str(described.get("type") or "").strip()
+        if not kind:
+            return
+
+        verification_id = uuid.uuid4()
+        await self._session.execute(
+            insert(PageVerification).values(
+                id=verification_id,
+                page_id=page.id,
+                workspace_id=task.workspace_id,
+                space_id=task.space_id,
+                type=kind,
+                status=described.get("status"),
+                mode=described.get("mode"),
+                period_amount=described.get("periodAmount"),
+                period_unit=described.get("periodUnit"),
+                verified_at=_moment(described.get("verifiedAt")),
+                expires_at=_moment(described.get("expiresAt")),
+                creator_id=task.creator_id,
+            )
+        )
+
+        for email in described.get("verifierEmails") or []:
+            user_id = by_email.get(str(email).lower())
+            if user_id is None:
+                continue
+            await self._session.execute(
+                insert(PageVerifier).values(
+                    id=uuid.uuid4(),
+                    page_verification_id=verification_id,
+                    user_id=user_id,
+                    is_primary=False,
+                    added_by_id=task.creator_id,
+                )
+            )
+        await self._session.commit()
+
+    async def _restore_share(self, page: Page, described: dict, task: FileTask) -> None:
+        """Открыть страницу наружу заново.
+
+        Ключ заводится свой, а не берётся из архива: ключ и есть учётные данные
+        того, кто открывает страницу без входа, и перенос ключа раздавал бы
+        доступ вместе с файлом архива.
+
+        Заводится тем же способом, что и руками: через `ShareService.create`.
+        Там уже стоят все проверки — право правки, запрет публикации у
+        пространства и отказ публиковать ограниченную страницу, — и обход их
+        ради восстановления снимка означал бы публикацию мимо правил.
+
+        Отказ любой из проверок не отменяет ввоз: страница ввозится, ссылки у
+        неё не будет, и это записывается в журнал.
+        """
+        try:
+            await ShareService(self._session).create(
+                page=page,
+                user_id=task.creator_id,
+                include_sub_pages=bool(described.get("includeSubPages")),
+                search_indexing=bool(described.get("searchIndexing")),
+            )
+        except AppError as refused:
+            logger.info("Ссылка не восстановлена: %s", refused.code)
+
+    async def _restore_base(self, page: Page, described: object, task: FileTask) -> None:
+        """Вернуть странице устройство базы.
+
+        Ни markdown, ни HTML базу не несут: её содержимое в строках. Описание
+        приходит оглавлением своей же выгрузки, и без этого шага ввезённая база
+        оставалась пустой страницей с одним заголовком.
+        """
+        if not isinstance(described, dict):
+            return
+
+        properties = described.get("properties")
+        views = described.get("views")
+        rows = described.get("rows")
+        if not isinstance(properties, list) or not properties:
+            # База без единого свойства не открывается: показывать нечего, а
+            # признак базы уже стоял бы. Лучше оставить обычную страницу.
+            return
+
+        await self._session.execute(
+            update(Page)
+            .where(Page.id == page.id)
+            .values(
+                is_base=True,
+                base_schema_version=int(described.get("schemaVersion") or 1),
+            )
+        )
+
+        for one in properties:
+            if not isinstance(one, dict) or not one.get("id"):
+                continue
+            self._session.add(
+                BaseProperty(
+                    id=str(one["id"]),
+                    page_id=page.id,
+                    name=str(one.get("name") or ""),
+                    type=str(one.get("type") or "text"),
+                    position=str(one.get("position") or "h0"),
+                    type_options=one.get("typeOptions"),
+                    is_primary=bool(one.get("isPrimary")),
+                    schema_version=int(described.get("schemaVersion") or 1),
+                    workspace_id=task.workspace_id,
+                )
+            )
+
+        for one in views if isinstance(views, list) else []:
+            if not isinstance(one, dict):
+                continue
+            self._session.add(
+                BaseView(
+                    id=uuid.uuid4(),
+                    page_id=page.id,
+                    name=str(one.get("name") or "Default"),
+                    type=str(one.get("type") or "table"),
+                    position=str(one.get("position") or "h0"),
+                    # Колонка не допускает пустого значения: явная пустота
+                    # роняет вставку.
+                    config=one.get("config") or {},
+                    workspace_id=task.workspace_id,
+                    creator_id=task.creator_id,
+                )
+            )
+
+        for one in rows if isinstance(rows, list) else []:
+            if not isinstance(one, dict):
+                continue
+            self._session.add(
+                BaseRow(
+                    id=uuid.uuid4(),
+                    page_id=page.id,
+                    cells=one.get("cells") or {},
+                    position=str(one.get("position") or "h0"),
+                    creator_id=task.creator_id,
+                    last_updated_by_id=task.creator_id,
+                    workspace_id=task.workspace_id,
+                )
+            )
+
+        await self._session.flush()
 
     async def _resolve_archive_links(
         self,
@@ -643,6 +1217,8 @@ class ImportService:
         made: list[tuple[str, Page]],
         files: dict[str, ArchiveEntry],
         clean: Callable[[str], str],
+        pages_by_old_id: dict[str, str] | None = None,
+        mentions_by_path: dict[str, list[dict]] | None = None,
     ) -> None:
         """Связать ввезённые страницы между собой и перенести их файлы.
 
@@ -674,11 +1250,28 @@ class ImportService:
         changed = False
 
         for path, page in made:
+            # Встроенная база указывает на страницу идентификатором, а не
+            # адресом, поэтому меняется отдельно от ссылок.
+            if pages_by_old_id:
+                replaced = _with_page_ids(page.content, pages_by_old_id)
+                if replaced != page.content:
+                    page.content = replaced
+                    changed = True
+
             folder = posixpath.dirname(path)
             found: set[str] = set()
             _addresses_of(page.content, found)
 
             addresses: dict[str, str] = {}
+            #: Новые вложения по прежнему адресу: узел хранит рядом с адресом и
+            #: идентификатор, и оставленный чужой указывает в пустоту.
+            ids: dict[str, str] = {}
+            #: Ссылки, которые были упоминаниями. Список приходит оглавлением.
+            as_mention: dict[str, dict] = {
+                str(one.get("href") or ""): {"label": str(one.get("label") or "")}
+                for one in (mentions_by_path or {}).get(path, [])
+                if isinstance(one, dict)
+            }
             for source in found:
                 target = _archive_target(source, folder)
                 if target is None:
@@ -688,6 +1281,10 @@ class ImportService:
                 wanted = by_path.get(target)
                 if wanted is not None:
                     addresses[source] = f"/s/{space_slug}/p/{wanted.slug_id}"
+                    known_mention = as_mention.get(source)
+                    if known_mention is not None:
+                        known_mention["entityId"] = str(wanted.id)
+                        known_mention["slugId"] = wanted.slug_id
                     continue
 
                 # Документ, не ставший страницей, вложением тоже не становится:
@@ -713,9 +1310,21 @@ class ImportService:
                     logger.info("Файл выгрузки не завезён: %s", target)
                     continue
                 addresses[source] = f"/api/files/{saved.id}/{quote(saved.file_name)}"
+                ids[source] = str(saved.id)
+
+            # Упоминания возвращаются до подстановки адресов: узел упоминания
+            # адреса не несёт вовсе, и переписывать в нём нечего.
+            resolved = {
+                href: one
+                for href, one in as_mention.items()
+                if one.get("entityId") and one.get("slugId")
+            }
+            if resolved:
+                page.content = _with_mentions(page.content, resolved, task.creator_id)
+                changed = True
 
             if addresses:
-                page.content = _with_addresses(page.content, addresses)
+                page.content = _with_addresses(page.content, addresses, ids)
                 changed = True
 
         if changed:
@@ -1013,35 +1622,24 @@ def _unwrapped(entries: list[ArchiveEntry]) -> list[ArchiveEntry]:
     return inner or entries
 
 
-def csv_to_html(raw: bytes) -> str:
-    """Таблица из CSV.
+def read_table(suffix: str, raw: bytes) -> list[list[str]]:
+    """Строки табличного файла. Разбор свой у каждого формата, вид один."""
+    if suffix == ".xlsx":
+        try:
+            return read_xlsx(raw)
+        except Exception as error:  # noqa: BLE001 — битая книга это отказ ввоза
+            logger.info("Книга не разобрана: %s", error)
+            raise bad_request("error.import.unreadable_file") from error
+    return read_csv(raw)
 
-    Разделитель определяется по самому файлу: выгрузки приходят и с запятой, и
-    с точкой с запятой, и файл со вторым разделителем, разобранный по первому,
-    даёт таблицу из одного столбца — без единого отказа.
+
+def table_to_html(rows: list[list[str]]) -> str:
+    """Таблица разметкой.
 
     Первая строка становится шапкой. Это соглашение, а не догадка: и Notion, и
     таблицы вообще выгружаются с именами столбцов первой строкой, а таблица без
     шапки читается хуже, чем таблица с лишней жирной строкой.
     """
-    import csv
-    import io
-
-    text = raw.decode("utf-8-sig", errors="replace")
-    if not text.strip():
-        return ""
-
-    try:
-        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
-    except csv.Error:
-        # Один столбец без разделителей — обычный исход, а не поломка.
-        dialect = csv.excel
-
-    rows = [
-        row
-        for row in csv.reader(io.StringIO(text), dialect)
-        if any(one.strip() for one in row)
-    ]
     if not rows:
         return ""
 

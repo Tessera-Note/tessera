@@ -18,7 +18,16 @@ export const EXPORT_FORMATS = [
 ] as const;
 
 /** Что принимает ввоз одного файла. Совпадает с `SINGLE_FILE_EXTENSIONS`. */
-export const IMPORT_ACCEPT = '.md,.markdown,.html,.htm,.docx,.odt,.pdf,.csv';
+export const IMPORT_ACCEPT = '.md,.markdown,.html,.htm,.docx,.odt,.pdf,.csv,.xlsx';
+
+/** Форматы, которые можно ввезти базой, а не страницей с таблицей. */
+export const TABLE_ACCEPT = ['.csv', '.xlsx'];
+
+/** Таблица ли это по имени файла. Решает, показывать ли выбор «страницей или базой». */
+export function isTable(name: string): boolean {
+  const lowered = (name || '').toLowerCase();
+  return TABLE_ACCEPT.some((one) => lowered.endsWith(one));
+}
 
 /** Что принимает ввоз архива. */
 export const IMPORT_ZIP_ACCEPT = '.zip';
@@ -105,11 +114,18 @@ export function exportDocx(pageId: string, fallbackName: string): Promise<void> 
   return download('/api/docx-export', { pageId }, fallbackName);
 }
 
-/** Выгрузить пространство целиком. Всегда архивом. */
+/**
+ * Выгрузить пространство целиком. Всегда архивом.
+ *
+ * `includeContext` кладёт в оглавление то, что документом не является:
+ * обсуждение, метки, проверку и открытые ссылки. Отдельным признаком, а не
+ * всегда: снимок несёт почту участников обсуждения.
+ */
 export function exportSpace(values: {
   spaceId: string;
   format: string;
   includeAttachments?: boolean;
+  includeContext?: boolean;
   fallbackName: string;
 }): Promise<void> {
   return download(
@@ -117,7 +133,8 @@ export function exportSpace(values: {
     {
       spaceId: values.spaceId,
       format: values.format,
-      includeAttachments: values.includeAttachments ?? false
+      includeAttachments: values.includeAttachments ?? false,
+      includeContext: values.includeContext ?? false
     },
     values.fallbackName
   );
@@ -136,11 +153,14 @@ export async function importFile(values: {
   file: File;
   spaceId: string;
   parentPageId?: string;
+  /** Завести из таблицы базу, а не страницу с таблицей. Только для `.csv` и `.xlsx`. */
+  asBase?: boolean;
 }): Promise<ImportedPage> {
   const body = new FormData();
   body.append('file', values.file);
   body.append('spaceId', values.spaceId);
   if (values.parentPageId) body.append('parentPageId', values.parentPageId);
+  if (values.asBase) body.append('asBase', 'true');
 
   const response = await fetch(`${apiBase()}/api/pages/import`, {
     method: 'POST',
