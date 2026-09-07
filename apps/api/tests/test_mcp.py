@@ -16,11 +16,13 @@ import json
 import uuid
 from dataclasses import replace
 
+import httpx
 from sqlalchemy import insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.config import Settings
 from tessera_api.domain.roles import SpaceRole, UserRole
+from tessera_api.infrastructure.content import ContentClient
 from tessera_api.infrastructure.models import (
     Page,
     PageAccess,
@@ -41,6 +43,44 @@ from tessera_api.services.page_access import ACCESS_RESTRICTED
 from tests.conftest import RealtimeDouble, needs_database
 
 SECRET = "s" * 32
+
+
+def _markdown_client() -> ContentClient:
+    """Преобразователь, отвечающий заголовком на разметку заголовка.
+
+    Настоящий разбор живёт у соседа и проверяется у него: здесь важно одно —
+    что ответ соседа доходит до страницы, а не подменяется плоским текстом.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        markdown = str(body.get("markdown") or "")
+        kind = "heading" if markdown.lstrip().startswith("#") else "paragraph"
+        return httpx.Response(
+            200,
+            json={
+                "content": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": kind,
+                            "content": [{"type": "text", "text": markdown.lstrip("# ")}],
+                        }
+                    ],
+                }
+            },
+        )
+
+    return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
+
+
+def _broken_client() -> ContentClient:
+    """Недоступный сосед. Отказ не должен стоить человеку написанного."""
+
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        raise httpx.ConnectError("нет связи")
+
+    return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
 
 
 def _settings(**extra) -> Settings:
@@ -285,6 +325,120 @@ class TestTools:
         read, failed = await service.call("get_page", {"pageId": str(page_id)})
         assert failed is False
         assert "Важная строка" in json.loads(read)["content"]
+
+    async def test_the_markup_of_the_model_becomes_a_document(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Модель пишет markdown, а страница хранится деревом узлов.
+
+        Без разбора человек видел на странице `## Итоги` вместо заголовка.
+        Разбирает тот же сосед, что разбирает ввоз: схема узлов у них одна.
+        """
+        member_id, _ = await self._setup(session, workspace, space)
+        service = McpService(
+            session,
+            _settings(),
+            user_id=member_id,
+            workspace_id=workspace.id,
+            realtime=RealtimeDouble(),
+            content=_markdown_client(),
+        )
+
+        text, failed = await service.call(
+            "create_page",
+            {"title": "Отчёт", "spaceId": str(space.id), "content": "## Итоги"},
+        )
+        assert failed is False
+
+        page = await session.get(Page, uuid.UUID(json.loads(text)["id"]))
+        assert page.content["content"][0]["type"] == "heading"
+
+    async def test_dead_image_links_come_back_to_the_model(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Модель узнаёт, что её ссылки не открылись.
+
+        Она охотно сочиняет правдоподобные адреса, которых нет, и без ответа
+        оставила бы на странице ряд пустых рамок, ничего об этом не зная.
+        Проверяется на адресе внутри контура: он отвергается до всякого
+        обращения в сеть, и проверка остаётся offline.
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+            return httpx.Response(
+                200,
+                json={
+                    "content": {
+                        "type": "doc",
+                        "content": [
+                            {"type": "image", "attrs": {"src": "http://127.0.0.1/poster.png"}}
+                        ],
+                    }
+                },
+            )
+
+        member_id, _ = await self._setup(session, workspace, space)
+        service = McpService(
+            session,
+            _settings(),
+            user_id=member_id,
+            workspace_id=workspace.id,
+            realtime=RealtimeDouble(),
+            content=ContentClient("http://collab:3001", transport=httpx.MockTransport(handler)),
+        )
+
+        text, failed = await service.call(
+            "create_page",
+            {"title": "С картинкой", "spaceId": str(space.id), "content": "![](x)"},
+        )
+
+        # Страница всё равно заведена: девять картинок из десяти лучше, чем
+        # отказ на всю страницу из-за одной ссылки.
+        assert failed is False
+        answer = json.loads(text)
+        assert answer["id"]
+        assert answer["imageErrors"][0]["url"] == "http://127.0.0.1/poster.png"
+        assert answer["imageErrors"][0]["code"] == "error.media.address_not_allowed"
+
+    async def test_a_page_without_images_says_nothing_about_them(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Пустой перечень отказов в ответ не кладётся: он занимал бы место в
+        окне модели на каждой странице без единой картинки."""
+        member_id, _ = await self._setup(session, workspace, space)
+        service = self._service(session, member_id, workspace)
+
+        text, failed = await service.call(
+            "create_page",
+            {"title": "Без картинок", "spaceId": str(space.id), "content": "Просто текст"},
+        )
+
+        assert failed is False
+        assert "imageErrors" not in json.loads(text)
+
+    async def test_an_unavailable_transformer_does_not_lose_the_text(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Написанное моделью дороже разметки: страница заводится абзацами."""
+        member_id, _ = await self._setup(session, workspace, space)
+        service = McpService(
+            session,
+            _settings(),
+            user_id=member_id,
+            workspace_id=workspace.id,
+            realtime=RealtimeDouble(),
+            content=_broken_client(),
+        )
+
+        text, failed = await service.call(
+            "create_page",
+            {"title": "Отчёт", "spaceId": str(space.id), "content": "## Итоги"},
+        )
+        assert failed is False
+
+        page = await session.get(Page, uuid.UUID(json.loads(text)["id"]))
+        assert page.content["content"][0]["type"] == "paragraph"
+        assert "## Итоги" in json.dumps(page.content, ensure_ascii=False)
 
     async def test_a_reader_cannot_create(
         self, session: AsyncSession, workspace, space

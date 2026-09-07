@@ -20,6 +20,25 @@ export type Attachment = {
   indexStatus?: string;
 };
 
+/**
+ * Перенести картинку по внешнему адресу во вложения страницы.
+ *
+ * Ссылка на чужой сервер живёт своей жизнью: сегодня открывается, завтра адрес
+ * меняется, а на закрытом контуре её не видно вовсе. Поэтому в документе
+ * остаётся свой адрес, а не чужой.
+ *
+ * Отказ приходит кодом (`error.media.*`), и вызывающий решает, что с ним
+ * делать: адрес, ведущий не к картинке, — обычное дело при вставке ссылки, а
+ * мёртвый адрес человеку надо показать.
+ */
+export function fetchImageUrl(pageId: string, url: string, fetcher?: typeof fetch) {
+  return post<Attachment & { url: string }>(
+    '/api/attachments/fetch-url',
+    { pageId, url },
+    { fetcher }
+  );
+}
+
 /** Что известно о вложении. Нужен карточке: размер и попадание в поиск. */
 export function attachmentInfo(attachmentId: string, fetcher?: typeof fetch) {
   return post<Attachment>('/api/files/info', { attachmentId }, { fetcher });

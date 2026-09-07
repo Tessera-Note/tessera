@@ -58,6 +58,7 @@ from tessera_api.services.labels import (
     FavoriteService,
     LabelService,
 )
+from tessera_api.services.media_fetch import move_images
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.pages import PageService, extract_text
 from tessera_api.services.realtime import RealtimeService
@@ -860,11 +861,10 @@ def _limit(raw: Any, default: int = DEFAULT_LIMIT) -> int:
 
 
 def _plain_document(text: str) -> dict:
-    """Текст модели — в документ редактора.
+    """Текст модели — в документ редактора без разбора разметки.
 
-    Модель присылает обычный текст, а страницы хранятся документом. Разметка
-    здесь не разбирается намеренно: разбор без общей схемы узлов даёт документ,
-    который редактор откроет, но покажет не так, как ожидал агент.
+    Запасной путь: применяется, когда сосед-преобразователь недоступен.
+    Потерять написанное моделью из-за этого хуже, чем показать его абзацами.
     """
     paragraphs = [one for one in (text or "").split("\n\n")]
     return {
@@ -898,6 +898,7 @@ class McpService:
         queue: JobQueue | None = None,
         storage: Storage | None = None,
         web: WebSearch | None = None,
+        content: ContentClient | None = None,
     ) -> None:
         self._session = session
         self._settings = settings
@@ -909,6 +910,9 @@ class McpService:
         # Поиск в интернете. Без него инструмент отвечает пустой выдачей: это
         # установка без поиска, а не поломка.
         self._web = web
+        # Преобразователь разметки. Адрес соседа есть в настройках, поэтому
+        # клиент собирается сам; довод оставлен для проверок.
+        self._content = content or ContentClient(settings.content_service_url)
         self._access = PageAccessService(session)
         self._members = SpaceMemberRepo(session)
 
@@ -1111,6 +1115,46 @@ class McpService:
             "content": page.text_content or "",
         }
 
+    async def _document(self, text: str) -> dict:
+        """Разметка модели — в документ редактора.
+
+        Модель пишет markdown, и без разбора человек видит на странице `## Итоги`
+        вместо заголовка. Разбирает тот же сосед, что разбирает ввоз, — схема
+        узлов у них одна, и документ выходит такой же, как у ввезённого файла.
+        """
+        body = str(text or "")
+        if not body.strip():
+            return _plain_document(body)
+        try:
+            return await self._content.markdown_to_json(body)
+        except Exception:  # noqa: BLE001 — сосед недоступен, текст остаётся
+            logger.info("Разметку страницы разобрать не удалось, кладётся текстом")
+            return _plain_document(body)
+
+    async def _move_images(self, page: Page, content: dict) -> list[dict]:
+        """Перенести картинки страницы в своё хранилище и вернуть отказы.
+
+        Ссылка на чужой сервер живёт своей жизнью, а на закрытом контуре не
+        открывается вовсе. Отказы возвращаются модели: она сочиняет
+        правдоподобные, но несуществующие адреса, и без ответа оставила бы на
+        странице ряд пустых рамок, ничего об этом не зная.
+        """
+        moved = await move_images(
+            content=content,
+            page_id=str(page.id),
+            user_id=self._user_id,
+            workspace_id=self._workspace_id,
+            attachments=AttachmentService(self._session, self._storage, self._queue),
+            size_limit=self._settings.file_upload_size_limit,
+        )
+        if moved.moved:
+            # Тело переписывается только когда что-то перенеслось: лишняя
+            # запись подняла бы версию страницы без единой правки.
+            await self._pages().update(
+                page=page, user_id=self._user_id, title=None, content=moved.content
+            )
+        return moved.failures
+
     async def _create_page(self, args: dict) -> Any:
         space_id = self._uuid(args.get("spaceId"), "error.space.space_not_found")
         parent = (
@@ -1118,29 +1162,37 @@ class McpService:
             if args.get("parentPageId")
             else None
         )
+        content = await self._document(str(args.get("content") or ""))
         page = await self._pages().create(
             user_id=self._user_id,
             workspace_id=self._workspace_id,
             space_id=space_id,
             title=str(args.get("title") or ""),
-            content=_plain_document(str(args.get("content") or "")),
+            content=content,
             parent_page_id=parent,
         )
-        return _page_brief(page)
+        # После создания, а не до: вложение принадлежит странице, и права на
+        # него проверяются по ней.
+        failures = await self._move_images(page, content)
+        brief = _page_brief(page)
+        return {**brief, "imageErrors": failures} if failures else brief
 
     async def _update_page(self, args: dict) -> Any:
         page = await self._page(args.get("pageId"))
+        content = (
+            await self._document(str(args["content"]))
+            if args.get("content") is not None
+            else None
+        )
         updated = await self._pages().update(
             page=page,
             user_id=self._user_id,
             title=str(args["title"]) if args.get("title") is not None else None,
-            content=(
-                _plain_document(str(args["content"]))
-                if args.get("content") is not None
-                else None
-            ),
+            content=content,
         )
-        return _page_brief(updated)
+        failures = await self._move_images(updated, content) if content is not None else []
+        brief = _page_brief(updated)
+        return {**brief, "imageErrors": failures} if failures else brief
 
     async def _delete_page(self, args: dict) -> Any:
         page = await self._page(args.get("pageId"))
@@ -1398,8 +1450,11 @@ class McpService:
 
     async def _list_templates(self, args: dict) -> Any:
         actor = await self._actor()
-        found = await TemplateService(self._session).list(actor, self._workspace_id)
-        return {"templates": found}
+        page = await TemplateService(self._session).list(actor, self._workspace_id)
+        # Курсор наружу не отдаётся: у этого средства нет способа попросить
+        # продолжение, а полсотни шаблонов — уже больше, чем помещается в ответ
+        # разумного размера.
+        return {"templates": page.items}
 
     async def _use_template(self, args: dict) -> Any:
         actor = await self._actor()

@@ -5,10 +5,12 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Annotated
 from urllib.parse import quote
 
+import msgspec
 from litestar import Controller, Request, Response, get, post
 from litestar.datastructures import UploadFile
 from litestar.di import NamedDependency
@@ -23,7 +25,10 @@ from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.infrastructure.repositories import WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.attachments import AttachmentService, StoredFile
+from tessera_api.services.media_fetch import FetchRefused, fetch_image
 from tessera_api.services.tokens import TokenService
+
+logger = logging.getLogger(__name__)
 
 #: Что отдаётся браузеру внутри страницы, а не файлом на скачивание. Всё
 #: остальное уходит вложением: содержимое загружают люди, и показать чужой
@@ -197,8 +202,59 @@ class FileController(Controller):
         )
 
 
+class FetchUrlRequest(msgspec.Struct):
+    """Перенос картинки по внешнему адресу. Имена полей как у прочих маршрутов."""
+
+    pageId: str  # noqa: N815 — имя поля из v1
+    url: str
+
+
 class ImageController(Controller):
     path = "/api/attachments"
+
+    @post("/fetch-url")
+    async def fetch_url(
+        self,
+        data: FetchUrlRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
+        settings: NamedDependency[Settings],
+    ) -> dict:
+        """Перенести картинку по внешнему адресу во вложения страницы.
+
+        Ссылка на чужой сервер живёт своей жизнью: сегодня открывается, завтра
+        адрес меняется, а на закрытом контуре её не видно вовсе. Поэтому в теле
+        остаётся свой адрес, а не чужой.
+
+        Отказ приходит кодом, а не молчанием: адрес, который не открылся, — это
+        то, что человеку надо знать до сохранения страницы, а не после.
+        """
+        principal: Principal = request.scope["principal"]
+        try:
+            fetched = await fetch_image(
+                str(data.url or ""), size_limit=settings.file_upload_size_limit
+            )
+        except FetchRefused as refused:
+            logger.info("Картинка не перенесена: %s", refused.detail)
+            raise bad_request(refused.code) from refused
+
+        attachment = await AttachmentService(db_session, storage, queue).upload_page_file(
+            page_id_or_slug=str(data.pageId),
+            file_name=fetched.file_name,
+            data=fetched.data,
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            size_limit=settings.file_upload_size_limit,
+        )
+        return {
+            "id": attachment.id,
+            "fileName": attachment.file_name,
+            "fileSize": attachment.file_size,
+            "mimeType": attachment.mime_type,
+            "url": f"/api/files/{attachment.id}/{quote(attachment.file_name)}",
+        }
 
     @post("/upload-image")
     async def upload_image(

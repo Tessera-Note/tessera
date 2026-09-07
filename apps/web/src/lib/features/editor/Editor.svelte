@@ -25,19 +25,28 @@
   import type { Editor as TiptapEditor } from '@tiptap/core';
   import { errorText } from '$lib/api/failure';
   import { locale } from '$lib/stores/i18n.svelte';
-  import { collabAddress, collabToken, documentName } from './collab';
+  import {
+    ACCESS_CHANGED,
+    ACCESS_REVOKED,
+    DOCUMENT_UNREADABLE,
+    collabAddress,
+    collabToken,
+    documentName,
+    plainText
+  } from './collab';
   import { Suggest } from './menus/suggest.svelte';
   import AskAi from './menus/AskAi.svelte';
   import BubbleMenu from './menus/BubbleMenu.svelte';
   import CommentBox from './menus/CommentBox.svelte';
   import DragHandle from './menus/DragHandle.svelte';
+  import EmptyStart from './EmptyStart.svelte';
   import FindReplace from './menus/FindReplace.svelte';
   import InsertMenu from './menus/InsertMenu.svelte';
   import LinkPanel from './menus/LinkPanel.svelte';
   import SuggestMenu from './menus/SuggestMenu.svelte';
   import TableMenu from './menus/TableMenu.svelte';
   import Toc from './menus/Toc.svelte';
-  import { kindOf, uploadAndInsert } from './upload';
+  import { insertImageFromUrl, kindOf, uploadAndInsert } from './upload';
 
   type Props = {
     pageId: string;
@@ -73,11 +82,35 @@
   const t = $derived(locale.t);
 
   let host: HTMLDivElement;
+  /**
+   * Один голый внешний адрес и ничего больше.
+   *
+   * Только такая вставка разбирается как «добавили ссылку»: адрес посреди
+   * абзаца — это текст, и лезть в него с загрузкой картинки незачем.
+   */
+  const EXTERNAL_ADDRESS = /^https?:\/\/\S+$/i;
+
   let status = $state<'connecting' | 'ready' | 'offline'>('connecting');
   let failure = $state<string | null>(null);
+  /**
+   * Причина, по которой тело страницы не показать.
+   *
+   * Ставится, когда в теле встречается узел, которого нет в схеме этой версии:
+   * так бывает после ввоза из чужой системы и после отката приложения. Тело при
+   * этом цело — служба редактирования запрещает сохранение такой страницы, —
+   * и вместо пустого листа показывается её текст и причина.
+   */
+  let unreadable = $state<string | null>(null);
 
   /** Редактор, когда он собран. До этого панель показывать нечего. */
   let ready = $state<TiptapEditor | null>(null);
+  /**
+   * Документ доехал.
+   *
+   * До этого редактор пуст всегда — содержимое приходит из Yjs, — и подсказка
+   * «начать работу с» мигала бы на каждой странице, включая непустые.
+   */
+  let synced = $state(false);
   /** Счётчик перерисовки панели: состояние кнопок живёт в самом редакторе. */
   let ticks = $state(0);
 
@@ -298,10 +331,28 @@
    */
   function paste(event: ClipboardEvent): boolean {
     const made = editor;
+    if (!made || !made.isEditable) return false;
+
     const file = event.clipboardData?.files?.[0];
-    if (!made || !made.isEditable || !file) return false;
+    if (file) {
+      event.preventDefault();
+      void uploadAndInsert(made, pageId, kindOf(file), file).catch(fail);
+      return true;
+    }
+
+    // Вставлен один голый адрес и ничего больше. Если по нему картинка, она
+    // переносится в своё хранилище: чужая ссылка сегодня открывается, завтра
+    // меняется, а на закрытом контуре не видна вовсе. Если не картинка —
+    // обычная вставка, её делает сам редактор.
+    const pasted = (event.clipboardData?.getData('text/plain') ?? '').trim();
+    if (!EXTERNAL_ADDRESS.test(pasted) || !made.state.selection.empty) return false;
+
     event.preventDefault();
-    void uploadAndInsert(made, pageId, kindOf(file), file).catch(fail);
+    void insertImageFromUrl(made, pageId, pasted)
+      .then((outcome) => {
+        if (outcome === 'not-an-image') made.chain().focus().insertContent(pasted).run();
+      })
+      .catch(fail);
     return true;
   }
 

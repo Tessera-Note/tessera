@@ -10,7 +10,12 @@
  */
 
 import type { Editor } from '@tiptap/core';
-import { uploadPageFile, type Attachment } from '$lib/features/page/services/attachments';
+import { ApiError } from '$lib/api/client';
+import {
+  fetchImageUrl,
+  uploadPageFile,
+  type Attachment
+} from '$lib/features/page/services/attachments';
 
 /** Виды вложений, у каждого свой узел документа. */
 export type MediaKind = 'image' | 'video' | 'audio' | 'pdf' | 'attachment';
@@ -80,6 +85,38 @@ export async function uploadAndInsert(
   file: File
 ): Promise<void> {
   insertMedia(editor, kind, await uploadPageFile(file, pageId));
+}
+
+/** Чем кончилась попытка завести картинку по вставленному адресу. */
+export type LinkPaste = 'image' | 'not-an-image';
+
+/**
+ * Завести картинку по внешнему адресу.
+ *
+ * Файл переносится в своё хранилище, и в документ уходит свой адрес: чужая
+ * ссылка сегодня открывается, завтра меняется, а на закрытом контуре не видна
+ * вовсе.
+ *
+ * Адрес, ведущий не к картинке, — не отказ, а обычная вставка ссылки: такой
+ * случай возвращается значением, и вызывающий вставляет её как ссылку. Всё
+ * остальное — отказ, и он доходит до человека: мёртвый адрес надо видеть до
+ * сохранения страницы, а не после.
+ */
+export async function insertImageFromUrl(
+  editor: Editor,
+  pageId: string,
+  url: string
+): Promise<LinkPaste> {
+  try {
+    const attachment = await fetchImageUrl(pageId, url);
+    insertMedia(editor, 'image', attachment);
+    return 'image';
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'error.media.not_an_image') {
+      return 'not-an-image';
+    }
+    throw error;
+  }
 }
 
 /**
