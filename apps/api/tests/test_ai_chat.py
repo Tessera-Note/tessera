@@ -24,6 +24,7 @@ from tessera_api.infrastructure.ai_client import AiClient, ChatTarget, ToolStep
 from tessera_api.infrastructure.models import (
     AiChat,
     AiChatMessage,
+    Attachment,
     Page,
     PageAccess,
     PagePermission,
@@ -41,9 +42,11 @@ from tessera_api.services.ai_chat import (
     detect_language,
 )
 from tessera_api.services.ai_settings import AiDriver
+from tessera_api.services.attachments import AttachmentService
 from tessera_api.services.mcp import TOOL_NAMES
 from tessera_api.services.page_access import ACCESS_RESTRICTED
 from tests.conftest import RealtimeDouble, needs_database
+from tests.test_attachment_search import StorageDouble
 
 SECRET = "s" * 32
 
@@ -387,6 +390,128 @@ class TestContext:
 
         assert "секретноесодержимое" in await mine.context_for([page_id])
         assert "секретноесодержимое" not in await theirs.context_for([page_id])
+
+
+@needs_database
+class TestChatFiles:
+    """Файлы, приложенные к реплике.
+
+    Разговор личный: файл принадлежит тому, кто его загрузил, и чужой
+    идентификатор в списке не должен открывать чужой файл. Проверяется это и
+    уборка: корзины у разговоров нет, и оставленный файл лежал бы в хранилище
+    вечно — так было в v1, где обработчик уборки не звался ниоткуда.
+    """
+
+    def _service(self, session, user_id, workspace, storage) -> AiChatService:
+        return AiChatService(
+            session,
+            _settings(),
+            user_id=user_id,
+            workspace_id=workspace.id,
+            client=ClientDouble([]),
+            realtime=RealtimeDouble(),
+            storage=storage,
+        )
+
+    async def _person(self, session: AsyncSession, workspace) -> uuid.UUID:
+        user_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=user_id,
+                email=f"{user_id.hex[:8]}@example.com",
+                role="member",
+                workspace_id=workspace.id,
+            )
+        )
+        await session.commit()
+        return user_id
+
+    async def _file(self, session, storage, user_id, workspace, body: bytes = b"") -> uuid.UUID:
+        attachment = await AttachmentService(session, storage, None).upload_chat_file(
+            file_name="заметки.txt",
+            data=body or "важное слово".encode(),
+            user_id=user_id,
+            workspace_id=workspace.id,
+            size_limit=1024 * 1024,
+        )
+        return attachment.id
+
+    async def test_the_text_of_a_file_reaches_the_model(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        storage = StorageDouble()
+        owner = await self._person(session, workspace)
+        attachment_id = await self._file(session, storage, owner, workspace)
+
+        context = await self._service(session, owner, workspace, storage).files_for(
+            [attachment_id]
+        )
+
+        assert "заметки.txt" in context
+        assert "важное слово" in context
+
+    async def test_a_foreign_file_is_skipped_not_read(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Разговор личный: чужой идентификатор не открывает чужой файл."""
+        storage = StorageDouble()
+        owner = await self._person(session, workspace)
+        stranger = await self._person(session, workspace)
+        attachment_id = await self._file(session, storage, owner, workspace)
+
+        context = await self._service(session, stranger, workspace, storage).files_for(
+            [attachment_id]
+        )
+
+        assert context == ""
+
+    async def test_an_unreadable_file_is_named_anyway(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Модель должна знать, что файл был, даже если текста в нём нет."""
+        storage = StorageDouble()
+        owner = await self._person(session, workspace)
+        attachment = await AttachmentService(session, storage, None).upload_chat_file(
+            file_name="снимок.png",
+            data=b"\x89PNG\r\n\x1a\n" + b"\x00" * 20,
+            user_id=owner,
+            workspace_id=workspace.id,
+            size_limit=1024 * 1024,
+        )
+
+        context = await self._service(session, owner, workspace, storage).files_for(
+            [attachment.id]
+        )
+
+        assert "снимок.png" in context
+
+    async def test_deleting_a_chat_removes_its_files(
+        self, session: AsyncSession, workspace
+    ) -> None:
+        """Корзины у разговоров нет: помеченный удалённым файл лежал бы вечно."""
+        storage = StorageDouble()
+        owner = await self._person(session, workspace)
+        attachment_id = await self._file(session, storage, owner, workspace)
+        service = self._service(session, owner, workspace, storage)
+
+        chat = await service.create_chat("С файлом")
+        session.add(
+            AiChatMessage(
+                id=uuid.uuid4(),
+                chat_id=uuid.UUID(chat["id"]),
+                workspace_id=workspace.id,
+                user_id=owner,
+                role="user",
+                content="вопрос",
+                message_metadata={"attachmentIds": [str(attachment_id)]},
+            )
+        )
+        await session.commit()
+
+        await service.delete_chat(uuid.UUID(chat["id"]))
+
+        assert await session.get(Attachment, attachment_id) is None
+        assert not storage.files
 
 
 @needs_database

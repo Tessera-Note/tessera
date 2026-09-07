@@ -340,6 +340,76 @@ class AttachmentService:
         if previous:
             await self._forget_previous_image(kind, previous, workspace_id)
 
+    async def upload_chat_file(
+        self,
+        *,
+        file_name: str,
+        data: bytes,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        size_limit: int,
+    ) -> Attachment:
+        """Загрузить файл в разговор с помощником.
+
+        Без страницы: файл принадлежит разговору, а разговор личный. Права на
+        чтение отсюда и берутся — `authorize_read` отдаёт вложение вида `chat`
+        только тому, кто его загрузил.
+
+        Проверять членство в пространстве незачем: файл приносит сам человек, и
+        доступа он этим себе не открывает.
+        """
+        if not data:
+            raise bad_request("error.attachment.empty_file")
+        if len(data) > size_limit:
+            raise bad_request("error.attachment.too_large")
+
+        attachment_id = uuid.uuid4()
+        # Имя чистится тем же способом, что и у вложения страницы: оно
+        # становится частью ключа в хранилище.
+        clean = sanitize_file_name(file_name)
+        key = attachment_key(workspace_id, attachment_id, clean)
+        await self._storage.put(key, data, _mime_type(clean))
+
+        await self._session.execute(
+            insert(Attachment).values(
+                id=attachment_id,
+                file_name=clean,
+                file_path=key,
+                file_size=len(data),
+                file_ext=file_extension(clean),
+                mime_type=_mime_type(clean),
+                type=TYPE_CHAT,
+                creator_id=user_id,
+                page_id=None,
+                space_id=None,
+                workspace_id=workspace_id,
+            )
+        )
+        await self._session.commit()
+        return await self._session.get(Attachment, attachment_id)
+
+    async def delete_own_chat_file(
+        self, attachment_id: uuid.UUID, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> None:
+        """Удалить свой файл разговора насовсем.
+
+        Насовсем, а не в корзину: корзины у разговоров нет, и помеченный
+        удалённым файл лежал бы в хранилище вечно.
+
+        Только свой и только вида `chat`: этим маршрутом нельзя достать до
+        вложения страницы, у которого свои правила доступа.
+        """
+        found = await self._session.get(Attachment, attachment_id)
+        if found is None or found.workspace_id != workspace_id:
+            return
+        if found.type != TYPE_CHAT or found.creator_id != user_id:
+            raise forbidden("error.attachment.access_denied")
+
+        if found.file_path:
+            await self._storage.delete(found.file_path)
+        await self._session.execute(delete(Attachment).where(Attachment.id == found.id))
+        await self._session.commit()
+
     async def upload_image(
         self,
         *,

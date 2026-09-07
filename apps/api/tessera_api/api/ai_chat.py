@@ -10,10 +10,14 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from typing import Annotated
 
 import msgspec
 from litestar import Controller, Request, post
+from litestar.datastructures import UploadFile
 from litestar.di import NamedDependency
+from litestar.enums import RequestEncodingType
+from litestar.params import Body
 from litestar.response import ServerSentEvent
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +31,7 @@ from tessera_api.infrastructure.storage import Storage
 from tessera_api.infrastructure.throttle import Throttle
 from tessera_api.services.ai_chat import AiChatService
 from tessera_api.services.ai_settings import feature_enabled
+from tessera_api.services.attachments import AttachmentService
 from tessera_api.services.realtime import RealtimeService
 
 logger = logging.getLogger(__name__)
@@ -59,6 +64,10 @@ class SendRequest(msgspec.Struct):
     message: str
     chatId: str | None = None  # noqa: N815 — имя поля из v1
     mentionedPageIds: list[str] | None = None  # noqa: N815 — имя поля из v1
+    #: Файлы, приложенные к реплике. Загружаются отдельным маршрутом до
+    #: отправки: ход разговора идёт потоком, и загрузка внутри него оставила бы
+    #: человека без ответа на время передачи файла.
+    attachmentIds: list[str] | None = None  # noqa: N815 — имя поля в стиле соседей
     #: Язык интерфейса спрашивающего. Нужен потому, что локаль в учётной записи
     #: пуста до первого захода в настройки, а интерфейс всё это время показан
     #: на языке браузера: без этого поля на русский вопрос без опознавательных
@@ -240,6 +249,51 @@ class AiChatController(Controller):
             _uuid(data.messageId, "error.ai_chat.message_not_found"), data.decision
         )
 
+    @post("/attach")
+    async def attach(
+        self,
+        data: Annotated[dict, Body(media_type=RequestEncodingType.MULTI_PART)],
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        storage: NamedDependency[Storage],
+        queue: NamedDependency[JobQueue],
+        throttle: NamedDependency[Throttle],
+    ) -> dict:
+        """Приложить файл к реплике разговора.
+
+        Отдельно от хода: ход идёт потоком, и загрузка внутри него оставила бы
+        человека без ответа на время передачи файла.
+
+        Файл не принадлежит ни одной странице. Читать его может только тот, кто
+        загрузил, — это уже проверяет `AttachmentService.authorize_read` у
+        вложений вида `chat`.
+        """
+        principal: Principal = request.scope["principal"]
+        # Тот же предел, что у хода разговора. Глобального лимита на `/ai` нет,
+        # и без своего этот маршрут остался бы единственным местом под `/ai`,
+        # куда можно слать файлы без ограничения частоты.
+        await throttle.check(f"user:{principal.user_id}", AI_LIMIT)
+
+        upload: UploadFile | None = data.get("file")
+        if upload is None:
+            raise bad_request("error.attachment.file_required")
+
+        body = await upload.read()
+        attachment = await AttachmentService(db_session, storage, queue).upload_chat_file(
+            file_name=upload.filename or "file",
+            data=body,
+            user_id=principal.user_id,
+            workspace_id=principal.workspace_id,
+            size_limit=settings.file_upload_size_limit,
+        )
+        return {
+            "id": str(attachment.id),
+            "fileName": attachment.file_name,
+            "fileSize": attachment.file_size,
+            "mimeType": attachment.mime_type,
+        }
+
     @post("/send")
     async def send(
         self,
@@ -271,12 +325,20 @@ class AiChatController(Controller):
                 # список собирается редактором из текста реплики.
                 continue
 
+        attached: list[uuid.UUID] = []
+        for raw in data.attachmentIds or []:
+            try:
+                attached.append(uuid.UUID(str(raw)))
+            except (TypeError, ValueError):
+                continue
+
         async def frames() -> AsyncIterator[str]:
             try:
                 async for event in service.send(
                     _uuid(data.chatId) if data.chatId else None,
                     data.message,
                     mentioned_page_ids=mentioned,
+                    attachment_ids=attached,
                 ):
                     yield json.dumps(event, ensure_ascii=False, default=str)
             except AppError as error:

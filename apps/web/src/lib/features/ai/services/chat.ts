@@ -35,6 +35,17 @@ function withLocale<T extends object>(values: T): T & { locale: string } {
   return { ...values, locale: locale.current };
 }
 
+/**
+ * Завести разговор.
+ *
+ * Отдельно от отправки: реплику сервер примет и без разговора, заведя его сам,
+ * но тогда идентификатор приходит кадром в конце хода — а адрес нужен сразу,
+ * с первой секунды ожидания.
+ */
+export function createChat(title?: string, fetcher?: typeof fetch) {
+  return post<Chat>('/api/ai/chats/create', { title }, { fetcher });
+}
+
 export function listChats(
   cursor?: string,
   fetcher?: typeof fetch,
@@ -97,8 +108,51 @@ export function resolvePlan(
  * молчание всё это время читается как поломка. Отказ приходит кадром — заголовки
  * к тому времени уже отправлены, и обычным отказом его не выразить.
  */
+/** Файл, приложенный к реплике разговора. */
+export type ChatFile = {
+  id: string;
+  fileName: string;
+  fileSize: number | null;
+  mimeType: string | null;
+};
+
+/**
+ * Приложить файл к реплике.
+ *
+ * Отдельным запросом, до отправки: ход разговора идёт потоком, и загрузка
+ * внутри него оставила бы человека без ответа на время передачи файла.
+ */
+export async function attachFile(file: File): Promise<ChatFile> {
+  const body = new FormData();
+  body.append('file', file);
+
+  const response = await fetch(`${apiBase()}/api/ai/chats/attach`, {
+    method: 'POST',
+    credentials: 'include',
+    body
+  });
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => ({}))) as {
+      code?: string;
+      message?: string;
+    };
+    throw new ApiError(
+      response.status,
+      failure.code ?? 'error.common.unknown',
+      failure.message ?? '',
+      {}
+    );
+  }
+  return (await response.json()) as ChatFile;
+}
+
 export async function* sendMessage(
-  values: { message: string; chatId?: string; mentionedPageIds?: string[] },
+  values: {
+    message: string;
+    chatId?: string;
+    mentionedPageIds?: string[];
+    attachmentIds?: string[];
+  },
   signal?: AbortSignal
 ): AsyncGenerator<Frame> {
   const response = await fetch(`${apiBase()}/api/ai/chats/send`, {

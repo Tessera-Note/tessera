@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import re
 import uuid
 from collections.abc import AsyncIterator
@@ -39,7 +40,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.config import Settings
-from tessera_api.domain.errors import bad_request, not_found
+from tessera_api.domain.errors import AppError, bad_request, not_found
 from tessera_api.infrastructure.ai_client import AiClient, ChatTarget
 from tessera_api.infrastructure.models import AiChat, AiChatMessage, Page
 from tessera_api.infrastructure.queue import JobQueue
@@ -47,6 +48,8 @@ from tessera_api.infrastructure.storage import Storage
 from tessera_api.infrastructure.web_search import WebSearch
 from tessera_api.services.ai import language_from_locale
 from tessera_api.services.ai_settings import AiSettingsService, require_model
+from tessera_api.services.attachment_index import AttachmentIndexService
+from tessera_api.services.attachments import AttachmentService
 from tessera_api.services.mcp import McpService
 from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.realtime import RealtimeService
@@ -54,6 +57,20 @@ from tessera_api.services.realtime import RealtimeService
 #: Степень риска инструмента. Разрешительный список, а не свойство самого
 #: инструмента: у MCP их сорок пять, чат берёт подмножество, и классификация по
 #: обратимости принадлежит агенту, а не каналу инструментов.
+logger = logging.getLogger(__name__)
+
+
+def _asked_about(
+    page_ids: list[uuid.UUID] | None, attachment_ids: list[uuid.UUID] | None
+) -> dict | None:
+    """Что человек назвал и приложил. Пусто — метаданных у реплики нет вовсе."""
+    made: dict = {}
+    if page_ids:
+        made["mentionedPageIds"] = [str(one) for one in page_ids]
+    if attachment_ids:
+        made["attachmentIds"] = [str(one) for one in attachment_ids]
+    return made or None
+
 READ = "read"
 WRITE = "write"
 DESTRUCTIVE = "destructive"
@@ -124,6 +141,11 @@ HISTORY_DEPTH = 20
 MAX_TOOL_ROUNDS = 24
 
 #: Сколько бесед отдавать за раз.
+#: Сколько знаков файла уходит модели. Предел тот же, что у упомянутой
+#: страницы: окно модели общее, и один файл не должен вытеснять из него
+#: разговор целиком.
+FILE_CONTEXT_LIMIT = 1500
+
 CHATS_DEFAULT_LIMIT = 30
 CHATS_MAX_LIMIT = 100
 
@@ -232,6 +254,10 @@ class AiChatService:
         self._client = client or AiClient()
         self._locale = locale
         self._access = PageAccessService(session)
+        # Хранилище и очередь нужны файлам, приложенным к реплике: их читает и
+        # разбирает та же служба, что и вложения страниц.
+        self._storage = storage
+        self._queue = queue
         self._tools = McpService(
             session,
             settings,
@@ -326,9 +352,47 @@ class AiChatService:
         return _chat_view(chat)
 
     async def delete_chat(self, chat_id: uuid.UUID) -> None:
+        """Убрать беседу и файлы, приложенные к её репликам.
+
+        Файлы удаляются насовсем, а беседа помечается удалённой: вернуть беседу
+        в продукте нечем, а оставленный файл лежал бы в хранилище вечно — так
+        было в v1, где обработчик уборки не звался ниоткуда.
+
+        Отказ хранилища не отменяет удаления беседы: человек попросил её убрать,
+        и оставлять её из-за неудаления файла было бы странно. Несделанное
+        попадает в журнал.
+        """
         chat = await self._own(chat_id)
+
+        if self._storage is not None:
+            attachments = AttachmentService(self._session, self._storage, self._queue)
+            for attachment_id in await self._files_of(chat.id):
+                try:
+                    await attachments.delete_own_chat_file(
+                        attachment_id, self._user_id, self._workspace_id
+                    )
+                except Exception:  # noqa: BLE001 — файл не отменяет удаление беседы
+                    logger.info("Файл беседы не удалён: %s", attachment_id)
+
         chat.deleted_at = datetime.now(UTC)
         await self._session.commit()
+
+    async def _files_of(self, chat_id: uuid.UUID) -> list[uuid.UUID]:
+        """Файлы, приложенные к репликам беседы. Список лежит в самих репликах."""
+        rows = (
+            await self._session.execute(
+                select(AiChatMessage.message_metadata).where(AiChatMessage.chat_id == chat_id)
+            )
+        ).scalars().all()
+
+        found: list[uuid.UUID] = []
+        for metadata in rows:
+            for raw in (metadata or {}).get("attachmentIds") or []:
+                try:
+                    found.append(uuid.UUID(str(raw)))
+                except (TypeError, ValueError):
+                    continue
+        return found
 
     async def search_chats(self, query: str, *, limit: int = CHATS_DEFAULT_LIMIT) -> list[dict]:
         """Поиск по заголовкам и по тексту реплик.
@@ -569,6 +633,56 @@ class AiChatService:
             parts.append(f"## {page.title or ''}\n{body}")
         return "\n\n".join(parts)
 
+    async def files_for(self, attachment_ids: list[uuid.UUID]) -> str:
+        """Текст приложенных к реплике файлов.
+
+        Читается только своё: вложение разговора принадлежит тому, кто его
+        загрузил, и чужой идентификатор в списке не должен открывать чужой файл.
+        Проверку делает `AttachmentService.authorize_read` — вторая здесь
+        разошлась бы с первой.
+
+        Текст берётся из того же разбора, что и поиск по вложениям. Не
+        разобранное разбирается на месте: файл приложили только что, и ждать
+        часового прохода человек не станет. Картинка и архив текста не дают —
+        модели уходит только имя файла, чтобы она не молчала о том, что файл
+        был.
+        """
+        if not attachment_ids:
+            return ""
+
+        service = AttachmentService(self._session, self._storage, self._queue)
+        index = AttachmentIndexService(self._session, self._storage)
+        parts: list[str] = []
+
+        for attachment_id in attachment_ids:
+            try:
+                found = await service.authorize_read(
+                    attachment_id, self._user_id, self._workspace_id
+                )
+            except AppError:
+                # Чужой или несуществующий файл не отменяет ход разговора.
+                logger.info("Файл разговора не прочитан: %s", attachment_id)
+                continue
+
+            body = found.text_content
+            if not body:
+                try:
+                    # `index` возвращает состояние разбора, а сам текст пишет в
+                    # запись: после разбора её надо перечитать.
+                    await index.index(found.id)
+                    await self._session.refresh(found)
+                    body = found.text_content
+                except Exception:  # noqa: BLE001 — разбор одного файла не роняет ход
+                    logger.info("Файл разговора не разобран: %s", found.id)
+                    body = None
+
+            if body:
+                parts.append(f"## {found.file_name}\n{body[:FILE_CONTEXT_LIMIT]}")
+            else:
+                parts.append(f"## {found.file_name}\n(no text could be read from this file)")
+
+        return "\n\n".join(parts)
+
     def system_prompt(self, language: str, context: str) -> str:
         """Что агент знает о себе и о своих возможностях.
 
@@ -659,6 +773,7 @@ class AiChatService:
         message: str,
         *,
         mentioned_page_ids: list[uuid.UUID] | None = None,
+        attachment_ids: list[uuid.UUID] | None = None,
     ) -> AsyncIterator[dict]:
         """Провести ход разговора.
 
@@ -689,16 +804,18 @@ class AiChatService:
                 user_id=self._user_id,
                 role="user",
                 content=message,
-                message_metadata=(
-                    {"mentionedPageIds": [str(one) for one in mentioned_page_ids]}
-                    if mentioned_page_ids
-                    else None
-                ),
+                # Что было названо и приложено, записывается в реплику: по этим
+                # спискам файлы разговора находятся при его удалении, а на
+                # экране видно, о чём человек спрашивал.
+                message_metadata=_asked_about(mentioned_page_ids, attachment_ids),
             )
         )
         await self._session.commit()
 
         context = await self.context_for(mentioned_page_ids or [])
+        files = await self.files_for(attachment_ids or [])
+        if files:
+            context = f"{context}\n\n{files}" if context else files
         conversation: list[dict] = [
             {"role": one.role, "content": one.content or ""} for one in history
         ]
