@@ -7,8 +7,20 @@
   import { EXPORT_FORMATS, exportDocx, exportPage } from '$lib/features/page/services/transfer';
   import { locale } from '$lib/stores/i18n.svelte';
 
-  type Props = { pageId: string; title: string; onclose: () => void };
-  const { pageId, title, onclose }: Props = $props();
+  type Props = {
+    pageId: string;
+    title: string;
+    /**
+     * Отправить страницу на печать.
+     *
+     * Печатает браузер на стороне сервера, ответ приходит заданием, и опрос
+     * задания живёт в экране страницы — там же, где остальные длинные
+     * действия. Здесь только просьба и выключатель подстраниц.
+     */
+    onpdf: (includeChildren: boolean) => Promise<void>;
+    onclose: () => void;
+  };
+  const { pageId, title, onpdf, onclose }: Props = $props();
 
   const t = $derived(locale.t);
 
@@ -48,6 +60,8 @@
     );
 
   const saveDocx = () => act(() => exportDocx(pageId, `${title || 'page'}.docx`));
+
+  const savePdf = () => act(() => onpdf(children));
 </script>
 
 <div
@@ -87,6 +101,9 @@
   <div class="flex flex-wrap gap-2">
     <Button disabled={busy} onclick={save}>{busy ? t('Loading...') : t('Export')}</Button>
     <Button variant="quiet" disabled={busy} onclick={saveDocx}>{t('Word (docx)')}</Button>
+    <!-- Печать здесь, а не отдельным значком в полосе: только рядом с
+         выключателем «с подстраницами» она умеет печатать ветвь. -->
+    <Button variant="quiet" disabled={busy} onclick={savePdf}>{t('PDF')}</Button>
   </div>
 
   {#if failure}<p class="mt-2 text-sm text-danger" role="alert">{failure}</p>{/if}

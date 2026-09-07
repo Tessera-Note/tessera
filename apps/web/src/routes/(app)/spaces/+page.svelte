@@ -4,6 +4,7 @@
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
+  import SpaceStar from '$lib/components/space/SpaceStar.svelte';
   import { errorText } from '$lib/api/failure';
   import {
     SPACE_ROLES,
@@ -30,6 +31,9 @@
   function roleLabel(role: string | null): string | null {
     return SPACE_ROLES.find((one) => one.value === role)?.label ?? null;
   }
+
+  // Отметки приходят слоем приложения: их же показывает боковая панель.
+  const favoriteSpaceIds = $derived(new Set(data.favoriteSpaces.map((one) => one.spaceId)));
 
   let name = $state('');
   let description = $state('');
@@ -122,12 +126,23 @@
     {#each data.spaces as space (space.id)}
       {@const label = roleLabel(space.role)}
       <li class="card-soft rounded-md border border-border bg-surface-raised p-5">
-        <a class="block" href="/s/{space.slug}">
-          <span class="block font-medium">{space.name ?? space.slug}</span>
-          {#if space.description}
-            <span class="mt-1 block text-sm text-text-muted">{space.description}</span>
-          {/if}
-        </a>
+        <div class="flex items-start justify-between gap-4">
+          <a class="block min-w-0" href="/s/{space.slug}">
+            <span class="block font-medium">{space.name ?? space.slug}</span>
+            {#if space.description}
+              <span class="mt-1 block text-sm text-text-muted">{space.description}</span>
+            {/if}
+          </a>
+          <!-- Звезда внутри строки, а не отдельным разделом сверху: отмеченные
+               пространства и так первыми в боковой панели, а второй перечень
+               тех же названий здесь удлинял бы экран вдвое. -->
+          <SpaceStar
+            spaceId={space.id}
+            name={space.name ?? space.slug}
+            favorited={favoriteSpaceIds.has(space.id)}
+            onfailure={(message) => (failure = message)}
+          />
+        </div>
         {#if label}
           <p class="mt-2 text-xs text-text-muted">{t(label)}</p>
         {/if}

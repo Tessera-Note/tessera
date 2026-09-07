@@ -1,8 +1,12 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
+  import { IconMenu2, IconPencil, IconStarFilled, IconTrash, IconX } from '@tabler/icons-svelte';
+  import IconButton from '$lib/components/ui/IconButton.svelte';
   import { onRealtime } from '$lib/features/realtime/socket';
   import PageTree from '$lib/components/page/PageTree.svelte';
+  import { imageUrl } from '$lib/features/page/services/images';
   import QuickSearch from '$lib/components/search/QuickSearch.svelte';
   import { errorText } from '$lib/api/failure';
   import Confirm from '$lib/components/ui/Confirm.svelte';
@@ -15,6 +19,8 @@
     type Chat
   } from '$lib/features/ai/services/chat';
   import { logout } from '$lib/features/auth/services/auth';
+  import { openSpaceSlug } from '$lib/features/space/open';
+  import { favoritesFirst } from '$lib/features/space/ordering';
   import { locale } from '$lib/stores/i18n.svelte';
   import { theme } from '$lib/stores/theme.svelte';
   import type { Snippet } from 'svelte';
@@ -24,6 +30,8 @@
   const { data, children }: Props = $props();
 
   const t = $derived(locale.t);
+
+  const workspaceLogo = $derived(imageUrl('workspace-icon', data.session?.workspace.logo));
 
   // Расстановка v1: шапка 45 пикселей поверх, боковая панель 300 слева,
   // остальное — содержимое с отступом 16. В настройках содержимое сужается до
@@ -54,6 +62,21 @@
     { href: '/settings/audit', label: t('Audit log') },
     { href: '/settings/license', label: t('License') }
   ]);
+
+  /**
+   * Отмеченные пространства идут в панели первыми.
+   *
+   * В v1 под них отведён свой раздел панели, потому что остальных пространств
+   * там нет вовсе. Здесь панель показывает все, и отдельный раздел повторял бы
+   * половину списка; порядок и звезда дают тот же быстрый доступ.
+   *
+   * Внутри групп порядок сервера сохраняется: сортировка устойчива, и
+   * сравнение смотрит только на отметку.
+   */
+  const favoriteSpaceIds = $derived(new Set(data.favoriteSpaces.map((one) => one.spaceId)));
+  const sidebarSpaces = $derived(favoritesFirst(data.spaces, favoriteSpaceIds));
+
+  const openSpace = $derived(openSpaceSlug(page.params, page.data));
 
   // Разговоры: догруженные и то, что переименовывают прямо сейчас. Правки
   // живут здесь, потому что здесь же живёт список — как в v1.
@@ -163,6 +186,21 @@
   let quickOpen = $state(false);
 
   /**
+   * Боковая панель на узком экране.
+   *
+   * До `lg` она перекрывает содержимое, а не отодвигает его: 300 пикселей из
+   * 390 не оставляют места ничему. На широком экране признак не участвует —
+   * там панель стоит всегда.
+   */
+  let sideOpen = $state(false);
+
+  // Переход закрывает панель: иначе выбранная страница остаётся под ней.
+  $effect(() => {
+    void page.url.pathname;
+    untrack(() => (sideOpen = false));
+  });
+
+  /**
    * Как это сочетание называется на этой машине.
    *
    * Обработчик принимает и Ctrl, и Cmd, а подсказка называла Ctrl всем: на
@@ -196,8 +234,28 @@
     data-component="AppHeader"
     class="fixed inset-x-0 top-0 z-20 flex h-header items-center justify-between gap-4 border-b border-border bg-surface-muted px-4"
   >
-    <a class="text-lg font-semibold" href="/home">
-      {data.session?.workspace.name ?? 'Tessera'}
+    <span class="lg:hidden">
+      <IconButton
+        icon={sideOpen ? IconX : IconMenu2}
+        label={t('Sidebar toggle')}
+        onclick={() => (sideOpen = !sideOpen)}
+      />
+    </span>
+
+    <a class="flex items-center gap-2 text-lg font-semibold" href="/home">
+      <!--
+        Имя продукта, а не название рабочего пространства, — как в v1
+        (`components/layouts/global/app-header.tsx`). Название пространства
+        здесь читалось как имя приложения: на стенде в углу стояло «Проверка
+        v2», и понять по нему, что открыта Tessera, было нельзя.
+
+        Значок рабочего пространства остаётся: в настройках его меняют, и
+        показывать его больше негде.
+      -->
+      {#if workspaceLogo}
+        <img class="h-6 w-6 rounded object-cover" src={workspaceLogo} alt="" />
+      {/if}
+      Tessera
     </a>
 
     <button
@@ -237,7 +295,8 @@
 
   <aside
     data-component="AppSidebar"
-    class="fixed bottom-0 left-0 top-header w-sidebar overflow-y-auto bg-surface-muted p-4"
+    class="fixed bottom-0 left-0 top-header z-30 w-sidebar overflow-y-auto bg-surface-muted p-4 transition-transform lg:translate-x-0"
+    class:-translate-x-full={!sideOpen}
   >
     {#if inSettings}
       <nav data-component="SettingsNav" class="space-y-0.5">
@@ -319,19 +378,29 @@
                 <span class="shrink-0 px-1 text-[11px] text-text-muted group-hover:hidden">
                   {chatDate(chat.updatedAt, locale.current)}
                 </span>
-                <span class="hidden shrink-0 items-center group-hover:flex">
+                <!--
+                  Значками, а не словами: на строку в 300 пикселей вопрос и две
+                  кнопки не помещались, и «подтвердить» уезжало за край — то
+                  есть удалить разговор было нельзя вовсе. Вопрос при этом
+                  остаётся: удаление необратимо.
+                -->
+                <span class="hidden shrink-0 items-center gap-0.5 group-hover:flex">
                   <button
-                    class="rounded px-1.5 py-1 text-xs text-text-muted hover:text-text"
+                    class="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-text"
+                    type="button"
+                    title={t('Rename')}
+                    aria-label={t('Rename')}
                     onclick={() => {
                       renaming = chat.id;
                       newTitle = chat.title ?? '';
                     }}
                   >
-                    {t('Rename')}
+                    <IconPencil size={15} stroke={1.8} />
                   </button>
                   <Confirm
                     label={t('Delete')}
                     question={t('This action cannot be undone.')}
+                    icon={IconTrash}
                     onconfirm={() => dropChat(chat.id)}
                   />
                 </span>
@@ -359,16 +428,21 @@
         >
           {t('Spaces')}
         </a>
-        {#each data.spaces as space (space.id)}
+        {#each sidebarSpaces as space (space.id)}
           <a
-            class="flex min-h-[30px] items-center rounded px-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text"
-            class:bg-surface-active={page.params.spaceSlug === space.slug}
-            class:text-text={page.params.spaceSlug === space.slug}
+            class="flex min-h-[30px] items-center gap-1.5 rounded px-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text"
+            class:bg-surface-active={openSpace === space.slug}
+            class:text-text={openSpace === space.slug}
             href="/s/{space.slug}"
           >
             <span class="truncate">{space.name ?? space.slug}</span>
+            {#if favoriteSpaceIds.has(space.id)}
+              <!-- Звезда объясняет порядок: без неё первые строки выглядят
+                   переставленными без причины. Снимают отметку не здесь. -->
+              <IconStarFilled class="shrink-0 text-accent" size={12} aria-hidden="true" />
+            {/if}
           </a>
-          {#if page.params.spaceSlug === space.slug}
+          {#if openSpace === space.slug}
             <!-- Дерево показывается только у открытого пространства: остальные
                свернуты, и загружать их ветви незачем. -->
             <PageTree spaceId={space.id} spaceSlug={space.slug} />
@@ -407,7 +481,17 @@
 
   <QuickSearch spaces={data.spaces} open={quickOpen} onclose={() => (quickOpen = false)} />
 
-  <main class="ml-sidebar min-w-0 pt-header">
+  <!-- Затемнение под открытой панелью: щелчок мимо закрывает её, как и в v1. -->
+  {#if sideOpen}
+    <button
+      class="fixed inset-0 top-header z-20 bg-black/30 lg:hidden"
+      type="button"
+      aria-label={t('Close')}
+      onclick={() => (sideOpen = false)}
+    ></button>
+  {/if}
+
+  <main class="min-w-0 pt-header lg:ml-sidebar">
     <div class={inSettings ? 'mx-auto max-w-[900px] p-4 pb-20' : 'p-4'}>
       {@render children()}
     </div>

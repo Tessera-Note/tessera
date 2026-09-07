@@ -10,9 +10,14 @@
       (function () {
         try {
           // Умолчание светлое, а не «как в системе»: тёмная тема включается
-          // выбором человека, и системная настройка её не навязывает.
+          // выбором человека, и системная настройка её не навязывает. Но
+          // выбравшему «как в системе» она навязывается именно отсюда — иначе
+          // его тема появлялась бы уже после отрисовки, вспышкой.
           var saved = localStorage.getItem('tessera.theme');
           var theme = saved === 'dark' ? 'dark' : 'light';
+          if (saved === 'auto') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
           document.documentElement.setAttribute('data-theme', theme);
         } catch (error) {
           // Хранилище недоступно в закрытом окне или при запрете сторонних

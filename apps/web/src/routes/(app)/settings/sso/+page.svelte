@@ -24,6 +24,7 @@
     revokeScimToken,
     type CreatedScimToken
   } from '$lib/features/scim/services/tokens';
+  import { updateWorkspace } from '$lib/features/workspace/services/settings';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -35,6 +36,30 @@
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
   let mismatch = $state<{ appUrl: string; origin: string } | null>(null);
+
+  /**
+   * Адрес, на который настраивают провайдера учётных записей.
+   *
+   * Собирается из адреса открытой страницы, а не из настроек: экран и открыт
+   * по тому адресу, по которому вики доступна, а записанный отдельно адрес
+   * расходится с ним при первом же переезде.
+   */
+  const scimUrl = $derived(
+    typeof window === 'undefined' ? '/api/scim/v2' : `${window.location.origin}/api/scim/v2`
+  );
+
+  const setScim = (enabled: boolean) => {
+    busy = 'scim';
+    failure = null;
+    return updateWorkspace({ isScimEnabled: enabled })
+      .then(() => invalidateAll())
+      .catch((error) => {
+        failure = errorText(error, t);
+      })
+      .finally(() => {
+        busy = null;
+      });
+  };
 
   /** Какого провайдера правим. `new` означает форму заведения. */
   let editing = $state<string | null>(null);
@@ -358,9 +383,34 @@
     </table>
   </div>
 
-  <h2 class="mb-4 text-xl font-semibold">{t('SCIM tokens')}</h2>
+  <h2 class="mb-4 text-xl font-semibold">{t('SCIM provisioning')}</h2>
+
+  <!--
+    Выключатель, без которого весь раздел мёртв: проверка токена отказывает,
+    пока синхронизация выключена, каким бы действительным токен ни был.
+  -->
+  <Panel>
+    <Toggle
+      checked={data.settings.isScimEnabled}
+      label={t('Enable SCIM')}
+      hint={t('Automatically provision users and groups from your identity provider via SCIM.')}
+      disabled={busy === 'scim'}
+      onchange={(checked) => setScim(checked)}
+    />
+
+    <p class="mb-1 text-sm font-medium">{t('SCIM endpoint URL')}</p>
+    <p class="mb-2 text-xs text-text-muted">
+      {t('Configure your identity provider with this URL to provision users and groups.')}
+    </p>
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="break-all rounded bg-surface px-3 py-2 font-mono text-sm">{scimUrl}</span>
+      <CopyButton text={scimUrl} />
+    </div>
+  </Panel>
+
+  <h2 class="mb-4 mt-8 text-xl font-semibold">{t('SCIM tokens')}</h2>
   <p class="mb-4 text-sm text-text-muted">
-    {t('Automatically provision users and groups from your identity provider via SCIM.')}
+    {t('SCIM takes precedence over SSO group sync while enabled.')}
   </p>
 
   {#if created}

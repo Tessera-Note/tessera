@@ -9,6 +9,7 @@
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
   import { answerHtml } from '$lib/features/ai/answer';
+  import { searchChats, type Chat } from '$lib/features/ai/services/chat';
   import { askWiki, type AnswerSource } from '$lib/features/search/services/answers';
   import { highlightHtml } from '$lib/features/search/highlight';
   import {
@@ -28,6 +29,7 @@
   let asked = $state(false);
   let hits = $state<SearchHit[]>([]);
   let files = $state<AttachmentHit[]>([]);
+  let chats = $state<Chat[]>([]);
   let failure = $state<string | null>(null);
 
   /**
@@ -37,7 +39,10 @@
    * маршрут — у них другой состав полей.
    */
   let space = $state(page.url.searchParams.get('space') ?? '');
-  let kind = $state(page.url.searchParams.get('kind') === 'attachment' ? 'attachment' : 'page');
+  /** Виды выдачи. Значение из адреса, неизвестное считается страницами. */
+  const KINDS = ['page', 'attachment', 'chat'];
+  const kindFrom = (raw: string | null) => (raw && KINDS.includes(raw) ? raw : 'page');
+  let kind = $state(kindFrom(page.url.searchParams.get('kind')));
 
   const t = $derived(locale.t);
   // Короткое имя пространства нужно ссылке: адрес страницы собирается из него
@@ -51,7 +56,8 @@
 
   const kindOptions = $derived([
     { value: 'page', label: t('Pages') },
-    { value: 'attachment', label: t('Attachments') }
+    { value: 'attachment', label: t('Attachments') },
+    { value: 'chat', label: t('Chats') }
   ]);
 
   /**
@@ -68,9 +74,17 @@
       if (want === 'attachment') {
         files = await searchAttachments(text, spaceId || null);
         hits = [];
+        chats = [];
+      } else if (want === 'chat') {
+        // Разговор не принадлежит пространству: отбор по пространству к нему
+        // не применяется, и передавать его сюда нечего.
+        chats = await searchChats(text);
+        hits = [];
+        files = [];
       } else {
         hits = await searchPages(text, spaceId || null);
         files = [];
+        chats = [];
       }
       asked = true;
     } catch (error) {
@@ -86,7 +100,7 @@
     // собственную запись, и Svelte снимает ветвь целиком.
     const wanted = page.url.searchParams.get('q') ?? '';
     const wantedSpace = page.url.searchParams.get('space') ?? '';
-    const wantedKind = page.url.searchParams.get('kind') === 'attachment' ? 'attachment' : 'page';
+    const wantedKind = kindFrom(page.url.searchParams.get('kind'));
     if (!wanted.trim()) return;
     untrack(() => {
       query = wanted;
@@ -103,7 +117,7 @@
     if (!text) return;
     const address = new URLSearchParams({ q: text });
     if (space) address.set('space', space);
-    if (kind === 'attachment') address.set('kind', kind);
+    if (kind !== 'page') address.set('kind', kind);
     await goto(`/search?${address.toString()}`, {
       replaceState: true,
       keepFocus: true,
@@ -184,13 +198,16 @@
   </form>
 
   <div data-component="SearchFilters" class="mb-6 flex flex-wrap gap-2">
-    <Select
-      bind:value={space}
-      options={spaceOptions}
-      label={t('Space')}
-      compact
-      onchange={() => submit()}
-    />
+    <!-- Отбор по пространству к разговорам неприменим: они не в пространстве. -->
+    {#if kind !== 'chat'}
+      <Select
+        bind:value={space}
+        options={spaceOptions}
+        label={t('Space')}
+        compact
+        onchange={() => submit()}
+      />
+    {/if}
     <Select
       bind:value={kind}
       options={kindOptions}
@@ -235,7 +252,19 @@
   {/if}
 
   <ul data-component="SearchResults" class="space-y-2">
-    {#if kind === 'attachment'}
+    {#if kind === 'chat'}
+      {#each chats as chat (chat.id)}
+        <li class="card-soft rounded-md border border-border bg-surface-raised p-3">
+          <a class="font-medium hover:underline" href="/ai/{chat.id}">
+            {chat.title ?? t('Untitled chat')}
+          </a>
+        </li>
+      {:else}
+        {#if asked && !busy}
+          <li class="text-text-muted">{t('No chats found')}</li>
+        {/if}
+      {/each}
+    {:else if kind === 'attachment'}
       {#each files as file (file.id)}
         <li class="card-soft rounded-md border border-border bg-surface-raised p-3">
           <span class="flex items-baseline justify-between gap-3">

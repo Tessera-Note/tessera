@@ -21,3 +21,19 @@ export function backlinksOf(
 ) {
   return post<Backlink[]>('/api/pages/backlinks', { pageId }, { fetcher, headers });
 }
+
+/**
+ * Сколько страниц ссылается сюда.
+ *
+ * Отдельно от перечня: со страницей идёт только счёт — его хватает, чтобы
+ * подписать вкладку, — а сам перечень грузится, когда вкладку открыли. Считает
+ * сервер по тому же отбору прав, что и перечень, поэтому число сходится с
+ * видимыми строками.
+ */
+export function backlinksCount(
+  pageId: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<{ count: number }>('/api/pages/backlinks-count', { pageId }, { fetcher, headers });
+}

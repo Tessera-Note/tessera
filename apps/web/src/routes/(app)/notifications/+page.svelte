@@ -36,8 +36,18 @@
     return splitBold(t(key, { name: one.actor?.name ?? t('Unknown') }));
   };
 
-  const linkTo = (one: Notification) =>
-    one.page && one.space ? `/s/${one.space.slug}/p/${one.page.slugId}` : null;
+  /**
+   * Куда ведёт строка извещения.
+   *
+   * У извещения о комментарии — прямо к реплике: без неё человек попадал на
+   * страницу целиком и искал ту самую реплику глазами, а обсуждение бывает
+   * длинным.
+   */
+  const linkTo = (one: Notification) => {
+    if (!one.page || !one.space) return null;
+    const address = `/s/${one.space.slug}/p/${one.page.slugId}`;
+    return one.commentId ? `${address}?comment=${one.commentId}` : address;
+  };
 
   async function act(action: () => Promise<unknown>) {
     busy = true;

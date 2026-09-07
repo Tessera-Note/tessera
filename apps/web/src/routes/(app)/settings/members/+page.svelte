@@ -19,6 +19,7 @@
     revokeInvitation,
     setActive
   } from '$lib/features/workspace/services/members';
+  import { resetMfaFor } from '$lib/features/mfa/services/mfa';
   import { unlinkUser } from '$lib/features/sso/services/providers';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
@@ -157,6 +158,19 @@
                 >
                   {member.deactivatedAt ? t('Activate') : t('Deactivate')}
                 </Button>
+                <!--
+                  Снятие второго фактора администратором. Без него потерявший
+                  устройство заперт: при обязательном втором факторе войти не
+                  может ни он сам, ни кто-либо вместо него.
+                -->
+                <Confirm
+                  label={t('Reset')}
+                  question={t(
+                    'This removes the second factor for this member. They will set it up again themselves, and will be notified by email.'
+                  )}
+                  disabled={busy === member.id}
+                  onconfirm={() => act(member.id, () => resetMfaFor(member.id))}
+                />
                 <Confirm
                   label={t('Unlink')}
                   question={t('Remove sign-in provider link')}
@@ -217,13 +231,16 @@
               >
                 {t('Copy link')}
               </Button>
-              <Button
-                variant="quiet"
+              <!-- Отзыв необратим: разосланная ссылка перестаёт работать, и
+                   приглашать придётся заново. -->
+              <Confirm
+                label={t('Revoke')}
+                question={t(
+                  'Are you sure you want to revoke this invitation? The user will not be able to join the workspace.'
+                )}
                 disabled={busy === invitation.id}
-                onclick={() => act(invitation.id, () => revokeInvitation(invitation.id))}
-              >
-                {t('Revoke')}
-              </Button>
+                onconfirm={() => act(invitation.id, () => revokeInvitation(invitation.id))}
+              />
             </span>
           </li>
         {/each}

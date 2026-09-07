@@ -4,11 +4,18 @@
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
   import Textarea from '$lib/components/ui/Textarea.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import Toggle from '$lib/components/ui/Toggle.svelte';
   import { errorText } from '$lib/api/failure';
   import { indexAttachments } from '$lib/features/search/services/search';
+  import {
+    IMAGE_ACCEPT,
+    imageUrl,
+    removeIcon,
+    uploadImage
+  } from '$lib/features/page/services/images';
   import { updateWorkspace, type WorkspacePatch } from '$lib/features/workspace/services/settings';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
@@ -44,6 +51,49 @@
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
   let saved = $state(false);
+
+  /** Значок рабочего пространства: картинка, а не эмодзи. Хранится файлом. */
+  const logo = $derived(imageUrl('workspace-icon', data.session?.workspace.logo));
+
+  let picker: HTMLInputElement | undefined = $state();
+
+  const chooseLogo = (event: Event) => {
+    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    return act('logo', async () => {
+      await uploadImage('workspace-icon', file);
+      if (picker) picker.value = '';
+    });
+  };
+
+  const dropLogo = () => act('logo', () => removeIcon('workspace-icon'));
+
+  /**
+   * Общее действие с перечитыванием.
+   *
+   * Значок виден и здесь, и в шапке: после правки перечитывается всё, иначе в
+   * шапке остаётся прежний до перезагрузки.
+   */
+  async function act(key: string, action: () => Promise<unknown>) {
+    busy = key;
+    failure = null;
+    saved = false;
+    try {
+      await action();
+      saved = true;
+      await invalidateAll();
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = null;
+    }
+  }
+
+  /** С чего открывает страницу тот, кто своего выбора ещё не делал. */
+  const editModes = $derived([
+    { value: 'read', label: t('Read') },
+    { value: 'edit', label: t('Edit') }
+  ]);
 
   // Значения формы приходят с сервера и обновляются после сохранения: разовое
   // присваивание оставило бы на экране прежние после чужой правки.
@@ -89,6 +139,32 @@
 
   <form onsubmit={saveGeneral}>
     <Panel title={t('General')}>
+      <Field label={t('Icon')}>
+        <div class="flex items-center gap-3">
+          {#if logo}
+            <img class="h-12 w-12 rounded object-cover" src={logo} alt="" />
+          {:else}
+            <span class="h-12 w-12 rounded bg-surface-muted"></span>
+          {/if}
+          <!-- Выбор файла спрятан за кнопкой: сам `input type=file` рисуется
+               каждым браузером по-своему и не встаёт в расстановку экрана. -->
+          <input
+            bind:this={picker}
+            class="hidden"
+            type="file"
+            accept={IMAGE_ACCEPT}
+            onchange={chooseLogo}
+          />
+          <Button variant="quiet" disabled={busy === 'logo'} onclick={() => picker?.click()}>
+            {busy === 'logo' ? t('Loading...') : t('Upload')}
+          </Button>
+          {#if data.session?.workspace.logo}
+            <Button variant="quiet" disabled={busy === 'logo'} onclick={dropLogo}>
+              {t('Remove icon')}
+            </Button>
+          {/if}
+        </div>
+      </Field>
       <Field label={t('Name')}>
         <TextInput bind:value={name} required />
       </Field>
@@ -100,6 +176,21 @@
       </Button>
     </Panel>
   </form>
+
+  <Panel title={t('Default page edit mode')}>
+    <p class="mb-3 text-sm text-text-muted">
+      {t('Choose the page edit mode new members start with. Existing members are not affected.')}
+    </p>
+    <div class="w-56">
+      <Select
+        value={data.settings.defaultPageEditMode}
+        options={editModes}
+        label={t('Default page edit mode')}
+        disabled={busy === 'editMode'}
+        onchange={(value) => save('editMode', { defaultPageEditMode: value })}
+      />
+    </div>
+  </Panel>
 
   <Panel title={t('Security')}>
     <Toggle

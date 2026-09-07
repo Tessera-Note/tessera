@@ -13,6 +13,8 @@ export type Comment = {
   selection?: string | null;
   resolvedAt: string | null;
   createdAt: string;
+  /** На какой странице живёт. Нужно ссылке на отдельную реплику. */
+  pageId?: string;
 };
 
 export function listComments(
@@ -50,6 +52,21 @@ export function createComment(
 }
 
 /** Править можно только своё: право правки страницы этого не даёт. */
+/**
+ * Один комментарий.
+ *
+ * Нужен ссылке на реплику: по идентификатору она узнаёт страницу, на которой
+ * реплика живёт. Право проверяется по этой странице, поэтому чужая закрытая
+ * реплика отвечает отказом, а не выдаёт название страницы.
+ */
+export function commentInfo(
+  commentId: string,
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<Comment>('/api/comments/info', { commentId }, { fetcher, headers });
+}
+
 export function updateComment(commentId: string, content: unknown, fetcher?: typeof fetch) {
   return post<Comment>('/api/comments/update', { commentId, content }, { fetcher });
 }

@@ -121,6 +121,13 @@ export type ViewConfig = {
   groupByPropertyId?: string;
   hiddenChoiceIds?: string[];
   choiceOrder?: string[];
+  /**
+   * Что показывать на карточке доски.
+   *
+   * Пусто — первые три свойства подряд: у базы, где их пять, выбирать нечего,
+   * и заставлять человека настраивать доску до первого её показа незачем.
+   */
+  cardPropertyIds?: string[];
   /** Свойство с датой, по которому раскладывается календарь. */
   datePropertyId?: string;
 };

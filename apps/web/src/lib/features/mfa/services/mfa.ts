@@ -32,6 +32,18 @@ export function mfaEnable(code: string, fetcher?: typeof fetch) {
   return post<{ backupCodes: string[] }>('/api/mfa/enable', { code }, { fetcher });
 }
 
+/**
+ * Снять второй фактор у другого человека.
+ *
+ * Право администратора, и сервер это проверяет. Нужен, когда человек потерял
+ * устройство: сам он войти уже не может, а при обязательном втором факторе не
+ * может и никто другой ему помочь. Человеку уходит письмо, действие пишется в
+ * журнал — снятие защиты не должно проходить незаметно.
+ */
+export function resetMfaFor(userId: string, fetcher?: typeof fetch) {
+  return post<{ success: boolean }>('/api/mfa/reset', { userId }, { fetcher });
+}
+
 export function mfaDisable(code: string, fetcher?: typeof fetch) {
   return post<{ success: boolean }>('/api/mfa/disable', { code }, { fetcher });
 }

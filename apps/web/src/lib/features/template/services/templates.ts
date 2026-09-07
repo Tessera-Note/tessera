@@ -23,8 +23,24 @@ export type MadePage = {
   spaceId: string;
 };
 
-export function listTemplates(fetcher?: typeof fetch, headers?: Record<string, string>) {
-  return post<Template[]>('/api/templates/', {}, { fetcher, headers });
+/** Страница перечня и место, откуда продолжать. */
+export type TemplatePage = {
+  items: Template[];
+  meta: { nextCursor: string | null };
+};
+
+/**
+ * Шаблоны, доступные человеку.
+ *
+ * Отбор по области — доводом, а не после выдачи: отобранная на клиенте
+ * страница выходила бы пустой при том, что подходящие шаблоны есть дальше.
+ */
+export function listTemplates(
+  values: { spaceId?: string; cursor?: string; limit?: number } = {},
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  return post<TemplatePage>('/api/templates/', values, { fetcher, headers });
 }
 
 export function templateInfo(

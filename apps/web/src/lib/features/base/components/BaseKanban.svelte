@@ -56,8 +56,32 @@
     });
   }
 
-  /** Что показывать на карточке: первичное свойство и ещё два. */
-  const preview = $derived(columns.filter((one) => !groupBy || one.id !== groupBy.id).slice(0, 3));
+  /**
+   * Что показывать на карточке.
+   *
+   * Выбранное человеком, а если не выбирал — первые три подряд. Свойство, по
+   * которому раскладывают, на карточке не показывается: оно и есть столбец.
+   */
+  const candidates = $derived(columns.filter((one) => !groupBy || one.id !== groupBy.id));
+  const chosen = $derived(config.cardPropertyIds ?? null);
+  const preview = $derived(
+    chosen ? candidates.filter((one) => chosen.includes(one.id)) : candidates.slice(0, 3)
+  );
+
+  /** Открыт перечень свойств карточки. */
+  let picking = $state(false);
+
+  function toggleCardProperty(id: string) {
+    const current = new Set(chosen ?? candidates.slice(0, 3).map((one) => one.id));
+    if (current.has(id)) current.delete(id);
+    else current.add(id);
+    // Порядок берётся у самих свойств, а не у порядка нажатий: иначе карточки
+    // одной доски показывали бы поля в разном порядке у разных людей.
+    onconfig({
+      ...config,
+      cardPropertyIds: candidates.filter((one) => current.has(one.id)).map((one) => one.id)
+    });
+  }
 
   let dragged = $state<string | null>(null);
 
@@ -88,6 +112,37 @@
         onchange={(next) => onconfig({ ...config, groupByPropertyId: next })}
       />
     </div>
+
+    {#if editable && candidates.length > 0}
+      <div class="relative">
+        <button
+          class="rounded border border-border px-2 py-1 text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+          type="button"
+          aria-expanded={picking}
+          onclick={() => (picking = !picking)}
+        >
+          {t('Card properties')}
+        </button>
+        {#if picking}
+          <!-- Перечень на месте, а не окном: выбор здесь мелкий и частый, а
+               окно потребовало бы ловушки фокуса ради трёх флажков. -->
+          <div
+            class="absolute left-0 z-30 mt-1 w-56 rounded-md border border-border bg-surface-raised p-2 shadow-lg"
+          >
+            {#each candidates as property (property.id)}
+              <label class="flex items-center gap-2 px-1 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={preview.some((one) => one.id === property.id)}
+                  onchange={() => toggleCardProperty(property.id)}
+                />
+                <span class="truncate">{property.name}</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <div data-component="BaseKanban" class="mb-4 flex gap-3 overflow-x-auto pb-2">

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page as current } from '$app/state';
   import { breadcrumbs, pageTree, type PageSummary } from '$lib/features/page/services/pages';
+  import { favoritePageIds } from '$lib/features/page/services/favorites';
   import { listSpaces, type Space } from '$lib/features/space/services/spaces';
   import { onRealtime } from '$lib/features/realtime/socket';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -26,6 +27,26 @@
         // Отказ перечня прячет перенос, но дерево работает: остальные действия
         // от него не зависят.
         spaces = [];
+      });
+  });
+
+  /**
+   * Отмеченные страницы.
+   *
+   * Одним перечнем на всё дерево и только идентификаторами: звезда в меню
+   * строки спрашивает лишь «отмечено ли», а полный перечень с названиями — это
+   * обход прав на каждую строку при каждом открытии пространства.
+   */
+  let favorites = $state<Set<string>>(new Set());
+  let favoriteTick = $state(0);
+
+  $effect(() => {
+    void favoriteTick;
+    favoritePageIds()
+      .then((found) => (favorites = new Set(found)))
+      .catch(() => {
+        // Отказ гасит звёзды, но не дерево.
+        favorites = new Set();
       });
   });
   /**
@@ -69,24 +90,49 @@
 
   const t = $derived(locale.t);
 
+  /**
+   * Что уже загружено: пространство и счёт перезапросов.
+   *
+   * Обычными переменными, а не состоянием: эффект их и читает, и пишет, и
+   * состояние подписало бы его на собственную запись.
+   */
+  let loadedSpace: string | null = null;
+  let loadedRefresh = -1;
+
   // Корень перезапрашивается при смене пространства: держать в памяти дерево
   // каждого посещённого пространства значит показывать устаревшее после того,
   // как страницу завели в другой вкладке.
   $effect(() => {
     const wanted = spaceId;
-    void refresh;
-    loading = true;
+    const tick = refresh;
+
+    // Переход внутри пространства меняет доводы слоя, но не само пространство.
+    // Без этой сверки эффект перезапускался на каждое нажатие по дереву, и
+    // дерево на сотню миллисекунд пропадало с экрана.
+    if (wanted === loadedSpace && tick === loadedRefresh) return;
+
+    const другое = wanted !== loadedSpace;
+    loadedSpace = wanted;
+    loadedRefresh = tick;
+
+    if (другое) {
+      // Строки прежнего пространства к новому не относятся, и показывать их,
+      // пока идёт запрос, значило бы выдавать чужое дерево за это.
+      roots = [];
+      loading = true;
+    }
+
     pageTree(wanted, null)
       .then((found) => {
-        if (wanted === spaceId) roots = found;
+        if (wanted === loadedSpace) roots = found;
       })
       .catch(() => {
         // Отказ дерева не должен ронять экран: страница открывается по прямой
         // ссылке и без дерева.
-        if (wanted === spaceId) roots = [];
+        if (wanted === loadedSpace) roots = [];
       })
       .finally(() => {
-        if (wanted === spaceId) loading = false;
+        if (wanted === loadedSpace) loading = false;
       });
   });
 
@@ -119,7 +165,9 @@
         {ancestors}
         siblings={roots}
         {spaces}
+        {favorites}
         onchanged={() => (refresh += 1)}
+        onfavorites={() => (favoriteTick += 1)}
       />
     {:else}
       <p class="px-2 py-1 text-sm text-text-muted">{t('No pages in this space')}</p>

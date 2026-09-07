@@ -15,6 +15,8 @@
     pageTree,
     type PageSummary
   } from '$lib/features/page/services/pages';
+  import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
+  import { copyText } from '$lib/features/clipboard';
   import type { Space } from '$lib/features/space/services/spaces';
   import { locale } from '$lib/stores/i18n.svelte';
   import PageMenu from './PageMenu.svelte';
@@ -35,11 +37,25 @@
     siblings: PageSummary[];
     /** Куда можно перенести страницу. Перечень общий на всё дерево. */
     spaces: Space[];
+    /** Отмеченные страницы. Перечень общий на всё дерево, приходит сверху. */
+    favorites: Set<string>;
     /** Перечитать ветвь родителя после переноса или удаления. */
     onchanged: () => void;
+    /** Перечитать отметки: их перечень живёт у дерева, а меняются они здесь. */
+    onfavorites: () => void;
   };
-  const { node, spaceSlug, depth, activeSlug, ancestors, siblings, spaces, onchanged }: Props =
-    $props();
+  const {
+    node,
+    spaceSlug,
+    depth,
+    activeSlug,
+    ancestors,
+    siblings,
+    spaces,
+    favorites,
+    onchanged,
+    onfavorites
+  }: Props = $props();
 
   let open = $state(false);
   let children = $state<PageSummary[] | null>(null);
@@ -138,6 +154,39 @@
     act(async () => {
       await duplicatePage(node.id);
       onchanged();
+    });
+
+  /**
+   * Копия в другое пространство.
+   *
+   * Отдельно от переноса: там страница уезжает, здесь остаётся на месте, а её
+   * двойник появляется у соседа. Тот же маршрут дублирования, только с целью.
+   */
+  const copyToSpace = (spaceId: string) =>
+    act(async () => {
+      await duplicatePage(node.id, spaceId);
+      onchanged();
+    });
+
+  const favorite = $derived(favorites.has(node.id));
+
+  const toggleFavorite = () =>
+    act(async () => {
+      await (favorite ? removeFavorite(node.id) : addFavorite(node.id));
+      onfavorites();
+    });
+
+  /**
+   * Ссылка на страницу в буфер.
+   *
+   * Адрес отдаёт сам браузер: приложение развёртывают и на своём домене, и на
+   * поддомене, и записанный в настройках адрес расходится с тем, по которому
+   * человек в него пришёл.
+   */
+  const copyLink = () =>
+    act(async () => {
+      const address = `${window.location.origin}/s/${spaceSlug}/p/${node.slugId}`;
+      if (!(await copyText(address))) throw new Error(t('Something went wrong'));
     });
 
   const moveToSpace = (spaceId: string) =>
@@ -262,8 +311,10 @@
       class:font-medium={activeSlug === node.slugId}
       href="/s/{spaceSlug}/p/{node.slugId}"
     >
-      <span aria-hidden="true">{node.icon ?? '📄'}</span>
-      {node.title ?? t('Untitled')}
+      <!-- Значок по умолчанию свой у базы: содержимое у неё в строках, и
+           открывается она таблицей, а не редактором. -->
+      <span aria-hidden="true">{node.icon ?? (node.isBase ? '🗄️' : '📄')}</span>
+      {node.title ?? (node.isBase ? t('Untitled base') : t('Untitled'))}
     </a>
 
     <button
@@ -287,9 +338,13 @@
         {spaces}
         spaceId={node.spaceId}
         {busy}
+        {favorite}
         onsubpage={addSubpage}
         onduplicate={duplicate}
+        oncopy={copyToSpace}
         onmove={moveToSpace}
+        onfavorite={toggleFavorite}
+        oncopylink={copyLink}
         ondelete={remove}
         onclose={() => (menu = false)}
       />
@@ -313,7 +368,9 @@
           {ancestors}
           siblings={children}
           {spaces}
+          {favorites}
           onchanged={reload}
+          {onfavorites}
         />
       {/each}
     {:else}

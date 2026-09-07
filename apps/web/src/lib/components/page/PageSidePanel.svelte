@@ -2,10 +2,12 @@
   import { invalidateAll } from '$app/navigation';
   import { IconX } from '@tabler/icons-svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import DocumentToc from './DocumentToc.svelte';
   import LabelChip from './LabelChip.svelte';
   import PageComments from './PageComments.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
   import { attachLabels, detachLabel, type Label } from '$lib/features/page/services/labels';
@@ -24,10 +26,11 @@
     rejectApproval,
     removeVerification,
     submitForApproval,
+    updateVerification,
     verifyPage,
     type VerificationInfo
   } from '$lib/features/verification/services/page';
-  import type { Backlink } from '$lib/features/page/services/backlinks';
+  import { backlinksOf, type Backlink } from '$lib/features/page/services/backlinks';
   import type { Comment } from '$lib/features/page/services/comments';
   import type { PagePermission, PermissionInfo } from '$lib/features/page/services/permissions';
   import {
@@ -35,7 +38,8 @@
     listPermissions,
     removePermission,
     removeRestriction,
-    restrictPage
+    restrictPage,
+    updatePermission
   } from '$lib/features/page/services/permissions';
   import { spaceMembers, type SpaceMember } from '$lib/features/space/services/spaces';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -45,7 +49,13 @@
     spaceId: string;
     versions: Version[];
     labels: Label[];
-    backlinks: Backlink[];
+    /**
+     * Сколько страниц ссылается сюда.
+     *
+     * Со страницей приходит только счёт: сам перечень тянет проверку прав по
+     * каждому источнику, а вкладка закрыта, пока её не открыли.
+     */
+    backlinkCount: number;
     permission: PermissionInfo | null;
     verification: VerificationInfo | null;
     share: Share | null;
@@ -56,10 +66,16 @@
     updatedAt?: string | null;
     /** Обсуждение страницы. Показывается вкладкой, как в v1. */
     comments: Comment[];
+    /** Документ страницы. Нужен оглавлению: заголовки берутся из него. */
+    content?: unknown;
+    /** Вправе ли смотрящий писать в обсуждение. См. `PageComments`. */
+    canComment?: boolean;
     /** Кто смотрит: по нему решается, что из реплик можно править. */
     userId?: string;
     /** Какую вкладку открыть. Приходит от полосы действий. */
     want?: string | null;
+    /** Какую реплику подсветить. Приходит из ссылки на реплику. */
+    highlight?: string | null;
     /** Закрыть панель. Кнопка стоит и здесь: закрывать там же, где смотришь. */
     onclose: () => void;
   };
@@ -68,7 +84,7 @@
     spaceId,
     versions,
     labels,
-    backlinks,
+    backlinkCount,
     permission,
     verification,
     share,
@@ -77,8 +93,11 @@
     createdAt = null,
     updatedAt = null,
     comments,
+    content = null,
+    canComment = true,
     userId,
     want = null,
+    highlight = null,
     onclose
   }: Props = $props();
 
@@ -109,9 +128,9 @@
    * «Подробности». Здесь оно стояло списком под текстом страницы, и длинная
    * ветка отодвигала конец страницы на экран вниз.
    */
-  type Tab = 'comments' | 'history' | 'labels' | 'links' | 'access' | 'check' | 'stats';
+  type Tab = 'comments' | 'toc' | 'history' | 'labels' | 'links' | 'access' | 'check' | 'stats';
 
-  const TABS: Tab[] = ['comments', 'history', 'labels', 'links', 'access', 'check', 'stats'];
+  const TABS: Tab[] = ['comments', 'toc', 'history', 'labels', 'links', 'access', 'check', 'stats'];
 
   let tab = $state<Tab>('comments');
 
@@ -163,6 +182,42 @@
     void act(async () => {
       candidates = await spaceMembers(spaceId);
     });
+  });
+
+  /**
+   * Обратные ссылки читаются при открытии вкладки, а не вместе со страницей.
+   *
+   * Перечень тянет проверку прав по каждой странице-источнику, а вкладка
+   * закрыта по умолчанию. Со страницей приходит только счёт — его хватает,
+   * чтобы подписать вкладку.
+   */
+  let backlinks = $state<Backlink[]>([]);
+  let linksAsked = $state(false);
+  let linksLoading = $state(false);
+
+  $effect(() => {
+    // Смена страницы обнуляет прочитанное: маршрут страницы один на все
+    // страницы пространства, и панель при переходе остаётся той же.
+    void pageId;
+    backlinks = [];
+    linksAsked = false;
+    linksLoading = false;
+  });
+
+  $effect(() => {
+    if (tab !== 'links' || linksAsked) return;
+    linksAsked = true;
+    linksLoading = true;
+    const wanted = pageId;
+    void (async () => {
+      try {
+        backlinks = await backlinksOf(wanted);
+      } catch (error) {
+        failure = errorText(error, t);
+      } finally {
+        linksLoading = false;
+      }
+    })();
   });
 
   $effect(() => {
@@ -230,6 +285,23 @@
       granted = await listPermissions(pageId);
     });
 
+  /**
+   * Поменять роль у того, кому доступ уже выдан.
+   *
+   * Отдельным действием, а не снятием и выдачей заново: то оставило бы две
+   * записи в журнале и на миг закрыло бы человеку страницу.
+   */
+  const changeRole = (one: PagePermission, next: string) =>
+    act(async () => {
+      await updatePermission({
+        pageId,
+        role: next,
+        userId: one.userId ?? undefined,
+        groupId: one.groupId ?? undefined
+      });
+      granted = await listPermissions(pageId);
+    });
+
   const dropLabel = (labelId: string) =>
     act(async () => {
       await detachLabel(pageId, labelId);
@@ -251,6 +323,44 @@
         periodUnit,
         verifierIds
       });
+      await invalidateAll();
+    });
+
+  /**
+   * Заведённая проверка правится, а не заводится заново.
+   *
+   * Снять и завести заново — значит потерять историю проверки вместе с уже
+   * полученными подтверждениями.
+   */
+  let retuning = $state(false);
+
+  /**
+   * Открыть правку с тем, что стоит сейчас.
+   *
+   * Иначе форма показывает умолчание — год и пустой состав, — и человек,
+   * пришедший поменять только срок, молча заменяет и подтверждающих.
+   */
+  function startRetuning() {
+    if (verification?.configured) {
+      periodAmount = verification.periodAmount ?? periodAmount;
+      periodUnit = verification.periodUnit ?? periodUnit;
+      verifierIds = (verification.verifiers ?? []).map((one) => one.userId);
+    }
+    retuning = true;
+  }
+
+  const retune = () =>
+    act(async () => {
+      await updateVerification({
+        pageId,
+        periodAmount,
+        periodUnit,
+        // Пустой выбор означает «состав не трогаем»: список подтверждающих
+        // приходит с сервера, а перечень для выбора грузится вкладкой, и до
+        // его загрузки отправить пустоту значило бы стереть состав.
+        verifierIds: verifierIds.length > 0 ? verifierIds : undefined
+      });
+      retuning = false;
       await invalidateAll();
     });
 
@@ -276,14 +386,14 @@
 
 <aside
   data-component="PageSidePanel"
-  class="fixed bottom-0 right-0 top-header w-aside overflow-y-auto bg-surface-muted p-4 print:hidden"
+  class="fixed bottom-0 right-0 top-header z-30 w-full overflow-y-auto bg-surface-muted p-4 sm:w-aside print:hidden"
 >
   <div class="mb-2 flex justify-end">
     <IconButton icon={IconX} label={t('Close')} onclick={onclose} />
   </div>
 
   <nav class="mb-4 flex flex-wrap gap-1 text-sm">
-    {#each [['comments', t('Comments')], ['history', t('Page history')], ['labels', t('Labels')], ['links', t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')], ['stats', t('Stats')]] as [key, title] (key)}
+    {#each [['comments', t('Comments')], ['toc', t('Table of contents')], ['history', t('Page history')], ['labels', t('Labels')], ['links', backlinkCount > 0 ? `${t('Backlinks')} (${backlinkCount})` : t('Backlinks')], ['access', t('Access')], ['check', t('Page verification')], ['stats', t('Stats')]] as [key, title] (key)}
       <button
         class="rounded px-2 py-1 hover:bg-surface"
         class:bg-surface={tab === key}
@@ -304,7 +414,16 @@
   {#if failure}<Notice message={failure} />{/if}
 
   {#if tab === 'comments'}
-    <PageComments {pageId} {comments} {userId} {spaceId} bare />
+    <PageComments {pageId} {comments} {userId} {spaceId} {canComment} {highlight} bare />
+  {:else if tab === 'toc'}
+    <!--
+      Оглавление при чтении. Кнопка оглавления есть и в полосе правки, но
+      показывается она только правящему, а читают страницу чаще, чем правят.
+
+      Заголовок ищется в разметке редактора: страница и на чтении показана им,
+      и другого места с показанным текстом здесь нет.
+    -->
+    <DocumentToc {content} body={() => document.querySelector<HTMLElement>('.tiptap')} />
   {:else if tab === 'history'}
     <ul class="space-y-1 text-sm">
       {#each versions as version (version.id)}
@@ -354,6 +473,9 @@
       <Button type="submit" disabled={busy}>{t('Add')}</Button>
     </form>
   {:else if tab === 'links'}
+    {#if linksLoading}
+      <p class="px-2 text-sm text-text-muted">{t('Loading...')}</p>
+    {/if}
     <ul class="space-y-1 text-sm">
       {#each backlinks as link (link.id)}
         <li>
@@ -365,7 +487,9 @@
           </a>
         </li>
       {:else}
-        <li class="px-2 text-text-muted">{t('No pages link here yet.')}</li>
+        {#if !linksLoading}
+          <li class="px-2 text-text-muted">{t('No pages link here yet.')}</li>
+        {/if}
       {/each}
     </ul>
   {:else if tab === 'check'}
@@ -459,6 +583,13 @@
             <Button
               variant="quiet"
               disabled={busy}
+              onclick={() => (retuning ? (retuning = false) : startRetuning())}
+            >
+              {t('Edit')}
+            </Button>
+            <Button
+              variant="quiet"
+              disabled={busy}
               onclick={() => runVerification(() => markObsolete(pageId))}
             >
               {t('Mark obsolete')}
@@ -479,6 +610,47 @@
             bind:value={rejectComment}
             placeholder={t('Reason for returning this document...')}
           />
+        {/if}
+
+        {#if retuning && verification.canManage}
+          <div class="space-y-2 border-t border-border pt-3">
+            <div class="flex items-end gap-2">
+              <label class="w-16">
+                <span class="mb-1 block text-xs text-text-muted">{t('Number')}</span>
+                <input
+                  class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+                  type="number"
+                  min="1"
+                  bind:value={periodAmount}
+                />
+              </label>
+              <label class="flex-1">
+                <span class="mb-1 block text-xs text-text-muted">{t('Period')}</span>
+                <select
+                  class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+                  bind:value={periodUnit}
+                >
+                  {#each PERIOD_UNITS as one (one.value)}
+                    <option value={one.value}>{t(one.label)}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
+            <label class="block">
+              <span class="mb-1 block text-xs text-text-muted">{t('Verifiers')}</span>
+              <select
+                class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+                multiple
+                size="4"
+                bind:value={verifierIds}
+              >
+                {#each candidates ?? [] as person (person.id)}
+                  <option value={person.id}>{person.name ?? person.email}</option>
+                {/each}
+              </select>
+            </label>
+            <Button disabled={busy} onclick={retune}>{t('Save')}</Button>
+          </div>
         {/if}
       {/if}
     </div>
@@ -538,9 +710,27 @@
               <li class="flex items-start justify-between gap-2">
                 <span class="min-w-0">
                   <span class="block truncate">{one.name ?? one.email ?? t('Unknown')}</span>
-                  <span class="block text-xs text-text-muted">
-                    {t(one.role === 'writer' ? 'Can edit' : 'Can view')}
-                  </span>
+                  {#if permission.userAccess.canManage}
+                    <!-- Роль меняется на месте: снимать доступ и выдавать
+                         заново ради «смотрит» вместо «правит» не нужно. -->
+                    <span class="mt-1 block">
+                      <Select
+                        compact
+                        value={one.role}
+                        options={ROLES.map((role) => ({
+                          value: role.value,
+                          label: t(role.label)
+                        }))}
+                        disabled={busy}
+                        label={t('Access')}
+                        onchange={(next) => changeRole(one, next)}
+                      />
+                    </span>
+                  {:else}
+                    <span class="block text-xs text-text-muted">
+                      {t(one.role === 'writer' ? 'Can edit' : 'Can view')}
+                    </span>
+                  {/if}
                 </span>
                 {#if permission.userAccess.canManage && one.userId}
                   <button

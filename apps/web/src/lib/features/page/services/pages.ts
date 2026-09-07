@@ -12,6 +12,8 @@ export type PageSummary = {
   /** Есть ли вложенные страницы. По нему рисуется значок раскрытия: без него
    *  он стоит у каждой строки, и половина раскрывается в пустоту. */
   hasChildren?: boolean;
+  /** База, а не обычная страница. Открывается таблицей, а не редактором. */
+  isBase?: boolean;
   canEdit?: boolean;
   restricted?: boolean;
 };
@@ -184,6 +186,8 @@ export type PageListing = {
   spaceName: string | null;
   updatedAt: string | null;
   createdAt: string | null;
+  /** База, а не обычная страница: у неё свой значок и свой экран. */
+  isBase?: boolean;
 };
 
 /** Что правили последним. Без пространства — по всем доступным. */

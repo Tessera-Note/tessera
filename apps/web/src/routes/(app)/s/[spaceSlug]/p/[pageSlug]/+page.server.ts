@@ -1,6 +1,6 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { ApiError } from '$lib/api/client';
-import { backlinksOf } from '$lib/features/page/services/backlinks';
+import { backlinksCount } from '$lib/features/page/services/backlinks';
 import { listComments } from '$lib/features/page/services/comments';
 import { listFavorites } from '$lib/features/page/services/favorites';
 import { listVersions } from '$lib/features/page/services/history';
@@ -20,6 +20,12 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
     // стоит первое, во внутренних переходах бывает второе.
     const page = await pageInfo(params.pageSlug, fetch, headers);
 
+    // База это тоже страница, и ссылаются на неё отовсюду как на страницу —
+    // из дерева, поиска, обратных ссылок. Показывать её редактором нельзя:
+    // содержимое базы лежит в строках, и редактор открылся бы пустым. Экран
+    // базы один, поэтому сюда её не переносим, а отправляем туда.
+    if (page.isBase) redirect(307, `/base/${page.id}`);
+
     // Всё разом, а не по очереди: запросы независимы, и последовательные
     // ждали бы друг друга без причины. Отказ бокового содержимого не должен
     // ронять саму страницу, поэтому каждый со своим запасным значением.
@@ -29,7 +35,7 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       favorites,
       versions,
       labels,
-      backlinks,
+      links,
       permission,
       share,
       verification,
@@ -40,7 +46,9 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       listFavorites(fetch, headers),
       listVersions(page.id, fetch, headers).catch(() => []),
       labelsOfPage(page.id, fetch, headers).catch(() => []),
-      backlinksOf(page.id, fetch, headers).catch(() => []),
+      // Только счёт: перечень грузится, когда открыли вкладку. Он тянет
+      // проверку прав по каждой странице-источнику, а вкладка закрыта.
+      backlinksCount(page.id, fetch, headers).catch(() => ({ count: 0 })),
       permissionInfo(page.id, fetch, headers).catch(() => null),
       shareForPage(page.id, fetch, headers).catch(() => null),
       verificationInfo(page.id, fetch, headers).catch(() => null),
@@ -56,7 +64,7 @@ export const load: PageServerLoad = async ({ params, fetch, request, parent }) =
       comments,
       versions,
       labels,
-      backlinks,
+      backlinkCount: links.count,
       permission,
       share,
       verification,

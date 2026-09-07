@@ -11,8 +11,12 @@ import type { LayoutLoad } from './$types';
  * сборки, в браузере — своим куском, и обе стороны получают один и тот же
  * набор строк.
  */
-export const load: LayoutLoad = async ({ data, fetch }) => {
-  const locale = normalizeLocale(data?.session?.user.locale ?? browserLocale());
+export const load: LayoutLoad = async ({ data, url, fetch }) => {
+  // Довод адреса — для листа печати: у браузера печати нет ни входа, ни куки,
+  // и без этого подписи от приложения уходят на лист по-английски. Для
+  // остальных экранов его нет, и язык берётся у человека.
+  const wanted = data?.session?.user.locale ?? url.searchParams.get('locale') ?? browserLocale();
+  const locale = normalizeLocale(wanted);
   return { ...data, locale, dictionary: await loadDictionary(locale, fetch) };
 };
 

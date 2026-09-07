@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CopyButton from '$lib/components/ui/CopyButton.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
@@ -40,7 +41,12 @@
   <div class="mb-4 grid gap-4 sm:grid-cols-2">
     <div class="card-soft rounded-md border border-border bg-surface-raised p-5">
       <p class="text-xs font-bold uppercase tracking-wide text-text-muted">Workspace ID</p>
-      <p class="mt-1 break-all text-sm font-semibold">{data.workspace.id}</p>
+      <!-- Идентификатор показывают затем, чтобы его переслали в поддержку:
+           без кнопки его выделяют мышью по знакам. -->
+      <div class="mt-1 flex items-start gap-2">
+        <p class="min-w-0 break-all text-sm font-semibold">{data.workspace.id}</p>
+        <CopyButton text={data.workspace.id} />
+      </div>
     </div>
     <div class="card-soft rounded-md border border-border bg-surface-raised p-5">
       <p class="text-xs font-bold uppercase tracking-wide text-text-muted">

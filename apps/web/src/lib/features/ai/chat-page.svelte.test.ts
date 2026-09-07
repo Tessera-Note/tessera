@@ -55,6 +55,14 @@ afterEach(() => {
 
 describe('экран разговора', () => {
   it('остановка сохраняет сказанное', async () => {
+    // Разговор заводится до отправки: адрес нужен с первой секунды хода.
+    // Здесь он не проверяется, но без подмены обращение ушло бы на сервер.
+    vi.spyOn(chat, 'createChat').mockResolvedValue({
+      id: 'c1',
+      title: null,
+      createdAt: '',
+      updatedAt: ''
+    } as never);
     vi.spyOn(chat, 'sendMessage').mockImplementation(
       endlessTurn('Завтра тепло.') as typeof chat.sendMessage
     );
@@ -66,8 +74,10 @@ describe('экран разговора', () => {
     flushSync();
 
     box.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true }));
+    // Ходов ожидания на два больше прежнего: заведение разговора и переход по
+    // его адресу случаются до первого кадра ответа.
+    for (let step = 0; step < 4; step += 1) await Promise.resolve();
     await tick();
-    await Promise.resolve();
     flushSync();
 
     expect(answers(box)).toEqual(['Завтра тепло.']);

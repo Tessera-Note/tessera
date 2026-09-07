@@ -207,4 +207,15 @@ describe('BaseCell', () => {
     const box = render({ value: null, editable: false });
     expect(box.textContent?.trim()).toBe('—');
   });
+
+  it('отметка без права правки остаётся отметкой', () => {
+    // Слова `true` и `false` из кода, а не из языка человека, и в словаре их
+    // нет: их видел всякий, кто смотрит базу без права правки.
+    const box = render({ property: property({ type: 'checkbox' }), value: true, editable: false });
+    const flag = box.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(flag).not.toBeNull();
+    expect(flag.checked).toBe(true);
+    expect(flag.disabled).toBe(true);
+    expect(box.textContent).not.toContain('true');
+  });
 });

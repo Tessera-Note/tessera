@@ -28,20 +28,22 @@ function page(id: string, title: string): PageSummary {
   };
 }
 
-function render(depth: number): HTMLElement {
+function render(depth: number, node: PageSummary = page('p1', 'Страница')): HTMLElement {
   host = document.createElement('div');
   document.body.appendChild(host);
   component = mount(PageTreeNode, {
     target: host,
     props: {
-      node: page('p1', 'Страница'),
+      node,
       spaceSlug: 'general',
       depth,
       activeSlug: undefined,
       ancestors: new Set<string>(),
       siblings: [],
       spaces: [],
-      onchanged: () => {}
+      favorites: new Set<string>(),
+      onchanged: () => {},
+      onfavorites: () => {}
     }
   }) as Record<string, unknown>;
   flushSync();
@@ -74,5 +76,17 @@ describe('PageTreeNode', () => {
   it('название страницы показано', () => {
     const box = render(3);
     expect(box.querySelector('a')?.textContent).toContain('Страница');
+  });
+
+  it('база отличается значком', () => {
+    // Открывается она таблицей, а не редактором: одинаковый значок обещал бы
+    // строке дерева не то, что за ней стоит.
+    const box = render(0, { ...page('b1', 'Проекты'), isBase: true });
+    expect(box.querySelector('a')?.textContent).toContain('🗄️');
+  });
+
+  it('безымянную базу подписывает базой', () => {
+    const box = render(0, { ...page('b1', ''), title: null, isBase: true });
+    expect(box.querySelector('a')?.textContent).toContain('Untitled base');
   });
 });

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import {
     IconBlockquote,
     IconBold,
@@ -53,7 +53,16 @@
     return ready?.isActive(name, attributes) ?? false;
   }
 
-  onMount(() => {
+  /**
+   * Редактор пересобирается при смене шаблона.
+   *
+   * Эффект, а не `onMount`: маршрут один на все шаблоны, и при переходе с
+   * одного на другой экземпляр компонента остаётся прежним — на экране
+   * оставалось тело предыдущего шаблона, а сохранение записывало его поверх
+   * нового.
+   */
+  $effect(() => {
+    const start = initial;
     let cancelled = false;
 
     void (async () => {
@@ -72,7 +81,7 @@
         // Совместной правки здесь нет намеренно: у шаблона нет документа Yjs,
         // его правит один человек и сохраняет кнопкой.
         extensions: editorExtensions((key, values) => t(key, values)),
-        content: (untrack(() => initial) as never) ?? undefined,
+        content: (start as never) ?? undefined,
         editorProps: {
           attributes: { class: 'tessera-doc focus:outline-none', 'data-component': 'PlainEditor' }
         }
@@ -108,6 +117,13 @@
 
     return () => {
       cancelled = true;
+      // Уборка здесь же, а не в `onDestroy`: она нужна и при уходе с экрана, и
+      // при переходе на соседний шаблон.
+      editor?.view.dom.removeEventListener('keydown', keydown, true);
+      editor?.destroy();
+      editor = null;
+      ready = null;
+      suggest = null;
     };
   });
 
@@ -117,11 +133,6 @@
       event.stopPropagation();
     }
   }
-
-  onDestroy(() => {
-    editor?.view.dom.removeEventListener('keydown', keydown, true);
-    editor?.destroy();
-  });
 </script>
 
 {#snippet action(

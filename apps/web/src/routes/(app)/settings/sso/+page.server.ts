@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { ApiError } from '$lib/api/client';
 import { listProviders } from '$lib/features/sso/services/providers';
 import { listScimTokens } from '$lib/features/scim/services/tokens';
+import { workspaceSettings } from '$lib/features/workspace/services/settings';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ fetch, request, parent }) => {
@@ -15,11 +16,14 @@ export const load: PageServerLoad = async ({ fetch, request, parent }) => {
   if (role !== 'admin' && role !== 'owner') redirect(302, '/settings/account');
 
   try {
-    const [providers, tokens] = await Promise.all([
+    // Настройки нужны ради одного выключателя — синхронизации по SCIM: без
+    // неё проверка токена отказывает всегда, каким бы он ни был.
+    const [providers, tokens, settings] = await Promise.all([
       listProviders(fetch, headers),
-      listScimTokens(fetch, headers)
+      listScimTokens(fetch, headers),
+      workspaceSettings(fetch, headers)
     ]);
-    return { providers: providers.items, tokens };
+    return { providers: providers.items, tokens, settings };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

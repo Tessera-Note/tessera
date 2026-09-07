@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { listChats } from '$lib/features/ai/services/chat';
 import { unreadCount } from '$lib/features/notification/services/notifications';
+import { listFavoriteSpaces } from '$lib/features/page/services/favorites';
 import { listSpaces } from '$lib/features/space/services/spaces';
 import type { LayoutServerLoad } from './$types';
 
@@ -23,14 +24,24 @@ export const load: LayoutServerLoad = async ({ locals, fetch, request, url }) =>
   // их вместо пространств, и грузить их на каждом экране незачем.
   const wantsChats = url.pathname.startsWith('/ai');
 
-  const [spaces, unread, chats] = await Promise.all([
+  const [spaces, unread, chats, favoriteSpaces] = await Promise.all([
     listSpaces(fetch, headers),
     // Значок непрочитанного не повод не показать экран: отказ счётчика гасит
     // только сам значок.
     unreadCount(fetch, headers).catch(() => ({ count: 0 })),
     wantsChats
       ? listChats(undefined, fetch, headers).catch(() => ({ items: [], nextCursor: null }))
-      : Promise.resolve({ items: [], nextCursor: null })
+      : Promise.resolve({ items: [], nextCursor: null }),
+    // Отмеченные пространства нужны сразу трём экранам — боковой панели,
+    // перечню пространств и избранному, — поэтому читаются здесь, а не в
+    // каждом из них. Отказ гасит только звёзды, а не экран.
+    listFavoriteSpaces(fetch, headers).catch(() => [])
   ]);
-  return { session: locals.session, spaces, unread: unread.count, chats };
+  return {
+    session: locals.session,
+    spaces,
+    unread: unread.count,
+    chats,
+    favoriteSpaces
+  };
 };

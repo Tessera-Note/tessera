@@ -56,6 +56,24 @@ export function configureVerification(
   return post<VerificationInfo>('/api/pages/create-verification', values, { fetcher });
 }
 
+/**
+ * Поменять срок и состав подтверждающих у заведённой проверки.
+ *
+ * Отдельно от заведения: снять проверку и завести заново — значит потерять её
+ * историю вместе с уже полученными подтверждениями.
+ */
+export function updateVerification(
+  values: {
+    pageId: string;
+    periodAmount?: number;
+    periodUnit?: string;
+    verifierIds?: string[];
+  },
+  fetcher?: typeof fetch
+) {
+  return post<VerificationInfo>('/api/pages/update-verification', values, { fetcher });
+}
+
 export function removeVerification(pageId: string, fetcher?: typeof fetch) {
   return post<{ success: boolean }>('/api/pages/delete-verification', { pageId }, { fetcher });
 }

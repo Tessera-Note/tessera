@@ -8,6 +8,10 @@ export type Space = {
   role: string | null;
   /** Имя файла значка, а не адрес: адрес собирает `imageUrl`. */
   logo?: string | null;
+  /** Запрещена ли публикация страниц наружу. Переключается в настройках. */
+  disablePublicSharing?: boolean;
+  /** Вправе ли читатель комментировать. Умолчание «нет», как в v1. */
+  allowViewerComments?: boolean;
 };
 
 export function listSpaces(fetcher?: typeof fetch, headers?: Record<string, string>) {
@@ -79,7 +83,16 @@ export function createSpace(
 
 /** Поле, которого нет в запросе, сервер не трогает. */
 export function updateSpace(
-  values: { spaceId: string; name?: string; description?: string; slug?: string },
+  values: {
+    spaceId: string;
+    name?: string;
+    description?: string;
+    slug?: string;
+    // Признаки безопасности. Пропущенное поле сервер не трогает: экран шлёт
+    // только переключённое, и один переключатель не сбрасывает соседний.
+    disablePublicSharing?: boolean;
+    allowViewerComments?: boolean;
+  },
   fetcher?: typeof fetch
 ) {
   return post<Space>('/api/spaces/update', values, { fetcher });

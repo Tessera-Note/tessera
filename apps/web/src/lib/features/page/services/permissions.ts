@@ -59,6 +59,19 @@ export function addPermission(
   return post<{ added: number }>('/api/pages/add-permission', values, { fetcher });
 }
 
+/**
+ * Поменять роль у того, кому доступ уже выдан.
+ *
+ * Отдельно от выдачи: снятие и выдача заново дают тот же итог, но проходят
+ * двумя записями в журнале и на миг оставляют человека без доступа.
+ */
+export function updatePermission(
+  values: { pageId: string; role: string; userId?: string; groupId?: string },
+  fetcher?: typeof fetch
+) {
+  return post<{ success: boolean }>('/api/pages/update-permission', values, { fetcher });
+}
+
 export function removePermission(
   values: { pageId: string; userIds?: string[]; groupIds?: string[] },
   fetcher?: typeof fetch

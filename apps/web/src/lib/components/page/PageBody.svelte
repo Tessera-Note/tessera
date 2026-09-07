@@ -1,8 +1,12 @@
 <script lang="ts">
   import DocumentView from '$lib/features/editor/DocumentView.svelte';
 
-  type Props = { content: unknown };
-  const { content }: Props = $props();
+  type Props = {
+    content: unknown;
+    /** Показ закончен. Пробрасывается печати, см. `DocumentView`. */
+    onready?: () => void;
+  };
+  const { content, onready }: Props = $props();
 </script>
 
 <!--
@@ -12,5 +16,5 @@
   страница читалась бы как потерянное содержимое.
 -->
 <div data-component="PageBody">
-  <DocumentView {content} />
+  <DocumentView {content} {onready} />
 </div>

@@ -11,6 +11,7 @@
     type ProfilePatch
   } from '$lib/features/user/services/profile';
   import { locale } from '$lib/stores/i18n.svelte';
+  import { theme, type ThemeChoice } from '$lib/stores/theme.svelte';
   import type { LayoutData } from '../../$types';
 
   type Props = { data: LayoutData };
@@ -23,6 +24,18 @@
 
   let failure = $state<string | null>(null);
   let saved = $state(false);
+
+  /**
+   * Тема оформления.
+   *
+   * Хранится в браузере, а не на сервере: так же в v1, и это верно — тема
+   * зависит от устройства, за которым сидят, а не от учётной записи.
+   */
+  const themes = $derived([
+    { value: 'light', label: t('Light') },
+    { value: 'dark', label: t('Dark') },
+    { value: 'auto', label: t('System settings') }
+  ]);
 
   /** С чего начинается страница: читать или сразу править. */
   const editModes = $derived([
@@ -60,6 +73,21 @@
   {#if saved}<Notice tone="info" message={t('Saved')} />{/if}
 
   <Panel>
+    <label class="mb-4 block">
+      <span class="mb-1 block text-sm font-medium text-text">{t('Theme')}</span>
+      <span class="mb-1 block text-xs text-text-muted">
+        {t('Choose your preferred color scheme.')}
+      </span>
+      <div class="w-56">
+        <Select
+          value={theme.choice}
+          options={themes}
+          label={t('Select theme')}
+          onchange={(value) => theme.set(value as ThemeChoice)}
+        />
+      </div>
+    </label>
+
     <Toggle
       checked={preferences.fullPageWidth === true}
       label={t('Full page width')}

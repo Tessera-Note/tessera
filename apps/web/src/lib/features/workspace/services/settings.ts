@@ -18,6 +18,10 @@ export type WorkspaceSettings = {
   aiSearchEnabled: boolean;
   /** Включён ли канал MCP. Тот же признак читает маршрут `/api/mcp`. */
   mcpEnabled: boolean;
+  /** С чего открывает страницу тот, кто своего выбора не делал. */
+  defaultPageEditMode: string;
+  /** Включена ли синхронизация учётных записей по SCIM. */
+  isScimEnabled: boolean;
 };
 
 /** Правится по одному полю: экран шлёт изменённое, остальное сервер не трогает. */

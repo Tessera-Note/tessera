@@ -47,7 +47,13 @@
     'w-full rounded border border-transparent bg-transparent px-2 py-1 hover:border-border focus:border-border disabled:opacity-70';
 </script>
 
-{#if !editable || computed}
+{#if (!editable || computed) && type === 'checkbox'}
+  <!--
+    Отметка и без права правки остаётся отметкой: словами `true` и `false` её
+    показывать нельзя — они из кода, а не из языка человека.
+  -->
+  <input type="checkbox" checked={value === true} disabled aria-label={property.name} />
+{:else if !editable || computed}
   <!--
     Только показ. Вычисляемые свойства сюда попадают всегда: их значение
     ставит сервер при записи строки, и правка отвергается.

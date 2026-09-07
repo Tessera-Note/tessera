@@ -23,8 +23,18 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, '..', '..');
 const API = join(HERE, '..', '..', '..', '..', 'api', 'tessera_api', 'api');
 
-/** Путь контроллера действует до следующего контроллера в том же файле. */
-const CONTROLLER_PATH = /^[ \t]+path = "([^"]+)"/gm;
+/**
+ * Путь контроллера действует до следующего контроллера в том же файле.
+ *
+ * Путь бывает записан именем (`path = BASE_PATH`): у SCIM он объявлен рядом
+ * константой, потому что стоит и в маршрутах, и в собственных ответах
+ * протокола. Имя разбирается отдельно — без этого весь контроллер считался бы
+ * набором адресов без префикса, то есть проверка молча пропускала бы его.
+ */
+const CONTROLLER_PATH = /^[ \t]+path = (?:"([^"]+)"|([A-Z_][A-Z0-9_]*))/gm;
+
+/** Строковая константа модуля: `BASE_PATH = "/api/scim/v2"`. */
+const MODULE_CONSTANT = /^([A-Z_][A-Z0-9_]*) = "([^"]+)"/gm;
 
 /**
  * Обработчик и его пути.
@@ -60,10 +70,15 @@ function serverRoutes(): Set<string> {
       // Файл разбирается целиком, а не по строкам: объявление обработчика
       // бывает многострочным. Префикс обработчика — последний путь
       // контроллера, объявленный выше него.
-      const bases = [...text.matchAll(CONTROLLER_PATH)].map((one) => ({
-        at: one.index,
-        path: one[1]
-      }));
+      const constants = new Map([...text.matchAll(MODULE_CONSTANT)].map((one) => [one[1], one[2]]));
+      const bases = [...text.matchAll(CONTROLLER_PATH)]
+        .map((one) => ({
+          at: one.index,
+          path: one[1] ?? constants.get(one[2] ?? '')
+        }))
+        // Имя, которого нет среди строковых констант файла, пропускается:
+        // домысливать за него путь — значит выдумывать маршруты.
+        .filter((one): one is { at: number; path: string } => one.path !== undefined);
 
       for (const handler of text.matchAll(HANDLER)) {
         const above = bases.filter((one) => one.at < handler.index);
@@ -168,6 +183,9 @@ describe('адреса сервера', () => {
     expect(calls.length).toBeGreaterThan(80);
     expect(routes.has('/api/pages/info')).toBe(true);
     expect(routes.has('/api/attachments/upload-image')).toBe(true);
+    // Путь этого контроллера записан именем: без разбора имени он и его
+    // маршруты выпадали из перечня целиком.
+    expect(routes.has('/api/scim/v2/Users')).toBe(true);
   });
 
   it('каждый адрес клиента объявлен сервером', () => {

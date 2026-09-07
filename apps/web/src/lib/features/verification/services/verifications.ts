@@ -27,16 +27,30 @@ export const VERIFICATION_STATUSES = [
   { value: 'obsolete', label: 'Obsolete' }
 ] as const;
 
+/** Страница перечня и место, откуда продолжать. */
+export type VerificationPage = {
+  items: VerificationRow[];
+  meta: { nextCursor: string | null };
+};
+
 /**
  * Проверяемые страницы доступных пространств.
  *
- * Выдача ограничена потолком и отдаётся целиком: экран открывают, чтобы окинуть
- * взглядом, а не листать.
+ * Выдача постраничная: отбор по правам выбрасывает строки уже после выборки,
+ * поэтому страница бывает короче запрошенной — конец перечня показывает пустой
+ * `nextCursor`, а не короткая страница.
  */
 export function listVerifications(
-  values: { spaceId?: string; status?: string } = {},
+  values: {
+    spaceId?: string;
+    status?: string;
+    query?: string;
+    verifierId?: string;
+    cursor?: string;
+    limit?: number;
+  } = {},
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
-  return post<VerificationRow[]>('/api/pages/verifications', values, { fetcher, headers });
+  return post<VerificationPage>('/api/pages/verifications', values, { fetcher, headers });
 }

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import DocumentToc from '$lib/components/page/DocumentToc.svelte';
   import PageBody from '$lib/components/page/PageBody.svelte';
+  import { headings } from '$lib/features/page/document';
   import { errorText } from '$lib/api/failure';
   import { searchShared, type SharedHit } from '$lib/features/share/services/share';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -27,6 +29,18 @@
   }
 
   const rootId = $derived(data.tree?.rootId ?? null);
+
+  /**
+   * Оглавление страницы.
+   *
+   * На широком экране — столбцом справа, как в v1 (`share-shell.tsx`): длинную
+   * страницу читают по разделам, и сложенный блок для этого надо каждый раз
+   * разворачивать. На узком экране столбца нет: третий столбец на телефоне не
+   * помещается, и там оглавление остаётся складным блоком над текстом.
+   */
+  const chapters = $derived(headings(data.page.content));
+  let showToc = $state(false);
+  let article = $state<HTMLElement | null>(null);
 
   let query = $state('');
   let hits = $state<SharedHit[] | null>(null);
@@ -84,9 +98,11 @@
   </li>
 {/snippet}
 
-<div class="flex gap-6" class:justify-center={!hasBranch}>
+<!-- На узком экране ветвь встаёт над текстом, а не рядом: столбец в 224
+     пикселя из 390 не оставляет места самой странице. -->
+<div class="flex flex-col gap-6 sm:flex-row" class:justify-center={!hasBranch}>
   {#if hasBranch}
-    <aside data-component="SharedTree" class="w-56 shrink-0">
+    <aside data-component="SharedTree" class="w-full shrink-0 sm:w-56">
       <form class="mb-3" onsubmit={search}>
         <input
           class="h-8 w-full rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
@@ -133,6 +149,7 @@
   {/if}
 
   <article
+    bind:this={article}
     data-route="shared-page"
     class="min-w-0 flex-1 rounded border border-border bg-surface p-8"
   >
@@ -142,8 +159,43 @@
     </h1>
     <p class="mt-1 mb-6 text-sm text-text-muted">{t('Last updated')}: {when}</p>
 
+    {#if chapters.length > 0}
+      <!-- Складной блок только там, где нет столбца: на широком экране он
+           повторял бы оглавление, стоящее справа. -->
+      <div class="mb-6 rounded-md border border-border bg-surface-muted p-3 lg:hidden">
+        <button
+          class="text-sm font-medium text-text-muted hover:text-text"
+          type="button"
+          aria-expanded={showToc}
+          onclick={() => (showToc = !showToc)}
+        >
+          {t('Table of contents')}
+        </button>
+        {#if showToc}
+          <div class="mt-2">
+            <DocumentToc content={data.page.content} body={() => article} />
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <PageBody content={data.page.content} />
   </article>
+
+  {#if chapters.length > 0}
+    <aside
+      data-component="SharedToc"
+      class="hidden w-56 shrink-0 lg:block"
+      aria-label={t('Table of contents')}
+    >
+      <!-- Закреплено при прокрутке: оглавление нужно как раз тогда, когда
+           текст уехал вверх. -->
+      <div class="sticky top-6 max-h-[80vh] overflow-y-auto">
+        <p class="mb-2 text-sm font-medium">{t('Table of contents')}</p>
+        <DocumentToc content={data.page.content} body={() => article} />
+      </div>
+    </aside>
+  {/if}
 </div>
 
 <p class="mt-6 text-center text-xs text-text-muted">

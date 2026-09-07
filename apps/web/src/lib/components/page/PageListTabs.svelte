@@ -29,6 +29,7 @@
     spaceSlug: string;
     spaceName: string | null;
     when: string | null;
+    isBase: boolean;
   };
 
   let tab = $state<'recent' | 'favorites' | 'mine'>('recent');
@@ -63,7 +64,8 @@
           icon: one.icon,
           spaceSlug: one.spaceSlug,
           spaceName: one.spaceName,
-          when: null
+          when: null,
+          isBase: one.isBase === true
         }));
     }
     const source = tab === 'mine' ? mine : recent;
@@ -74,7 +76,8 @@
       icon: one.icon,
       spaceSlug: one.spaceSlug,
       spaceName: one.spaceName,
-      when: shortDate(tab === 'mine' ? one.createdAt : one.updatedAt)
+      when: shortDate(tab === 'mine' ? one.createdAt : one.updatedAt),
+      isBase: one.isBase === true
     }));
   });
 
@@ -116,8 +119,9 @@
           href="/s/{row.spaceSlug}/p/{row.slugId}"
         >
           <span class="min-w-0 truncate text-sm">
-            <span aria-hidden="true">{row.icon ?? '📄'}</span>
-            {row.title ?? t('Untitled')}
+            <!-- Значок по умолчанию свой у базы: она и открывается таблицей. -->
+            <span aria-hidden="true">{row.icon ?? (row.isBase ? '🗄️' : '📄')}</span>
+            {row.title ?? (row.isBase ? t('Untitled base') : t('Untitled'))}
           </span>
           <span class="shrink-0 text-xs text-text-muted">
             {row.spaceName ?? ''}{row.when ? ` · ${row.when}` : ''}

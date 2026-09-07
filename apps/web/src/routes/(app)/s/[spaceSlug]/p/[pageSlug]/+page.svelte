@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import {
     IconBell,
@@ -9,7 +11,6 @@
     IconEdit,
     IconEye,
     IconFileExport,
-    IconFileTypePdf,
     IconFolderSymlink,
     IconLayoutSidebarRight,
     IconMessage,
@@ -20,12 +21,12 @@
     IconStarFilled,
     IconTemplate,
     IconTrash,
-    IconTrashX
+    IconTrashX,
+    IconX
   } from '@tabler/icons-svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Editor from '$lib/features/editor/Editor.svelte';
   import Breadcrumbs from '$lib/components/page/Breadcrumbs.svelte';
-  import PageComments from '$lib/components/page/PageComments.svelte';
   import PageTitle from '$lib/components/page/PageTitle.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
@@ -54,6 +55,14 @@
   const t = $derived(locale.t);
   const canEdit = $derived(data.page.canEdit !== false);
 
+  /**
+   * Вправе ли смотрящий писать в обсуждение.
+   *
+   * То же правило, что проверяет сервер: пишущий — всегда, читатель — только
+   * при включённой настройке пространства.
+   */
+  const canComment = $derived(canEdit || data.space?.allowViewerComments === true);
+
   /** С чего открывается страница. Правило и его оговорки — в `edit-mode.ts`. */
   let editing = $state(false);
   const gate = editModeGate();
@@ -62,7 +71,10 @@
     const decided = gate.decide(
       data.page.id,
       canEdit,
-      data.session?.user.settings?.preferences?.pageEditMode
+      // Свой выбор сильнее общего: умолчание рабочего пространства для тех,
+      // кто своего не делал, и только для них.
+      data.session?.user.settings?.preferences?.pageEditMode ??
+        data.session?.workspace.defaultPageEditMode
     );
     if (decided !== null) editing = decided;
   });
@@ -182,11 +194,11 @@
    * Печатает браузер на стороне сервера, и это занимает время: ответ приходит
    * заданием, а не файлом. Готовый документ забирается по его идентификатору.
    */
-  const exportPdf = () =>
+  const exportPdf = (includeChildren: boolean) =>
     act(async () => {
       printing = true;
       try {
-        const task = await exportPagePdf({ pageId: data.page.id });
+        const task = await exportPagePdf({ pageId: data.page.id, includeChildren });
         await waitForPdf(task.fileTaskId);
       } finally {
         printing = false;
@@ -241,25 +253,6 @@
    * куда больше кода ради того же одного вопроса.
    */
   let removing = $state(false);
-  let removeTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function askRemove() {
-    if (removing) {
-      removing = false;
-      if (removeTimer) clearTimeout(removeTimer);
-      void remove();
-      return;
-    }
-    removing = true;
-    if (removeTimer) clearTimeout(removeTimer);
-    // Вопрос снимается сам: иначе кнопка остаётся заряженной, и следующий
-    // случайный щелчок по ней срабатывает без вопроса.
-    removeTimer = setTimeout(() => (removing = false), 4000);
-  }
-
-  $effect(() => () => {
-    if (removeTimer) clearTimeout(removeTimer);
-  });
 
   const remove = () =>
     act(async () => {
@@ -317,7 +310,51 @@
    * сведения о странице. Кнопка задаёт место, иначе человек попадает туда, где
    * был в прошлый раз.
    */
+  /**
+   * Переход на другую страницу закрывает открытое и снимает взведённое.
+   *
+   * Маршрут один на все страницы пространства, и состояние экрана переход
+   * переживает: взведённое «удалить» оставалось взведённым на новой странице,
+   * открытое окно вывоза относилось уже к другому документу, а извещение об
+   * удавшемся действии — к прежнему.
+   *
+   * Вкладка панели намеренно не сбрасывается: человек выбрал, что смотреть, и
+   * при переходе он смотрит то же самое у соседней страницы.
+   */
+  $effect(() => {
+    void data.page.id;
+    untrack(() => {
+      moving = false;
+      exporting = false;
+      choosing = false;
+      savedTemplate = false;
+      removing = false;
+      copied = false;
+      failure = null;
+      // Счёт слов принадлежит документу: до пересборки редактора он от
+      // прежнего, и показывать его как счёт новой страницы нельзя.
+      stats = null;
+    });
+  });
+
   let panelTab = $state<string | null>(null);
+
+  /**
+   * Ссылка на отдельную реплику.
+   *
+   * Довод адреса ставит `/c/<реплика>`, который знает только идентификатор
+   * реплики, но не страницу. Здесь он открывает обсуждение и подсвечивает ту
+   * самую реплику: без этого ссылка приводила на страницу целиком.
+   */
+  const anchored = $derived(page.url.searchParams.get('comment'));
+
+  $effect(() => {
+    if (!anchored) return;
+    untrack(() => {
+      panelTab = 'comments';
+      if (!sidePanel.open) sidePanel.toggle();
+    });
+  });
 
   function openPanel(wanted: string) {
     if (sidePanel.open && panelTab === wanted) {
@@ -331,7 +368,9 @@
 
 <svelte:head><title>{data.page.title ?? t('Untitled')} · Tessera</title></svelte:head>
 
-<div class:mr-aside={sidePanel.open}>
+<!-- Отступ под правую панель только там, где она отодвигает содержимое: на
+     узком экране она лежит поверх, и отступ оставлял бы пустую полосу. -->
+<div class:lg:mr-aside={sidePanel.open}>
   <article data-route="page" class="mx-auto max-w-3xl">
     <!--
       Полоса действий закреплена сверху, как в v1
@@ -341,7 +380,7 @@
     -->
     <div
       data-component="PageBar"
-      class="sticky top-header z-10 -mx-4 mb-6 flex h-header items-center justify-between gap-4 border-b border-border bg-surface px-4 print:hidden"
+      class="sticky top-header z-10 -mx-4 mb-6 flex min-h-header flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border bg-surface px-4 py-1 sm:h-header sm:flex-nowrap sm:py-0 print:hidden"
     >
       <Breadcrumbs crumbs={data.crumbs} spaceSlug={data.space?.slug ?? ''} />
 
@@ -384,12 +423,6 @@
             disabled={busy}
             onclick={saveAsTemplate}
           />
-          <IconButton
-            icon={IconFileTypePdf}
-            label={t('PDF')}
-            disabled={busy || printing}
-            onclick={exportPdf}
-          />
           <IconButton icon={IconPrinter} label={t('Print PDF')} onclick={print} />
           <IconButton
             icon={IconFileExport}
@@ -406,13 +439,31 @@
             disabled={busy}
             onclick={() => (moving = !moving)}
           />
-          <IconButton
-            icon={removing ? IconTrashX : IconTrash}
-            label={removing ? t('Confirm') : t('Delete')}
-            active={removing}
-            disabled={busy}
-            onclick={askRemove}
-          />
+          {#if removing}
+            <!--
+              Подтверждение и отказ рядом. Срока у вопроса нет намеренно: он
+              снимался сам, и кнопка под курсором молча меняла смысл с
+              «подтвердить» обратно на «удалить».
+            -->
+            <IconButton
+              icon={IconTrashX}
+              label={t('Confirm')}
+              active
+              disabled={busy}
+              onclick={() => {
+                removing = false;
+                void remove();
+              }}
+            />
+            <IconButton icon={IconX} label={t('Cancel')} onclick={() => (removing = false)} />
+          {:else}
+            <IconButton
+              icon={IconTrash}
+              label={t('Delete')}
+              disabled={busy}
+              onclick={() => (removing = true)}
+            />
+          {/if}
         {/if}
 
         <!-- Обсуждение открывается своей кнопкой, как в v1: панель одна, а
@@ -434,6 +485,7 @@
           <PageExport
             pageId={data.page.id}
             title={data.page.title ?? t('Untitled')}
+            onpdf={exportPdf}
             onclose={() => (exporting = false)}
           />
         {/if}
@@ -530,7 +582,7 @@
       spaceId={data.page.spaceId}
       versions={data.versions}
       labels={data.labels}
-      backlinks={data.backlinks}
+      backlinkCount={data.backlinkCount}
       permission={data.permission}
       verification={data.verification}
       share={data.share}
@@ -539,8 +591,11 @@
       createdAt={data.page.createdAt ?? null}
       updatedAt={data.page.updatedAt ?? null}
       comments={data.comments}
+      content={data.page.content}
+      {canComment}
       userId={data.session?.user.id}
       want={panelTab}
+      highlight={anchored}
       onclose={() => sidePanel.toggle()}
     />
   {/if}

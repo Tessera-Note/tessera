@@ -1,8 +1,10 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import Textarea from '$lib/components/ui/Textarea.svelte';
   import { errorText } from '$lib/api/failure';
@@ -17,9 +19,31 @@
 
   const t = $derived(locale.t);
 
+  const admin = $derived(
+    data.session?.user.role === 'admin' || data.session?.user.role === 'owner'
+  );
+
   let title = $state('');
   let description = $state('');
   let icon = $state<string | null>(null);
+
+  /**
+   * Область шаблона.
+   *
+   * Меняется здесь же: в v1 это выбор в настройках шаблона. Без него шаблон
+   * оставался бы в той области, где заведён, навсегда — а заводят его чаще
+   * всего из страницы, то есть в её пространстве.
+   *
+   * Пустое значение означает шаблон рабочего пространства, и оно доступно
+   * только администратору: тот же порядок, что при заведении.
+   */
+  let scope = $state('');
+
+  const scopeOptions = $derived([
+    ...(admin ? [{ value: '', label: t('Workspace') }] : []),
+    ...data.spaces.map((one) => ({ value: one.id, label: one.name ?? one.slug }))
+  ]);
+
   let choosing = $state(false);
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
@@ -32,6 +56,7 @@
     title = data.template.title;
     description = data.template.description ?? '';
     icon = data.template.icon;
+    scope = data.template.spaceId ?? '';
   });
 
   async function act(key: string, action: () => Promise<unknown>) {
@@ -50,12 +75,17 @@
 
   const save = () =>
     act('save', async () => {
+      const moved = scope !== (data.template.spaceId ?? '');
       await updateTemplate({
         templateId: data.template.id,
         title: title.trim() || data.template.title,
         description,
         icon: icon ?? '',
-        content: body?.content() ?? undefined
+        content: body?.content() ?? undefined,
+        // Перенос отдельным признаком: пустое значение означает «шаблон
+        // рабочего пространства», а не «область не меняем», и без признака
+        // сервер не отличил бы одно от другого.
+        ...(moved ? { move: true, moveToSpaceId: scope || undefined } : {})
       });
       await invalidateAll();
     });
@@ -118,6 +148,14 @@
       <Textarea bind:value={description} />
     </label>
 
+    <label class="mb-4 block">
+      <span class="mb-1 block text-sm text-text-muted">{t('Scope')}</span>
+      <Select bind:value={scope} options={scopeOptions} label={t('Scope')} />
+      <span class="mt-1 block text-xs text-text-muted">
+        {t('Choose which space this template belongs to')}
+      </span>
+    </label>
+
     <p class="mb-1 text-sm text-text-muted">{t('Content')}</p>
     <!--
       Совместной правки у шаблона нет: документа Yjs у него нет, его правит один
@@ -137,7 +175,13 @@
       <Button disabled={busy === 'save' || !title.trim()} onclick={save}>
         {busy === 'save' ? t('Loading...') : t('Save')}
       </Button>
-      <Button variant="quiet" disabled={busy === 'delete'} onclick={remove}>{t('Delete')}</Button>
+      <!-- Удаление необратимо и спрашивает: в v1 здесь окно вопроса. -->
+      <Confirm
+        label={t('Delete')}
+        question={t('Are you sure you want to delete this template?')}
+        disabled={busy === 'delete'}
+        onconfirm={remove}
+      />
     </div>
   </Panel>
 </section>
