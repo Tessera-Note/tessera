@@ -51,6 +51,7 @@ const SWEEP_INTERVAL_MS = Number(process.env.COLLAB_SWEEP_INTERVAL_MS || 30000);
 /** Служебные сообщения канала. Клиент разбирает их в `onStateless`. */
 export const ACCESS_REVOKED = 'access.revoked';
 export const ACCESS_CHANGED = 'access.changed';
+export const DOCUMENT_UNREADABLE = 'document.unreadable';
 
 /** Код закрытия соединения при отзыве доступа. Тот же, что в v1. */
 const FORBIDDEN = { code: 4403, reason: 'Forbidden' };
@@ -159,6 +160,17 @@ function applyReadOnly(connection, readOnly, documentName) {
 export function createCollabServer() {
   const contributors = new Contributors();
 
+  /**
+   * Документы, которые не удалось разобрать, и причина по каждому.
+   *
+   * Такое случается, когда в теле встречается узел, которого нет в схеме
+   * редактора: после ввоза из чужой системы и после отката версии приложения.
+   * Запись здесь делает две вещи: запрещает сохранение — пустой документ в
+   * памяти стёр бы страницу целиком — и даёт причину подключившемуся, вместо
+   * пустого листа без единого слова.
+   */
+  const unreadable = new Map();
+
   const hocuspocus = new Hocuspocus({
     debounce: DEBOUNCE_MS,
     maxDebounce: MAX_DEBOUNCE_MS,
@@ -190,15 +202,55 @@ export function createCollabServer() {
       }
 
       if (answer?.content) {
-        return TiptapTransformer.toYdoc(answer.content, FIELD, tiptapExtensions);
+        try {
+          const document = TiptapTransformer.toYdoc(answer.content, FIELD, tiptapExtensions);
+          // Разобрался: прежняя отметка о неразобранном снимается. Иначе
+          // страница, починенная правкой тела, оставалась бы запертой до
+          // перезапуска процесса.
+          unreadable.delete(documentName);
+          return document;
+        } catch (error) {
+          const reason = String(error?.message || error);
+          unreadable.set(documentName, reason);
+          log(`${documentName}: тело не разобрано, ${reason}`);
+          // Пустой документ, а не отказ подключения: отказ клиент читает как
+          // обрыв связи и переподключается без конца. Содержимое при этом не
+          // теряется — сохранение для такого документа запрещено ниже.
+          return new Y.Doc();
+        }
       }
 
+      unreadable.delete(documentName);
       return new Y.Doc();
+    },
+
+    /**
+     * Сообщить подключившемуся, что тело страницы не разобрано.
+     *
+     * Каждому соединению отдельно, а не рассылкой по документу: подключаются
+     * в разное время, а рассылка дошла бы только до тех, кто уже был.
+     */
+    async connected({ documentName, connection }) {
+      const reason = unreadable.get(documentName);
+      if (!reason) return;
+      try {
+        connection.sendStateless(JSON.stringify({ type: DOCUMENT_UNREADABLE, reason }));
+      } catch {
+        // См. `revoke`: соединение могло закрыться, пока шёл ответ.
+      }
     },
 
     async onStoreDocument({ documentName, document, context }) {
       const pageId = pageIdOf(documentName);
       if (!pageId) return;
+
+      if (unreadable.has(documentName)) {
+        // Тело не разобралось, и документ в памяти пуст. Запись стёрла бы
+        // страницу целиком — ровно то содержимое, из-за которого разбор и не
+        // прошёл. Правки здесь не теряются: править нечего, документ пуст.
+        log(`${documentName}: сохранение пропущено, тело не разобрано`);
+        return;
+      }
 
       const json = TiptapTransformer.fromYdoc(document, FIELD);
       const state = Buffer.from(Y.encodeStateAsUpdate(document)).toString('base64');
@@ -239,6 +291,9 @@ export function createCollabServer() {
 
     async afterUnloadDocument({ documentName }) {
       contributors.forget(documentName);
+      // Отметка о неразобранном снимается вместе с документом: при следующем
+      // открытии тело читается заново, и оно могло измениться.
+      unreadable.delete(documentName);
     },
   });
 

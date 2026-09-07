@@ -209,6 +209,110 @@ test('документ грузится из состояния, а не из js
   });
 });
 
+test('неразобранное тело не роняет подключение и объясняет причину', async () => {
+  // Узел, которого нет в схеме: так бывает после ввоза из чужой системы и
+  // после отката версии приложения. Прежде подключение обрывалось, и человек
+  // видел пустой лист без единого слова о причине.
+  const answers = {
+    ...AUTHORIZED,
+    '/api/internal/collab/document': {
+      body: {
+        ydoc: null,
+        content: { type: 'doc', content: [{ type: 'узелИзБудущего' }] },
+      },
+    },
+  };
+  await withChannel(answers, async ({ port }) => {
+    const result = await connect(port);
+    assert.equal(result.ok, true);
+    const notice = result.messages.find((one) => one.type === 'document.unreadable');
+    assert.ok(notice, 'причина не пришла');
+    assert.ok(notice.reason.length > 0);
+    close(result);
+  });
+});
+
+test('неразобранное тело не сохраняется поверх страницы', async () => {
+  // Документ в памяти пуст, потому что тело не разобралось. Запись стёрла бы
+  // ровно то содержимое, из-за которого разбор и не прошёл.
+  const answers = {
+    ...AUTHORIZED,
+    '/api/internal/collab/document': {
+      body: {
+        ydoc: null,
+        content: { type: 'doc', content: [{ type: 'узелИзБудущего' }] },
+      },
+    },
+  };
+  await withChannel(answers, async ({ port, seen, hocuspocus }) => {
+    const result = await connect(port);
+    assert.equal(result.ok, true);
+    close(result);
+
+    // Сохранение вызывается напрямую: ждать разгрузки документа по времени
+    // значило бы держать проверку минуту ради одного вызова.
+    const document = hocuspocus.documents.get(`page.${PAGE_ID}`);
+    await hocuspocus.storeDocumentHooks(document, {
+      instance: hocuspocus,
+      clientsCount: 0,
+      context: { user: USER },
+      document,
+      documentName: document.name,
+      requestHeaders: {},
+      requestParameters: new URLSearchParams(),
+      socketId: 'проверка',
+      transactionOrigin: null,
+      // Немедленно: иначе запись откладывается на время debounce, и проверка
+      // заканчивается раньше, чем сохранение вообще пробуют.
+    }, true);
+
+    assert.equal(
+      seen.some((one) => one.path === '/api/internal/collab/store'),
+      false,
+      'пустой документ ушёл в запись',
+    );
+  });
+});
+
+test('разобранное тело тем же путём в запись уходит', async () => {
+  // Спутник предыдущей проверки: без него та проходила бы и при сохранении,
+  // сломанном по любой другой причине.
+  const answers = {
+    ...AUTHORIZED,
+    '/api/internal/collab/document': {
+      body: {
+        ydoc: null,
+        content: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Обычный текст' }] }],
+        },
+      },
+    },
+  };
+  await withChannel(answers, async ({ port, seen, hocuspocus }) => {
+    const result = await connect(port);
+    assert.equal(result.ok, true);
+    close(result);
+
+    const document = hocuspocus.documents.get(`page.${PAGE_ID}`);
+    await hocuspocus.storeDocumentHooks(document, {
+      instance: hocuspocus,
+      clientsCount: 0,
+      context: { user: USER },
+      document,
+      documentName: document.name,
+      requestHeaders: {},
+      requestParameters: new URLSearchParams(),
+      socketId: 'проверка',
+      transactionOrigin: null,
+    }, true);
+
+    const stored = seen.find((one) => one.path === '/api/internal/collab/store');
+    assert.ok(stored, 'разобранный документ в запись не ушёл');
+    assert.match(stored.body.text, /Обычный текст/);
+  });
+});
+
 test('обход прав отзывает доступ и закрывает соединение', async () => {
   const answers = {
     ...AUTHORIZED,

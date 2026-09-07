@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import {
     IconArrowBackUp,
     IconArrowForwardUp,
@@ -180,7 +180,28 @@
   /** Каретка внутри таблицы: тогда над документом показывается её панель. */
   const inTable = $derived(readActive(ticks, 'table'));
 
-  onMount(() => {
+  /**
+   * Пуст ли документ. Счётчик — зависимость: пустоту знает сам редактор.
+   */
+  const empty = $derived.by(() => {
+    void ticks;
+    return synced && (ready?.isEmpty ?? false);
+  });
+
+  /**
+   * Редактор пересобирается при смене страницы.
+   *
+   * Эффект, а не `onMount`: маршрут страницы один на все страницы
+   * пространства, и при переходе по дереву SvelteKit оставляет тот же
+   * экземпляр компонента — `onMount` второй раз не вызывается. Собранный
+   * однажды редактор оставался привязан к документу прежней страницы.
+   *
+   * В зависимостях только `pageId`. Остальные свойства читаются после первого
+   * `await`, то есть вне отслеживания: смена имени правящего или переключение
+   * чтения и правки не должны рвать соединение и терять место курсора.
+   */
+  $effect(() => {
+    const page = pageId;
     let cancelled = false;
 
     void (async () => {
@@ -213,7 +234,7 @@
         const document_ = new Y.Doc();
         const connection = new HocuspocusProvider({
           url: collabAddress(),
-          name: documentName(pageId),
+          name: documentName(page),
           document: document_,
           token,
           onStatus: ({ status: state }) => {
@@ -221,6 +242,38 @@
           },
           onDisconnect: () => {
             status = 'offline';
+          },
+          /**
+           * Служебные сообщения канала.
+           *
+           * Их три: тело не разобрано, доступ отозван, право правки изменилось.
+           * Все три меняют то, что человек видит на экране, и без разбора
+           * менялись бы молча — страница оставалась бы открытой на правку у
+           * того, у кого её только что отобрали.
+           */
+          onStateless: ({ payload }) => {
+            let message: { type?: string; reason?: string; canEdit?: boolean };
+            try {
+              message = JSON.parse(payload);
+            } catch {
+              // Сообщение не наше. Молчать здесь верно: канал общий, и чужое
+              // сообщение не повод показывать отказ.
+              return;
+            }
+
+            if (message?.type === DOCUMENT_UNREADABLE) {
+              unreadable = String(message.reason || '');
+              setEditable?.(false);
+              return;
+            }
+            if (message?.type === ACCESS_REVOKED) {
+              failure = t('You no longer have access to this page.');
+              setEditable?.(false);
+              return;
+            }
+            if (message?.type === ACCESS_CHANGED) {
+              setEditable?.(editable && message.canEdit !== false);
+            }
           }
         });
         provider = connection;
@@ -246,7 +299,7 @@
         ready = made;
         suggest = new Suggest({
           editor: made,
-          pageId,
+          pageId: page,
           spaceId,
           userId,
           locale: locale.current,
@@ -292,8 +345,17 @@
         connection.on('synced', () => {
           if (made.isDestroyed) return;
           if (made.isEmpty && content) {
-            made.commands.setContent(content as never, { emitUpdate: false });
+            try {
+              made.commands.setContent(content as never, { emitUpdate: false });
+            } catch (error) {
+              // Тело написано узлом, которого нет в схеме этой версии. Своя
+              // проверка, а не только сообщение канала: сообщение может прийти
+              // позже засева, и тогда отказ разбора остался бы незамеченным.
+              unreadable = error instanceof Error ? error.message : String(error);
+              setEditable?.(false);
+            }
           }
+          synced = true;
         });
       } catch (error) {
         // Причина показывается как есть: отказ здесь означает, что редактор не
@@ -306,6 +368,21 @@
 
     return () => {
       cancelled = true;
+      // Уборка здесь же, а не в `onDestroy`: она нужна и при уходе со
+      // страницы, и при переходе на соседнюю. Забытое соединение живёт до
+      // перезагрузки вкладки и продолжает получать чужие правки.
+      editor?.view.dom.removeEventListener('keydown', keydown, true);
+      editor?.destroy();
+      provider?.destroy();
+      editor = null;
+      provider = null;
+      setEditable = null;
+      ready = null;
+      suggest = null;
+      synced = false;
+      status = 'connecting';
+      failure = null;
+      unreadable = null;
     };
   });
 
@@ -385,12 +462,6 @@
     // правки перестаёт доходить до редактора навсегда.
     const wanted = editable;
     setEditable?.(wanted);
-  });
-
-  onDestroy(() => {
-    editor?.view.dom.removeEventListener('keydown', keydown, true);
-    editor?.destroy();
-    provider?.destroy();
   });
 </script>
 
@@ -510,10 +581,38 @@
 
   {#if failure}
     <p class="mb-2 text-sm text-danger" role="alert">{failure}</p>
+  {:else if unreadable}
+    <!--
+      Тело содержит узел, которого нет в схеме этой версии. Пустой лист вместо
+      страницы — худший из возможных ответов: он неотличим от потери текста.
+      Здесь называется причина, а ниже показывается сам текст.
+    -->
+    <div
+      data-component="UnreadableDocument"
+      class="mb-3 rounded-md border border-border bg-surface-raised p-4"
+      role="alert"
+    >
+      <p class="text-sm font-medium text-danger">
+        {t('Some blocks on this page cannot be displayed by this version.')}
+      </p>
+      <p class="mt-1 text-sm text-text-muted">
+        {t('The page is shown as text and cannot be edited. Its content is unchanged.')}
+      </p>
+    </div>
   {:else if status !== 'ready'}
     <p class="mb-2 text-sm text-text-muted">
       {status === 'offline' ? t('Real-time editor connection lost. Retrying...') : t('Loading...')}
     </p>
+  {/if}
+
+  {#if unreadable}
+    <div class="tessera-doc mb-4">
+      {#each plainText(content) as line, at (at)}
+        <p>{line}</p>
+      {:else}
+        <p class="text-sm text-text-muted">{t('This page is empty')}</p>
+      {/each}
+    </div>
   {/if}
 
   {#if ready && editable}
@@ -532,6 +631,10 @@
   {/if}
 
   <div bind:this={host}></div>
+
+  {#if ready && editable && empty}
+    <EmptyStart {pageId} onfailure={(message) => (failure = message)} />
+  {/if}
 
   {#if ready && editable}
     <DragHandle editor={ready} oninsert={(at) => (inserting = at)} />
