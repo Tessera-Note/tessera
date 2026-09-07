@@ -8,7 +8,7 @@
 # База с glibc, а не Alpine. Разбор PDF идёт через `@docmost/pdf-inspector`,
 # и это природный модуль: собранные бинарники в нём есть под glibc, под musl —
 # нет. На Alpine он отказывает «Cannot find native binding» при первом же
-# обращении. Тот же образ у первой версии, и по той же причине.
+# обращении.
 FROM node:22-slim AS deps
 
 WORKDIR /app
@@ -18,10 +18,7 @@ RUN corepack enable
 # на пути у пакета расширений — своего объявления TypeScript тот не имеет и
 # берёт общий. Сборка падает на `tsc: not found`.
 COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY patches ./patches
 COPY packages/editor-ext/package.json ./packages/editor-ext/
-COPY apps/client/package.json ./apps/client/
-COPY apps/server/package.json ./apps/server/
 RUN pnpm install --frozen-lockfile --prod=false
 
 FROM deps AS build

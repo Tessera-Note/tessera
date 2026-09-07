@@ -27,13 +27,8 @@ RUN corepack enable
 # Сначала манифесты, потом исходники: слой зависимостей переживает правку кода,
 # и пересборка после неё не тянет установку заново.
 COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY patches ./patches
 COPY packages/editor-ext/package.json ./packages/editor-ext/
 COPY apps/web/package.json ./apps/web/
-# Манифесты первой версии: файл блокировки один на всё рабочее пространство, и
-# при `--frozen-lockfile` установка сверяет его целиком.
-COPY apps/client/package.json ./apps/client/
-COPY apps/server/package.json ./apps/server/
 RUN pnpm install --frozen-lockfile --prod=false
 
 FROM deps AS build

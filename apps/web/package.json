@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "node ../../scripts/copy-excalidraw-assets.mjs && vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
@@ -52,6 +52,7 @@
     "@tiptap/pm": "3.27.1",
     "@tiptap/starter-kit": "3.27.1",
     "bits-ui": "2.18.1",
+    "clsx": "2.1.1",
     "dompurify": "3.4.11",
     "katex": "0.16.40",
     "lowlight": "3.3.0",

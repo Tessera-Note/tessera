@@ -11,5 +11,8 @@
   "types": "dist/index.d.ts",
   "dependencies": {
     "marked": "17.0.5"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
   }
 }

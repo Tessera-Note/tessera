@@ -1,29 +1,48 @@
 #!/usr/bin/env node
 /**
- * Копирует шрифты Excalidraw в статику клиента.
+ * Копирует шрифты Excalidraw в статику приложения.
  *
  * Без этого редактор и экспортированные SVG тянут шрифты со стороннего CDN.
  * Экземпляр работает без выхода в интернет, поэтому файлы раздаются самим
- * приложением, а путь к ним задан через window.EXCALIDRAW_ASSET_PATH.
+ * приложением: `ExcalidrawEditor.svelte` подменяет в выгруженном SVG адрес
+ * unpkg на путь `/excalidraw-assets/`, и этот путь обязан отдаваться.
+ *
+ * Вызывается из сборки `@tessera/web`, а не хуком `prebuild`: pnpm 10 по
+ * умолчанию не запускает pre- и post-скрипты.
+ *
+ * Каталог пакета ищется резолвингом от манифеста `apps/web`, а не сложением
+ * путей: pnpm держит зависимость ссылкой внутрь `node_modules/.pnpm`, и её
+ * место зависит от раскладки, а не от имени пакета. Резолвится сам пакет, а не
+ * его `package.json`: поле `exports` подпуть к манифесту не открывает, и
+ * попытка взять его отвечает ERR_PACKAGE_PATH_NOT_EXPORTED.
  *
  * Скрипт идемпотентен: повторный запуск переписывает каталог назначения.
  */
-import { cp, mkdir, rm, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
+import { cp, mkdir, rm, stat } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, "..");
-const source = join(
-  root,
-  "node_modules",
-  "@excalidraw",
-  "excalidraw",
-  "dist",
-  "prod",
-  "fonts",
-);
-const target = join(root, "apps", "client", "public", "excalidraw-assets", "fonts");
+const root = join(here, '..');
+const webManifest = join(root, 'apps', 'web', 'package.json');
+const target = join(root, 'apps', 'web', 'static', 'excalidraw-assets', 'fonts');
+
+function resolveFonts() {
+  const require = createRequire(webManifest);
+  // Точка входа лежит внутри `dist`, поэтому корень пакета ищется подъёмом
+  // вверх до каталога, у которого есть искомые шрифты.
+  let dir = dirname(require.resolve('@excalidraw/excalidraw'));
+  for (let depth = 0; depth < 5; depth += 1) {
+    const fonts = join(dir, 'dist', 'prod', 'fonts');
+    if (existsSync(fonts)) {
+      return fonts;
+    }
+    dir = dirname(dir);
+  }
+  throw new Error('каталог шрифтов не найден внутри пакета');
+}
 
 async function exists(path) {
   try {
@@ -34,9 +53,17 @@ async function exists(path) {
   }
 }
 
+let source;
+try {
+  source = resolveFonts();
+} catch {
+  console.error('[excalidraw-assets] пакет @excalidraw/excalidraw не установлен. Выполнить: pnpm install');
+  process.exit(1);
+}
+
 if (!(await exists(source))) {
   console.error(
-    `[excalidraw-assets] не найден каталог шрифтов ${source}. Установить зависимости: pnpm install`,
+    `[excalidraw-assets] не найден каталог шрифтов ${source}. Установить зависимости: pnpm install`
   );
   process.exit(1);
 }
