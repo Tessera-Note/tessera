@@ -112,6 +112,22 @@ export function createBase(
   return post<{ id: string }>('/api/bases/create', values, { fetcher });
 }
 
+/**
+ * Превратить страницу в базу.
+ *
+ * Так базу заводят из пустой страницы: `template: 'kanban'` просит сразу доску
+ * со свойством состояния, иначе выходит таблица. Обратного превращения нет —
+ * оно потеряло бы свойства и строки.
+ */
+export function convertToBase(pageId: string, template?: 'kanban', fetcher?: typeof fetch) {
+  return post<BaseInfo>('/api/bases/convert', { pageId, template }, { fetcher });
+}
+
+/** Убрать базу в корзину вместе со строками. */
+export function deleteBase(baseId: string, fetcher?: typeof fetch) {
+  return post<{ status: string }>('/api/bases/delete', { baseId }, { fetcher });
+}
+
 export function renameBase(baseId: string, name: string, fetcher?: typeof fetch) {
   return post<BaseInfo>('/api/bases/update', { baseId, name }, { fetcher });
 }
@@ -210,6 +226,33 @@ export function expandPages(pageIds: string[], fetcher?: typeof fetch) {
 
 export function deleteRow(baseId: string, rowId: string, fetcher?: typeof fetch) {
   return post<{ success: boolean }>('/api/bases/rows/delete', { baseId, rowId }, { fetcher });
+}
+
+/**
+ * Предел одной просьбы об удалении. Столько же берёт сервер.
+ *
+ * Лишнее сервер отбрасывает молча, поэтому делит перечень клиент: иначе выбор
+ * из тысячи строк убрал бы пятьсот, а человеку сообщили бы про тысячу.
+ */
+const DELETE_MANY_LIMIT = 500;
+
+/** Убрать выбранные строки. Возвращает, сколько их убралось на самом деле. */
+export async function deleteRows(
+  baseId: string,
+  rowIds: string[],
+  fetcher?: typeof fetch
+): Promise<number> {
+  let deleted = 0;
+  for (let at = 0; at < rowIds.length; at += DELETE_MANY_LIMIT) {
+    const portion = rowIds.slice(at, at + DELETE_MANY_LIMIT);
+    const answer = await post<{ deleted: number }>(
+      '/api/bases/rows/delete-many',
+      { baseId, rowIds: portion },
+      { fetcher }
+    );
+    deleted += answer.deleted ?? 0;
+  }
+  return deleted;
 }
 
 export function createView(

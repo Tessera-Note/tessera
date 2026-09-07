@@ -28,9 +28,13 @@ function render(props: Record<string, unknown> = {}): HTMLElement {
       spaces,
       spaceId: 's1',
       busy: false,
+      favorite: false,
       onsubpage: () => {},
       onduplicate: () => {},
+      oncopy: () => {},
       onmove: () => {},
+      onfavorite: () => {},
+      oncopylink: () => {},
       ondelete: () => {},
       onclose: () => {},
       ...props
@@ -56,18 +60,45 @@ afterEach(() => {
 describe('PageMenu', () => {
   it('показывает действия правки тому, кто правит', () => {
     const box = render();
-    const found = labels(box);
-    expect(found).toHaveLength(4);
-    expect(found.join(' ')).toContain('New subpage');
-    expect(found.join(' ')).toContain('Duplicate');
-    expect(found.join(' ')).toContain('Delete');
+    const found = labels(box).join(' ');
+    expect(found).toContain('New subpage');
+    expect(found).toContain('Duplicate');
+    expect(found).toContain('Copy to space');
+    expect(found).toContain('Move to space');
+    expect(found).toContain('Delete');
   });
 
-  it('без права правки не показывает ни одного действия', () => {
-    // Кнопка, которая всегда отказывает, хуже её отсутствия.
+  it('читателю остаются только отметка и ссылка, и названа причина', () => {
+    // Ни та, ни другая страницу не меняют. Кнопка, которая всегда отказывает,
+    // хуже её отсутствия — правки в перечне нет. Пустое место под ссылкой при
+    // этом читается как поломка меню, поэтому причина названа словами.
     const box = render({ canEdit: false });
-    expect(labels(box)).toHaveLength(0);
-    expect(box.textContent).toContain('permission');
+    const found = labels(box);
+    expect(found).toEqual(['Add to favorites', 'Copy link']);
+    expect(box.textContent).toContain('You do not have permission to perform this action');
+  });
+
+  it('закрашенная звезда означает снятие отметки', () => {
+    const box = render({ favorite: true });
+    expect(labels(box)).toContain('Remove from favorites');
+  });
+
+  it('копия в пространство сообщает его имя', () => {
+    const oncopy = vi.fn();
+    const box = render({ oncopy });
+
+    const copy = [...box.querySelectorAll('[role="menuitem"]')].find((one) =>
+      (one.textContent ?? '').includes('Copy to space')
+    ) as HTMLElement;
+    copy.click();
+    flushSync();
+
+    const target = [...box.querySelectorAll('[role="menuitem"]')].find(
+      (one) => (one.textContent ?? '').trim() === 'Соседний'
+    ) as HTMLElement;
+    target.click();
+
+    expect(oncopy).toHaveBeenCalledWith('s2');
   });
 
   it('перенос не предлагается, когда переносить некуда', () => {
@@ -131,6 +162,53 @@ describe('PageMenu', () => {
     flushSync();
 
     expect(onclose).not.toHaveBeenCalled();
+  });
+
+  it('удаление спрашивает и только потом уносит страницу', () => {
+    // Пункт стоит последним, соседи выше безобидны: без вопроса промах уносил
+    // бы страницу вместе с потомками одним нажатием.
+    const ondelete = vi.fn();
+    const box = render({ ondelete });
+
+    const item = [...box.querySelectorAll('[role="menuitem"]')].find(
+      (one) => (one.textContent ?? '').trim() === 'Delete'
+    ) as HTMLElement;
+    item.click();
+    flushSync();
+
+    expect(ondelete).not.toHaveBeenCalled();
+    expect(box.textContent).toContain('Move this page to trash?');
+    // Срока хранения здесь нет намеренно: он настраивается в рабочем
+    // пространстве, а меню дерева его не знает.
+    expect(box.textContent).not.toContain('permanently deleted');
+
+    const confirm = [...box.querySelectorAll('button')].find(
+      (one) => (one.textContent ?? '').trim() === 'Move to trash'
+    ) as HTMLElement;
+    confirm.click();
+
+    expect(ondelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('отказ от удаления возвращает пункт меню', () => {
+    const ondelete = vi.fn();
+    const box = render({ ondelete });
+
+    const item = [...box.querySelectorAll('[role="menuitem"]')].find(
+      (one) => (one.textContent ?? '').trim() === 'Delete'
+    ) as HTMLElement;
+    item.click();
+    flushSync();
+
+    const cancel = [...box.querySelectorAll('button')].find(
+      (one) => (one.textContent ?? '').trim() === 'Cancel'
+    ) as HTMLElement;
+    cancel.click();
+    flushSync();
+
+    expect(ondelete).not.toHaveBeenCalled();
+    expect(box.textContent).not.toContain('Move this page to trash?');
+    expect(labels(box)).toContain('Delete');
   });
 
   it('во время работы действия не нажимаются', () => {

@@ -7,6 +7,7 @@
   import Panel from '$lib/components/ui/Panel.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import Textarea from '$lib/components/ui/Textarea.svelte';
+  import Toggle from '$lib/components/ui/Toggle.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
   import {
@@ -103,11 +104,66 @@
     });
   };
 
-  const remove = () =>
-    act('delete', async () => {
+  /**
+   * Переключить признак безопасности.
+   *
+   * Шлётся только переключённое поле: пропущенное сервер не трогает, и один
+   * переключатель не сбрасывает соседний.
+   */
+  const setFlag = (key: string, values: Record<string, boolean>) =>
+    act(key, async () => {
+      await updateSpace({ spaceId: data.space.id, ...values });
+      await invalidateAll();
+    });
+
+  /** Открыт вопрос об удалении, и в поле набирают название. */
+  let removing = $state(false);
+  let typed = $state('');
+  let mismatch = $state(false);
+
+  /**
+   * Название набрано верно.
+   *
+   * Сверка без учёта регистра и краевых пробелов, как в v1: человек
+   * переписывает название глазами, и разница в регистре — не та ошибка,
+   * от которой здесь защищаются.
+   */
+  const matches = $derived(
+    typed.trim().toLowerCase() === (data.space.name ?? '').trim().toLowerCase()
+  );
+
+  /**
+   * Просьба набрать название, разбитая на три части.
+   *
+   * В словаре она размечена `<b>` вокруг подстановки — строка пришла из v1
+   * вместе с переводами на двенадцать языков. Разметка из словаря не
+   * вставляется в страницу как разметка: словарь это данные, а не шаблон.
+   * Поэтому строка делится по меткам, и выделяется само название.
+   */
+  const question = $derived.by(() => {
+    const raw = t('Type the space name <b>{{spaceName}}</b> to confirm your action.');
+    const start = raw.indexOf('<b>');
+    const end = raw.indexOf('</b>');
+    const name = data.space.name ?? '';
+    if (start < 0 || end < start)
+      return { before: raw.replace('{{spaceName}}', name), name: '', after: '' };
+    return {
+      before: raw.slice(0, start).replace('{{spaceName}}', name),
+      name: raw.slice(start + 3, end).replace('{{spaceName}}', name),
+      after: raw.slice(end + 4).replace('{{spaceName}}', name)
+    };
+  });
+
+  const remove = () => {
+    if (!matches) {
+      mismatch = true;
+      return;
+    }
+    return act('delete', async () => {
       await deleteSpace(data.space.id);
       await goto('/home', { invalidateAll: true });
     });
+  };
 
   const look = (event: SubmitEvent) => {
     event.preventDefault();
@@ -302,18 +358,74 @@
   </Panel>
 
   {#if manager}
+    <!--
+      Безопасность пространства. В v1 это третья вкладка окна настроек, и
+      видна она тому же, кто правит настройки: оба признака расширяют или
+      сужают то, что из пространства уходит наружу.
+    -->
+    <Panel title={t('Security')}>
+      <div class="mb-4">
+        <Toggle
+          checked={data.space.disablePublicSharing === true}
+          label={t('Disable public sharing')}
+          hint={t('Prevent pages in this space from being shared publicly.')}
+          disabled={busy === 'sharing'}
+          onchange={(next) => setFlag('sharing', { disablePublicSharing: next })}
+        />
+      </div>
+      <Toggle
+        checked={data.space.allowViewerComments === true}
+        label={t('Allow viewers to comment')}
+        hint={t('Allow viewers to add comments on pages in this space.')}
+        disabled={busy === 'comments'}
+        onchange={(next) => setFlag('comments', { allowViewerComments: next })}
+      />
+    </Panel>
+
     <Panel
       title={t('Delete space')}
       hint={t(
         'All pages, comments, attachments and permissions in this space will be deleted irreversibly.'
       )}
     >
-      <Confirm
-        label={t('Delete space')}
-        question={t('Are you sure you want to delete this space?')}
-        disabled={busy === 'delete'}
-        onconfirm={remove}
-      />
+      <!--
+        Название набирается руками, как в v1. Двух нажатий здесь мало: они
+        защищают от промаха, но не от «удаляю не то пространство», а уносится
+        всё его содержимое без возврата.
+      -->
+      {#if removing}
+        <div data-component="DeleteSpace">
+          <p class="mb-1 text-sm font-medium text-danger">
+            {t('Are you sure you want to delete this space?')}
+          </p>
+          <p class="mb-2 text-sm text-text-muted">
+            {question.before}<strong class="text-text">{question.name}</strong>{question.after}
+          </p>
+          <div class="mb-2 max-w-sm">
+            <TextInput bind:value={typed} placeholder={t('Confirm space name')} />
+          </div>
+          <!-- Причина отказа, а не молча недоступная кнопка: набравший название
+               с ошибкой должен видеть, что именно не так. -->
+          {#if mismatch && !matches}
+            <p class="mb-2 text-sm text-danger" role="alert">{t('Names do not match')}</p>
+          {/if}
+          <div class="flex gap-2">
+            <Button disabled={busy === 'delete'} onclick={remove}>{t('Confirm')}</Button>
+            <Button
+              variant="quiet"
+              onclick={() => {
+                removing = false;
+                typed = '';
+                mismatch = false;
+              }}
+            >
+              {t('Cancel')}
+            </Button>
+          </div>
+        </div>
+      {:else}
+        <Button variant="quiet" onclick={() => (removing = true)}>{t('Delete space')}</Button>
+      {/if}
     </Panel>
   {/if}
 </section>

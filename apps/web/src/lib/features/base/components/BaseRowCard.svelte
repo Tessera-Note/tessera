@@ -1,6 +1,6 @@
 <script lang="ts">
   import { IconX } from '@tabler/icons-svelte';
-  import Button from '$lib/components/ui/Button.svelte';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
   import BaseCell from './BaseCell.svelte';
   import { cellText, type CellContext } from '../cells';
@@ -86,7 +86,14 @@
 
   {#if editable}
     <div class="mt-4">
-      <Button variant="quiet" disabled={busy === row.id} onclick={ondelete}>{t('Delete')}</Button>
+      <!-- Вопрос обязателен: строка уходит без возврата, а карточка
+           закрывается тем же нажатием, и промах остался бы незамеченным. -->
+      <Confirm
+        label={t('Delete')}
+        question={t('Delete record?')}
+        disabled={busy === row.id}
+        onconfirm={ondelete}
+      />
     </div>
   {/if}
 </div>

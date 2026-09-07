@@ -1,8 +1,9 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { invalidateAll } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import { IconPlus, IconX } from '@tabler/icons-svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
@@ -22,8 +23,10 @@
     createProperty,
     createRow,
     createView,
+    deleteBase,
     deleteProperty,
     deleteRow,
+    deleteRows,
     deleteView,
     expandPages,
     exportCsv,
@@ -64,10 +67,16 @@
   let tuning = $state(false);
   /** Какая строка открыта карточкой. */
   let opened = $state<string | null>(null);
+  /** Отмеченные строки. Групповое удаление берёт их отсюда. */
+  let selected = $state<string[]>([]);
 
   $effect(() => {
     name = data.base.name ?? '';
+    // Догруженные страницы и отметки снимаются вместе: перечитывание отдаёт
+    // первую страницу заново, и отметка на строке из третьей указывала бы на
+    // то, чего на экране больше нет.
     more = [];
+    selected = [];
     cursor = data.rows.nextCursor;
     // Представление выбирается первым из имеющихся: показывать базу вовсе без
     // представления значило бы прятать настроенные людьми отбор и порядок.
@@ -219,6 +228,40 @@
     return act(view.id, () => updateView({ baseId: data.base.id, viewId: view.id, config: next }));
   }
 
+  /**
+   * Убрать базу.
+   *
+   * Уход отсюда обязателен: страница базы к этому времени в корзине, и
+   * перечитывание того же адреса дало бы отказ вместо экрана. Перечитывание
+   * всё равно нужно — дерево в боковой панели читает список с сервера.
+   */
+  async function removeBase() {
+    busy = 'base';
+    failure = null;
+    try {
+      await deleteBase(data.base.id);
+      await goto(data.space ? `/s/${data.space.slug}` : '/home', { invalidateAll: true });
+    } catch (error) {
+      failure = errorText(error, t);
+      busy = null;
+    }
+  }
+
+  /**
+   * Убрать отмеченные строки.
+   *
+   * Выбор снимается только после удачи: после отказа он ещё нужен — человек
+   * повторит то же действие, а не станет отмечать заново.
+   */
+  function removeSelected() {
+    const wanted = [...selected];
+    if (wanted.length === 0) return;
+    return act('rows', async () => {
+      await deleteRows(data.base.id, wanted);
+      selected = [];
+    });
+  }
+
   async function loadMore() {
     if (!cursor) return;
     try {
@@ -236,7 +279,7 @@
   const viewTypes = $derived(VIEW_TYPES.map((one) => ({ value: one.value, label: t(one.label) })));
 </script>
 
-<svelte:head><title>{data.base.name ?? t('Untitled')} · Tessera</title></svelte:head>
+<svelte:head><title>{data.base.name ?? t('Untitled base')} · Tessera</title></svelte:head>
 
 <section data-route="base" class="mx-auto max-w-6xl">
   {#if failure}<Notice message={failure} />{/if}
@@ -363,9 +406,12 @@
       {people}
       editable={canEdit}
       {busy}
+      {selected}
       onwrite={write}
       onopen={(row) => (opened = row.id)}
       ondeleteRow={(row) => act(row.id, () => deleteRow(data.base.id, row.id))}
+      onselect={(rowIds) => (selected = rowIds)}
+      ondeleteSelected={removeSelected}
       onconfig={saveConfig}
       onproperty={(property, values) =>
         act(property.id, () =>
@@ -396,6 +442,18 @@
     >
       {t('Export CSV')}
     </Button>
+    {#if canEdit}
+      <!--
+        Удаление стоит здесь, а не рядом с названием: соседство с кнопкой
+        сохранения имени сделало бы промах слишком дешёвым.
+      -->
+      <Confirm
+        label={t('Delete base')}
+        question={t('The base and all its rows will be moved to trash.')}
+        disabled={busy === 'base'}
+        onconfirm={removeBase}
+      />
+    {/if}
   </div>
 
   {#if canEdit}
