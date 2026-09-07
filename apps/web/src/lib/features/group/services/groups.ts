@@ -15,8 +15,25 @@ export type GroupMember = {
   email: string;
 };
 
-export function listGroups(fetcher?: typeof fetch, headers?: Record<string, string>) {
-  return get<Group[]>('/api/groups', { fetcher, headers });
+/** Страница перечня и курсор следующей. Пустой курсор означает конец. */
+export type Paged<T> = { items: T[]; meta: { nextCursor: string | null } };
+
+/**
+ * Группы рабочего пространства со счётчиком людей.
+ *
+ * Постранично: на рабочем пространстве с сотнями групп перечень целиком
+ * приходил бы в каждом ответе экрана.
+ */
+export function listGroups(
+  values: { cursor?: string; limit?: number } = {},
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  const query = new URLSearchParams();
+  if (values.cursor) query.set('cursor', values.cursor);
+  if (values.limit) query.set('limit', String(values.limit));
+  const tail = query.toString();
+  return get<Paged<Group>>(`/api/groups${tail ? `?${tail}` : ''}`, { fetcher, headers });
 }
 
 export function groupInfo(
@@ -33,13 +50,16 @@ export function groupInfo(
  * Виден администратору: сервер отдаёт адреса почты и по этой причине закрывает
  * список от обычного участника. Выбрать группу для выдачи доступа можно и по
  * имени, состав для этого не нужен.
+ *
+ * Постранично: в группе бывает тысяча человек, и весь состав в одном ответе
+ * рос бы вместе с рабочим пространством.
  */
 export function groupMembers(
-  groupId: string,
+  values: { groupId: string; cursor?: string; limit?: number },
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
-  return post<GroupMember[]>('/api/groups/members', { groupId }, { fetcher, headers });
+  return post<Paged<GroupMember>>('/api/groups/members', values, { fetcher, headers });
 }
 
 export function createGroup(

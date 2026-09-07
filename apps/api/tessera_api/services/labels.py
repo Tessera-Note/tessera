@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import delete, func, insert, select
+from sqlalchemy import text as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, not_found
@@ -18,6 +20,27 @@ from tessera_api.infrastructure.models import (
 )
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.paging import (
+    portion,
+    read_text_cursor,
+    text_cursor,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class LabelPage:
+    """Страница перечня меток и курсор для следующей."""
+
+    items: list[Label]
+    next_cursor: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class LabelledPages:
+    """Страница перечня страниц с меткой и курсор для следующей."""
+
+    items: list[tuple[Page, Space]]
+    next_cursor: str | None
 
 
 class LabelService:
@@ -25,9 +48,44 @@ class LabelService:
         self._session = session
         self._access = PageAccessService(session)
 
-    async def list_all(self, workspace_id: uuid.UUID) -> list[Label]:
-        stmt = select(Label).where(Label.workspace_id == workspace_id).order_by(Label.name.asc())
-        return list((await self._session.execute(stmt)).scalars().all())
+    async def list_all(
+        self, workspace_id: uuid.UUID, *, cursor: str | None = None, limit: int | None = None
+    ) -> LabelPage:
+        """Метки рабочего пространства по алфавиту, страницами.
+
+        Постраничность курсорная: перечень пополняется во время просмотра, и
+        смещение при этом сдвигает окно — часть меток показалась бы дважды,
+        часть не показалась бы вовсе.
+
+        Курсор составной, `имя|идентификатор`: имена сравниваются без учёта
+        регистра при заведении, но храниться могут в разном написании, и одного
+        имени для продолжения мало.
+        """
+        wanted = portion(limit)
+        stmt = select(Label).where(Label.workspace_id == workspace_id)
+
+        after = read_text_cursor(cursor)
+        if after is not None:
+            name, last_id = after
+            # Кортежное сравнение совпадает с порядком сортировки, поэтому
+            # индекс по паре применим, а условие остаётся одним.
+            stmt = stmt.where(
+                sql("(labels.name, labels.id) > (:cursor_name, :cursor_id)").bindparams(
+                    cursor_name=name, cursor_id=last_id
+                )
+            )
+
+        stmt = stmt.order_by(Label.name.asc(), Label.id.asc()).limit(wanted + 1)
+        found = list((await self._session.execute(stmt)).scalars().all())
+
+        # Читается на одну больше, чем нужно: так видно, есть ли следующая
+        # страница, без второго запроса на счёт.
+        has_more = len(found) > wanted
+        found = found[:wanted]
+        return LabelPage(
+            items=found,
+            next_cursor=text_cursor(found[-1].name, found[-1].id) if has_more and found else None,
+        )
 
     async def ensure(self, name: str, workspace_id: uuid.UUID) -> Label:
         """Найти метку по имени или завести.
@@ -123,7 +181,9 @@ class LabelService:
         label_id: uuid.UUID | None = None,
         name: str | None = None,
         space_id: uuid.UUID | None = None,
-    ) -> list[tuple[Page, Space]]:
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> LabelledPages:
         """Страницы с меткой, вместе с их пространствами.
 
         Метка ищется по идентификатору либо по имени. Незнакомое имя даёт
@@ -133,6 +193,12 @@ class LabelService:
 
         Выдача фильтруется правами постранично: метка не должна становиться
         способом узнать о существовании закрытых страниц и их названиях.
+
+        Постраничность курсорная, и курсор берётся у последней **прочитанной**
+        строки, а не у последней показанной. Права выбрасывают строки уже после
+        выборки, и курсор по показанному терял бы отброшенный хвост страницы
+        навсегда. По той же причине конец перечня виден пустым курсором, а не
+        короткой страницей: страница бывает короче запрошенной и в середине.
         """
         if label_id is not None:
             label = await self._session.get(Label, label_id)
@@ -141,8 +207,9 @@ class LabelService:
         else:
             label = await self.by_name(name or "", workspace_id)
             if label is None:
-                return []
+                return LabelledPages(items=[], next_cursor=None)
 
+        wanted = portion(limit)
         stmt = (
             select(Page, Space)
             .join(PageLabel, PageLabel.page_id == Page.id)
@@ -150,18 +217,38 @@ class LabelService:
             .where(PageLabel.label_id == label.id)
             .where(Page.deleted_at.is_(None))
             .where(Space.deleted_at.is_(None))
-            .order_by(Page.title.asc())
         )
         if space_id is not None:
             stmt = stmt.where(Page.space_id == space_id)
 
+        after = read_text_cursor(cursor)
+        if after is not None:
+            title, last_id = after
+            # Название сравнивается тем же выражением, каким идёт порядок:
+            # у страницы названия может не быть, а сравнение с NULL отбросило бы
+            # безымянные страницы со второй страницы выдачи молча.
+            stmt = stmt.where(
+                sql(
+                    "(coalesce(pages.title, ''), pages.id) > (:cursor_title, :cursor_id)"
+                ).bindparams(cursor_title=title, cursor_id=last_id)
+            )
+
+        stmt = stmt.order_by(func.coalesce(Page.title, "").asc(), Page.id.asc()).limit(wanted + 1)
         found = (await self._session.execute(stmt)).all()
 
+        has_more = len(found) > wanted
+        read = found[:wanted]
+
         visible: list[tuple[Page, Space]] = []
-        for page, space in found:
+        for page, space in read:
             if (await self._access.rights(page, user_id)).can_view:
                 visible.append((page, space))
-        return visible
+
+        last = read[-1][0] if read else None
+        return LabelledPages(
+            items=visible,
+            next_cursor=text_cursor(last.title, last.id) if has_more and last else None,
+        )
 
 
 #: Виды отметок. Значения из v1: колонка `type` общая на все три.

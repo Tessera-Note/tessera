@@ -93,6 +93,116 @@ async def _grant(session: AsyncSession, space, group_id: uuid.UUID, role: str, o
     await session.flush()
 
 
+class TestPaging:
+    """Постраничность перечня групп и состава.
+
+    Оба перечня отдавались целиком. На рабочем пространстве с сотнями групп и
+    группой из тысячи человек это выдача, которая растёт вместе с данными и
+    ничем не ограничена.
+    """
+
+    async def test_the_group_list_is_paged(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        service = GroupService(session)
+        for _ in range(3):
+            await service.create(owner.id, workspace.id, name=f"Г {uuid.uuid4().hex[:6]}")
+
+        first = await service.list(workspace.id, limit=2)
+        assert len(first.items) == 2
+        assert first.next_cursor is not None
+
+        seen = [group.id for group, _ in first.items]
+        cursor = first.next_cursor
+        for _ in range(10):
+            portion = await service.list(workspace.id, cursor=cursor, limit=2)
+            seen.extend(group.id for group, _ in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        # Ни повторов, ни пропусков: счётчик людей при этом остаётся числом.
+        assert len(seen) == len(set(seen))
+        whole = await service.list(workspace.id, limit=200)
+        assert set(seen) == {group.id for group, _ in whole.items}
+        assert all(isinstance(people, int) for _, people in whole.items)
+
+    async def test_the_roster_is_paged(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        service = GroupService(session)
+        group = await service.create(owner.id, workspace.id, name=f"Г {uuid.uuid4().hex[:6]}")
+        people = [await _person(session, workspace) for _ in range(3)]
+        await service.add_members(
+            owner.id, group.id, workspace.id, user_ids=[one.id for one in people]
+        )
+
+        seen: list[uuid.UUID] = []
+        cursor: str | None = None
+        for _ in range(10):
+            portion = await service.members(
+                owner.id, group.id, workspace.id, cursor=cursor, limit=1
+            )
+            seen.extend(one.id for one in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        assert len(seen) == len(set(seen))
+        assert {one.id for one in people} <= set(seen)
+
+    async def test_a_person_without_a_name_stays_reachable(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Имени у учётной записи может не быть.
+
+        Порядок и курсор считаются одним выражением; сравнение с NULL
+        отбросило бы безымянного со второй страницы состава молча.
+        """
+        service = GroupService(session)
+        group = await service.create(owner.id, workspace.id, name=f"Г {uuid.uuid4().hex[:6]}")
+
+        nameless_id = uuid.uuid4()
+        await session.execute(
+            insert(User).values(
+                id=nameless_id,
+                email=f"{nameless_id.hex[:8]}@example.com",
+                role=UserRole.MEMBER,
+                workspace_id=workspace.id,
+            )
+        )
+        await session.flush()
+        named = await _person(session, workspace)
+        await service.add_members(
+            owner.id, group.id, workspace.id, user_ids=[nameless_id, named.id]
+        )
+
+        seen: list[uuid.UUID] = []
+        cursor: str | None = None
+        for _ in range(10):
+            portion = await service.members(
+                owner.id, group.id, workspace.id, cursor=cursor, limit=1
+            )
+            seen.extend(one.id for one in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        assert nameless_id in seen
+        assert named.id in seen
+
+    async def test_a_broken_cursor_starts_over(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        await GroupService(session).create(
+            owner.id, workspace.id, name=f"Г {uuid.uuid4().hex[:6]}"
+        )
+
+        found = await GroupService(session).list(workspace.id, cursor="не курсор")
+
+        assert found.items
+
+
 class TestRights:
     async def test_a_member_may_read_the_list(
         self, session: AsyncSession, workspace, owner
@@ -104,8 +214,8 @@ class TestRights:
 
         found = await GroupService(session).list(workspace.id)
 
-        assert found  # список не пуст
-        assert all(isinstance(people, int) for _, people in found)
+        assert found.items  # список не пуст
+        assert all(isinstance(people, int) for _, people in found.items)
         # Чтение списка не требует прав администратора.
         assert person.role == UserRole.MEMBER
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
@@ -10,8 +11,10 @@
     attachDirectory,
     deleteGroup,
     detachDirectory,
+    groupMembers,
     removeGroupMember,
-    updateGroup
+    updateGroup,
+    type GroupMember
   } from '$lib/features/group/services/groups';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
@@ -45,6 +48,35 @@
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
 
+  /** Догруженный состав. Конец перечня виден пустым курсором. */
+  let more = $state<GroupMember[]>([]);
+  let cursor = $state<string | null>(null);
+  let loading = $state(false);
+  const members = $derived([...data.members, ...more]);
+
+  $effect(() => {
+    // Своё состояние сбрасывается вместе с перезагрузкой: добавление и
+    // исключение меняют первую страницу состава.
+    void data.members;
+    more = [];
+    cursor = data.membersCursor;
+  });
+
+  async function loadMore() {
+    if (!cursor) return;
+    loading = true;
+    failure = null;
+    try {
+      const next = await groupMembers({ groupId: data.group.id, cursor });
+      more = [...more, ...next.items];
+      cursor = next.meta.nextCursor;
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      loading = false;
+    }
+  }
+
   // Значения формы приходят с сервера и обновляются после сохранения: разовое
   // присваивание оставило бы на экране прежние после чужой правки.
   $effect(() => {
@@ -55,7 +87,7 @@
   // Предлагаются только те, кого в группе ещё нет: попытка добавить своего
   // ничего не меняет, но выглядит как действие.
   const candidates = $derived(
-    data.people.filter((one) => !data.members.some((member) => member.id === one.id))
+    data.people.filter((one) => !members.some((member) => member.id === one.id))
   );
 
   async function act(key: string, action: () => Promise<unknown>) {
@@ -122,17 +154,18 @@
         {busy === 'save' ? t('Loading...') : t('Save')}
       </Button>
       {#if !locked}
-        <Button
-          variant="quiet"
+        <Confirm
+          label={t('Delete group')}
+          question={t(
+            'Are you sure you want to delete this group? Members will lose access to resources this group has access to.'
+          )}
           disabled={busy === 'delete'}
-          onclick={() =>
+          onconfirm={() =>
             act('delete', async () => {
               await deleteGroup(data.group.id);
               await goto('/settings/groups');
             })}
-        >
-          {t('Delete group')}
-        </Button>
+        />
       {/if}
     </div>
   </form>
@@ -203,7 +236,7 @@
     {/if}
 
     <ul data-component="GroupMembers" class="space-y-2">
-      {#each data.members as member (member.id)}
+      {#each members as member (member.id)}
         <li
           class="flex items-center justify-between gap-4 border-b border-border pb-2 last:border-0"
         >
@@ -212,18 +245,30 @@
             <span class="block truncate text-xs text-text-muted">{member.email}</span>
           </span>
           {#if !data.group.isDefault}
-            <Button
-              variant="quiet"
+            <!-- Исключённый теряет доступ ко всему, что группа открывала:
+                 в v1 это тоже вопрос, а не одно нажатие. -->
+            <Confirm
+              label={t('Remove')}
+              question={t(
+                'Are you sure you want to remove this user from the group? The user will lose access to resources this group has access to.'
+              )}
               disabled={busy === member.id}
-              onclick={() => act(member.id, () => removeGroupMember(data.group.id, member.id))}
-            >
-              {t('Remove')}
-            </Button>
+              onconfirm={() => act(member.id, () => removeGroupMember(data.group.id, member.id))}
+            />
           {/if}
         </li>
       {:else}
         <li class="text-sm text-text-muted">{t('No members yet')}</li>
       {/each}
     </ul>
+
+    {#if cursor}
+      <!-- Без продолжения состав обрывался бы на потолке выдачи, и молча. -->
+      <div class="mt-4">
+        <Button variant="quiet" disabled={loading} onclick={loadMore}>
+          {loading ? t('Loading...') : t('Load more')}
+        </Button>
+      </div>
+    {/if}
   </div>
 </section>

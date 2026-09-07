@@ -11,15 +11,17 @@ from __future__ import annotations
 
 import secrets
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
-from tessera_api.infrastructure.models import Page, Share, Space, Workspace
+from tessera_api.infrastructure.models import Page, Share, Space, User, Workspace
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.paging import moment_cursor, portion, read_moment_cursor
 from tessera_api.services.tokens import TokenService
 
 #: Длина ключа ссылки. Ключ и есть учётные данные того, кто открывает страницу
@@ -41,6 +43,14 @@ FILE_PREFIXES = ("/files/", "/api/files/")
 #: печати: ветвь на тысячу страниц не столько показывается, сколько роняет
 #: браузер.
 MAX_TREE_PAGES = 200
+
+
+@dataclass(frozen=True, slots=True)
+class SharePage:
+    """Страница перечня ссылок и курсор для следующей."""
+
+    items: list[tuple[Share, Page, Space, User | None]]
+    next_cursor: str | None
 
 
 class ShareService:
@@ -122,8 +132,13 @@ class ShareService:
         )
 
     async def mine(
-        self, user_id: uuid.UUID, workspace_id: uuid.UUID
-    ) -> list[tuple[Share, Page, Space]]:
+        self,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> SharePage:
         """Действующие ссылки в пространствах, где человек состоит.
 
         Экран заводят ради одного вопроса: что из нашего сейчас открыто наружу.
@@ -133,30 +148,56 @@ class ShareService:
 
         Право проверяется постранично: строка несёт название страницы, и
         закрытая страница попадать сюда не должна даже своему пространству.
+
+        Постраничность курсорная, от свежих к старым, и курсор берётся у
+        последней **прочитанной** строки, а не у последней показанной: права
+        выбрасывают строки уже после выборки, и курсор по показанному терял бы
+        отброшенный хвост страницы навсегда.
         """
         space_ids = await self._members.space_ids_for(user_id)
         if not space_ids:
-            return []
+            return SharePage(items=[], next_cursor=None)
 
-        rows = (
-            await self._session.execute(
-                select(Share, Page, Space)
-                .join(Page, Page.id == Share.page_id)
-                .join(Space, Space.id == Page.space_id)
-                .where(Share.deleted_at.is_(None))
-                .where(Share.workspace_id == workspace_id)
-                .where(Page.deleted_at.is_(None))
-                .where(Space.deleted_at.is_(None))
-                .where(Page.space_id.in_(space_ids))
-                .order_by(Share.created_at.desc())
+        wanted = portion(limit)
+        stmt = (
+            # Автор внешним соединением: удалённая учётная запись не должна
+            # уносить строку из перечня — ссылка-то осталась открытой.
+            select(Share, Page, Space, User)
+            .join(Page, Page.id == Share.page_id)
+            .join(Space, Space.id == Page.space_id)
+            .outerjoin(User, User.id == Share.creator_id)
+            .where(Share.deleted_at.is_(None))
+            .where(Share.workspace_id == workspace_id)
+            .where(Page.deleted_at.is_(None))
+            .where(Space.deleted_at.is_(None))
+            .where(Page.space_id.in_(space_ids))
+        )
+
+        after = read_moment_cursor(cursor)
+        if after is not None:
+            moment, last_id = after
+            stmt = stmt.where(
+                text("(shares.created_at, shares.id) < (:cursor_at, :cursor_id)").bindparams(
+                    cursor_at=moment, cursor_id=last_id
+                )
             )
-        ).all()
 
-        allowed: list[tuple[Share, Page, Space]] = []
-        for share, page, space in rows:
+        stmt = stmt.order_by(Share.created_at.desc(), Share.id.desc()).limit(wanted + 1)
+        rows = (await self._session.execute(stmt)).all()
+
+        has_more = len(rows) > wanted
+        read = rows[:wanted]
+
+        allowed: list[tuple[Share, Page, Space, User | None]] = []
+        for share, page, space, creator in read:
             if (await self._access.rights(page, user_id)).can_view:
-                allowed.append((share, page, space))
-        return allowed
+                allowed.append((share, page, space, creator))
+
+        last = read[-1][0] if read else None
+        return SharePage(
+            items=allowed,
+            next_cursor=moment_cursor(last.created_at, last.id) if has_more and last else None,
+        )
 
     async def for_page(self, page: Page, user_id: uuid.UUID) -> Share | None:
         """Ссылка страницы, если она заведена.

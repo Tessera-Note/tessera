@@ -2,9 +2,25 @@ import { get, post } from '$lib/api/client';
 
 export type Label = { id: string; name: string };
 
-/** Все метки рабочего пространства. Служит выбору, а не показу на странице. */
-export function listLabels(fetcher?: typeof fetch, headers?: Record<string, string>) {
-  return get<Label[]>('/api/labels', { fetcher, headers });
+/** Страница перечня и курсор следующей. Пустой курсор означает конец. */
+export type Paged<T> = { items: T[]; meta: { nextCursor: string | null } };
+
+/**
+ * Метки рабочего пространства. Служит выбору, а не показу на странице.
+ *
+ * Постранично: на рабочем пространстве с тысячей меток перечень целиком
+ * приходил бы в каждом ответе.
+ */
+export function listLabels(
+  values: { cursor?: string; limit?: number } = {},
+  fetcher?: typeof fetch,
+  headers?: Record<string, string>
+) {
+  const query = new URLSearchParams();
+  if (values.cursor) query.set('cursor', values.cursor);
+  if (values.limit) query.set('limit', String(values.limit));
+  const tail = query.toString();
+  return get<Paged<Label>>(`/api/labels${tail ? `?${tail}` : ''}`, { fetcher, headers });
 }
 
 /**
@@ -55,9 +71,9 @@ export type LabelledPage = {
  * ответов иначе перебирается перечень заведённых меток.
  */
 export function pagesWithLabel(
-  name: string,
+  values: { name: string; cursor?: string; limit?: number },
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
-  return post<LabelledPage[]>('/api/labels/pages', { name }, { fetcher, headers });
+  return post<Paged<LabelledPage>>('/api/labels/pages', values, { fetcher, headers });
 }

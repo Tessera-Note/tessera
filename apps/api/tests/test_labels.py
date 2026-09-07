@@ -174,8 +174,8 @@ class TestPagesByLabel:
 
         found = await LabelService(session).pages_with(workspace.id, owner.id, name=name)
 
-        assert [one[0].id for one in found] == [page.id]
-        assert found[0][1].slug == space.slug
+        assert [one[0].id for one in found.items] == [page.id]
+        assert found.items[0][1].slug == space.slug
 
     async def test_an_unknown_name_is_an_empty_list(
         self, session: AsyncSession, workspace, owner
@@ -185,7 +185,8 @@ class TestPagesByLabel:
         found = await LabelService(session).pages_with(
             workspace.id, owner.id, name=f"нет-такой-{uuid.uuid4().hex[:6]}"
         )
-        assert found == []
+        assert found.items == []
+        assert found.next_cursor is None
 
     async def test_the_name_is_matched_without_case(
         self, session: AsyncSession, workspace, owner, space
@@ -197,7 +198,7 @@ class TestPagesByLabel:
         found = await LabelService(session).pages_with(
             workspace.id, owner.id, name=name.upper()
         )
-        assert [one[0].id for one in found] == [page.id]
+        assert [one[0].id for one in found.items] == [page.id]
 
     async def test_a_closed_page_is_not_listed(
         self, session: AsyncSession, workspace, owner, space
@@ -231,8 +232,10 @@ class TestPagesByLabel:
         )
         await session.flush()
 
-        assert await LabelService(session).pages_with(workspace.id, reader_id, name=name) == []
-        assert await LabelService(session).pages_with(workspace.id, owner.id, name=name)
+        closed = await LabelService(session).pages_with(workspace.id, reader_id, name=name)
+        assert closed.items == []
+        mine = await LabelService(session).pages_with(workspace.id, owner.id, name=name)
+        assert mine.items
 
     async def test_a_space_filter_narrows_the_list(
         self, session: AsyncSession, workspace, owner, space
@@ -247,8 +250,188 @@ class TestPagesByLabel:
         other = await LabelService(session).pages_with(
             workspace.id, owner.id, name=name, space_id=uuid.uuid4()
         )
-        assert [one[0].id for one in same] == [page.id]
-        assert other == []
+        assert [one[0].id for one in same.items] == [page.id]
+        assert other.items == []
+
+
+class TestPaging:
+    """Постраничность перечней меток.
+
+    Проверяется то, ради чего курсор и заведён: перечень не отдаётся целиком,
+    вторая страница продолжает первую без повторов и пропусков, а конец виден
+    пустым курсором. Отдельно проверяется страница, отобранная правами: там
+    курсор берётся у последней прочитанной строки, а не у последней показанной,
+    и по показанному хвост страницы терялся бы навсегда.
+    """
+
+    async def test_the_list_is_cut_to_the_asked_size(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "С метками")
+        names = sorted(f"метка-{uuid.uuid4().hex[:6]}" for _ in range(4))
+        await LabelService(session).attach(page, names, owner.id)
+
+        first = await LabelService(session).list_all(workspace.id, limit=2)
+
+        assert len(first.items) == 2
+        assert first.next_cursor is not None
+
+    async def test_the_second_page_continues_the_first(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "С метками")
+        names = [f"метка-{uuid.uuid4().hex[:6]}" for _ in range(5)]
+        await LabelService(session).attach(page, names, owner.id)
+
+        service = LabelService(session)
+        seen: list[uuid.UUID] = []
+        cursor: str | None = None
+        for _ in range(10):
+            portion = await service.list_all(workspace.id, cursor=cursor, limit=2)
+            seen.extend(one.id for one in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        # Ни повторов, ни пропусков: перечень собран целиком и по одному разу.
+        assert len(seen) == len(set(seen))
+        all_at_once = await LabelService(session).list_all(workspace.id, limit=200)
+        assert set(seen) == {one.id for one in all_at_once.items}
+
+    async def test_a_broken_cursor_starts_over(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отказ на испорченном курсоре означал бы пятисотый ответ на
+        сохранённую вкладку. Первая страница — верный ответ."""
+        page = await _page(session, workspace, owner, space, "С меткой")
+        await LabelService(session).attach(page, [f"метка-{uuid.uuid4().hex[:6]}"], owner.id)
+
+        found = await LabelService(session).list_all(workspace.id, cursor="это не курсор")
+
+        assert found.items
+
+    async def test_the_limit_has_a_ceiling(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Предел задаёт не запрос: иначе перечень целиком просят одним словом."""
+        page = await _page(session, workspace, owner, space, "С метками")
+        await LabelService(session).attach(
+            page, [f"метка-{uuid.uuid4().hex[:6]}" for _ in range(3)], owner.id
+        )
+
+        found = await LabelService(session).list_all(workspace.id, limit=100_000)
+
+        assert len(found.items) <= 200
+
+    async def test_pages_with_a_label_are_paged(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        service = LabelService(session)
+        for number in range(3):
+            page = await _page(session, workspace, owner, space, f"Страница {number}")
+            await service.attach(page, [name], owner.id)
+
+        first = await service.pages_with(workspace.id, owner.id, name=name, limit=2)
+        assert len(first.items) == 2
+        assert first.next_cursor is not None
+
+        second = await service.pages_with(
+            workspace.id, owner.id, name=name, cursor=first.next_cursor, limit=2
+        )
+        assert len(second.items) == 1
+        assert second.next_cursor is None
+
+        seen = [one[0].id for one in first.items] + [one[0].id for one in second.items]
+        assert len(seen) == len(set(seen))
+
+    async def test_a_page_without_a_title_stays_reachable(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Названия у страницы может не быть.
+
+        Порядок и курсор считаются одним и тем же выражением; сравнение с NULL
+        отбросило бы безымянную страницу со второй страницы выдачи молча.
+        """
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        service = LabelService(session)
+        nameless = await PageService(session).create(
+            user_id=owner.id, workspace_id=workspace.id, space_id=space.id
+        )
+        await service.attach(nameless, [name], owner.id)
+        for number in range(2):
+            page = await _page(session, workspace, owner, space, f"Страница {number}")
+            await service.attach(page, [name], owner.id)
+
+        seen: list[uuid.UUID] = []
+        cursor: str | None = None
+        for _ in range(10):
+            portion = await service.pages_with(
+                workspace.id, owner.id, name=name, cursor=cursor, limit=1
+            )
+            seen.extend(one[0].id for one in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        assert nameless.id in seen
+        assert len(seen) == 3
+
+    async def test_the_cursor_comes_from_the_row_read_not_shown(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Права выбрасывают строки после выборки.
+
+        Курсор по показанному терял бы отброшенный хвост страницы: следующая
+        страница начиналась бы не с той строки, и часть страниц с меткой не
+        показалась бы никогда.
+        """
+        name = f"метка-{uuid.uuid4().hex[:6]}"
+        service = LabelService(session)
+        pages = []
+        for number in range(3):
+            page = await _page(session, workspace, owner, space, f"Страница {number}")
+            await service.attach(page, [name], owner.id)
+            pages.append(page)
+        reader_id = await _reader(session, workspace, space, owner)
+
+        # Закрывается первая по порядку: её строка читается, но не показывается.
+        access_id = uuid.uuid4()
+        await session.execute(
+            insert(PageAccess).values(
+                id=access_id,
+                page_id=pages[0].id,
+                workspace_id=workspace.id,
+                space_id=space.id,
+                access_level=ACCESS_RESTRICTED,
+                creator_id=owner.id,
+            )
+        )
+        await session.execute(
+            insert(PagePermission).values(
+                id=uuid.uuid4(),
+                page_access_id=access_id,
+                user_id=owner.id,
+                role=SpaceRole.ADMIN,
+                added_by_id=owner.id,
+            )
+        )
+        await session.flush()
+
+        seen: list[uuid.UUID] = []
+        cursor: str | None = None
+        for _ in range(10):
+            portion = await service.pages_with(
+                workspace.id, reader_id, name=name, cursor=cursor, limit=1
+            )
+            seen.extend(one[0].id for one in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        # Закрытая не показана, а обе открытые дошли до читателя.
+        assert pages[0].id not in seen
+        assert {pages[1].id, pages[2].id} == set(seen)
 
 
 class TestFavorites:

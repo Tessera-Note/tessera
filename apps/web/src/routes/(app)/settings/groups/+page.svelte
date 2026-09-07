@@ -1,11 +1,17 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
+  import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
-  import { createGroup, deleteGroup } from '$lib/features/group/services/groups';
+  import {
+    createGroup,
+    deleteGroup,
+    listGroups,
+    type Group
+  } from '$lib/features/group/services/groups';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -24,6 +30,36 @@
   let description = $state('');
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
+
+  /** Догруженные страницы перечня. Конец виден пустым курсором. */
+  let more = $state<Group[]>([]);
+  let cursor = $state<string | null>(null);
+  let loading = $state(false);
+  const groups = $derived([...data.groups, ...more]);
+
+  $effect(() => {
+    // Своё состояние сбрасывается вместе с перезагрузкой: заведённая или
+    // удалённая группа меняет первую страницу, и догруженное к ней уже не
+    // относится.
+    void data.groups;
+    more = [];
+    cursor = data.nextCursor;
+  });
+
+  async function loadMore() {
+    if (!cursor) return;
+    loading = true;
+    failure = null;
+    try {
+      const next = await listGroups({ cursor });
+      more = [...more, ...next.items];
+      cursor = next.meta.nextCursor;
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      loading = false;
+    }
+  }
 
   async function act(key: string, action: () => Promise<unknown>) {
     busy = key;
@@ -87,7 +123,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each data.groups as group (group.id)}
+        {#each groups as group (group.id)}
           <tr class="border-b border-border last:border-0">
             <td class="p-3">
               {#if admin}
@@ -109,13 +145,16 @@
             <td class="p-3 text-text-muted">{group.memberCount}</td>
             <td class="p-3 text-right">
               {#if admin && !group.isDefault && !group.directorySource}
-                <Button
-                  variant="quiet"
+                <!-- Вместе с группой уходит доступ у всех, кто в ней
+                     состоял: вопрос здесь по делу. -->
+                <Confirm
+                  label={t('Delete')}
+                  question={t(
+                    'Are you sure you want to delete this group? Members will lose access to resources this group has access to.'
+                  )}
                   disabled={busy === group.id}
-                  onclick={() => act(group.id, () => deleteGroup(group.id))}
-                >
-                  {t('Delete')}
-                </Button>
+                  onconfirm={() => act(group.id, () => deleteGroup(group.id))}
+                />
               {/if}
             </td>
           </tr>
@@ -125,4 +164,13 @@
       </tbody>
     </table>
   </div>
+
+  {#if cursor}
+    <!-- Без продолжения перечень обрывался бы на потолке выдачи, и молча. -->
+    <div class="mt-4">
+      <Button variant="quiet" disabled={loading} onclick={loadMore}>
+        {loading ? t('Loading...') : t('Load more')}
+      </Button>
+    </div>
+  {/if}
 </section>

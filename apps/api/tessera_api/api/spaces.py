@@ -19,7 +19,31 @@ from tessera_api.infrastructure.repositories import GroupRepo, SpaceMemberRepo, 
 from tessera_api.services.groups import GroupService
 from tessera_api.services.notifications import WatcherService
 from tessera_api.services.realtime import RealtimeService
-from tessera_api.services.spaces import SpaceService
+from tessera_api.services.spaces import (
+    SHARING_DISABLED,
+    VIEWER_COMMENTS,
+    SpaceService,
+    space_flag,
+)
+
+
+def _space_view(space, role: str | None) -> SpaceView:
+    """Вид пространства.
+
+    Один сборщик на все маршруты: полей у вида семь, и шесть отдельных сборок
+    расходились бы при первой же добавке — так и вышло с признаками
+    безопасности, которые сервер читал, а отдавать было нечем.
+    """
+    return SpaceView(
+        id=space.id,
+        name=space.name,
+        slug=space.slug,
+        description=space.description,
+        logo=space.logo,
+        role=role,
+        disablePublicSharing=space_flag(space, SHARING_DISABLED),
+        allowViewerComments=space_flag(space, VIEWER_COMMENTS),
+    )
 
 
 class SpaceIdRequest(msgspec.Struct):
@@ -37,6 +61,10 @@ class UpdateSpaceRequest(msgspec.Struct):
     name: str | None = None
     description: str | None = None
     slug: str | None = None
+    #: Признаки безопасности. `None` означает «не трогать»: экран шлёт только
+    #: то, что переключили, и пустое поле не должно сбрасывать соседнее.
+    disablePublicSharing: bool | None = None  # noqa: N815 — имя поля из v1
+    allowViewerComments: bool | None = None  # noqa: N815 — имя поля из v1
 
 
 class AddMembersRequest(msgspec.Struct):
@@ -61,6 +89,15 @@ class MemberRoleRequest(msgspec.Struct):
 
 class GroupIdRequest(msgspec.Struct):
     groupId: str  # noqa: N815 — имя поля из v1
+
+
+class GroupRosterRequest(msgspec.Struct):
+    """Состав группы страницами. Отдельно от `GroupIdRequest`: доводы
+    постраничности относятся только к перечню, а не к правке группы."""
+
+    groupId: str  # noqa: N815 — имя поля из v1
+    cursor: str | None = None
+    limit: int | None = None
 
 
 class AttachDirectoryRequest(msgspec.Struct):
@@ -146,14 +183,7 @@ class SpaceController(Controller):
         views: list[SpaceView] = []
         for space in spaces:
             views.append(
-                SpaceView(
-                    id=space.id,
-                    name=space.name,
-                    slug=space.slug,
-                    description=space.description,
-                    logo=space.logo,
-                    role=await members.role_in_space(principal.user_id, space.id),
-                )
+                _space_view(space, await members.role_in_space(principal.user_id, space.id))
             )
         return views
 
@@ -174,14 +204,7 @@ class SpaceController(Controller):
             # пришёл по ссылке.
             raise forbidden("error.space.access_denied")
 
-        return SpaceView(
-            id=space.id,
-            name=space.name,
-            slug=space.slug,
-            description=space.description,
-            logo=space.logo,
-            role=role,
-        )
+        return _space_view(space, role)
 
 
     @post("/members")
@@ -298,14 +321,7 @@ class SpaceController(Controller):
             description=data.description,
             slug=data.slug,
         )
-        return SpaceView(
-            id=space.id,
-            name=space.name,
-            slug=space.slug,
-            description=space.description,
-            logo=space.logo,
-            role=SpaceRole.ADMIN,
-        )
+        return _space_view(space, SpaceRole.ADMIN)
 
     @post("/update")
     async def update(
@@ -323,16 +339,11 @@ class SpaceController(Controller):
             name=data.name,
             description=data.description,
             slug=data.slug,
+            disable_public_sharing=data.disablePublicSharing,
+            allow_viewer_comments=data.allowViewerComments,
         )
         role = await SpaceMemberRepo(db_session).role_in_space(actor.id, space.id)
-        return SpaceView(
-            id=space.id,
-            name=space.name,
-            slug=space.slug,
-            description=space.description,
-            logo=space.logo,
-            role=role,
-        )
+        return _space_view(space, role)
 
     @post("/delete")
     async def delete(
@@ -451,14 +462,7 @@ class PersonalSpaceController(Controller):
         )
         if found is None:
             return None
-        return SpaceView(
-            id=found.id,
-            name=found.name,
-            slug=found.slug,
-            description=found.description,
-            logo=found.logo,
-            role=SpaceRole.ADMIN,
-        )
+        return _space_view(found, SpaceRole.ADMIN)
 
     @post("/create")
     async def create(
@@ -478,14 +482,7 @@ class PersonalSpaceController(Controller):
         )
         # Роль известна без запроса: заводящий становится администратором
         # своего пространства тем же действием.
-        return SpaceView(
-            id=space.id,
-            name=space.name,
-            slug=space.slug,
-            description=space.description,
-            logo=space.logo,
-            role=SpaceRole.ADMIN,
-        )
+        return _space_view(space, SpaceRole.ADMIN)
 
 
 class GroupController(Controller):
@@ -510,16 +507,29 @@ class GroupController(Controller):
 
     @get()
     async def list_groups(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[GroupDetailView]:
-        """Группы рабочего пространства со счётчиком людей.
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> dict:
+        """Группы рабочего пространства со счётчиком людей, страницами.
 
         Видны любому участнику: без них нельзя выбрать группу при выдаче
         доступа. Имён и адресов людей здесь нет, только имя группы и счётчик.
+
+        Отдаётся объектом со страницей и курсором, как перечни шаблонов и
+        проверок: на рабочем пространстве с сотнями групп перечень целиком
+        приходил бы в каждом ответе.
         """
         principal: Principal = request.scope["principal"]
-        found = await GroupService(db_session).list(principal.workspace_id)
-        return [_group_view(group, people) for group, people in found]
+        found = await GroupService(db_session).list(
+            principal.workspace_id, cursor=cursor, limit=limit
+        )
+        return {
+            "items": [_group_view(group, people) for group, people in found.items],
+            "meta": {"nextCursor": found.next_cursor},
+        }
 
     @post("/info")
     async def group_info(
@@ -533,13 +543,24 @@ class GroupController(Controller):
 
     @post("/members")
     async def group_members(
-        self, data: GroupIdRequest, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[SpaceMemberView]:
+        self, data: GroupRosterRequest, request: Request, db_session: NamedDependency[AsyncSession]
+    ) -> dict:
+        """Состав группы, страницами. Виден администратору."""
         principal: Principal = request.scope["principal"]
         people = await GroupService(db_session).members(
-            principal.user_id, _group_uuid(data.groupId), principal.workspace_id
+            principal.user_id,
+            _group_uuid(data.groupId),
+            principal.workspace_id,
+            cursor=data.cursor,
+            limit=data.limit,
         )
-        return [SpaceMemberView(id=one.id, name=one.name, email=one.email) for one in people]
+        return {
+            "items": [
+                SpaceMemberView(id=one.id, name=one.name, email=one.email)
+                for one in people.items
+            ],
+            "meta": {"nextCursor": people.next_cursor},
+        }
 
     @post("/create")
     async def create_group(

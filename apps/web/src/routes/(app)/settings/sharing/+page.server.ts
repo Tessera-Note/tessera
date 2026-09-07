@@ -8,7 +8,8 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
   const headers = cookie ? { cookie } : undefined;
 
   try {
-    return { shares: await listShares(fetch, headers) };
+    const found = await listShares({}, fetch, headers);
+    return { shares: found.items, nextCursor: found.meta.nextCursor };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

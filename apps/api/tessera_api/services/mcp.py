@@ -434,7 +434,13 @@ TOOLS: list[ToolDefinition] = [
     ToolDefinition(
         "list_labels",
         "List the page labels of the workspace.",
-        {"type": "object", "properties": {}},
+        {
+            "type": "object",
+            "properties": {
+                "cursor": _text("Cursor from a previous call"),
+                "limit": {"type": "integer"},
+            },
+        },
     ),
     ToolDefinition(
         "find_pages_by_label",
@@ -445,6 +451,8 @@ TOOLS: list[ToolDefinition] = [
                 "labelId": _text("Label id"),
                 "name": _text("Label name, if the id is unknown"),
                 "spaceId": _text("Optional space to restrict to"),
+                "cursor": _text("Cursor from a previous call"),
+                "limit": {"type": "integer"},
             },
         },
     ),
@@ -1459,9 +1467,16 @@ class McpService:
         )
         return {"success": True, "commentId": str(comment_id)}
 
-    async def _list_labels(self, args: dict) -> Any:  # noqa: ARG002
-        found = await LabelService(self._session).list_all(self._workspace_id)
-        return {"labels": [{"id": str(one.id), "name": one.name} for one in found]}
+    async def _list_labels(self, args: dict) -> Any:
+        page = await LabelService(self._session).list_all(
+            self._workspace_id,
+            cursor=str(args["cursor"]) if args.get("cursor") else None,
+            limit=_limit(args.get("limit"), default=50),
+        )
+        return {
+            "labels": [{"id": str(one.id), "name": one.name} for one in page.items],
+            "nextCursor": page.next_cursor,
+        }
 
     async def _pages_by_label(self, args: dict) -> Any:
         label_id = (
@@ -1480,8 +1495,13 @@ class McpService:
             label_id=label_id,
             name=str(args["name"]) if args.get("name") else None,
             space_id=space_id,
+            cursor=str(args["cursor"]) if args.get("cursor") else None,
+            limit=_limit(args.get("limit"), default=50),
         )
-        return {"pages": [_page_brief(page) for page, _ in found]}
+        return {
+            "pages": [_page_brief(page) for page, _ in found.items],
+            "nextCursor": found.next_cursor,
+        }
 
     async def _remove_page_label(self, args: dict) -> Any:
         page = await self._page(args.get("pageId"))

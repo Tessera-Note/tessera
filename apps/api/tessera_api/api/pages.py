@@ -205,6 +205,9 @@ def _page_view(page, rights=None) -> dict:
         "creatorId": page.creator_id,
         "createdAt": page.created_at,
         "updatedAt": page.updated_at,
+        # Признак базы: по нему клиент открывает таблицу, а не редактор. Без
+        # него база в дереве неотличима от страницы и открывается пустой.
+        "isBase": bool(page.is_base),
     }
     if rights is not None:
         body["canEdit"] = rights.can_edit
@@ -609,6 +612,7 @@ def _listing_view(page, space) -> dict:  # noqa: ANN001 — модели баз�
         "spaceName": space.name,
         "updatedAt": page.updated_at,
         "createdAt": page.created_at,
+        "isBase": bool(page.is_base),
     }
 
 
@@ -827,6 +831,8 @@ class LabelPagesRequest(msgspec.Struct):
     name: str | None = None
     labelId: str | None = None  # noqa: N815 — имя поля из v1
     spaceId: str | None = None  # noqa: N815 — имя поля из v1
+    cursor: str | None = None
+    limit: int | None = None
 
 
 class LabelController(Controller):
@@ -834,11 +840,26 @@ class LabelController(Controller):
 
     @get()
     async def list_labels(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[dict]:
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> dict:
+        """Метки рабочего пространства, страницами.
+
+        Отдаётся объектом со страницей и курсором, как перечни шаблонов и
+        проверок. Целиком перечень не отдаётся: на рабочем пространстве с
+        тысячей меток это была бы тысяча строк в каждом ответе.
+        """
         principal: Principal = request.scope["principal"]
-        found = await LabelService(db_session).list_all(principal.workspace_id)
-        return [{"id": label.id, "name": label.name} for label in found]
+        page = await LabelService(db_session).list_all(
+            principal.workspace_id, cursor=cursor, limit=limit
+        )
+        return {
+            "items": [{"id": label.id, "name": label.name} for label in page.items],
+            "meta": {"nextCursor": page.next_cursor},
+        }
 
     @post("/attach")
     async def attach(
@@ -867,7 +888,7 @@ class LabelController(Controller):
     @post("/pages")
     async def pages_with_label(
         self, data: LabelPagesRequest, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[dict]:
+    ) -> dict:
         """Страницы с меткой. Путь и имя поля из v1.
 
         Незнакомое имя метки отвечает пустым списком, а не отказом: иначе по
@@ -880,18 +901,23 @@ class LabelController(Controller):
             label_id=_label_uuid(data.labelId) if data.labelId else None,
             name=data.name,
             space_id=_space_uuid(data.spaceId) if data.spaceId else None,
+            cursor=data.cursor,
+            limit=data.limit,
         )
-        return [
-            {
-                "id": page.id,
-                "slugId": page.slug_id,
-                "title": page.title,
-                "icon": page.icon,
-                "spaceSlug": space.slug,
-                "spaceName": space.name,
-            }
-            for page, space in found
-        ]
+        return {
+            "items": [
+                {
+                    "id": page.id,
+                    "slugId": page.slug_id,
+                    "title": page.title,
+                    "icon": page.icon,
+                    "spaceSlug": space.slug,
+                    "spaceName": space.name,
+                }
+                for page, space in found.items
+            ],
+            "meta": {"nextCursor": found.next_cursor},
+        }
 
     @post("/detach")
     async def detach(
@@ -957,6 +983,7 @@ class FavoriteController(Controller):
                 "spaceId": space.id,
                 "spaceSlug": space.slug,
                 "spaceName": space.name,
+                "isBase": bool(page.is_base),
             }
             for favorite, page, space in found
         ]
@@ -1178,6 +1205,13 @@ class ShareRequest(msgspec.Struct):
     searchIndexing: bool = False  # noqa: N815 — имя поля из v1
 
 
+class SharePageRequest(msgspec.Struct):
+    """Продолжение перечня ссылок. Тело необязательно: первая страница без него."""
+
+    cursor: str | None = None
+    limit: int | None = None
+
+
 class ShareKeyRequest(msgspec.Struct):
     key: str
     pageId: str | None = None  # noqa: N815 — имя поля из v1
@@ -1261,14 +1295,25 @@ class ShareController(Controller):
 
     @post("/")
     async def list_shares(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[dict]:
-        """Действующие ссылки в доступных пространствах. Путь из v1."""
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        data: SharePageRequest | None = None,
+    ) -> dict:
+        """Действующие ссылки в доступных пространствах, страницами. Путь из v1.
+
+        Отдаётся объектом со страницей и курсором, как перечни шаблонов и
+        проверок. Целиком перечень не отдаётся: на рабочем пространстве, где
+        наружу открыты сотни страниц, это были бы сотни строк в каждом ответе.
+        """
         principal: Principal = request.scope["principal"]
         found = await ShareService(db_session).mine(
-            principal.user_id, principal.workspace_id
+            principal.user_id,
+            principal.workspace_id,
+            cursor=data.cursor if data else None,
+            limit=data.limit if data else None,
         )
-        return [
+        items = [
             {
                 "id": share.id,
                 "key": share.key,
@@ -1280,9 +1325,14 @@ class ShareController(Controller):
                 "pageSlugId": page.slug_id,
                 "spaceSlug": space.slug,
                 "spaceName": space.name,
+                # Кто открыл страницу наружу. Пусто, если учётной записи уже
+                # нет: ссылка при этом остаётся открытой, и скрывать её нельзя.
+                "creatorName": creator.name if creator is not None else None,
+                "creatorAvatarUrl": creator.avatar_url if creator is not None else None,
             }
-            for share, page, space in found
+            for share, page, space, creator in found.items
         ]
+        return {"items": items, "meta": {"nextCursor": found.next_cursor}}
 
     @post("/for-page")
     async def for_page(

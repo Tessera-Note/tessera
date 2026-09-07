@@ -17,8 +17,10 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import delete, func, insert, or_, select, update
+from sqlalchemy import text as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
@@ -36,6 +38,7 @@ from tessera_api.infrastructure.models import (
 )
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
+from tessera_api.services.paging import portion, read_text_cursor, text_cursor
 from tessera_api.services.realtime import RealtimeService
 
 #: Длина имени группы. Имя стоит в списках выдачи доступа рядом с именами людей.
@@ -47,6 +50,22 @@ MAX_NAME = 100
 MAX_BATCH = 25
 
 
+@dataclass(frozen=True, slots=True)
+class GroupPage:
+    """Страница перечня групп со счётчиками и курсор для следующей."""
+
+    items: list[tuple[Group, int]]
+    next_cursor: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class MemberPage:
+    """Страница состава группы и курсор для следующей."""
+
+    items: list[User]
+    next_cursor: str | None
+
+
 class GroupService:
     def __init__(self, session: AsyncSession, realtime: RealtimeService | None = None) -> None:
         self._session = session
@@ -54,26 +73,53 @@ class GroupService:
         self._members = SpaceMemberRepo(session)
         self._audit = AuditService(session)
 
-    async def list(self, workspace_id: uuid.UUID) -> list[tuple[Group, int]]:
-        """Группы пространства вместе с числом людей в каждой.
+    async def list(
+        self, workspace_id: uuid.UUID, *, cursor: str | None = None, limit: int | None = None
+    ) -> GroupPage:
+        """Группы пространства вместе с числом людей в каждой, страницами.
 
         Видны любому участнику: без них нельзя выбрать группу при выдаче
         доступа к пространству или к странице. Имён и адресов людей здесь нет,
         только имя группы и счётчик.
+
+        Постраничность курсорная, по имени: перечень пополняется во время
+        просмотра, и смещение сдвигало бы окно — часть групп показалась бы
+        дважды, часть не показалась бы вовсе.
         """
+        wanted = portion(limit)
         counts = (
             select(GroupUser.group_id, func.count().label("people"))
             .group_by(GroupUser.group_id)
             .subquery()
         )
-        rows = await self._session.execute(
+        stmt = (
             select(Group, func.coalesce(counts.c.people, 0))
             .outerjoin(counts, counts.c.group_id == Group.id)
             .where(Group.workspace_id == workspace_id)
             .where(Group.deleted_at.is_(None))
-            .order_by(Group.name.asc())
         )
-        return [(group, int(people)) for group, people in rows.all()]
+
+        after = read_text_cursor(cursor)
+        if after is not None:
+            name, last_id = after
+            stmt = stmt.where(
+                sql("(groups.name, groups.id) > (:cursor_name, :cursor_id)").bindparams(
+                    cursor_name=name, cursor_id=last_id
+                )
+            )
+
+        stmt = stmt.order_by(Group.name.asc(), Group.id.asc()).limit(wanted + 1)
+        rows = (await self._session.execute(stmt)).all()
+
+        has_more = len(rows) > wanted
+        rows = rows[:wanted]
+        found = [(group, int(people)) for group, people in rows]
+        return GroupPage(
+            items=found,
+            next_cursor=(
+                text_cursor(found[-1][0].name, found[-1][0].id) if has_more and found else None
+            ),
+        )
 
     async def info(self, group_id: uuid.UUID, workspace_id: uuid.UUID) -> tuple[Group, int]:
         group = await self._group(group_id, workspace_id)
@@ -85,8 +131,14 @@ class GroupService:
         return group, int(people)
 
     async def members(
-        self, actor_id: uuid.UUID, group_id: uuid.UUID, workspace_id: uuid.UUID
-    ) -> list[User]:
+        self,
+        actor_id: uuid.UUID,
+        group_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> MemberPage:
         """Состав группы поимённо.
 
         Виден администратору. Это расхождение с v1, того же рода, что уже
@@ -96,15 +148,37 @@ class GroupService:
         """
         await self._require_admin(actor_id, workspace_id)
         await self._group(group_id, workspace_id)
-        rows = await self._session.execute(
+
+        wanted = portion(limit)
+        stmt = (
             select(User)
             .join(GroupUser, GroupUser.user_id == User.id)
             .where(GroupUser.group_id == group_id)
             .where(User.workspace_id == workspace_id)
             .where(User.deleted_at.is_(None))
-            .order_by(User.name.asc())
         )
-        return list(rows.scalars().all())
+
+        after = read_text_cursor(cursor)
+        if after is not None:
+            name, last_id = after
+            # Имя сравнивается тем же выражением, каким идёт порядок: имени у
+            # учётной записи может не быть, а сравнение с NULL отбросило бы
+            # безымянных со второй страницы молча.
+            stmt = stmt.where(
+                sql("(coalesce(users.name, ''), users.id) > (:cursor_name, :cursor_id)").bindparams(
+                    cursor_name=name, cursor_id=last_id
+                )
+            )
+
+        stmt = stmt.order_by(func.coalesce(User.name, "").asc(), User.id.asc()).limit(wanted + 1)
+        found = list((await self._session.execute(stmt)).scalars().all())
+
+        has_more = len(found) > wanted
+        found = found[:wanted]
+        return MemberPage(
+            items=found,
+            next_cursor=text_cursor(found[-1].name, found[-1].id) if has_more and found else None,
+        )
 
     async def create(
         self,

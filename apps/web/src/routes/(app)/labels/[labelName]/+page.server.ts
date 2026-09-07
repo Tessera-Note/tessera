@@ -9,7 +9,8 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
 
   try {
     const name = decodeURIComponent(params.labelName);
-    return { name, pages: await pagesWithLabel(name, fetch, headers) };
+    const found = await pagesWithLabel({ name }, fetch, headers);
+    return { name, pages: found.items, nextCursor: found.meta.nextCursor };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

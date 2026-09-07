@@ -337,7 +337,7 @@ class TestShares:
 
         found = await service.mine(owner.id, workspace.id)
 
-        assert any(one[0].id == share.id and one[1].id == page.id for one in found)
+        assert any(one[0].id == share.id and one[1].id == page.id for one in found.items)
 
     async def test_a_stranger_sees_nothing_of_that_space(
         self, session: AsyncSession, workspace, owner, space
@@ -358,7 +358,7 @@ class TestShares:
         )
         await session.flush()
 
-        assert await ShareService(session).mine(stranger_id, workspace.id) == []
+        assert (await ShareService(session).mine(stranger_id, workspace.id)).items == []
 
     async def test_links_of_other_spaces_are_not_listed(
         self, session: AsyncSession, workspace, owner, space
@@ -408,7 +408,7 @@ class TestShares:
         await session.flush()
 
         found = await ShareService(session).mine(neighbour_id, workspace.id)
-        assert all(one[1].id != page.id for one in found)
+        assert all(one[1].id != page.id for one in found.items)
 
     async def test_a_closed_page_leaves_the_list(
         self, session: AsyncSession, workspace, owner, space
@@ -458,7 +458,47 @@ class TestShares:
         await session.flush()
 
         mine = await ShareService(session).mine(reader_id, workspace.id)
-        assert all(one[1].id != page.id for one in mine)
+        assert all(one[1].id != page.id for one in mine.items)
+
+    async def test_the_list_is_paged(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Перечень не отдаётся целиком.
+
+        Открытых страниц на рабочем пространстве бывают сотни, и перечень
+        целиком приходил бы в каждом ответе экрана.
+        """
+        service = ShareService(session)
+        for _ in range(3):
+            page = await self._page(session, workspace, owner, space)
+            await service.create(page=page, user_id=owner.id)
+
+        first = await service.mine(owner.id, workspace.id, limit=2)
+        assert len(first.items) == 2
+        assert first.next_cursor is not None
+
+        seen = [one[0].id for one in first.items]
+        cursor = first.next_cursor
+        for _ in range(10):
+            portion = await service.mine(owner.id, workspace.id, cursor=cursor, limit=2)
+            seen.extend(one[0].id for one in portion.items)
+            cursor = portion.next_cursor
+            if cursor is None:
+                break
+
+        # Ни повторов, ни пропусков.
+        assert len(seen) == len(set(seen))
+        assert len(seen) >= 3
+
+    async def test_a_broken_cursor_starts_over(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await self._page(session, workspace, owner, space)
+        await ShareService(session).create(page=page, user_id=owner.id)
+
+        found = await ShareService(session).mine(owner.id, workspace.id, cursor="не курсор")
+
+        assert found.items
 
     async def test_for_page_returns_nothing_when_not_shared(
         self, session: AsyncSession, workspace, owner, space

@@ -15,14 +15,20 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
     // группу: сервер отдаёт его только администратору, и этот экран тоже его.
     const [group, members, people, providers] = await Promise.all([
       groupInfo(params.groupId, fetch, headers),
-      groupMembers(params.groupId, fetch, headers),
+      groupMembers({ groupId: params.groupId }, fetch, headers),
       listMembers(fetch, headers),
       // Провайдеры нужны для выбора того, кто будет вести состав группы.
       // Отказ здесь не должен закрывать экран: провайдеров может не быть
       // вовсе, и группа от этого не перестаёт открываться.
       listProviders(fetch, headers).catch(() => ({ items: [] }))
     ]);
-    return { group, members, people, providers: providers.items };
+    return {
+      group,
+      members: members.items,
+      membersCursor: members.meta.nextCursor,
+      people,
+      providers: providers.items
+    };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });
