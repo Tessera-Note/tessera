@@ -1,6 +1,6 @@
 ---
 description: Проверка типов и сборка затронутых частей
-argument-hint: [client | server | all, по умолчанию all]
+argument-hint: [api | web | all, по умолчанию all]
 ---
 
 Прогони проверку типов.
@@ -11,22 +11,23 @@ argument-hint: [client | server | all, по умолчанию all]
 
 | Аргумент | Команды |
 |---|---|
-| `client` | `pnpm --filter client build` (запускает `tsc`, затем сборку Vite) |
-| `server` | `pnpm --filter server build` |
-| `all` | `pnpm build` |
+| `api` | `uv run --project apps/api ruff check .` |
+| `web` | `pnpm --filter @tessera/web check` (`svelte-kit sync`, затем `svelte-check`) |
+| `all` | обе команды подряд |
 
-Отдельной команды `typecheck` в проекте нет, типы проверяются шагом сборки.
+Проверки типов у приложения на Python нет: ruff проверяет стиль и очевидные ошибки, а типы держатся аннотациями и проверками.
 
 ## Перед запуском
 
 - если нет `node_modules`, сначала `pnpm install --frozen-lockfile`
-- для изолированной сборки сервера нужен `packages/base-formula/dist`. Если каталога нет, сначала `pnpm --filter @docmost/base-formula build`. Полный `pnpm build` порядок соблюдает сам
+- если нет `apps/api/.venv`, сначала `uv sync --project apps/api`
+- `svelte-check` требует сгенерированных типов маршрутов, их делает `svelte-kit sync` внутри самой команды
 
 ## Как читать результат
 
-- ошибки TypeScript обязательны к исправлению
-- у клиента `strict: false` и `strictNullChecks: false`, поэтому часть проблем типами не ловится. Отсутствие ошибок не означает, что экран работает
-- у сервера `strict: true`, но с отключенными `strictNullChecks`, `noImplicitAny` и `strictBindCallApply`
+- ошибки `svelte-check` обязательны к исправлению, предупреждения о доступности разбирать по существу
+- ruff с набором `E,F,I,UP,B,SIM` ловит неиспользуемые имена, порядок импортов и часть ловушек, но не типы
+- отсутствие ошибок не означает, что экран работает. Проверять глазами
 
 ## После прогона
 

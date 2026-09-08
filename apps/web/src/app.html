@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+    <script>
+      // Тема выбирается до отрисовки. Отложенный до загрузки приложения выбор
+      // виден вспышкой светлого экрана у того, кто работает в тёмной теме.
+      (function () {
+        try {
+          // Умолчание светлое, а не «как в системе»: тёмная тема включается
+          // выбором человека, и системная настройка её не навязывает. Но
+          // выбравшему «как в системе» она навязывается именно отсюда — иначе
+          // его тема появлялась бы уже после отрисовки, вспышкой.
+          var saved = localStorage.getItem('tessera.theme');
+          var theme = saved === 'dark' ? 'dark' : 'light';
+          if (saved === 'auto') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (error) {
+          // Хранилище недоступно в закрытом окне или при запрете сторонних
+          // данных. Тема останется той, что подставил сервер.
+        }
+      })();
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

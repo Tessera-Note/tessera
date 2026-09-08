@@ -1,0 +1,10 @@
+{
+  "name": "@tessera/collab",
+  "private": true,
+  "type": "module",
+  "description": "Сервис преобразования содержимого страниц. Схема узлов редактора живёт здесь.",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test src/*.test.js"
+  }
+}

@@ -1,0 +1,483 @@
+"""Метки страниц и избранное."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+
+from sqlalchemy import delete, func, insert, select
+from sqlalchemy import text as sql
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from tessera_api.domain.errors import bad_request, not_found
+from tessera_api.infrastructure.models import (
+    Favorite,
+    Label,
+    Page,
+    PageLabel,
+    Space,
+    Template,
+)
+from tessera_api.infrastructure.repositories import SpaceMemberRepo
+from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.paging import (
+    portion,
+    read_text_cursor,
+    text_cursor,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class LabelPage:
+    """Страница перечня меток и курсор для следующей."""
+
+    items: list[Label]
+    next_cursor: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class LabelledPages:
+    """Страница перечня страниц с меткой и курсор для следующей."""
+
+    items: list[tuple[Page, Space]]
+    next_cursor: str | None
+
+
+class LabelService:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self._access = PageAccessService(session)
+
+    async def list_all(
+        self, workspace_id: uuid.UUID, *, cursor: str | None = None, limit: int | None = None
+    ) -> LabelPage:
+        """Метки рабочего пространства по алфавиту, страницами.
+
+        Постраничность курсорная: перечень пополняется во время просмотра, и
+        смещение при этом сдвигает окно — часть меток показалась бы дважды,
+        часть не показалась бы вовсе.
+
+        Курсор составной, `имя|идентификатор`: имена сравниваются без учёта
+        регистра при заведении, но храниться могут в разном написании, и одного
+        имени для продолжения мало.
+        """
+        wanted = portion(limit)
+        stmt = select(Label).where(Label.workspace_id == workspace_id)
+
+        after = read_text_cursor(cursor)
+        if after is not None:
+            name, last_id = after
+            # Кортежное сравнение совпадает с порядком сортировки, поэтому
+            # индекс по паре применим, а условие остаётся одним.
+            stmt = stmt.where(
+                sql("(labels.name, labels.id) > (:cursor_name, :cursor_id)").bindparams(
+                    cursor_name=name, cursor_id=last_id
+                )
+            )
+
+        stmt = stmt.order_by(Label.name.asc(), Label.id.asc()).limit(wanted + 1)
+        found = list((await self._session.execute(stmt)).scalars().all())
+
+        # Читается на одну больше, чем нужно: так видно, есть ли следующая
+        # страница, без второго запроса на счёт.
+        has_more = len(found) > wanted
+        found = found[:wanted]
+        return LabelPage(
+            items=found,
+            next_cursor=text_cursor(found[-1].name, found[-1].id) if has_more and found else None,
+        )
+
+    async def ensure(self, name: str, workspace_id: uuid.UUID) -> Label:
+        """Найти метку по имени или завести.
+
+        Сопоставление без учёта регистра: «Регламент» и «регламент» это одна
+        метка, иначе список меток заполняется дублями, отличающимися только
+        написанием.
+        """
+        clean = (name or "").strip()
+        if not clean:
+            raise bad_request("error.label.name_required")
+
+        existing = (
+            await self._session.execute(
+                select(Label)
+                .where(Label.workspace_id == workspace_id)
+                .where(func.lower(Label.name) == clean.lower())
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return existing
+
+        label_id = uuid.uuid4()
+        await self._session.execute(
+            insert(Label).values(id=label_id, name=clean, workspace_id=workspace_id)
+        )
+        await self._session.commit()
+        return await self._session.get(Label, label_id)
+
+    async def attach(self, page: Page, names: list[str], user_id: uuid.UUID) -> list[Label]:
+        # Метка меняет страницу, поэтому нужно право правки: иначе читатель
+        # переклассифицирует чужие страницы.
+        await self._access.validate_can_edit(page, user_id)
+
+        attached: list[Label] = []
+        for name in names:
+            label = await self.ensure(name, page.workspace_id)
+            already = (
+                await self._session.execute(
+                    select(PageLabel)
+                    .where(PageLabel.page_id == page.id)
+                    .where(PageLabel.label_id == label.id)
+                )
+            ).scalar_one_or_none()
+            if already is None:
+                await self._session.execute(
+                    insert(PageLabel).values(id=uuid.uuid4(), page_id=page.id, label_id=label.id)
+                )
+            attached.append(label)
+
+        await self._session.commit()
+        return attached
+
+    async def detach(self, page: Page, label_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        await self._access.validate_can_edit(page, user_id)
+
+        await self._session.execute(
+            delete(PageLabel)
+            .where(PageLabel.page_id == page.id)
+            .where(PageLabel.label_id == label_id)
+        )
+        await self._session.commit()
+
+    async def for_page(self, page: Page, user_id: uuid.UUID) -> list[Label]:
+        await self._access.validate_can_view(page, user_id)
+
+        stmt = (
+            select(Label)
+            .join(PageLabel, PageLabel.label_id == Label.id)
+            .where(PageLabel.page_id == page.id)
+            .order_by(Label.name.asc())
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def by_name(self, name: str, workspace_id: uuid.UUID) -> Label | None:
+        """Метка по имени, без учёта регистра. Отсутствие — не отказ."""
+        clean = (name or "").strip()
+        if not clean:
+            return None
+        return (
+            await self._session.execute(
+                select(Label)
+                .where(Label.workspace_id == workspace_id)
+                .where(func.lower(Label.name) == clean.lower())
+            )
+        ).scalars().first()
+
+    async def pages_with(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        label_id: uuid.UUID | None = None,
+        name: str | None = None,
+        space_id: uuid.UUID | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> LabelledPages:
+        """Страницы с меткой, вместе с их пространствами.
+
+        Метка ищется по идентификатору либо по имени. Незнакомое имя даёт
+        пустой список, а не отказ: разные ответы на «метки нет» и «метка есть,
+        но страниц не видно» позволяли бы перебором узнавать, какие метки в
+        рабочем пространстве заведены.
+
+        Выдача фильтруется правами постранично: метка не должна становиться
+        способом узнать о существовании закрытых страниц и их названиях.
+
+        Постраничность курсорная, и курсор берётся у последней **прочитанной**
+        строки, а не у последней показанной. Права выбрасывают строки уже после
+        выборки, и курсор по показанному терял бы отброшенный хвост страницы
+        навсегда. По той же причине конец перечня виден пустым курсором, а не
+        короткой страницей: страница бывает короче запрошенной и в середине.
+        """
+        if label_id is not None:
+            label = await self._session.get(Label, label_id)
+            if label is None or label.workspace_id != workspace_id:
+                raise not_found("error.label.label_not_found")
+        else:
+            label = await self.by_name(name or "", workspace_id)
+            if label is None:
+                return LabelledPages(items=[], next_cursor=None)
+
+        wanted = portion(limit)
+        stmt = (
+            select(Page, Space)
+            .join(PageLabel, PageLabel.page_id == Page.id)
+            .join(Space, Space.id == Page.space_id)
+            .where(PageLabel.label_id == label.id)
+            .where(Page.deleted_at.is_(None))
+            .where(Space.deleted_at.is_(None))
+        )
+        if space_id is not None:
+            stmt = stmt.where(Page.space_id == space_id)
+
+        after = read_text_cursor(cursor)
+        if after is not None:
+            title, last_id = after
+            # Название сравнивается тем же выражением, каким идёт порядок:
+            # у страницы названия может не быть, а сравнение с NULL отбросило бы
+            # безымянные страницы со второй страницы выдачи молча.
+            stmt = stmt.where(
+                sql(
+                    "(coalesce(pages.title, ''), pages.id) > (:cursor_title, :cursor_id)"
+                ).bindparams(cursor_title=title, cursor_id=last_id)
+            )
+
+        stmt = stmt.order_by(func.coalesce(Page.title, "").asc(), Page.id.asc()).limit(wanted + 1)
+        found = (await self._session.execute(stmt)).all()
+
+        has_more = len(found) > wanted
+        read = found[:wanted]
+
+        visible: list[tuple[Page, Space]] = []
+        for page, space in read:
+            if (await self._access.rights(page, user_id)).can_view:
+                visible.append((page, space))
+
+        last = read[-1][0] if read else None
+        return LabelledPages(
+            items=visible,
+            next_cursor=text_cursor(last.title, last.id) if has_more and last else None,
+        )
+
+
+#: Виды отметок. Значения из v1: колонка `type` общая на все три.
+FAVORITE_PAGE = "page"
+FAVORITE_SPACE = "space"
+FAVORITE_TEMPLATE = "template"
+
+
+class FavoriteService:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self._access = PageAccessService(session)
+        self._members = SpaceMemberRepo(session)
+
+    async def list_for_user(self, user_id: uuid.UUID, workspace_id: uuid.UUID) -> list[Favorite]:
+        stmt = (
+            select(Favorite)
+            .where(Favorite.user_id == user_id)
+            .where(Favorite.workspace_id == workspace_id)
+            .order_by(Favorite.created_at.desc())
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def list_pages(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Favorite, Page, Space]]:
+        """Избранное вместе со страницами и их пространствами.
+
+        Отдельно от `list_for_user`, который отдаёт одни идентификаторы: тому
+        достаточно знать, отмечена ли открытая страница, а экрану избранного
+        нужны названия.
+
+        Право проверяется по каждой странице. Отметка переживает и удаление
+        страницы, и снятие доступа к ней, и перечислять такие названия нельзя:
+        избранное стало бы обходным путём к закрытому.
+        """
+        rows = (
+            await self._session.execute(
+                select(Favorite, Page, Space)
+                .join(Page, Page.id == Favorite.page_id)
+                .join(Space, Space.id == Page.space_id)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.workspace_id == workspace_id)
+                .where(Page.deleted_at.is_(None))
+                .where(Space.deleted_at.is_(None))
+                .order_by(Favorite.created_at.desc())
+            )
+        ).all()
+
+        allowed: list[tuple[Favorite, Page, Space]] = []
+        for favorite, page, space in rows:
+            if (await self._access.rights(page, user_id)).can_view:
+                allowed.append((favorite, page, space))
+        return allowed
+
+    async def list_spaces(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Favorite, Space]]:
+        """Отмеченные пространства. Показываются только те, где человек состоит."""
+        rows = (
+            await self._session.execute(
+                select(Favorite, Space)
+                .join(Space, Space.id == Favorite.space_id)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.workspace_id == workspace_id)
+                .where(Favorite.type == FAVORITE_SPACE)
+                .where(Space.deleted_at.is_(None))
+                .order_by(Favorite.created_at.desc())
+            )
+        ).all()
+
+        allowed = set(await self._members.space_ids_for(user_id))
+        return [(one, space) for one, space in rows if space.id in allowed]
+
+    async def list_templates(
+        self, user_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[tuple[Favorite, Template]]:
+        """Отмеченные шаблоны.
+
+        Отбор тот же, что у самого перечня шаблонов: общий виден всем, свой —
+        только в своём пространстве.
+        """
+        rows = (
+            await self._session.execute(
+                select(Favorite, Template)
+                .join(Template, Template.id == Favorite.template_id)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.workspace_id == workspace_id)
+                .where(Favorite.type == FAVORITE_TEMPLATE)
+                .where(Template.deleted_at.is_(None))
+                .order_by(Favorite.created_at.desc())
+            )
+        ).all()
+
+        allowed = set(await self._members.space_ids_for(user_id))
+        return [
+            (one, template)
+            for one, template in rows
+            if template.space_id is None or template.space_id in allowed
+        ]
+
+    async def add_space(self, space_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        """Отметить пространство.
+
+        В избранное берётся только то, что человек видит: иначе отметка
+        переживает снятие доступа и остаётся ссылкой на закрытое.
+        """
+        space = await self._session.get(Space, space_id)
+        if space is None or space.deleted_at is not None:
+            raise not_found("error.space.space_not_found")
+        if await self._members.role_in_space(user_id, space_id) is None:
+            raise not_found("error.space.space_not_found")
+
+        await self._remember(
+            user_id=user_id,
+            workspace_id=space.workspace_id,
+            kind=FAVORITE_SPACE,
+            column=Favorite.space_id,
+            values={"space_id": space_id},
+        )
+
+    async def add_template(self, template_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        template = await self._session.get(Template, template_id)
+        if template is None or template.deleted_at is not None:
+            raise not_found("error.template.not_found")
+        if (
+            template.space_id is not None
+            and await self._members.role_in_space(user_id, template.space_id) is None
+        ):
+            # «Не найдено», а не «отказано»: шаблон своего пространства не
+            # должен обнаруживаться теми, кто в него не входит.
+            raise not_found("error.template.not_found")
+
+        await self._remember(
+            user_id=user_id,
+            workspace_id=template.workspace_id,
+            kind=FAVORITE_TEMPLATE,
+            column=Favorite.template_id,
+            values={"template_id": template_id},
+        )
+
+    async def _remember(
+        self,
+        *,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        kind: str,
+        column,  # noqa: ANN001 — колонка модели, тип у неё внутренний
+        values: dict,
+    ) -> None:
+        """Записать отметку, если её ещё нет.
+
+        Повторная отметка молчит, а не отказывает: человек нажал звезду дважды,
+        и второе нажатие означает то же самое, что первое.
+        """
+        already = (
+            await self._session.execute(
+                select(Favorite)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.type == kind)
+                .where(column == next(iter(values.values())))
+            )
+        ).scalar_one_or_none()
+        if already is not None:
+            return
+
+        await self._session.execute(
+            insert(Favorite).values(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                type=kind,
+                workspace_id=workspace_id,
+                **values,
+            )
+        )
+        await self._session.commit()
+
+    async def remove_space(self, space_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        """Снять отметку с пространства. Права не проверяются: см. `remove_page`."""
+        await self._session.execute(
+            delete(Favorite)
+            .where(Favorite.user_id == user_id)
+            .where(Favorite.space_id == space_id)
+            .where(Favorite.type == FAVORITE_SPACE)
+        )
+        await self._session.commit()
+
+    async def remove_template(self, template_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        await self._session.execute(
+            delete(Favorite)
+            .where(Favorite.user_id == user_id)
+            .where(Favorite.template_id == template_id)
+            .where(Favorite.type == FAVORITE_TEMPLATE)
+        )
+        await self._session.commit()
+
+    async def add_page(self, page: Page, user_id: uuid.UUID) -> None:
+        # В избранное берётся только то, что человек видит: иначе избранное
+        # переживёт снятие доступа и останется ссылкой на закрытое.
+        await self._access.validate_can_view(page, user_id)
+
+        already = (
+            await self._session.execute(
+                select(Favorite)
+                .where(Favorite.user_id == user_id)
+                .where(Favorite.page_id == page.id)
+            )
+        ).scalar_one_or_none()
+        if already is not None:
+            return
+
+        await self._session.execute(
+            insert(Favorite).values(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                page_id=page.id,
+                type="page",
+                workspace_id=page.workspace_id,
+            )
+        )
+        await self._session.commit()
+
+    async def remove_page(self, page_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        """Снять из избранного.
+
+        Права здесь не проверяются намеренно: убрать свою запись человек должен
+        мочь и тогда, когда доступ к странице у него уже отобрали.
+        """
+        await self._session.execute(
+            delete(Favorite).where(Favorite.user_id == user_id).where(Favorite.page_id == page_id)
+        )
+        await self._session.commit()

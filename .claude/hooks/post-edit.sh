@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Автоформат prettier после Edit/Write/MultiEdit.
-# Зависимости: bash, jq, npx (опционально).
+# Автоформат после Edit/Write/MultiEdit.
+# Зависимости: bash, jq, uv и npx (оба опциональны).
 #
-# Форматируются только apps/server и packages/editor-ext: у них есть
-# собственный .prettierrc (singleQuote, trailingComma all) и линт под него.
+# Приложение форматируется ruff: у него единый стиль, заданный в pyproject.toml,
+# и расхождений в коде нет.
 #
-# apps/client намеренно не форматируется. Своего .prettierrc у клиента нет,
-# а единого стиля кавычек в его коде тоже нет (см. docs/ai-context/code-patterns.md).
-# Прогон prettier по умолчанию давал бы шумные диффы в файлах, которые
-# задача не затрагивала. Форматирование клиента запускается вручную через
-# pnpm --filter client format.
+# Экраны форматируются prettier с плагином для Svelte: конфигурация общая,
+# и её же проверяет `pnpm --filter @tessera/web lint`.
+#
+# Сервис совместного редактирования не форматируется: своего prettier у него
+# нет, а общий сложил бы его код по чужим правилам.
 
 set -euo pipefail
 
@@ -23,21 +23,22 @@ fi
 rel="${file#"$(pwd)/"}"
 
 case "$rel" in
-  apps/server/*|packages/editor-ext/*) ;;
-  *) exit 0 ;;
+  */node_modules/*|*/.venv/*|*/dist/*|*/build/*|*/.svelte-kit/*) exit 0 ;;
 esac
 
 case "$rel" in
-  */node_modules/*|*/dist/*) exit 0 ;;
+  apps/api/*)
+    case "$file" in
+      *.py) command -v uv >/dev/null 2>&1 && uv run --project apps/api ruff format "$file" >/dev/null 2>&1 || true ;;
+    esac
+    ;;
+  apps/web/*|packages/editor-ext/*)
+    case "$file" in
+      *.ts|*.js|*.svelte|*.json|*.css)
+        command -v npx >/dev/null 2>&1 && npx --no-install prettier --write "$file" >/dev/null 2>&1 || true
+        ;;
+    esac
+    ;;
 esac
-
-case "$file" in
-  *.ts|*.tsx|*.js|*.mjs|*.json) ;;
-  *) exit 0 ;;
-esac
-
-if command -v npx >/dev/null 2>&1; then
-  npx --no-install prettier --write "$file" 2>/dev/null || true
-fi
 
 exit 0

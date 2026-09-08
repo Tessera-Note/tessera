@@ -1,0 +1,932 @@
+@import 'tailwindcss';
+
+/**
+ * Оформление: пастельная сиреневая гамма.
+ *
+ * Расстановка и размеры взяты из v1 (шапка 45, боковая панель 300, правая
+ * панель 350, отступ 16) — они проверены работой. Цвет и форма свои: спокойный
+ * сиреневый вместо синего Mantine, мягче края, тише границы.
+ *
+ * Контраст держится по тем же правилам, что и в v1: приглушённый текст и
+ * границы полей ввода темнее фона настолько, чтобы проходить AA. Пастель к
+ * этому не располагает, поэтому значения подобраны, а не взяты «на глаз»:
+ * основной текст 13:1 на светлом, приглушённый 5.4:1, заливка кнопки 5.6:1.
+ *
+ * Цвет в компонент не вписывается: вписанный не переключается вместе с темой,
+ * и обнаруживается это глазами, в тёмной теме, на одном экране из сорока.
+ */
+
+:root,
+:root[data-theme='light'] {
+  /* Тело чуть теплее белого, оболочка на тон гуще: так панель отделяется от
+     содержимого без единой границы. */
+  --surface: #fdfcff;
+  --surface-muted: #f4f1fb;
+  --surface-raised: #ffffff;
+  --surface-hover: #efeafb;
+  --surface-active: #e5dcf8;
+  /* Границы едва заметны: в пастельной гамме линия в полтона режет глаз. */
+  --border: #e6e0f4;
+  /* Рамка поля ввода темнее общей: поле должно быть видно как поле. */
+  --border-input: #b9aed6;
+  --text: #221c33;
+  --text-muted: #635b7d;
+  --placeholder: #8b83a6;
+  --accent: #6d4ac7;
+  --accent-hover: #5c3bb0;
+  --accent-text: #ffffff;
+  --accent-soft: #efe9fd;
+  --danger: #b3405c;
+  --danger-surface: #d4657f;
+}
+
+:root[data-theme='dark'] {
+  /* Тёмная гамма тоже сиреневая, а не серая: иначе переключение темы выглядит
+     сменой продукта. */
+  --surface: #1b1826;
+  --surface-muted: #16131f;
+  --surface-raised: #221e30;
+  --surface-hover: #2b2540;
+  --surface-active: #332c4d;
+  --border: #322b47;
+  --border-input: #4a4166;
+  --text: #e7e3f5;
+  --text-muted: #a79fc2;
+  --placeholder: #8f87ab;
+  --accent: #9b7ef0;
+  --accent-hover: #ab92f5;
+  --accent-text: #1b1826;
+  --accent-soft: #2a2340;
+  --danger: #f0899f;
+  --danger-surface: #c95a75;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-border: var(--border);
+  --color-border-input: var(--border-input);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-placeholder: var(--placeholder);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-accent-soft: var(--accent-soft);
+
+  /* Размеры оболочки v1: шапка 45, боковая панель 300, правая панель 350. */
+  --spacing-header: 45px;
+  --spacing-sidebar: 300px;
+  --spacing-aside: 350px;
+
+  /* Края мягче, чем в v1: четыре пикселя выглядят чертёжно, восемь — спокойно.
+     Поля и кнопки одной высоты, поэтому и скругление у них одно. */
+  --radius-DEFAULT: 8px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Ступени размера шрифта Mantine. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+}
+
+html {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Тень у карточек одна на всё приложение и очень тихая: в пастели заметная
+   тень читается как грязь. */
+@utility card-soft {
+  box-shadow: 0 1px 2px rgb(34 28 51 / 4%);
+}
+
+body {
+  margin: 0;
+  /* Шрифт Mantine по умолчанию: тот же, что видит человек в v1. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+input[type='checkbox'],
+input[type='radio'],
+progress {
+  accent-color: var(--accent);
+}
+
+/* Место ввода в v1 заметно бледнее текста и всё же читаемо: цвет подобран под
+   требование контраста, и повторяется здесь тем же значением. */
+::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
+}
+
+/**
+ * Оформление документа.
+ *
+ * Значения перенесены из `apps/client/src/features/editor/styles/core.css`,
+ * `table.css`, `code.css` и `task-list.css`: размеры, отступы и толщина линий
+ * там выверены работой, и придумывать их заново значило бы получить документ,
+ * который читается иначе, чем в первой версии.
+ *
+ * Цвета взяты не оттуда, а из здешних токенов: гамма своя, роли те же.
+ * Отбор идёт по `.tessera-doc`, чтобы не задеть остальные экраны.
+ */
+.tessera-doc {
+  color: var(--text);
+  font-size: 1rem;
+  /* `--mantine-line-height-xl` в v1 равен 1.65. */
+  line-height: 1.65;
+  font-weight: 400;
+  width: 100%;
+}
+
+.tessera-doc:focus {
+  outline: none;
+}
+
+.tessera-doc > * + * {
+  margin-top: 0.75em;
+}
+
+.tessera-doc p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.tessera-doc ul,
+.tessera-doc ol {
+  padding: 0 1rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.tessera-doc ul {
+  list-style: disc;
+}
+
+.tessera-doc ol {
+  list-style: decimal;
+}
+
+.tessera-doc ul p,
+.tessera-doc ol p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.tessera-doc h1,
+.tessera-doc h2,
+.tessera-doc h3 {
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+/*
+ * Значок «скопировать ссылку на заголовок».
+ *
+ * Его ставит общее расширение заголовков украшением документа, и без этих
+ * правил он занимает отдельную строку под заголовком: видно на странице,
+ * открытой по ссылке, где документ рисуется только на чтение. В первой версии
+ * он лежит в строке заголовка и проявляется при наведении — здесь так же.
+ */
+.tessera-doc h1 > .link-btn,
+.tessera-doc h2 > .link-btn,
+.tessera-doc h3 > .link-btn,
+.tessera-doc h4 > .link-btn,
+.tessera-doc h5 > .link-btn,
+.tessera-doc h6 > .link-btn {
+  position: relative;
+  cursor: pointer;
+}
+
+.tessera-doc h1 > .link-btn > .link-btn-content,
+.tessera-doc h2 > .link-btn > .link-btn-content,
+.tessera-doc h3 > .link-btn > .link-btn-content,
+.tessera-doc h4 > .link-btn > .link-btn-content,
+.tessera-doc h5 > .link-btn > .link-btn-content,
+.tessera-doc h6 > .link-btn > .link-btn-content {
+  position: absolute;
+  left: 5px;
+  top: 0;
+  height: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: var(--color-text-muted);
+}
+
+.tessera-doc h1:hover > .link-btn > .link-btn-content,
+.tessera-doc h2:hover > .link-btn > .link-btn-content,
+.tessera-doc h3:hover > .link-btn > .link-btn-content,
+.tessera-doc h4:hover > .link-btn > .link-btn-content,
+.tessera-doc h5:hover > .link-btn > .link-btn-content,
+.tessera-doc h6:hover > .link-btn > .link-btn-content {
+  opacity: 1;
+}
+
+.tessera-doc h1 {
+  font-size: 1.875rem;
+  margin-top: 1.875rem;
+}
+
+.tessera-doc h2 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.tessera-doc h3 {
+  font-size: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.tessera-doc h4,
+.tessera-doc h5,
+.tessera-doc h6 {
+  line-height: 1.1;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.tessera-doc a {
+  color: var(--text);
+  border-bottom: 0.07em solid var(--border-input);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tessera-doc blockquote {
+  padding-left: 1rem;
+  border-left: 3px solid var(--border-input);
+  margin: 0;
+}
+
+.tessera-doc hr {
+  border: none;
+  border-top: 1px solid var(--border-input);
+}
+
+.tessera-doc code {
+  background-color: var(--surface-muted);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  font-size: 0.9em;
+}
+
+.tessera-doc pre {
+  padding: 0.625rem 1rem;
+  margin: 4px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background-color: var(--surface-muted);
+  border-radius: 8px;
+  tab-size: 4;
+  overflow-x: auto;
+}
+
+/*
+ * Обрамление блока кода: выбор языка и копирование стоят над самим блоком и
+ * показываются по наведению или пока каретка внутри — постоянно висящие, они
+ * мешают читать код.
+ */
+.tessera-code {
+  position: relative;
+}
+
+.tessera-code-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tessera-code:hover .tessera-code-menu,
+.tessera-code:focus-within .tessera-code-menu {
+  opacity: 1;
+}
+
+/* Диаграмма. Ширину задаёт сама библиотека, здесь только место и выравнивание. */
+.tessera-mermaid {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+.tessera-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.tessera-doc pre code {
+  color: inherit;
+  padding: 0;
+  background: none;
+  font-size: 0.875rem;
+}
+
+/*
+ * Закреплённая шапка таблицы.
+ *
+ * Смещение задаёт само расширение переменной `--editor-pin-offset`: оно меряет
+ * его по нижней кромке того, что висит над редактором, — шапки приложения,
+ * заголовка страницы, панели. Здесь только правила прилипания.
+ */
+.tableWrapper.tableWrapperNoOverflow,
+.tableWrapper.tableWrapperNoOverflow table {
+  overflow: visible;
+}
+
+.tableWrapper.tableHeaderPinned table tr:first-child {
+  z-index: 2;
+}
+
+.tableWrapper.tableWrapperNoOverflow.tableHeaderPinned table tr:first-child {
+  position: sticky;
+  top: var(--editor-pin-offset, 90px);
+}
+
+/* Прокручиваемая таблица прилипнуть не может: обёртка обрезает содержимое.
+   Строка вместо этого сдвигается на прокрученное. */
+.tableWrapper.tableHeaderPinned:not(.tableWrapperNoOverflow) table tr:first-child {
+  position: relative;
+  transform: translateY(var(--table-pin-offset, 0px));
+}
+
+/* Сортировка столбца в режиме чтения. Показывается по наведению на шапку и
+   остаётся видимой у столбца, по которому сортируют. */
+.tableReadonlySortChevron {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--surface-active);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  z-index: 1;
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.tessera-doc table th:hover .tableReadonlySortChevron,
+.tableReadonlySortChevron[data-sort] {
+  opacity: 1;
+}
+
+.tableReadonlySortChevron:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.tableReadonlySortChevron svg {
+  display: block;
+}
+
+.tableReadonlySortChevron[data-sort='asc'],
+.tableReadonlySortChevron[data-sort='desc'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tableReadonlySortChevron[data-sort='asc'] svg {
+  transform: rotate(180deg);
+}
+
+/* Подсказка у значка сортировки. Своя, а не браузерная: браузерная
+   появляется через секунду, а решение нажимать принимается раньше. */
+.tableReadonlySortChevron::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  /* Снизу: сверху подсказку обрезала бы прокручиваемая обёртка таблицы. */
+  top: calc(100% + 6px);
+  right: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 120ms ease;
+}
+
+.tableReadonlySortChevron:hover::after {
+  opacity: 1;
+}
+
+/* Перетаскивание строк и столбцов. */
+.table-dnd-preview {
+  padding: 0;
+  background-color: color-mix(in srgb, var(--surface) 30%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.table-dnd-drop-indicator {
+  background-color: var(--accent);
+  z-index: 3;
+}
+
+@media print {
+  .tableWrapper.tableHeaderPinned table tr:first-child {
+    position: static !important;
+    top: auto !important;
+    transform: none !important;
+  }
+
+  .tableReadonlySortChevron {
+    display: none !important;
+  }
+}
+
+/* Таблица в v1 фиксированной раскладки: без этого широкая таблица растягивает
+   страницу. */
+.tessera-doc table {
+  border-collapse: collapse;
+  margin: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tessera-doc th,
+.tessera-doc td {
+  border: 1px solid var(--border-input);
+  box-sizing: border-box;
+  min-width: 1em;
+  padding: 3px 5px;
+  position: relative;
+  vertical-align: top;
+}
+
+.tessera-doc th {
+  background: var(--surface-muted);
+  font-weight: 600;
+  text-align: left;
+}
+
+.tessera-doc th p,
+.tessera-doc td p {
+  margin: 0;
+}
+
+/* Список задач: маркер заменяет флажок, поэтому своя раскладка. */
+.tessera-doc ul[data-type='taskList'] {
+  list-style: none;
+  padding: 0;
+}
+
+.tessera-doc ul[data-type='taskList'] p {
+  margin: 0;
+}
+
+.tessera-doc ul[data-type='taskList'] li {
+  display: flex;
+}
+
+.tessera-doc ul[data-type='taskList'] li > label {
+  padding-top: 0.2rem;
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+}
+
+.tessera-doc ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
+}
+
+.tessera-doc img,
+.tessera-doc video {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/*
+ * Формула. Рисует её KaTeX, здесь только обрамление: место под окно правки,
+ * подсветка выделенного узла и вид пустой и неразобранной формулы — сама
+ * KaTeX ни того, ни другого не знает.
+ */
+.tessera-math {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.25rem;
+  margin: 0 0.1rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.tessera-math-block {
+  display: block;
+  margin: 1rem 0;
+  padding: 0.25rem;
+  text-align: center;
+}
+
+/*
+ * Прокрутка длинной формулы лежит на самой формуле, а не на обрамлении: окно
+ * правки стоит в обрамлении внахлёст, и прокручиваемая область растянулась бы
+ * на его высоту, спрятав формулу за ним.
+ */
+.tessera-math-block > span {
+  display: block;
+  overflow-x: auto;
+}
+
+.tessera-math-selected {
+  background: var(--surface-active);
+}
+
+.tessera-math-empty,
+.tessera-math-error {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+}
+
+.tessera-math-error {
+  color: var(--danger);
+}
+
+.tessera-doc [data-type='details'] {
+  display: flex;
+  padding: 0.5em;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: border 0.3s;
+  width: 100%;
+}
+
+.tessera-doc [data-type='details']:hover {
+  border-color: var(--border);
+}
+
+/*
+ * Свёрнутый раздел. Разметку даёт общее расширение, и она та же, что в v1:
+ * кнопка со стрелкой, обёртка, заголовок и содержимое. Правила ниже перенесены
+ * оттуда же — без них содержимое было раскрыто всегда, а заголовок рисовался
+ * маркером списка: `<summary>` вне `<details>` браузер показывает именно так.
+ */
+.tessera-doc [data-type='detailsButton'] {
+  display: flex;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.tessera-doc [data-type='detailsButton'] > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.tessera-doc [data-type='detailsButton']:hover > div {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.tessera-doc [data-type='detailsContainer'] {
+  flex: 1;
+  padding: 4px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.tessera-doc [data-type='detailsSummary'] {
+  display: block;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.tessera-doc [data-type='detailsSummary']::-webkit-details-marker {
+  display: none;
+}
+
+.tessera-doc [data-type='details'] > [data-type='detailsContainer'] > [data-type='detailsContent'] {
+  display: none;
+}
+
+.tessera-doc
+  [data-type='details'][open]
+  > [data-type='detailsContainer']
+  > [data-type='detailsContent'] {
+  display: block;
+}
+
+.tessera-doc [data-type='details'][open] > [data-type='detailsButton'] {
+  align-items: start;
+}
+
+/* Стрелка поворачивается вниз у раскрытого раздела. */
+.tessera-doc [data-type='details'][open] > [data-type='detailsButton'] .ProseMirror-icon {
+  transform: rotateZ(90deg);
+}
+
+/*
+ * Значок рисуется маской, а не картинкой: цвет берётся у текста, и в тёмной
+ * теме он не остаётся чёрным. Перенесено из v1 (`styles/core.css`).
+ */
+.tessera-doc .ProseMirror-icon {
+  display: inline-block;
+  width: 2em;
+  height: 2em;
+  mask-image: var(--svg);
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  background-color: currentColor;
+  transform: rotateZ(0deg);
+  transition: transform 0.3s;
+}
+
+.tessera-doc .ProseMirror-icon-right-line {
+  --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M12.172 12L9.343 9.173l1.415-1.414L15 12l-4.242 4.242l-1.415-1.414z'/%3E%3C/svg%3E");
+}
+
+/*
+ * Столбцы. Без `display: flex` они вставали друг под другом, то есть теряли
+ * ровно то, ради чего их и заводят. На узком экране столбик и есть верное
+ * поведение: два столбца по сто пикселей не читаются.
+ */
+.tessera-doc [data-type='columns'] {
+  display: flex;
+  margin: 0.75rem 0;
+  padding: 0.5em 0;
+}
+
+.tessera-doc [data-type='columns'] > [data-type='column'] {
+  flex: 1;
+  min-width: 0;
+  padding-right: 1rem;
+}
+
+.tessera-doc [data-type='columns'] > [data-type='column']:last-child {
+  padding-right: 0;
+}
+
+.tessera-doc [data-type='columns'] > [data-type='column'] + [data-type='column'] {
+  border-left: 1px solid transparent;
+  padding-left: 1rem;
+  transition: border 0.3s;
+}
+
+.tessera-doc [data-type='columns']:hover > [data-type='column'] + [data-type='column'] {
+  border-left-color: var(--border);
+}
+
+@media (max-width: 680px) {
+  .tessera-doc [data-type='columns'] {
+    flex-direction: column;
+  }
+
+  .tessera-doc [data-type='columns'] > [data-type='column'] + [data-type='column'] {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
+/* На листе столбцы остаются столбцами: ширина листа это позволяет. */
+@media print {
+  .tessera-doc [data-type='columns'] {
+    flex-direction: row;
+  }
+}
+
+/* Чужой курсор в совместной правке: имя подписывается над меткой. */
+.tessera-doc .collaboration-carets__caret {
+  border-left: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+
+.tessera-doc .collaboration-carets__label {
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  left: -1px;
+  line-height: normal;
+  padding: 0.1rem 0.3rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/*
+ * Метка обсуждения. Значения перенесены из
+ * `apps/client/src/features/editor/styles/core.css`: страницы у первой и
+ * второй версии общие, и один и тот же кусок текста обязан выглядеть
+ * обсуждаемым одинаково.
+ */
+.tessera-doc .comment-mark {
+  background: rgba(255, 215, 0, 0.14);
+  border-bottom: 2px solid rgb(166, 158, 12);
+}
+
+.tessera-doc .comment-mark.resolved {
+  background: none;
+  border-bottom: none;
+}
+
+/*
+ * Подсветка найденного при поиске по документу. Из
+ * `apps/client/src/features/editor/styles/find.css`. Цвета намеренно не из
+ * токенов: они одинаковы в светлой и тёмной гамме, потому что должны
+ * читаться поверх любого текста.
+ */
+.tessera-doc .search-result {
+  background: #ffff65;
+  color: #212529;
+}
+
+.tessera-doc .search-result-current {
+  background: #ffc266;
+  color: #212529;
+}
+
+/*
+ * Поле комментария. Тот же документ, но короче и без своих отступов сверху:
+ * поле на три строки с полем страницы не путается.
+ */
+.tessera-comment {
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.tessera-comment p {
+  margin: 0.25em 0;
+}
+
+.tessera-comment ul,
+.tessera-comment ol {
+  padding: 0 1rem;
+}
+
+.tessera-comment ul {
+  list-style: disc;
+}
+
+.tessera-comment ol {
+  list-style: decimal;
+}
+
+/*
+ * Подсказка в пустом поле. Из
+ * `apps/client/src/features/editor/styles/placeholder.css`: расширение рисует
+ * её псевдоэлементом, и без правила поле выглядит просто пустым.
+ */
+.tessera-comment .is-editor-empty:first-child::before,
+.tessera-comment .is-empty::before,
+.tessera-doc .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
+}
+
+/*
+ * Ответ агента.
+ *
+ * Модель отвечает разметкой Markdown, и без правил она выглядит сплошным
+ * текстом: заголовок неотличим от абзаца, у списка нет маркеров, ссылка не
+ * похожа на ссылку. Отбор по `.chat-answer`, чтобы не задеть остальные экраны.
+ *
+ * Правила те же, что у показа документа: разговор и страница должны читаться
+ * одинаково, иначе один и тот же текст выглядит по-разному в зависимости от
+ * того, где он оказался.
+ */
+.chat-answer > * + * {
+  margin-top: 0.75rem;
+}
+
+.chat-answer h1,
+.chat-answer h2,
+.chat-answer h3,
+.chat-answer h4 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.chat-answer h1 {
+  font-size: 1.35rem;
+}
+
+.chat-answer h2 {
+  font-size: 1.2rem;
+}
+
+.chat-answer h3 {
+  font-size: 1.05rem;
+}
+
+.chat-answer a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.chat-answer ul,
+.chat-answer ol {
+  padding-left: 1.5rem;
+}
+
+.chat-answer ul {
+  list-style: disc;
+}
+
+.chat-answer ol {
+  list-style: decimal;
+}
+
+.chat-answer li + li {
+  margin-top: 0.25rem;
+}
+
+.chat-answer code {
+  background: var(--surface-hover);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.chat-answer pre {
+  background: var(--surface-hover);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.chat-answer pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.chat-answer blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Таблица шире разговора не растягивает его, а прокручивается внутри себя. */
+.chat-answer table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.chat-answer th,
+.chat-answer td {
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+}
+
+.chat-answer th {
+  background: var(--surface-hover);
+  font-weight: 600;
+}

@@ -1,6 +1,6 @@
 ---
 description: Production сборка
-argument-hint: [all | client | server, по умолчанию all]
+argument-hint: [all | web | editor-ext, по умолчанию all]
 ---
 
 Собери проект.
@@ -9,31 +9,29 @@ argument-hint: [all | client | server, по умолчанию all]
 
 | Аргумент | Команда | Результат |
 |---|---|---|
-| `all` | `pnpm build` | `nx run-many -t build`, порядок зависимостей соблюдается |
-| `client` | `pnpm --filter client build` | `tsc`, затем сборка Vite в `apps/client/dist` |
-| `server` | `pnpm --filter server build` | `nest build` в `apps/server/dist` |
+| `all` | `pnpm build` | расширения редактора, затем экраны |
+| `web` | `pnpm --filter @tessera/web build` | шрифты Excalidraw, затем сборка Vite в `apps/web/build` |
+| `editor-ext` | `pnpm --filter @tessera/editor-ext build` | `tsc --build` в `packages/editor-ext/dist` |
+
+Приложение на Python не собирается: образ ставит зависимости через `uv sync` и запускает исходники.
 
 ## Порядок зависимостей
 
-Изолированной сборке сервера нужен `packages/base-formula/dist`, оттуда резолвятся объявления типов. Если каталога нет, сначала:
+Экраны берут типы из `packages/editor-ext/dist`, поэтому пакет собирается первым. Полный `pnpm build` этот порядок соблюдает сам.
 
-```
-pnpm --filter @docmost/base-formula build
-```
-
-Полный `pnpm build` этот порядок обеспечивает сам через `targetDefaults.build.dependsOn` в `nx.json`. Результаты сборки кешируются Nx.
+Сборка экранов начинается с копирования шрифтов Excalidraw в `apps/web/static/excalidraw-assets` (`scripts/copy-excalidraw-assets.mjs`). Шаг обязателен: экземпляр раздаёт шрифты сам, а выгруженный SVG ссылается на путь `/excalidraw-assets/`. Без шага путь отвечает 404, и диаграмма уезжает без букв.
 
 ## Если сборка упала
 
 Прочитать вывод и показать пользователю, не чиня молча. Частые причины.
 
-- отсутствует `packages/base-formula/dist` при изолированной сборке сервера
 - не установлены зависимости, нужен `pnpm install --frozen-lockfile`
-- ошибка типов после правки DTO или сущностей базы, при этом `db.d.ts` не перегенерирован
-- новый алиас добавлен в `apps/server/tsconfig.json`, но не продублирован в `moduleNameMapper` внутри `apps/server/package.json`
+- отсутствует `packages/editor-ext/dist` при изолированной сборке экранов
+- скрипт шрифтов не нашёл пакет `@excalidraw/excalidraw`: зависимости не поставлены
+- ошибка типов после правки DTO на стороне приложения, при этом тип на экране не обновлён
 
 ## После сборки
 
-Показать итоговые размеры чанков клиента из вывода Vite. Маршруты подключаются через `React.lazy`, а Mantine вынесен в отдельную группу `vendor-mantine`. Если размер основного чанка внезапно вырос, проверить, не попал ли редактор или история страницы обратно в него: они намеренно отложены до момента, когда данные страницы разрешились.
+Показать итоговые размеры чанков из вывода Vite. Если размер основного чанка внезапно вырос, проверить, не попал ли в него редактор: он грузится по требованию.
 
-Артефакт `apps/client/dist` нужен серверу: `StaticModule` отдает SPA только при его наличии и подставляет в `index.html` конфигурацию времени выполнения.
+Артефакт `apps/web/build` запускается узлом, `node apps/web/build/index.js`. Статика из `apps/web/static` попадает в сборку целиком.

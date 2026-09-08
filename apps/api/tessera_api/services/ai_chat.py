@@ -1,0 +1,928 @@
+"""Чат с агентом поверх вики.
+
+Беседа приватна: доступ имеет только создатель. Признака общего доступа нет ни в
+схеме, ни здесь, и заводить его нельзя — в беседе оседает содержимое страниц, к
+которым доступ есть у этого человека и может не быть у другого участника
+пространства.
+
+**Своих инструментов у агента почти нет: он берёт инструменты MCP.** Те уже
+проходят проверку прав, и второй набор разошёлся бы с первым. Но степень риска
+живёт здесь, а не в MCP: разрешительный список делит инструменты на читающие,
+пишущие и необратимые, и инструмент вне списка агенту не виден вовсе.
+
+**Необратимое действие агент не выполняет.** Вызов записывает намерение в план,
+план сохраняется в метаданных ответа и ждёт явного решения человека. Смысл в
+том, чтобы человек увидел план целиком, а не соглашался на каждое удаление по
+отдельности.
+
+**План лежит в базе, а не в памяти процесса.** Подтвердить его можно после
+перезагрузки страницы, с другого устройства и через час; он переживает
+перезапуск сервера.
+
+**Захват плана — одно условное обновление, а не проверка перед записью.** Между
+чтением состояния и записью решения два одновременных подтверждения прошли бы
+оба и выполнили необратимые шаги дважды.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import logging
+import re
+import uuid
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from tessera_api.config import Settings
+from tessera_api.domain.errors import AppError, bad_request, not_found
+from tessera_api.infrastructure.ai_client import AiClient, ChatTarget
+from tessera_api.infrastructure.models import AiChat, AiChatMessage, Page
+from tessera_api.infrastructure.queue import JobQueue
+from tessera_api.infrastructure.storage import Storage
+from tessera_api.infrastructure.web_search import WebSearch
+from tessera_api.services.ai import language_from_locale
+from tessera_api.services.ai_settings import AiSettingsService, require_model
+from tessera_api.services.attachment_index import AttachmentIndexService
+from tessera_api.services.attachments import AttachmentService
+from tessera_api.services.mcp import McpService
+from tessera_api.services.page_access import PageAccessService
+from tessera_api.services.realtime import RealtimeService
+
+#: Степень риска инструмента. Разрешительный список, а не свойство самого
+#: инструмента: у MCP их сорок пять, чат берёт подмножество, и классификация по
+#: обратимости принадлежит агенту, а не каналу инструментов.
+logger = logging.getLogger(__name__)
+
+
+def _asked_about(
+    page_ids: list[uuid.UUID] | None, attachment_ids: list[uuid.UUID] | None
+) -> dict | None:
+    """Что человек назвал и приложил. Пусто — метаданных у реплики нет вовсе."""
+    made: dict = {}
+    if page_ids:
+        made["mentionedPageIds"] = [str(one) for one in page_ids]
+    if attachment_ids:
+        made["attachmentIds"] = [str(one) for one in attachment_ids]
+    return made or None
+
+READ = "read"
+WRITE = "write"
+DESTRUCTIVE = "destructive"
+
+AGENT_TOOL_POLICY: dict[str, str] = {
+    # Читающие: ничего не меняют.
+    "list_spaces": READ,
+    "list_pages": READ,
+    "get_page": READ,
+    "search_workspace": READ,
+    "search_semantic": READ,
+    "search_attachments": READ,
+    "search_everything": READ,
+    # Наружу уходит только формулировка запроса, содержимое вики — нет.
+    "search_web": READ,
+    "get_page_breadcrumbs": READ,
+    "get_page_backlinks": READ,
+    "list_page_comments": READ,
+    "list_page_labels": READ,
+    "list_page_history": READ,
+    "list_favorites": READ,
+    "list_templates": READ,
+    "list_bases": READ,
+    "get_base": READ,
+    "list_base_rows": READ,
+    "get_base_row": READ,
+    "list_base_views": READ,
+    "export_base_csv": READ,
+    # Пишущие: обратимы обычными средствами продукта.
+    "create_page": WRITE,
+    "update_page": WRITE,
+    "create_comment": WRITE,
+    "add_page_labels": WRITE,
+    "use_template": WRITE,
+    "create_base": WRITE,
+    "update_base": WRITE,
+    "convert_page_to_base": WRITE,
+    "create_base_property": WRITE,
+    "update_base_property": WRITE,
+    "create_base_row": WRITE,
+    "update_base_row": WRITE,
+    "create_base_view": WRITE,
+    "duplicate_page": WRITE,
+    # Необратимые: вернуть трудно или невозможно.
+    "delete_page": DESTRUCTIVE,
+    "restore_page": DESTRUCTIVE,
+    "move_page": DESTRUCTIVE,
+    "move_page_to_space": DESTRUCTIVE,
+    "delete_comment": DESTRUCTIVE,
+    "delete_base": DESTRUCTIVE,
+    "delete_base_property": DESTRUCTIVE,
+    "delete_base_rows": DESTRUCTIVE,
+    "delete_base_view": DESTRUCTIVE,
+}
+
+#: Сколько прошлых реплик отдавать модели. Больше не помещается в разумный
+#: запрос, а меньше делает агента забывчивым в середине разговора.
+HISTORY_DEPTH = 20
+
+#: Сколько раз подряд агент может звать инструменты в одном ходе. Предел не от
+#: жадности: без него неверно сформулированная задача даёт бесконечный цикл
+#: вызовов, каждый из которых стоит денег.
+#:
+#: Значение из v1. Восьми хватало пяти собственным инструментам, но просьбы
+#: стали составными: перенести десяток страниц — это список пространств, список
+#: страниц и по вызову на каждую. На восьми ходах такая просьба обрывалась на
+#: середине, и обрыв выглядел как ответ.
+MAX_TOOL_ROUNDS = 24
+
+#: Сколько бесед отдавать за раз.
+#: Сколько знаков файла уходит модели. Предел тот же, что у упомянутой
+#: страницы: окно модели общее, и один файл не должен вытеснять из него
+#: разговор целиком.
+FILE_CONTEXT_LIMIT = 1500
+
+CHATS_DEFAULT_LIMIT = 30
+CHATS_MAX_LIMIT = 100
+
+#: Признаки языка. Служебные слова, а не буквы: одна буква посреди фразы
+#: другого языка — промах по клавише, а не смена языка.
+LANGUAGE_MARKERS = {
+    "ru-RU": (
+        "что", "как", "где", "когда", "почему", "который", "нужно", "можно",
+        "это", "если", "чтобы", "пожалуйста", "спасибо",
+    ),
+    "uk-UA": (
+        "що", "як", "де", "коли", "чому", "який", "потрібно", "можна",
+        "це", "якщо", "щоб", "будь", "дякую",
+    ),
+}
+
+#: Буквы, встречающиеся только в одном из двух близких языков. Засчитываются
+#: начиная с двух: одна — опечатка, две — язык.
+EXCLUSIVE_LETTERS = {"uk-UA": set("їієґ"), "ru-RU": set("ыъэё")}
+
+_WORDS = re.compile(r"\w+", re.UNICODE)
+
+
+@dataclass(frozen=True, slots=True)
+class PlanStep:
+    """Шаг плана необратимых действий."""
+
+    tool: str
+    args: dict
+
+
+def detect_language(message: str, history: list[str], locale: str | None) -> str:
+    """Язык ответа выбирает сервер, а не модель.
+
+    На смешанной кириллице модель угадывает по-разному от раза к разу:
+    «которые» даёт русский, «которіе» — украинский. Порядок решения: признаки
+    текущей реплики, затем прежние реплики разговора, затем локаль.
+
+    Короткая реплика без признаков наследует язык разговора: «а если нет?»
+    само по себе не говорит ни о чём, но продолжает начатый язык.
+    """
+    for candidate in [message, *reversed(history)]:
+        found = _language_of(candidate)
+        if found:
+            return language_from_locale(found)
+    return language_from_locale(locale)
+
+
+def _language_of(raw: str) -> str | None:
+    lowered = (raw or "").lower()
+    words = set(_WORDS.findall(lowered))
+
+    scores = {code: len(words & set(markers)) for code, markers in LANGUAGE_MARKERS.items()}
+    for code, letters in EXCLUSIVE_LETTERS.items():
+        # Начиная с двух: одна исключительная буква посреди фразы другого
+        # языка — промах по клавише, а не смена языка.
+        if len(letters & set(lowered)) >= 2:
+            scores[code] = scores.get(code, 0) + 2
+
+    best = max(scores, key=lambda one: scores[one]) if scores else None
+    if best and scores[best] > 0:
+        return best
+    return None
+
+
+def _wire_call(call: dict) -> dict:
+    """Вызов инструмента в виде протокола.
+
+    Исходный объект модели возвращается как есть: у него бывают поля, которых
+    мы не разбираем, и терять их незачем. Собирается заново только если
+    исходного нет — так бывает у ответа, собранного не из потока.
+    """
+    raw = call.get("raw")
+    if isinstance(raw, dict) and raw:
+        return raw
+    return {
+        "id": call.get("id"),
+        "type": "function",
+        "function": {
+            "name": call.get("name") or "",
+            # Аргументы строкой, а не словарём: так их ждёт протокол.
+            "arguments": json.dumps(call.get("arguments") or {}, ensure_ascii=False),
+        },
+    }
+
+
+class AiChatService:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        *,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        client: AiClient | None = None,
+        realtime: RealtimeService | None = None,
+        queue: JobQueue | None = None,
+        storage: Storage | None = None,
+        locale: str | None = None,
+        web: WebSearch | None = None,
+    ) -> None:
+        self._session = session
+        self._settings = settings
+        self._user_id = user_id
+        self._workspace_id = workspace_id
+        self._client = client or AiClient()
+        self._locale = locale
+        self._access = PageAccessService(session)
+        # Хранилище и очередь нужны файлам, приложенным к реплике: их читает и
+        # разбирает та же служба, что и вложения страниц.
+        self._storage = storage
+        self._queue = queue
+        self._tools = McpService(
+            session,
+            settings,
+            user_id=user_id,
+            workspace_id=workspace_id,
+            realtime=realtime,
+            queue=queue,
+            storage=storage,
+            web=web or WebSearch(),
+        )
+
+    # --- беседы -----------------------------------------------------------
+
+    async def _own(self, chat_id: uuid.UUID) -> AiChat:
+        """Беседа, принадлежащая спрашивающему.
+
+        Чужая беседа отвечает «не найдено», а не «нет доступа»: разные отказы
+        позволили бы перебором узнать, что кто-то с кем-то о чём-то говорил.
+        """
+        chat = await self._session.get(AiChat, chat_id)
+        if (
+            chat is None
+            or chat.deleted_at is not None
+            or chat.creator_id != self._user_id
+            or chat.workspace_id != self._workspace_id
+        ):
+            raise not_found("error.ai_chat.chat_not_found")
+        return chat
+
+    async def create_chat(self, title: str | None = None) -> dict:
+        chat_id = uuid.uuid4()
+        self._session.add(
+            AiChat(
+                id=chat_id,
+                workspace_id=self._workspace_id,
+                creator_id=self._user_id,
+                title=(title or "").strip() or None,
+            )
+        )
+        await self._session.commit()
+        return _chat_view(await self._session.get(AiChat, chat_id))
+
+    async def list_chats(self, *, cursor: str | None = None, limit: int = CHATS_DEFAULT_LIMIT):
+        limit = max(1, min(int(limit or CHATS_DEFAULT_LIMIT), CHATS_MAX_LIMIT))
+        stmt = (
+            select(AiChat)
+            .where(AiChat.creator_id == self._user_id)
+            .where(AiChat.workspace_id == self._workspace_id)
+            .where(AiChat.deleted_at.is_(None))
+        )
+        if cursor:
+            # Испорченный курсор даёт первую страницу, а не отказ: он приходит
+            # из закладки и устаревает сам по себе.
+            with contextlib.suppress(ValueError):
+                stmt = stmt.where(AiChat.updated_at < datetime.fromisoformat(cursor))
+        # Второй ключ сортировки обязателен: две беседы, обновлённые в одну
+        # миллисекунду, иначе меняются местами между запросами, и курсор
+        # либо повторяет одну, либо пропускает другую.
+        stmt = stmt.order_by(AiChat.updated_at.desc(), AiChat.id.desc()).limit(limit + 1)
+
+        found = list((await self._session.execute(stmt)).scalars().all())
+        has_more = len(found) > limit
+        found = found[:limit]
+        return {
+            "items": [_chat_view(one) for one in found],
+            "nextCursor": (
+                found[-1].updated_at.isoformat() if has_more and found else None
+            ),
+        }
+
+    async def chat_info(self, chat_id: uuid.UUID) -> dict:
+        chat = await self._own(chat_id)
+        messages = (
+            (
+                await self._session.execute(
+                    select(AiChatMessage)
+                    .where(AiChatMessage.chat_id == chat_id)
+                    .where(AiChatMessage.deleted_at.is_(None))
+                    .order_by(AiChatMessage.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {**_chat_view(chat), "messages": [_message_view(one) for one in messages]}
+
+    async def rename_chat(self, chat_id: uuid.UUID, title: str) -> dict:
+        chat = await self._own(chat_id)
+        chat.title = (title or "").strip() or None
+        chat.updated_at = datetime.now(UTC)
+        await self._session.commit()
+        return _chat_view(chat)
+
+    async def delete_chat(self, chat_id: uuid.UUID) -> None:
+        """Убрать беседу и файлы, приложенные к её репликам.
+
+        Файлы удаляются насовсем, а беседа помечается удалённой: вернуть беседу
+        в продукте нечем, а оставленный файл лежал бы в хранилище вечно — так
+        было в v1, где обработчик уборки не звался ниоткуда.
+
+        Отказ хранилища не отменяет удаления беседы: человек попросил её убрать,
+        и оставлять её из-за неудаления файла было бы странно. Несделанное
+        попадает в журнал.
+        """
+        chat = await self._own(chat_id)
+
+        if self._storage is not None:
+            attachments = AttachmentService(self._session, self._storage, self._queue)
+            for attachment_id in await self._files_of(chat.id):
+                try:
+                    await attachments.delete_own_chat_file(
+                        attachment_id, self._user_id, self._workspace_id
+                    )
+                except Exception:  # noqa: BLE001 — файл не отменяет удаление беседы
+                    logger.info("Файл беседы не удалён: %s", attachment_id)
+
+        chat.deleted_at = datetime.now(UTC)
+        await self._session.commit()
+
+    async def _files_of(self, chat_id: uuid.UUID) -> list[uuid.UUID]:
+        """Файлы, приложенные к репликам беседы. Список лежит в самих репликах."""
+        rows = (
+            await self._session.execute(
+                select(AiChatMessage.message_metadata).where(AiChatMessage.chat_id == chat_id)
+            )
+        ).scalars().all()
+
+        found: list[uuid.UUID] = []
+        for metadata in rows:
+            for raw in (metadata or {}).get("attachmentIds") or []:
+                try:
+                    found.append(uuid.UUID(str(raw)))
+                except (TypeError, ValueError):
+                    continue
+        return found
+
+    async def search_chats(self, query: str, *, limit: int = CHATS_DEFAULT_LIMIT) -> list[dict]:
+        """Поиск по заголовкам и по тексту реплик.
+
+        Два источника с объединением: заголовок беседа получает автоматически и
+        часто не тот, а искомое слово почти всегда сказано в самой переписке.
+        """
+        wanted = (query or "").strip()
+        if not wanted:
+            return []
+
+        limit = max(1, min(int(limit or CHATS_DEFAULT_LIMIT), CHATS_MAX_LIMIT))
+        rows = (
+            await self._session.execute(
+                text(
+                    """
+                    SELECT c.id
+                    FROM ai_chats c
+                    WHERE c.creator_id = :user_id
+                      AND c.workspace_id = :workspace_id
+                      AND c.deleted_at IS NULL
+                      AND (
+                        c.title ILIKE :like
+                        OR EXISTS (
+                            SELECT 1 FROM ai_chat_messages m
+                            WHERE m.chat_id = c.id
+                              AND m.deleted_at IS NULL
+                              AND m.content ILIKE :like
+                        )
+                      )
+                    ORDER BY c.updated_at DESC
+                    LIMIT :limit
+                    """
+                ),
+                {
+                    "user_id": self._user_id,
+                    "workspace_id": self._workspace_id,
+                    "like": f"%{wanted}%",
+                    "limit": limit,
+                },
+            )
+        ).all()
+
+        found = []
+        for row in rows:
+            chat = await self._session.get(AiChat, row[0])
+            if chat is not None:
+                found.append(_chat_view(chat))
+        return found
+
+    # --- инструменты агента ------------------------------------------------
+
+    def agent_tools(self, *, plan_mode: bool = True) -> list[dict]:
+        """Инструменты, которые агент увидит.
+
+        Инструмент, заведомо неисполнимый, в набор не отдаётся: он тратит шаг
+        агента и заканчивается отказом. Поэтому необратимые появляются только
+        в режиме плана — без него их всё равно нечем исполнить.
+        """
+        allowed = []
+        for one in self._tools.definitions():
+            risk = AGENT_TOOL_POLICY.get(one["name"])
+            if risk is None:
+                # Инструмент вне разрешительного списка агенту не виден вовсе:
+                # список — это решение о том, что агенту вообще позволено, а не
+                # свойство самого инструмента.
+                continue
+            if risk == DESTRUCTIVE and not plan_mode:
+                continue
+            allowed.append(one)
+        return allowed
+
+    async def run_tool(
+        self, name: str, arguments: dict, *, plan: list[PlanStep] | None = None
+    ) -> tuple[str, bool]:
+        """Выполнить инструмент от имени агента.
+
+        Необратимый вызов в режиме плана ничего не делает: он добавляет шаг в
+        план и отвечает агенту, что действие запланировано, — чтобы тот
+        продолжил рассуждение и собрал план целиком за один ход.
+        """
+        risk = AGENT_TOOL_POLICY.get(name)
+        if risk is None:
+            return "error.ai_chat.tool_not_allowed", True
+        if risk == DESTRUCTIVE:
+            if plan is None:
+                return "error.ai_chat.tool_not_allowed", True
+            plan.append(PlanStep(tool=name, args=dict(arguments or {})))
+            return '{"status": "planned"}', False
+        return await self._tools.call(name, arguments)
+
+    # --- план -------------------------------------------------------------
+
+    async def resolve_plan(self, message_id: uuid.UUID, decision: str) -> dict:
+        """Решение человека по плану.
+
+        Захват — одно условное обновление, а не проверка перед записью: между
+        чтением состояния и записью два одновременных подтверждения прошли бы
+        оба и выполнили необратимые шаги дважды.
+
+        Исполнение идёт строго по порядку и останавливается на первом отказе.
+        Человек соглашался с планом целиком: в плане «перенести А под Б, затем
+        удалить Б» пропуск первого шага и исполнение второго потеряли бы А.
+        """
+        if decision not in ("confirm", "reject"):
+            raise bad_request("error.ai_chat.unknown_decision")
+
+        message = await self._session.get(AiChatMessage, message_id)
+        if message is None or message.deleted_at is not None:
+            raise not_found("error.ai_chat.message_not_found")
+        await self._own(message.chat_id)
+
+        captured = (
+            await self._session.execute(
+                text(
+                    """
+                    UPDATE ai_chat_messages
+                    SET metadata = jsonb_set(
+                        coalesce(metadata, '{}'::jsonb),
+                        '{planStatus}',
+                        -- Приведение словом, а не двумя двоеточиями:
+                        -- `:имя::тип` в одном запросе разбирается
+                        -- неоднозначно, и подстановка остаётся в тексте.
+                        to_jsonb(cast(:status AS text)),
+                        true
+                    )
+                    WHERE id = :id
+                      -- Два условия закрывают два разных окна. Первое —
+                      -- повторное решение по уже исполненному плану: он
+                      -- перестаёт быть ожидающим сразу после исполнения.
+                      -- Второе — два одновременных подтверждения, пришедших
+                      -- раньше, чем первое успело дописать итог.
+                      AND metadata ? 'pendingPlan'
+                      AND metadata->>'planStatus' IS NULL
+                    RETURNING id
+                    """
+                ),
+                {"id": message_id, "status": "confirmed" if decision == "confirm" else "rejected"},
+            )
+        ).first()
+        if captured is None:
+            # Либо плана нет, либо решение уже принято. Второй раз тот же план
+            # исполняться не должен ни при каких условиях.
+            raise bad_request("error.ai_chat.plan_already_resolved")
+
+        await self._session.commit()
+        await self._session.refresh(message)
+
+        metadata = dict(message.message_metadata or {})
+        steps = list((metadata.get("pendingPlan") or {}).get("steps") or [])
+
+        if decision == "reject":
+            await self._finish_plan(message, metadata, results=[])
+            return {"status": "rejected", "results": []}
+
+        results: list[dict] = []
+        for step in steps:
+            name = str(step.get("tool") or "")
+            # Имя сверяется заново: план лежит в столбце JSON, и исполнение
+            # обязано опираться на разрешительный список, а не на то, что в
+            # этом столбце оказалось.
+            if AGENT_TOOL_POLICY.get(name) != DESTRUCTIVE:
+                results.append(
+                    {"tool": name, "ok": False, "error": "error.ai_chat.tool_not_allowed"}
+                )
+                break
+            answer, failed = await self._tools.call(name, step.get("args") or {})
+            results.append({"tool": name, "ok": not failed, "result": answer})
+            if failed:
+                break
+
+        await self._finish_plan(message, metadata, results=results)
+        return {"status": "confirmed", "results": results}
+
+    async def _finish_plan(
+        self, message: AiChatMessage, metadata: dict, *, results: list[dict]
+    ) -> None:
+        """Записать итог, не стирая чужое.
+
+        Столбец метаданных общий: решение по плану не должно уносить то, что
+        положил туда кто-то другой. План при этом перестаёт быть ожидающим —
+        иначе он предлагался бы к подтверждению снова.
+        """
+        pending = metadata.pop("pendingPlan", None)
+        metadata["plan"] = pending
+        metadata["planResults"] = results
+        message.message_metadata = metadata
+        await self._session.commit()
+
+    # --- разговор ---------------------------------------------------------
+
+    async def _target(self) -> ChatTarget:
+        resolved = await AiSettingsService(self._session, self._settings).resolve(
+            self._workspace_id
+        )
+        if not resolved.usable:
+            raise bad_request("error.ai.not_configured")
+        return ChatTarget(
+            driver=resolved.driver,
+            base_url=resolved.base_url,
+            api_key=resolved.api_key,
+            model=require_model(resolved, chat=True),
+        )
+
+    async def _history(self, chat_id: uuid.UUID) -> list[AiChatMessage]:
+        found = (
+            (
+                await self._session.execute(
+                    select(AiChatMessage)
+                    .where(AiChatMessage.chat_id == chat_id)
+                    .where(AiChatMessage.deleted_at.is_(None))
+                    .order_by(AiChatMessage.created_at.desc())
+                    .limit(HISTORY_DEPTH)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return list(reversed(found))
+
+    async def context_for(self, page_ids: list[uuid.UUID]) -> str:
+        """Материал упомянутых страниц.
+
+        Каждая проходит проверку прав: идентификаторы приходят с клиента как
+        есть, и без проверки модель процитировала бы закрытую страницу тому,
+        кто её и открыть не может.
+        """
+        parts: list[str] = []
+        for page_id in page_ids:
+            page = await self._session.get(Page, page_id)
+            if page is None or page.deleted_at is not None:
+                continue
+            if page.workspace_id != self._workspace_id:
+                continue
+            if not (await self._access.rights(page, self._user_id)).can_view:
+                continue
+            body = (page.text_content or "")[:1500]
+            parts.append(f"## {page.title or ''}\n{body}")
+        return "\n\n".join(parts)
+
+    async def files_for(self, attachment_ids: list[uuid.UUID]) -> str:
+        """Текст приложенных к реплике файлов.
+
+        Читается только своё: вложение разговора принадлежит тому, кто его
+        загрузил, и чужой идентификатор в списке не должен открывать чужой файл.
+        Проверку делает `AttachmentService.authorize_read` — вторая здесь
+        разошлась бы с первой.
+
+        Текст берётся из того же разбора, что и поиск по вложениям. Не
+        разобранное разбирается на месте: файл приложили только что, и ждать
+        часового прохода человек не станет. Картинка и архив текста не дают —
+        модели уходит только имя файла, чтобы она не молчала о том, что файл
+        был.
+        """
+        if not attachment_ids:
+            return ""
+
+        service = AttachmentService(self._session, self._storage, self._queue)
+        index = AttachmentIndexService(self._session, self._storage)
+        parts: list[str] = []
+
+        for attachment_id in attachment_ids:
+            try:
+                found = await service.authorize_read(
+                    attachment_id, self._user_id, self._workspace_id
+                )
+            except AppError:
+                # Чужой или несуществующий файл не отменяет ход разговора.
+                logger.info("Файл разговора не прочитан: %s", attachment_id)
+                continue
+
+            body = found.text_content
+            if not body:
+                try:
+                    # `index` возвращает состояние разбора, а сам текст пишет в
+                    # запись: после разбора её надо перечитать.
+                    await index.index(found.id)
+                    await self._session.refresh(found)
+                    body = found.text_content
+                except Exception:  # noqa: BLE001 — разбор одного файла не роняет ход
+                    logger.info("Файл разговора не разобран: %s", found.id)
+                    body = None
+
+            if body:
+                parts.append(f"## {found.file_name}\n{body[:FILE_CONTEXT_LIMIT]}")
+            else:
+                parts.append(f"## {found.file_name}\n(no text could be read from this file)")
+
+        return "\n\n".join(parts)
+
+    def system_prompt(self, language: str, context: str) -> str:
+        """Что агент знает о себе и о своих возможностях.
+
+        Перенесена из v1 (`ee/ai-chat/ai-chat.service.ts`) вместе с правилами,
+        каждое из которых там появилось после живого случая. Прежняя редакция
+        здесь была короткой и описывала инструменты как «читать и менять вики»:
+        про интернет в ней не говорилось ни слова, и на вопрос о погоде агент
+        отвечал по памяти или отказом, хотя поиск работает и инструмент ему
+        предложен.
+
+        Язык решает сервер, а не модель: на смешанном тексте она угадывает
+        по-разному от раза к разу, и ответ зависел бы от одной опечатки.
+        """
+        base = "\n".join(
+            (
+                "You are the AI assistant built into Tessera, the company knowledge "
+                "wiki. Users come to you to find, explain and maintain the "
+                "documentation kept in Tessera. Answer from the wiki content you are "
+                "given, and say plainly when the wiki does not cover something instead "
+                "of filling the gap with general knowledge presented as fact.",
+                f"Write in {language}. This has already been decided for you from the "
+                "language of the request and the user profile — do not override it "
+                "because a source you found is in another language. It applies to page "
+                "content too, not just to your reply.",
+                # Инструменты названы поимённо: без этого модель не знает, что
+                # выход в интернет у неё вообще есть.
+                "You have tools. Use search_workspace or search_semantic before "
+                "answering anything about the wiki content, and search_web for facts "
+                "that change over time or that the wiki does not cover — today's "
+                "events, weather, recent releases, prices, schedules. Do not answer "
+                "from memory about either, and never say that you cannot search the "
+                "internet from this chat: you can, and the results carry links you "
+                "should cite.",
+                # Замечено на живом случае в v1: агент сам выбрал рынок одной
+                # страны, потому что источник в выдаче оказался региональным, и
+                # подал это как условие задачи.
+                "Do not narrow the request on your own. If the user did not name a "
+                "country, market, region or period, do not pick one because a source "
+                "you found happens to cover it — answer the question as asked and say "
+                "plainly which part you could not confirm.",
+                # Папок в этой вики нет как сущности. Называть родителя папкой
+                # значит обещать поведение, которого нет.
+                "This wiki has no folders. The hierarchy is pages nested under other "
+                "pages, so a \"folder\" is just a page with child pages. Say \"page with "
+                "nested pages\", never \"folder\", and when asked to create a folder, "
+                "create a page and move the others under it.",
+                "Use create_page and update_page to change the wiki. Never ask the "
+                "user for an internal page id: the product does not show one anywhere, "
+                "and a pasted address or a short name is enough. Never refuse a request "
+                "to create a page on the grounds that you cannot create pages.",
+                # Замечено на живом случае в v1: на просьбу собрать топ-13 агент
+                # опубликовал страницу с местами с девятого по тринадцатое и
+                # двумя врезками о том, что данных нет.
+                "Ask before you publish something you know is incomplete. If the user "
+                "asked for a list of N items and you can only confirm a few, or the "
+                "request is ambiguous in a way that changes the answer, ask one short "
+                "question first and create nothing. Never create a page whose body is "
+                "mostly a notice about missing data, placeholders or warning callouts "
+                "explaining what you could not find — that is a report of failure "
+                "dressed up as a document, and it is worse than a question.",
+                "When the user says the choice is yours, they are giving you permission "
+                "to decide, not asking you to prove the choice is unknowable. Pick a "
+                "reasonable interpretation, say in one line which one you picked, and "
+                "deliver the whole thing.",
+                "A tool can answer that the change was refused by the permission "
+                "system. When that happens, tell the user plainly instead of claiming "
+                "the change was made.",
+                "Tessera renders rich Markdown into interactive elements: ```mermaid "
+                "blocks become diagrams, standard Markdown tables become tables, fenced "
+                "code blocks keep their language, blockquotes starting with [!NOTE], "
+                "[!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] become callouts, and "
+                "`- [ ]` becomes a task list. Use them when they fit.",
+                # Повтор в конце, и это не небрежность. Замерено живым ходом: на
+                # вопрос «погода ирпень» модель нашла источник по-английски и
+                # ответила по-английски, хотя указание языка стояло вторым
+                # сверху. Последняя строка подсказки весит больше средней.
+                f"Once more, because search results will be in other languages: your "
+                f"entire reply must be written in {language}.",
+            )
+        )
+        if context:
+            base = f"{base}\n\nPages the user referred to:\n\n{context}"
+        return base
+
+    async def send(
+        self,
+        chat_id: uuid.UUID | None,
+        message: str,
+        *,
+        mentioned_page_ids: list[uuid.UUID] | None = None,
+        attachment_ids: list[uuid.UUID] | None = None,
+    ) -> AsyncIterator[dict]:
+        """Провести ход разговора.
+
+        Отдаются события: заведённая беседа, вызовы инструментов, куски текста
+        и конец. Поток, а не готовый ответ, потому что ход с инструментами
+        длится десятки секунд, и молчание всё это время читается как поломка.
+        """
+        target = await self._target()
+
+        chat = await self._own(chat_id) if chat_id else None
+        if chat is None:
+            created = await self.create_chat(title=message[:80])
+            chat = await self._session.get(AiChat, uuid.UUID(created["id"]))
+            yield {"type": "chat_created", "chat": _chat_view(chat)}
+
+        history = await self._history(chat.id)
+        language = detect_language(
+            message,
+            [one.content or "" for one in history if one.role == "user"],
+            self._locale,
+        )
+
+        self._session.add(
+            AiChatMessage(
+                id=uuid.uuid4(),
+                chat_id=chat.id,
+                workspace_id=self._workspace_id,
+                user_id=self._user_id,
+                role="user",
+                content=message,
+                # Что было названо и приложено, записывается в реплику: по этим
+                # спискам файлы разговора находятся при его удалении, а на
+                # экране видно, о чём человек спрашивал.
+                message_metadata=_asked_about(mentioned_page_ids, attachment_ids),
+            )
+        )
+        await self._session.commit()
+
+        context = await self.context_for(mentioned_page_ids or [])
+        files = await self.files_for(attachment_ids or [])
+        if files:
+            context = f"{context}\n\n{files}" if context else files
+        conversation: list[dict] = [
+            {"role": one.role, "content": one.content or ""} for one in history
+        ]
+        conversation.append({"role": "user", "content": message})
+
+        plan: list[PlanStep] = []
+        calls: list[dict] = []
+        answer = ""
+
+        for _ in range(MAX_TOOL_ROUNDS):
+            step = await self._client.chat_with_tools(
+                target,
+                system=self.system_prompt(language, context),
+                messages=conversation,
+                tools=self.agent_tools(),
+            )
+            if step.text:
+                answer += step.text
+                yield {"type": "content", "content": step.text}
+            if not step.tool_calls:
+                break
+
+            # Вызовы возвращаются модели в её же виде. Наш разобранный вид
+            # (`name`, `arguments` словарём) протокол не принимает: провайдер
+            # отвечает 400, и ход с инструментом не завершается — модель искала
+            # в интернете, находила, а ответа человек не получал.
+            conversation.append(
+                {
+                    "role": "assistant",
+                    "content": step.text or "",
+                    "tool_calls": [_wire_call(one) for one in step.tool_calls],
+                }
+            )
+            for call in step.tool_calls:
+                name = call.get("name") or ""
+                args = call.get("arguments") or {}
+                yield {"type": "tool_call", "name": name, "arguments": args}
+
+                result, failed = await self.run_tool(name, args, plan=plan)
+                calls.append({"id": call.get("id"), "name": name, "args": args, "result": result})
+                yield {"type": "tool_result", "name": name, "isError": failed}
+                conversation.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.get("id"),
+                        "name": name,
+                        "content": result,
+                    }
+                )
+
+        metadata: dict[str, Any] = {}
+        if plan:
+            metadata["pendingPlan"] = {
+                "steps": [{"tool": one.tool, "args": one.args} for one in plan]
+            }
+
+        assistant_id = uuid.uuid4()
+        self._session.add(
+            AiChatMessage(
+                id=assistant_id,
+                chat_id=chat.id,
+                workspace_id=self._workspace_id,
+                role="assistant",
+                content=answer,
+                tool_calls=calls or None,
+                message_metadata=metadata or None,
+            )
+        )
+        chat.updated_at = datetime.now(UTC)
+        await self._session.commit()
+
+        if plan:
+            yield {
+                "type": "plan",
+                "messageId": str(assistant_id),
+                "steps": [{"tool": one.tool, "args": one.args} for one in plan],
+            }
+        yield {"type": "done", "messageId": str(assistant_id)}
+
+
+def _chat_view(chat: AiChat) -> dict:
+    return {
+        "id": str(chat.id),
+        "title": chat.title,
+        "createdAt": chat.created_at.isoformat() if chat.created_at else None,
+        "updatedAt": chat.updated_at.isoformat() if chat.updated_at else None,
+    }
+
+
+def _message_view(one: AiChatMessage) -> dict:
+    return {
+        "id": str(one.id),
+        "role": one.role,
+        "content": one.content,
+        "toolCalls": one.tool_calls,
+        "metadata": one.message_metadata,
+        "createdAt": one.created_at.isoformat() if one.created_at else None,
+    }
+
+
+__all__ = [
+    "AGENT_TOOL_POLICY",
+    "DESTRUCTIVE",
+    "MAX_TOOL_ROUNDS",
+    "READ",
+    "WRITE",
+    "AiChatService",
+    "PlanStep",
+    "detect_language",
+]

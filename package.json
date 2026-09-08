@@ -3,24 +3,13 @@
   "version": "0.95.0",
   "private": true,
   "scripts": {
-    "build": "nx run-many -t build",
-    "start": "pnpm --filter ./apps/server run start:prod",
-    "collab": "pnpm --filter ./apps/server run collab:prod",
-    "collab:dev": "pnpm --filter ./apps/server run collab:dev",
-    "server:build": "nx run server:build",
-    "client:build": "nx run client:build",
-    "editor-ext:build": "nx run @tessera/editor-ext:build",
-    "client:dev": "nx run client:dev",
-    "server:dev": "nx run server:start:dev",
-    "server:start": "nx run server:start:prod",
-    "email:dev": "nx run server:email:dev",
-    "dev": "pnpm concurrently -n \"frontend,backend\" -c \"cyan,green\" \"pnpm run client:dev\" \"pnpm run server:dev\"",
-    "clean": "rm -rf apps/*/dist packages/*/dist apps/client/node_modules/.vite"
+    "build": "pnpm --filter @tessera/editor-ext build && pnpm --filter @tessera/web build",
+    "dev": "pnpm --filter @tessera/web dev",
+    "clean": "rm -rf apps/*/dist packages/*/dist apps/web/.svelte-kit"
   },
   "dependencies": {
     "@braintree/sanitize-url": "7.1.2",
-    "@casl/ability": "6.8.0",
-    "@tessera/editor-ext": "workspace:*",
+    "@docmost/pdf-inspector": "1.9.6",
     "@floating-ui/dom": "1.7.3",
     "@hocuspocus/provider": "3.4.4",
     "@hocuspocus/server": "3.4.4",
@@ -28,6 +17,7 @@
     "@joplin/turndown": "4.0.82",
     "@joplin/turndown-plugin-gfm": "1.0.64",
     "@sindresorhus/slugify": "3.0.0",
+    "@tessera/editor-ext": "workspace:*",
     "@tiptap/core": "3.27.1",
     "@tiptap/extension-audio": "3.27.1",
     "@tiptap/extension-code-block": "3.27.1",
@@ -78,19 +68,9 @@
     "yjs": "^13.6.30"
   },
   "devDependencies": {
-    "@nx/js": "22.6.1",
     "@types/bytes": "3.1.5",
     "@types/qrcode": "1.5.6",
-    "@types/turndown": "5.0.6",
-    "concurrently": "9.2.3",
-    "nx": "22.6.1",
-    "tsx": "^4.21.0"
-  },
-  "workspaces": {
-    "packages": [
-      "apps/*",
-      "packages/*"
-    ]
+    "@types/turndown": "5.0.6"
   },
   "packageManager": "pnpm@10.18.3"
 }
