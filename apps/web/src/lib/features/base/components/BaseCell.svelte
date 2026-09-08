@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { asList, cellText, choicesOf, type CellContext } from '../cells';
+  import { asList, cellText, choicesOf, errorKey, type CellContext } from '../cells';
   import { COMPUTED_TYPES, type PropertyType } from '../types';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { BaseProperty } from '../services/bases';
@@ -21,6 +21,14 @@
   const computed = $derived(COMPUTED_TYPES.includes(type));
   const choices = $derived(choicesOf(property.typeOptions));
   const shown = $derived(cellText(value, type, property.typeOptions, context));
+  /**
+   * Ячейка, которую не удалось посчитать.
+   *
+   * Показывается переводом по коду, а не тем, что пришло с сервера: там лежит
+   * английское пояснение для разработчика, и оно попадало бы человеку с любой
+   * из двенадцати локалей.
+   */
+  const failed = $derived(errorKey(value));
 
   /** Пустая строка означает «очистить»: сервер понимает `null`. */
   function write(raw: string) {
@@ -53,6 +61,12 @@
     показывать нельзя — они из кода, а не из языка человека.
   -->
   <input type="checkbox" checked={value === true} disabled aria-label={property.name} />
+{:else if failed}
+  <!--
+    Ошибка счёта. Красится, но не кричит: соседние ячейки строки посчитаны, и
+    ошибка одной колонки не должна читаться как поломка всей таблицы.
+  -->
+  <span class="block px-2 py-1 text-danger" title={t(failed)}>{t(failed)}</span>
 {:else if !editable || computed}
   <!--
     Только показ. Вычисляемые свойства сюда попадают всегда: их значение

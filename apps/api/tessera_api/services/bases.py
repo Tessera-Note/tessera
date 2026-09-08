@@ -34,6 +34,15 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
+from tessera_api.domain.formula import (
+    Context,
+    FormulaGraph,
+    FormulaParseError,
+    Property,
+    PropertyLink,
+    compile_formula,
+)
+from tessera_api.domain.formula import evaluate as evaluate_formula
 from tessera_api.infrastructure.models import (
     BaseProperty,
     BaseRow,
@@ -115,6 +124,89 @@ def property_id() -> str:
 class BaseRights:
     can_view: bool
     can_edit: bool
+
+
+def _formula_options(
+    source: str,
+    properties: list[BaseProperty],
+    *,
+    candidate_id: str,
+) -> dict[str, Any]:
+    """Разобрать формулу и собрать то, что ляжет в свойство.
+
+    Здесь же ловится круг: колонка, считающая сама себя через соседей, сделала
+    бы таблицу неоткрываемой, а починить её изнутри уже нечем.
+    """
+    name_to_id = {one.name: one.id for one in properties if one.id != candidate_id}
+    types = {one.id: _declared_type(one) for one in properties if one.id != candidate_id}
+
+    try:
+        options = compile_formula(source, name_to_id, types)
+    except FormulaParseError as failure:
+        raise bad_request("error.base.formula_invalid") from failure
+
+    graph = FormulaGraph(
+        [
+            PropertyLink(one.id, one.type, one.type_options)
+            for one in properties
+            if one.id != candidate_id
+        ]
+    )
+    cycle = graph.cycle_with(PropertyLink(candidate_id, "formula", options))
+    if cycle:
+        raise bad_request("error.base.formula_cycle")
+
+    return options
+
+
+#: Во что превращается вид колонки при выводе вида формулы. Виды, которых
+#: формулы не различают, считаются строкой: сравнение и склейка на них работают.
+_RESULT_TYPES = {
+    "number": "number",
+    "checkbox": "boolean",
+    "date": "date",
+    "createdAt": "date",
+    "lastEditedAt": "date",
+}
+
+
+def _result_type(kind: str) -> str:
+    return _RESULT_TYPES.get(kind, "string")
+
+
+def _declared_type(one: BaseProperty) -> str:
+    """Вид значения колонки для проверки формулы.
+
+    У колонки-формулы он записан в её разборе, у обычной выводится из вида.
+    """
+    if one.type == "formula":
+        return (one.type_options or {}).get("resultType", "null")
+    return _result_type(one.type)
+
+
+def apply_formulas(properties: list[BaseProperty], rows: list[BaseRow]) -> None:
+    """Досчитать формулы в ячейках выданных строк.
+
+    Значения не хранятся: колонка-формула считается при выдаче. Хранение
+    означало бы пересчёт всей таблицы при каждой правке соседней ячейки и
+    расхождение между сохранённым и настоящим.
+    """
+    formulas = [one for one in properties if one.type == "formula"]
+    if not formulas:
+        return
+
+    lookup = {one.id: Property(one.id, one.type, one.type_options) for one in properties}
+
+    for row in rows:
+        cells = dict(row.cells or {})
+        context = Context(properties=lookup)
+        for one in formulas:
+            tree = (one.type_options or {}).get("ast")
+            if not tree:
+                continue
+            value = evaluate_formula(tree, cells, context)
+            cells[one.id] = value.as_dict() if hasattr(value, "as_dict") else value
+        row.cells = cells
 
 
 class BaseService:
@@ -371,9 +463,7 @@ class BaseService:
         await self._session.commit()
         return await self.info(page_id, user_id, workspace_id)
 
-    async def info(
-        self, page_id: uuid.UUID, user_id: uuid.UUID, workspace_id: uuid.UUID
-    ) -> dict:
+    async def info(self, page_id: uuid.UUID, user_id: uuid.UUID, workspace_id: uuid.UUID) -> dict:
         page = await self._viewable(page_id, user_id, workspace_id)
         rights = await self.rights(page, user_id)
         return {
@@ -411,9 +501,7 @@ class BaseService:
         await self._publish(page, "base:updated", {"name": values.get("title")})
         return await self.info(page_id, user_id, workspace_id)
 
-    async def delete(
-        self, page_id: uuid.UUID, user_id: uuid.UUID, workspace_id: uuid.UUID
-    ) -> None:
+    async def delete(self, page_id: uuid.UUID, user_id: uuid.UUID, workspace_id: uuid.UUID) -> None:
         """Убрать базу в корзину.
 
         Обычным удалением страницы, а не своим путём: база это страница, и
@@ -459,9 +547,7 @@ class BaseService:
                     "icon": page.icon,
                     "spaceId": str(page.space_id),
                     "baseSchemaVersion": page.base_schema_version or 0,
-                    "properties": [
-                        _property_view(one) for one in await self._properties(page.id)
-                    ],
+                    "properties": [_property_view(one) for one in await self._properties(page.id)],
                     "views": [_view_view(one) for one in await self._views(page.id)],
                 }
             )
@@ -537,8 +623,12 @@ class BaseService:
         position: str,
         is_primary: bool = False,
         type_options: dict | None = None,
+        property_id_value: str | None = None,
     ) -> str:
-        new_id = property_id()
+        # Идентификатор приходит снаружи, когда он нужен до записи: разбор
+        # формулы обязан знать её собственный идентификатор, чтобы не считать
+        # колонку зависимостью самой себя.
+        new_id = property_id_value or property_id()
         self._session.add(
             BaseProperty(
                 id=new_id,
@@ -568,6 +658,13 @@ class BaseService:
             raise bad_request("error.base.unknown_property_type")
 
         existing = await self._properties(page_id)
+        new_id = property_id()
+        if kind == "formula":
+            type_options = _formula_options(
+                str((type_options or {}).get("source") or ""),
+                existing,
+                candidate_id=new_id,
+            )
         new_id = await self._add_property(
             page_id,
             workspace_id,
@@ -575,6 +672,7 @@ class BaseService:
             kind=kind,
             position=next_position(existing[-1].position if existing else None),
             type_options=type_options,
+            property_id_value=new_id,
         )
         version = await self._bump_schema(page)
         await self._session.commit()
@@ -624,7 +722,18 @@ class BaseService:
         if clear_type_options:
             found.type_options = None
         elif type_options is not None:
-            found.type_options = type_options
+            if found.type == "formula" and "source" in type_options:
+                # Формула разбирается заново при каждой правке: изменилось её
+                # выражение или переименовалась колонка, на которую она
+                # ссылается, — дерево обязано пересобраться, иначе оно ссылается
+                # на прежние идентификаторы.
+                found.type_options = _formula_options(
+                    str(type_options.get("source") or ""),
+                    await self._properties(page_id),
+                    candidate_id=property_id_value,
+                )
+            else:
+                found.type_options = type_options
 
         version = await self._bump_schema(page)
         await self._session.commit()
@@ -886,11 +995,7 @@ class BaseService:
         await self._viewable(page_id, user_id, workspace_id)
         limit = max(1, min(int(limit or ROWS_DEFAULT_LIMIT), ROWS_MAX_LIMIT))
 
-        stmt = (
-            select(BaseRow)
-            .where(BaseRow.page_id == page_id)
-            .where(BaseRow.deleted_at.is_(None))
-        )
+        stmt = select(BaseRow).where(BaseRow.page_id == page_id).where(BaseRow.deleted_at.is_(None))
         if cursor:
             stmt = stmt.where(BaseRow.position > cursor)
         stmt = stmt.order_by(BaseRow.position.asc()).limit(limit + 1)
@@ -898,6 +1003,11 @@ class BaseService:
         found = list((await self._session.execute(stmt)).scalars().all())
         has_more = len(found) > limit
         found = found[:limit]
+
+        # Колонки-формулы досчитываются при выдаче, а не хранятся: хранение
+        # означало бы пересчёт всей таблицы после правки соседней ячейки и
+        # расхождение сохранённого с настоящим.
+        apply_formulas(await self._properties(page_id), found)
 
         # Люди разворачиваются один раз на страницу выдачи, а не по строке:
         # у строки два поля с человеком, и запрос на каждое означал бы двести
@@ -1127,6 +1237,10 @@ class BaseService:
             .all()
         )
 
+        # Формулы досчитываются и здесь: выгрузка без них отдавала бы пустые
+        # столбцы там, где на экране стоят значения.
+        apply_formulas(properties, list(rows))
+
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow([one.name for one in properties])
@@ -1141,9 +1255,15 @@ def _csv_value(value: Any) -> str:
 
     Составные значения пишутся как JSON: в CSV нет вложенности, и «[object
     Object]» в выгрузке хуже, чем читаемая строка с фигурными скобками.
+
+    Ячейка-ошибка — исключение: она пишется своим кодом со знаком решётки.
+    Развёрнутый JSON занимал бы всю клетку и прятал остальные столбцы, а код
+    читается и человеком, и таблицей.
     """
     if value is None:
         return ""
+    if isinstance(value, dict) and isinstance(value.get("__err"), str):
+        return f"#{value['__err']}"
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, str | int | float):

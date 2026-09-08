@@ -58,6 +58,41 @@ export function isEmptyCell(value: unknown): boolean {
 }
 
 /**
+ * Ячейка, которую не удалось посчитать.
+ *
+ * Формула сохранена верно, а данные строки не подошли: делить на ноль,
+ * складывать дату со словом. Такая ячейка приходит объектом с кодом в `__err`,
+ * и код — ключ перевода: показывать `msg` значило бы показывать английский
+ * текст, написанный для разработчика.
+ */
+export function errorCode(value: unknown): string | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const found = (value as { __err?: unknown }).__err;
+  return typeof found === 'string' ? found : null;
+}
+
+/**
+ * Ключ перевода для кода ошибки.
+ *
+ * Ключи перечислены целиком, а не собираются подстановкой: проверка словарей
+ * сверяет литералы, и собранный ключ она увидеть не может — недостающий
+ * перевод дошёл бы до человека сырым ключом.
+ */
+const ERROR_KEYS: Record<string, string> = {
+  MISSING_PROP: 'base.formula.error.MISSING_PROP',
+  TYPE_MISMATCH: 'base.formula.error.TYPE_MISMATCH',
+  DIV_BY_ZERO: 'base.formula.error.DIV_BY_ZERO',
+  DATE_INVALID: 'base.formula.error.DATE_INVALID',
+  DEPTH_EXCEEDED: 'base.formula.error.DEPTH_EXCEEDED',
+  DEPENDENCY_ERROR: 'base.formula.error.DEPENDENCY_ERROR'
+};
+
+export function errorKey(value: unknown): string | null {
+  const code = errorCode(value);
+  return code ? (ERROR_KEYS[code] ?? null) : null;
+}
+
+/**
  * Ячейка строкой для показа и для сравнения.
  *
  * Одна функция на оба применения намеренно: отбор «содержит» ищет по тому же
@@ -92,6 +127,9 @@ export function cellText(
       .map((id) => context.pages?.[id]?.title ?? id)
       .join(', ');
   }
+
+  const failed = errorCode(value);
+  if (failed) return `#${failed}`;
 
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);

@@ -64,7 +64,6 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.space.space_not_found": "Space not found",
     "error.favorite.invalid_favorite_type": "Unknown favorite type",
     "error.favorite.pageid_is_required": "Nothing to add to favorites",
-
     "error.space.space_id_required": "A space must be given",
     "error.user.name_invalid": "The name must not be empty and no longer than {{limit}}",
     "error.user.locale_invalid": "This is not a language code",
@@ -97,6 +96,8 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.base.primary_property": "The title property cannot be removed",
     "error.base.last_view": "A base must keep at least one view",
     "error.base.export_too_large": "This base is too large to export at once",
+    "error.base.formula_invalid": "This formula cannot be read. Check the names and brackets",
+    "error.base.formula_cycle": "This formula refers back to itself through other columns",
     "error.mcp.disabled": "The agent tools channel is turned off for this workspace",
     "error.mcp.tool_failed": "The tool could not complete",
     "error.content.transform_unavailable": "The content service is not responding",
