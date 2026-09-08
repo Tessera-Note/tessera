@@ -105,6 +105,7 @@ tessera/
           stores/               состояние на рунах Svelte 5
           i18n/                 словари двенадцати языков и их проверки
       static/locales/           словари, отдаются приложением
+      scripts/                  шаг сборки: шрифты Excalidraw в статику
   packages/
     editor-ext/                 общие расширения Tiptap
   services/
@@ -117,7 +118,7 @@ tessera/
     templates/                  шаблон техдокументации
     deployment-from-scratch.md, open-api.md, future-roadmap.md
   deploy/                       nginx, backup-db.sh, postgres-init, searxng
-  scripts/                      вход на стенд, шрифты Excalidraw, обслуживание базы
+  scripts/                      вход на стенд, сверка образа, данные эмодзи
   .claude/                      конфигурация Claude Code
 ```
 

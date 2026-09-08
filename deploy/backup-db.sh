@@ -6,12 +6,16 @@
 #
 # Restore into a running stack:
 #   gunzip -c backups/tessera-<stamp>.sql.gz \
-#     | docker compose -f deploy/docker-compose.vps.yml exec -T tessera-db psql -U tessera -d tessera
+#     | docker compose -f apps/api/docker-compose.v2.yml exec -T tessera-v2-db \
+#         psql -U tessera -d tessera
 set -euo pipefail
 
 BACKUP_DIR=/backups
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 INTERVAL="${BACKUP_INTERVAL_SECONDS:-86400}"
+# Имя службы базы. Задаётся переменной, потому что боевой состав и стенд
+# называют её по-разному, а зашитое имя молча приводило бы к пустым дампам.
+DB_HOST="${BACKUP_DB_HOST:-tessera-v2-db}"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -27,7 +31,7 @@ while true; do
   # pipefail matters here: without it a failing pg_dump would still exit 0
   # because gzip succeeds, and we would archive a truncated file.
   if pg_dump --format=plain --no-owner --no-privileges \
-       -h tessera-db -U tessera -d tessera | gzip -9 > "$partial"; then
+       -h "$DB_HOST" -U tessera -d tessera | gzip -9 > "$partial"; then
     mv "$partial" "$final"
     echo "[backup] $stamp wrote $final ($(du -h "$final" | cut -f1))"
 
