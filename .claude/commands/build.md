@@ -19,7 +19,7 @@ argument-hint: [all | web | editor-ext, по умолчанию all]
 
 Экраны берут типы из `packages/editor-ext/dist`, поэтому пакет собирается первым. Полный `pnpm build` этот порядок соблюдает сам.
 
-Сборка экранов начинается с копирования шрифтов Excalidraw в `apps/web/static/excalidraw-assets` (`scripts/copy-excalidraw-assets.mjs`). Шаг обязателен: экземпляр раздаёт шрифты сам, а выгруженный SVG ссылается на путь `/excalidraw-assets/`. Без шага путь отвечает 404, и диаграмма уезжает без букв.
+Сборка экранов начинается с копирования шрифтов Excalidraw в `apps/web/static/excalidraw-assets` (`apps/web/scripts/copy-excalidraw-assets.mjs`). Шаг обязателен: экземпляр раздаёт шрифты сам, а выгруженный SVG ссылается на путь `/excalidraw-assets/`. Без шага путь отвечает 404, и диаграмма уезжает без букв.
 
 ## Если сборка упала
 

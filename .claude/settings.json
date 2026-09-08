@@ -22,7 +22,7 @@
       "Bash(uv run ruff check:*)",
       "Bash(uv run alembic upgrade:*)",
       "Bash(node --test:*)",
-      "Bash(node scripts/copy-excalidraw-assets.mjs)",
+      "Bash(node apps/web/scripts/copy-excalidraw-assets.mjs)",
       "Bash(npx prettier --check:*)",
       "Bash(curl -sS --max-time 5 http://localhost:*)",
       "Bash(curl -sS --max-time 5 http://127.0.0.1:*)",

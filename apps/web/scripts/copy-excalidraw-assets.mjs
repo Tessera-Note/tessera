@@ -10,6 +10,10 @@
  * Вызывается из сборки `@tessera/web`, а не хуком `prebuild`: pnpm 10 по
  * умолчанию не запускает pre- и post-скрипты.
  *
+ * Лежит внутри `apps/web`, а не в общем `scripts/`, потому что образ экранов
+ * копирует только `apps/web` и `packages`. Из общего каталога скрипт в образ
+ * не попадал, и сборка вставала на `Cannot find module`.
+ *
  * Каталог пакета ищется резолвингом от манифеста `apps/web`, а не сложением
  * путей: pnpm держит зависимость ссылкой внутрь `node_modules/.pnpm`, и её
  * место зависит от раскладки, а не от имени пакета. Резолвится сам пакет, а не
@@ -25,9 +29,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, '..');
-const webManifest = join(root, 'apps', 'web', 'package.json');
-const target = join(root, 'apps', 'web', 'static', 'excalidraw-assets', 'fonts');
+const web = join(here, '..');
+const webManifest = join(web, 'package.json');
+const target = join(web, 'static', 'excalidraw-assets', 'fonts');
 
 function resolveFonts() {
   const require = createRequire(webManifest);

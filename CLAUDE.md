@@ -149,7 +149,7 @@ docker images -f dangling=true
 - `apps/api/schema/baseline.sql` и `apps/api/schema/after-atlas.sql`. Схема ведется через `schema.hcl` и Atlas, а не правкой снимка
 - `pnpm-lock.yaml` и `apps/api/uv.lock`, регенерируются пакетными менеджерами
 - `node_modules/`, `.venv/`, `apps/web/build/`, `apps/web/.svelte-kit/`, `packages/*/dist/`
-- `apps/web/static/excalidraw-assets/`, кладется сборкой из `scripts/copy-excalidraw-assets.mjs`
+- `apps/web/static/excalidraw-assets/`, кладется сборкой из `apps/web/scripts/copy-excalidraw-assets.mjs`
 - `.env` на запись и модификацию. Чтение разрешено для диагностики подключений к базе и Redis, содержимое не выводить в чат и не коммитить
 - `apps/api/docker-compose.v2.yml`, `apps/api/docker-compose.v2.server.yml`, `apps/api/Dockerfile`, `apps/web/Dockerfile`, `services/collab/Dockerfile` без явного запроса, они завязаны на деплой
 - переименование сервисов в compose-файлах. Имена вида `tessera-v2-api` зашиты во внутренние адреса (`API_INTERNAL_URL`, `PDF_RENDER_BASE_URL`, `--chromium-allow-list` у Gotenberg), переименование ломает отрисовку PDF и серверные загрузчики

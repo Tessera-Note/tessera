@@ -18,7 +18,7 @@ data
 id_rsa*
 id_ed25519*
 # Шрифты Excalidraw кладёт в статику сборка `@tessera/web`
-# (scripts/copy-excalidraw-assets.mjs). В индексе им делать нечего.
+# (apps/web/scripts/copy-excalidraw-assets.mjs). В индексе им делать нечего.
 apps/web/static/excalidraw-assets/
 
 # compiled output

@@ -19,7 +19,7 @@
 - Install with `uv sync --project apps/api` and `pnpm install --frozen-lockfile`.
 - pnpm settings (`overrides`) live in `pnpm-workspace.yaml`, not in the `pnpm` field of `package.json` — pnpm 11 silently ignores the latter.
 - Layers point one way: `api` knows `services`, `services` knows `domain` and `infrastructure`; there are no reverse edges.
-- `pnpm build` builds `packages/editor-ext` and then `apps/web`. The web build first copies the Excalidraw fonts into `apps/web/static` (`scripts/copy-excalidraw-assets.mjs`), because the instance serves them itself instead of a CDN.
+- `pnpm build` builds `packages/editor-ext` and then `apps/web`. The web build first copies the Excalidraw fonts into `apps/web/static` (`apps/web/scripts/copy-excalidraw-assets.mjs`), because the instance serves them itself instead of a CDN.
 
 ## Environment And Data
 

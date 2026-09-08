@@ -35,7 +35,7 @@ deny_rules=(
   '(^|/)\.venv/##создаётся uv'
   '^apps/web/build/##артефакт сборки'
   '^apps/web/\.svelte-kit/##кеш SvelteKit'
-  '^apps/web/static/excalidraw-assets/##кладётся сборкой, scripts/copy-excalidraw-assets.mjs'
+  '^apps/web/static/excalidraw-assets/##кладётся сборкой, apps/web/scripts/copy-excalidraw-assets.mjs'
   '^packages/[^/]+/dist/##артефакт сборки'
   '^\.env$##секреты, запись запрещена, чтение для диагностики разрешено'
   '^\.env\.##секреты, запись запрещена'
