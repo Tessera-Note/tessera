@@ -84,11 +84,13 @@ import { common, createLowlight } from 'lowlight';
 import { AutoJoiner } from './extensions/auto-joiner';
 import { CleanStyles } from './extensions/clean-styles';
 import { MarkdownClipboard } from './extensions/markdown-clipboard';
+import { EmbedPaste } from './extensions/embed-paste';
 import type { AnyExtension, Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Component } from 'svelte';
 import { svelteNodeView, type NodeViewProps } from './node-view.svelte';
 import BaseEmbedView from './views/BaseEmbedView.svelte';
+import EmbedView from './views/EmbedView.svelte';
 import DiagramView from './views/DiagramView.svelte';
 import MediaView from './views/MediaView.svelte';
 import MentionView from './views/MentionView.svelte';
@@ -197,10 +199,13 @@ const MathBlockNode = withView(MathBlock as never, MathView as never, {
 });
 
 /**
- * Встраивание внешнего ролика рисуется своей разметкой: показывать там нечего
- * сверх того, что записано в узле.
+ * Встраивание внешнего ролика показывается проигрывателем.
+ *
+ * Своей разметкой узел рисовал ссылку: и вставленный адрес, и пункт меню давали
+ * строку, по которой надо уходить на сторонний сайт. Отображение перенесено из
+ * первой версии — окно проигрывателя, а пока адреса нет, поле для него.
  */
-const EmbedNode = withoutNodeView(Embed as never);
+const EmbedNode = withView(Embed as never, EmbedView as never);
 
 /**
  * Включения. У блока-источника содержимое правит сам редактор, поэтому его
@@ -300,6 +305,9 @@ export function editorExtensions(translate: Translate = (key) => key): AnyExtens
     // Разбор вставленного простого текста как Markdown и копирование списка
     // Markdown'ом.
     MarkdownClipboard.configure({ transformPastedText: true }),
+    // Раньше разбора буфера: тот забирает вставленную ссылку себе, и до
+    // правил вставки ролика дело не доходит.
+    EmbedPaste,
     TrailingNode,
     TextStyle,
     Color,
