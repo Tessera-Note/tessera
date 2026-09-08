@@ -2142,6 +2142,7 @@
   "error.page.sync_block_not_found": "Связанный блок не найден",
   "error.page.target_parent_page_not_found": "Страница назначения не найдена",
   "error.page.targets_not_found": "Указанные люди или группы не найдены",
+  "error.page.title_changed_elsewhere": "Пока вы правили, страницу переименовал кто-то другой. Обновите, чтобы увидеть новое название",
   "error.page.title_required": "Странице нужно название или содержимое",
   "error.page.too_many_targets": "Слишком много получателей доступа за раз",
   "error.page.unknown_role": "Неизвестная роль доступа",

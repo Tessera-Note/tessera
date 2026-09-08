@@ -2142,6 +2142,7 @@
   "error.page.sync_block_not_found": "Пов'язаний блок не знайдено",
   "error.page.target_parent_page_not_found": "Сторінку призначення не знайдено",
   "error.page.targets_not_found": "Вказаних людей або груп не знайдено",
+  "error.page.title_changed_elsewhere": "Поки ви редагували, сторінку перейменував хтось інший. Оновіть, щоб побачити нову назву",
   "error.page.title_required": "Сторінці потрібна назва або вміст",
   "error.page.too_many_targets": "Забагато отримувачів доступу за раз",
   "error.page.unknown_role": "Невідома роль доступу",

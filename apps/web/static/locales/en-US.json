@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "Sync block not found",
   "error.page.target_parent_page_not_found": "Target parent page not found",
   "error.page.targets_not_found": "Those people or groups were not found",
+  "error.page.title_changed_elsewhere": "Someone renamed this page while you were editing. Refresh to see the new title",
   "error.page.title_required": "The page needs a title or content",
   "error.page.too_many_targets": "Too many recipients at once",
   "error.page.unknown_role": "Unknown access role",

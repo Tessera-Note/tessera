@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "Synchronisierter Block nicht gefunden",
   "error.page.target_parent_page_not_found": "Die übergeordnete Zielseite wurde nicht gefunden",
   "error.page.targets_not_found": "Diese Personen oder Gruppen wurden nicht gefunden",
+  "error.page.title_changed_elsewhere": "Jemand hat diese Seite umbenannt, während Sie bearbeitet haben. Neu laden, um den neuen Titel zu sehen",
   "error.page.title_required": "Die Seite braucht einen Titel oder Inhalt",
   "error.page.too_many_targets": "Zu viele Empfänger auf einmal",
   "error.page.unknown_role": "Unbekannte Zugriffsrolle",

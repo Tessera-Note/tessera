@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "同期ブロックが見つかりません",
   "error.page.target_parent_page_not_found": "移動先の親ページが見つかりません",
   "error.page.targets_not_found": "指定された人またはグループが見つかりません",
+  "error.page.title_changed_elsewhere": "編集中に別の人がこのページの名前を変更しました。再読み込みすると新しい名前が表示されます",
   "error.page.title_required": "ページには題名か内容が必要です",
   "error.page.too_many_targets": "一度に指定した相手が多すぎます",
   "error.page.unknown_role": "不明なアクセス権限です",

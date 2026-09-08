@@ -221,6 +221,57 @@ class TestUpdate:
         assert updated.text_content == "текст"
 
 
+    async def test_a_rename_over_someone_elses_is_refused(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Название живёт вне совместного документа.
+
+        Правки текста сходятся сами, а название сохраняется обычным запросом.
+        Двое, открывшие страницу, держат каждый своё, и раньше побеждал
+        сохранивший последним — молча, без единого следа. Теперь правка поверх
+        чужой отвергается: правящий видел не то название, что лежит сейчас.
+        """
+        service = PageService(session)
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Начальное",
+        )
+
+        # Сосед переименовал, пока этот держал страницу открытой.
+        await service.update(page=page, user_id=world["owner"].id, title="Чужое название")
+
+        with pytest.raises(AppError) as failure:
+            await service.update(
+                page=page,
+                user_id=world["owner"].id,
+                title="Своё название",
+                expected_title="Начальное",
+            )
+        assert failure.value.code == "error.page.title_changed_elsewhere"
+
+    async def test_a_rename_over_what_was_seen_goes_through(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Защита касается только расхождения: обычное переименование работает."""
+        service = PageService(session)
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Начальное",
+        )
+
+        changed = await service.update(
+            page=page,
+            user_id=world["owner"].id,
+            title="Новое",
+            expected_title="Начальное",
+        )
+        assert changed.title == "Новое"
+
+
 class TestListings:
     """Перечни страниц: недавние и заведённые человеком.
 

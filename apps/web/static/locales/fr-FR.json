@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "Bloc synchronisé introuvable",
   "error.page.target_parent_page_not_found": "La page parente de destination est introuvable",
   "error.page.targets_not_found": "Ces personnes ou groupes sont introuvables",
+  "error.page.title_changed_elsewhere": "Quelqu'un a renommé cette page pendant votre modification. Actualisez pour voir le nouveau titre",
   "error.page.title_required": "La page doit avoir un titre ou du contenu",
   "error.page.too_many_targets": "Trop de destinataires à la fois",
   "error.page.unknown_role": "Rôle d'accès inconnu",

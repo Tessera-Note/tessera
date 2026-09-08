@@ -115,6 +115,10 @@ class UpdatePageRequest(msgspec.Struct):
     title: str | None = None
     content: dict | None = None
     icon: str | None = None
+    #: Название, которое видел правящий. Служит защитой от затирания: если за
+    #: это время его сменил другой, правка отвергается. Поле необязательное —
+    #: внешние обращения и старые клиенты работают как прежде.
+    expectedTitle: str | None = None  # noqa: N815 — имя поля рядом с title
 
 
 class TrashRequest(msgspec.Struct):
@@ -282,6 +286,7 @@ class PageController(Controller):
             title=data.title,
             content=data.content,
             icon=data.icon,
+            expected_title=data.expectedTitle,
         )
         return _page_view(updated)
 

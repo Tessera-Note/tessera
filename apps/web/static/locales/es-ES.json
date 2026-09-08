@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "No se encontró el bloque sincronizado",
   "error.page.target_parent_page_not_found": "No se encontró la página superior de destino",
   "error.page.targets_not_found": "No se encontraron esas personas o grupos",
+  "error.page.title_changed_elsewhere": "Alguien renombró esta página mientras la editaba. Actualice para ver el nuevo título",
   "error.page.title_required": "La página necesita un título o contenido",
   "error.page.too_many_targets": "Demasiados destinatarios a la vez",
   "error.page.unknown_role": "Rol de acceso desconocido",

@@ -44,6 +44,7 @@
     updatePage,
     watchPage
   } from '$lib/features/page/services/pages';
+  import { onRealtime } from '$lib/features/realtime/socket';
   import { createTemplate } from '$lib/features/template/services/templates';
   import { downloadPdf, exportPagePdf, listFileTasks } from '$lib/features/page/services/pdf';
   import { locale } from '$lib/stores/i18n.svelte';
@@ -109,9 +110,47 @@
     }
   }
 
+  /**
+   * Название страницы, каким его видит этот экран.
+   *
+   * Держится отдельно от `data`, потому что меняется двумя путями: своей
+   * правкой и событием о чужой. Без местного состояния чужое переименование
+   * доходило бы только перезагрузкой, а сохранение поверх затирало бы его.
+   */
+  let heading = $state<string | null>(null);
+  /** Значок страницы. Меняется теми же двумя путями, что и название. */
+  let badge = $state<string | null>(null);
+  $effect(() => {
+    heading = data.page.title ?? null;
+    badge = data.page.icon ?? null;
+  });
+
+  /**
+   * Чужое переименование приходит событием и обновляет поле.
+   *
+   * Название живёт вне совместного документа: правки текста сходятся сами, а
+   * название сохраняется обычным запросом. Раньше двое, открывшие одну
+   * страницу, держали каждый своё, и побеждал сохранивший последним — молча.
+   */
+  $effect(() => {
+    return onRealtime((event) => {
+      if (event.operation !== 'page:heading:updated') return;
+      if (event.pageId !== data.page.id) return;
+      heading = (event.title as string | null) ?? null;
+      badge = (event.icon as string | null) ?? null;
+    });
+  });
+
   const rename = (title: string) =>
     act(async () => {
-      await updatePage({ pageId: data.page.id, title });
+      // Серверу отдаётся то название, которое видел правящий: если за это
+      // время его сменил другой, правка будет отвергнута, а не затрёт чужую.
+      await updatePage({
+        pageId: data.page.id,
+        title,
+        expectedTitle: heading ?? ''
+      });
+      heading = title;
       // Название видно и в дереве, и в хлебных крошках: перечитать надо всё.
       await invalidateAll();
     });
@@ -166,6 +205,7 @@
   const setIcon = (icon: string) =>
     act(async () => {
       await updatePage({ pageId: data.page.id, icon });
+      badge = icon;
       choosing = false;
       // Значок виден и в дереве, и в хлебных крошках: перечитать надо всё.
       await invalidateAll();
@@ -180,6 +220,7 @@
   const clearIcon = () =>
     act(async () => {
       await updatePage({ pageId: data.page.id, icon: '' });
+      badge = null;
       choosing = false;
       await invalidateAll();
     });
@@ -533,18 +574,18 @@
         </button>
         {#if choosing}
           <EmojiPicker
-            current={data.page.icon}
+            current={badge}
             onpick={setIcon}
             onclear={clearIcon}
             onclose={() => (choosing = false)}
           />
         {/if}
-      {:else if data.page.icon}
-        <span class="shrink-0 text-3xl leading-tight" aria-hidden="true">{data.page.icon}</span>
+      {:else if badge}
+        <span class="shrink-0 text-3xl leading-tight" aria-hidden="true">{badge}</span>
       {/if}
 
       <PageTitle
-        title={data.page.title}
+        title={heading}
         editable={canEdit && editing}
         onsave={rename}
         onleave={() => document.querySelector<HTMLElement>('.tiptap')?.focus()}

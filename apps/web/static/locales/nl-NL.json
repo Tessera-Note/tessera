@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "Gesynchroniseerd blok niet gevonden",
   "error.page.target_parent_page_not_found": "De bovenliggende doelpagina is niet gevonden",
   "error.page.targets_not_found": "Deze personen of groepen zijn niet gevonden",
+  "error.page.title_changed_elsewhere": "Iemand heeft deze pagina hernoemd tijdens het bewerken. Vernieuw om de nieuwe titel te zien",
   "error.page.title_required": "De pagina heeft een titel of inhoud nodig",
   "error.page.too_many_targets": "Te veel ontvangers tegelijk",
   "error.page.unknown_role": "Onbekende toegangsrol",

@@ -67,7 +67,19 @@ export function createPage(
  * видел. Через этот путь идут только название и значок.
  */
 export function updatePage(
-  values: { pageId: string; title?: string; icon?: string },
+  values: {
+    pageId: string;
+    title?: string;
+    icon?: string;
+    /**
+     * Название, которое видел правящий.
+     *
+     * Служит защитой от затирания: название живёт вне совместного документа, и
+     * без этого довода сохранение из вкладки, не знавшей о чужом
+     * переименовании, молча перезаписывало бы его.
+     */
+    expectedTitle?: string;
+  },
   fetcher?: typeof fetch
 ) {
   return post<PageBody>('/api/pages/update', values, { fetcher });

@@ -30,6 +30,10 @@ SLUG_LENGTH = 10
 #: написанный клиент.
 REFETCH_TREE = "refetchRootTreeNodeEvent"
 
+#: Название или значок страницы изменились. Своё имя, а не перезапрос дерева:
+#: открытая страница держит название в поле ввода, и дерево её не касается.
+PAGE_HEADING_UPDATED = "page:heading:updated"
+
 
 def generate_slug_id() -> str:
     return "".join(secrets.choice(SLUG_ALPHABET) for _ in range(SLUG_LENGTH))
@@ -185,6 +189,27 @@ class PageService:
         await self._reindex(created)
         return created
 
+    async def _announce_heading(self, page: Page) -> None:
+        """Разослать новое название и значок страницы.
+
+        Отдельным событием, а не перезапросом дерева: дерево показывает
+        название в списке, а открытая страница держит его в поле ввода, и
+        обновлять его нечем.
+        """
+        if self._realtime is None:
+            return
+        await self._realtime.publish_page_event(
+            self._session,
+            page,
+            {
+                "operation": PAGE_HEADING_UPDATED,
+                "pageId": str(page.id),
+                "title": page.title,
+                "icon": page.icon,
+                "updatedById": str(page.last_updated_by_id) if page.last_updated_by_id else None,
+            },
+        )
+
     async def update(
         self,
         *,
@@ -193,8 +218,22 @@ class PageService:
         title: str | None = None,
         content: dict | None = None,
         icon: str | None = None,
+        expected_title: str | None = None,
     ) -> Page:
+        """Правка страницы.
+
+        `expected_title` — то название, которое видел правящий. Если за это
+        время его сменил кто-то другой, правка отвергается: название живёт вне
+        совместного документа, и запись поверх затирала бы чужое молча.
+        Проверяется только когда довод передан: старые вызовы и внешние
+        обращения работают как прежде.
+        """
         await self._access.validate_can_edit(page, user_id)
+
+        if title is not None and expected_title is not None:
+            current = page.title or ""
+            if current != expected_title:
+                raise bad_request("error.page.title_changed_elsewhere")
 
         if content is not None:
             # Версия пишется до правки, а не после: она обязана хранить то, что
@@ -228,6 +267,12 @@ class PageService:
         # и на неё: разделять пришлось бы по составу переданных полей, а
         # ошибка в таком разделении оставляла бы дерево устаревшим — то есть
         # дороже лишнего перезапроса.
+        if title is not None or icon is not None:
+            # Название и значок правятся не через совместный документ, а
+            # обычным запросом. Без этого события чужая вкладка держала бы
+            # прежнее название до перезагрузки — и сохранение из неё затирало
+            # бы правку соседа.
+            await self._announce_heading(updated)
         if title is not None or icon is not None or content is not None:
             await self._refresh_tree(updated)
         if content is not None or title is not None:

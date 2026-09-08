@@ -2134,6 +2134,7 @@
   "error.page.sync_block_not_found": "未找到同步块",
   "error.page.target_parent_page_not_found": "未找到目标上级页面",
   "error.page.targets_not_found": "未找到这些人员或群组",
+  "error.page.title_changed_elsewhere": "您编辑期间有人重命名了此页面。刷新后可看到新名称",
   "error.page.title_required": "页面需要标题或内容",
   "error.page.too_many_targets": "一次指定的对象过多",
   "error.page.unknown_role": "未知的访问角色",
