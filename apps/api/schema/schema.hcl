@@ -2973,6 +2973,11 @@ table "spaces" {
     on {
       column = column.workspace_id
     }
+    # Только живые пространства. Удаление здесь мягкое, и без этого условия имя
+    # удалённого оставалось бы занятым навсегда: проверка в коде смотрит на
+    # признак удаления, а ограничение — нет, и попытка занять освободившееся имя
+    # падала пятисотым вместо внятного отказа.
+    where = "(deleted_at IS NULL)"
   }
   index "idx_spaces_workspace_id" {
     columns = [column.workspace_id]
@@ -2982,8 +2987,12 @@ table "spaces" {
     columns = [column.creator_id]
     where   = "((is_personal = true) AND (deleted_at IS NULL))"
   }
-  unique "spaces_slug_workspace_id_unique" {
+  index "spaces_slug_workspace_id_unique" {
+    unique = true
     columns = [column.slug, column.workspace_id]
+    # Индексом, а не ограничением: ограничение уникальности нельзя ограничить
+    # условием, а условие здесь и есть весь смысл — см. соседний индекс.
+    where = "(deleted_at IS NULL)"
   }
 }
 table "templates" {

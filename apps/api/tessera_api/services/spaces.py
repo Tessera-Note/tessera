@@ -175,9 +175,7 @@ class SpaceService:
             counter += 1
 
         try:
-            return await self.create(
-                actor, workspace_id, name=title, slug=short, personal=True
-            )
+            return await self.create(actor, workspace_id, name=title, slug=short, personal=True)
         except IntegrityError as failure:
             # Кнопку нажали дважды, и второе нажатие обогнало первую запись.
             # Проверка выше этого не ловит: между нею и вставкой есть время.
@@ -262,7 +260,14 @@ class SpaceService:
             space_id=space_id,
             metadata={"name": clean, "slug": short},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as failure:
+            # Двое заняли одно короткое имя разом: проверка выше этого не ловит,
+            # между нею и записью есть время. Правило держит база, а человеку
+            # нужен тот же внятный отказ, что и при обычном совпадении.
+            await self._session.rollback()
+            raise bad_request("error.space.slug_taken") from failure
         return await self._session.get(Space, space_id)
 
     async def update(
@@ -334,7 +339,13 @@ class SpaceService:
             space_id=space.id,
             changes={"fields": changed},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as failure:
+            # Та же гонка, что и при создании: имя заняли между проверкой и
+            # записью. Отказ здесь тот же, что при обычном совпадении.
+            await self._session.rollback()
+            raise bad_request("error.space.slug_taken") from failure
         await self._session.refresh(space)
         return space
 
@@ -576,9 +587,7 @@ class SpaceService:
         affected = await self._members_of(user_id=user_id, group_id=group_id)
 
         await self._session.execute(
-            update(SpaceMember)
-            .where(SpaceMember.id == member.id)
-            .values(deleted_at=_now())
+            update(SpaceMember).where(SpaceMember.id == member.id).values(deleted_at=_now())
         )
         await self._audit.log(
             event=AuditEvent.SPACE_MEMBER_REMOVED,
@@ -587,8 +596,10 @@ class SpaceService:
             user_id=actor.id,
             workspace_id=workspace_id,
             space_id=space.id,
-            metadata={"userId": str(user_id) if user_id else None,
-                      "groupId": str(group_id) if group_id else None},
+            metadata={
+                "userId": str(user_id) if user_id else None,
+                "groupId": str(group_id) if group_id else None,
+            },
         )
         await self._session.commit()
 
@@ -709,9 +720,7 @@ class SpaceService:
             stmt = stmt.where(SpaceMember.deleted_at.is_(None))
         return [one for one in (await self._session.execute(stmt)).scalars() if one]
 
-    async def _forget_without_access(
-        self, space_id: uuid.UUID, user_ids: list[uuid.UUID]
-    ) -> None:
+    async def _forget_without_access(self, space_id: uuid.UUID, user_ids: list[uuid.UUID]) -> None:
         """Снять подписки и избранное у тех, кто потерял доступ.
 
         Проверяется именно потеря доступа, а не факт исключения: человек мог
@@ -728,9 +737,7 @@ class SpaceService:
 
         pages = select(Page.id).where(Page.space_id == space_id)
         await self._session.execute(
-            delete(Watcher)
-            .where(Watcher.user_id.in_(lost))
-            .where(Watcher.page_id.in_(pages))
+            delete(Watcher).where(Watcher.user_id.in_(lost)).where(Watcher.page_id.in_(pages))
         )
         await self._session.execute(
             delete(Favorite)

@@ -62,7 +62,6 @@ async def _none() -> None:
     return None
 
 
-
 async def _person(
     session: AsyncSession,
     workspace,
@@ -88,7 +87,9 @@ async def _group(session: AsyncSession, workspace, *members: uuid.UUID) -> Group
     group_id = uuid.uuid4()
     await session.execute(
         insert(Group).values(
-            id=group_id, name=f"Группа {group_id.hex[:4]}", is_default=False,
+            id=group_id,
+            name=f"Группа {group_id.hex[:4]}",
+            is_default=False,
             workspace_id=workspace.id,
         )
     )
@@ -137,9 +138,7 @@ class TestCreate:
         space = await SpaceService(session).create(owner, workspace.id, name="Отдел Продаж")
         assert space.slug == "отдел-продаж"
 
-    async def test_a_taken_slug_is_refused(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_taken_slug_is_refused(self, session: AsyncSession, workspace, owner) -> None:
         """Короткое имя стоит в адресе: два одинаковых означают, что одно из
         пространств недостижимо по ссылке."""
         service = SpaceService(session)
@@ -149,9 +148,41 @@ class TestCreate:
             await service.create(owner, workspace.id, name="Другое", slug="общее")
         assert failure.value.code == "error.space.slug_taken"
 
-    async def test_an_empty_name_is_refused(
+    async def test_the_slug_of_a_deleted_space_is_free_again(
         self, session: AsyncSession, workspace, owner
     ) -> None:
+        """Короткое имя удалённого пространства освобождается.
+
+        Удаление здесь мягкое, и уникальность в базе раньше не смотрела на
+        признак удаления: имя оставалось занятым навсегда, а попытка занять его
+        падала пятисотым — проверка в коде считала имя свободным, а запись
+        отвергалась ограничением. В первой версии этого не было: там удаление
+        жёсткое, и строка уходила целиком.
+        """
+        service = SpaceService(session)
+        first = await service.create(owner, workspace.id, name="Первое", slug="повтор")
+        await service.delete(owner, first.id, workspace.id)
+
+        second = await service.create(owner, workspace.id, name="Второе", slug="повтор")
+        assert second.slug == "повтор"
+        assert second.id != first.id
+
+    async def test_the_slug_of_a_live_space_stays_taken(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Освобождение имени касается только удалённых.
+
+        Иначе послабление, сделанное ради корзины, разрешило бы два живых
+        пространства с одним адресом.
+        """
+        service = SpaceService(session)
+        await service.create(owner, workspace.id, name="Живое", slug="занято-живым")
+
+        with pytest.raises(AppError) as failure:
+            await service.create(owner, workspace.id, name="Второе", slug="занято-живым")
+        assert failure.value.code == "error.space.slug_taken"
+
+    async def test_an_empty_name_is_refused(self, session: AsyncSession, workspace, owner) -> None:
         with pytest.raises(AppError):
             await SpaceService(session).create(owner, workspace.id, name="   ")
 
@@ -159,26 +190,24 @@ class TestCreate:
         self, session: AsyncSession, workspace, owner
     ) -> None:
         with pytest.raises(AppError):
-            await SpaceService(session).create(
-                owner, workspace.id, name="Я" * (MAX_NAME + 1)
-            )
+            await SpaceService(session).create(owner, workspace.id, name="Я" * (MAX_NAME + 1))
 
-    async def test_creation_is_recorded(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_creation_is_recorded(self, session: AsyncSession, workspace, owner) -> None:
         await SpaceService(session).create(owner, workspace.id, name="Со следом")
         events = (
-            await session.execute(
-                select(AuditLog.event).where(AuditLog.workspace_id == workspace.id)
+            (
+                await session.execute(
+                    select(AuditLog.event).where(AuditLog.workspace_id == workspace.id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert "space.created" in set(events)
 
 
 class TestUpdate:
-    async def test_a_writer_cannot_rename(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_writer_cannot_rename(self, session: AsyncSession, workspace, owner) -> None:
         """Правка настроек это право администратора пространства."""
         space = await _own_space(session, workspace, owner)
         writer = await _person(session, workspace)
@@ -190,9 +219,7 @@ class TestUpdate:
             await SpaceService(session).update(writer, space.id, workspace.id, name="Чужое")
         assert failure.value.code == "error.space.access_denied"
 
-    async def test_a_stranger_gets_not_found(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_stranger_gets_not_found(self, session: AsyncSession, workspace, owner) -> None:
         """Посторонний не должен по ответу узнавать, что пространство есть."""
         space = await _own_space(session, workspace, owner)
         stranger = await _person(session, workspace)
@@ -212,9 +239,7 @@ class TestUpdate:
         assert updated.name == "Иначе"
         assert updated.description == "Про отдел"
 
-    async def test_a_taken_slug_is_refused(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_taken_slug_is_refused(self, session: AsyncSession, workspace, owner) -> None:
         service = SpaceService(session)
         first = await service.create(owner, workspace.id, name="Первое", slug="первое")
         second = await service.create(owner, workspace.id, name="Второе", slug="второе")
@@ -264,9 +289,7 @@ class TestSecurityFlags:
         service = SpaceService(session)
         await service.update(owner, space.id, workspace.id, disable_public_sharing=True)
 
-        updated = await service.update(
-            owner, space.id, workspace.id, allow_viewer_comments=True
-        )
+        updated = await service.update(owner, space.id, workspace.id, allow_viewer_comments=True)
         assert updated.settings["sharing"]["disabled"] is True
         assert updated.settings["comments"]["allowViewerComments"] is True
 
@@ -277,9 +300,7 @@ class TestSecurityFlags:
         service = SpaceService(session)
         await service.update(owner, space.id, workspace.id, disable_public_sharing=True)
 
-        updated = await service.update(
-            owner, space.id, workspace.id, disable_public_sharing=False
-        )
+        updated = await service.update(owner, space.id, workspace.id, disable_public_sharing=False)
         assert updated.settings["sharing"]["disabled"] is False
 
     async def test_a_writer_cannot_change_them(
@@ -297,9 +318,7 @@ class TestSecurityFlags:
                 writer, space.id, workspace.id, disable_public_sharing=True
             )
 
-    async def test_the_flags_reach_the_view(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_the_flags_reach_the_view(self, session: AsyncSession, workspace, owner) -> None:
         """Экран настроек показывает переключатели по этим полям."""
         from tessera_api.api.spaces import _space_view
 
@@ -360,9 +379,7 @@ class TestMembers:
         )
         assert added == 0
 
-    async def test_a_batch_has_a_limit(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_batch_has_a_limit(self, session: AsyncSession, workspace, owner) -> None:
         space = await _own_space(session, workspace, owner)
 
         with pytest.raises(AppError):
@@ -517,14 +534,10 @@ class TestRemoval:
         await service.remove_member(owner, space.id, workspace.id, user_id=person.id)
 
         watchers = (
-            await session.execute(
-                select(Watcher.id).where(Watcher.user_id == person.id)
-            )
+            await session.execute(select(Watcher.id).where(Watcher.user_id == person.id))
         ).all()
         favorites = (
-            await session.execute(
-                select(Favorite.id).where(Favorite.user_id == person.id)
-            )
+            await session.execute(select(Favorite.id).where(Favorite.user_id == person.id))
         ).all()
         assert watchers == []
         assert favorites == []
@@ -636,9 +649,7 @@ class TestDelete:
             await SpaceService(session).delete(owner, space.id, workspace.id)
         assert failure.value.code == "error.space.last_space"
 
-    async def test_pages_go_with_the_space(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_pages_go_with_the_space(self, session: AsyncSession, workspace, owner) -> None:
         """Оставленная страница осталась бы в поиске у тех, кто её уже не
         увидит в дереве."""
         space = await _own_space(session, workspace, owner)
@@ -651,9 +662,7 @@ class TestDelete:
         await session.refresh(page)
         assert page.deleted_at is not None
 
-    async def test_a_writer_cannot_delete(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_writer_cannot_delete(self, session: AsyncSession, workspace, owner) -> None:
         space = await _own_space(session, workspace, owner)
         writer = await _person(session, workspace)
         service = SpaceService(session)
@@ -726,9 +735,7 @@ class TestPersonalSpace:
         role = await SpaceMemberRepo(session).role_in_space(person.id, space.id)
         assert role == SpaceRole.ADMIN
 
-    async def test_a_second_one_is_refused(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_a_second_one_is_refused(self, session: AsyncSession, workspace, owner) -> None:
         await self._allow(session, workspace, on=True)
         person = await _person(session, workspace, role=UserRole.MEMBER)
         await SpaceService(session).create_personal(person, workspace.id)
@@ -798,9 +805,7 @@ class TestPersonalSpace:
         assert one.slug != two.slug
         assert len(two.slug) <= MAX_SLUG
 
-    async def test_info_finds_only_ones_own(
-        self, session: AsyncSession, workspace, owner
-    ) -> None:
+    async def test_info_finds_only_ones_own(self, session: AsyncSession, workspace, owner) -> None:
         await self._allow(session, workspace, on=True)
         person = await _person(session, workspace, role=UserRole.MEMBER)
         stranger = await _person(session, workspace, role=UserRole.MEMBER)
