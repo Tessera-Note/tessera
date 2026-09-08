@@ -43,6 +43,16 @@
 
     void (async () => {
       try {
+        // Откуда библиотека берёт свои шрифты. Без этого она просит их у
+        // стороннего CDN, а в закрытом контуре тот не открывается: полотно
+        // рисуется, но буквы в нём подменяются запасным начертанием.
+        //
+        // Ставится до загрузки библиотеки: она читает значение при первом
+        // обращении к шрифту, и опоздавшая установка уже ничего не меняет.
+        // Каталог кладёт сборка (`apps/web/scripts/copy-excalidraw-assets.mjs`).
+        (window as unknown as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH =
+          '/excalidraw-assets/';
+
         const [React, { createRoot }, excalidraw] = await Promise.all([
           import('react'),
           import('react-dom/client'),

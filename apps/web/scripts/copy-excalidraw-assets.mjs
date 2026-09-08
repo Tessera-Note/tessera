@@ -4,8 +4,9 @@
  *
  * Без этого редактор и экспортированные SVG тянут шрифты со стороннего CDN.
  * Экземпляр работает без выхода в интернет, поэтому файлы раздаются самим
- * приложением: `ExcalidrawEditor.svelte` подменяет в выгруженном SVG адрес
- * unpkg на путь `/excalidraw-assets/`, и этот путь обязан отдаваться.
+ * приложением, и путь `/excalidraw-assets/` обязан отдаваться. Пользуются им
+ * оба: сам редактор через `window.EXCALIDRAW_ASSET_PATH` и выгрузка SVG,
+ * подменяющая в разметке адрес unpkg. Обе установки в `ExcalidrawEditor.svelte`.
  *
  * Вызывается из сборки `@tessera/web`, а не хуком `prebuild`: pnpm 10 по
  * умолчанию не запускает pre- и post-скрипты.
@@ -24,7 +25,7 @@
  */
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -48,27 +49,15 @@ function resolveFonts() {
   throw new Error('каталог шрифтов не найден внутри пакета');
 }
 
-async function exists(path) {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 let source;
 try {
   source = resolveFonts();
-} catch {
-  console.error('[excalidraw-assets] пакет @excalidraw/excalidraw не установлен. Выполнить: pnpm install');
-  process.exit(1);
-}
-
-if (!(await exists(source))) {
-  console.error(
-    `[excalidraw-assets] не найден каталог шрифтов ${source}. Установить зависимости: pnpm install`
-  );
+} catch (error) {
+  // Причина печатается своя, а не общая: отсутствующий пакет и пакет без
+  // шрифтов лечатся по-разному, а одно сообщение на оба случая отправило бы
+  // читающего ставить уже установленные зависимости.
+  console.error(`[excalidraw-assets] ${error.message}`);
+  console.error('[excalidraw-assets] если пакет не установлен, выполнить: pnpm install');
   process.exit(1);
 }
 
