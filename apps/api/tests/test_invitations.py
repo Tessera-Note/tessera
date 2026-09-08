@@ -307,3 +307,39 @@ class TestInfoAndLink:
         with pytest.raises(AppError) as failure:
             await service.link(member, created[0].id, workspace.id)
         assert "admin_required" in str(failure.value.extra)
+
+
+class TestListing:
+    async def test_the_listing_is_paged(self, session: AsyncSession, workspace, owner) -> None:
+        """Перечень приглашений отдаётся страницами, а не целиком.
+
+        Тот же класс, что закрыт у меток, ссылок и групп: рабочее пространство,
+        куда звали пачками, слало бы весь список в каждом ответе. Курсор
+        составной — приглашения заводятся пачкой и делят одну отметку времени,
+        и одного времени для продолжения мало.
+        """
+        service = InvitationService(session)
+        await service.create(
+            owner,
+            ["p1@example.com", "p2@example.com", "p3@example.com", "p4@example.com"],
+            UserRole.MEMBER,
+            workspace.id,
+        )
+
+        first, cursor = await service.list(workspace.id, limit=2)
+        assert len(first) == 2
+        assert cursor is not None
+
+        second, _ = await service.list(workspace.id, limit=2, cursor=cursor)
+        assert {one.id for one in first}.isdisjoint({one.id for one in second})
+
+    async def test_the_last_page_has_no_cursor(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Конец перечня виден пустым курсором, а не короткой страницей."""
+        service = InvitationService(session)
+        await service.create(owner, ["one@example.com"], UserRole.MEMBER, workspace.id)
+
+        found, cursor = await service.list(workspace.id, limit=50)
+        assert found
+        assert cursor is None

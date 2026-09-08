@@ -11,11 +11,11 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
     // Приглашения видит только администратор, и сервер это проверяет. Отказ
     // здесь означает, что человек открыл экран не своего уровня, — экран
     // показывает список участников без приглашений.
-    const [members, invitations] = await Promise.all([
+    const [members, invited] = await Promise.all([
       listMembers(fetch, headers),
-      listInvitations(fetch, headers).catch(() => [])
+      listInvitations(fetch, headers).catch(() => ({ items: [], meta: { nextCursor: null } }))
     ]);
-    return { members, invitations };
+    return { members, invitations: invited.items };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

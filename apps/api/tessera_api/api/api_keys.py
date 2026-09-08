@@ -20,6 +20,10 @@ from tessera_api.services.tokens import TokenService
 class ListRequest(msgspec.Struct):
     #: Администратору — все ключи рабочего пространства, остальным только свои.
     adminView: bool = False  # noqa: N815 — имя поля из v1
+    #: Продолжение с прошлой страницы и её размер. Оба необязательны: без них
+    #: отдаётся первая страница обычного размера.
+    cursor: str | None = None
+    limit: int | None = None
 
 
 class CreateRequest(msgspec.Struct):
@@ -54,12 +58,19 @@ class ApiKeyController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         tokens: NamedDependency[TokenService],
-    ) -> list[dict]:
+    ) -> dict:
+        """Ключи страницей.
+
+        Отдаётся объектом со страницей и курсором, как остальные перечни.
+        Целиком список не отдаётся: у рабочего пространства со многими ключами
+        он уходил бы в каждом ответе.
+        """
         principal: Principal = request.scope["principal"]
         user, workspace = await _actor(db_session, principal)
-        return await ApiKeyService(db_session, tokens).list(
-            user, workspace, all_keys=data.adminView
+        items, next_cursor = await ApiKeyService(db_session, tokens).list(
+            user, workspace, all_keys=data.adminView, cursor=data.cursor, limit=data.limit
         )
+        return {"items": items, "meta": {"nextCursor": next_cursor}}
 
     @post("/create")
     async def create(

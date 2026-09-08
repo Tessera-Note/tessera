@@ -340,9 +340,30 @@ class TestManagement:
         other = await _person(session, workspace, role=UserRole.MEMBER)
         theirs = await service.create(user=other, workspace=workspace, name="Чужой")
 
-        ids = {one["id"] for one in await service.list(other, workspace)}
+        items, _ = await service.list(other, workspace)
+        ids = {one["id"] for one in items}
         assert theirs["id"] in ids
         assert mine["id"] not in ids
+
+    async def test_the_listing_is_paged(
+        self, session: AsyncSession, workspace, owner, tokens
+    ) -> None:
+        """Перечень отдаётся страницами, а не целиком.
+
+        Тот же класс, что закрыт у меток, ссылок и групп: без потолка рабочее
+        пространство со многими ключами слало бы весь список в каждом ответе.
+        Курсор составной — ключи заводят подряд, и одного времени мало.
+        """
+        service = ApiKeyService(session, tokens)
+        for number in range(4):
+            await service.create(user=owner, workspace=workspace, name=f"Ключ {number}")
+
+        first, cursor = await service.list(owner, workspace, limit=2)
+        assert len(first) == 2
+        assert cursor is not None
+
+        second, _ = await service.list(owner, workspace, limit=2, cursor=cursor)
+        assert {one["id"] for one in first}.isdisjoint({one["id"] for one in second})
 
     async def test_admin_view_needs_admin(
         self, session: AsyncSession, workspace, owner, tokens

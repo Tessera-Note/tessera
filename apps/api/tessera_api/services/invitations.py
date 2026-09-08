@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 import uuid
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
@@ -21,6 +21,7 @@ from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.auth import hash_password
 from tessera_api.services.notification_mail import compose_plain
+from tessera_api.services.paging import moment_cursor, portion, read_moment_cursor
 
 #: Длина токена приглашения. Токен и есть учётные данные приглашённого, поэтому
 #: он берётся у криптографического источника, а не у обычного генератора.
@@ -232,13 +233,50 @@ class InvitationService:
         )
         await self._session.commit()
 
-    async def list(self, workspace_id: uuid.UUID) -> list[WorkspaceInvitation]:
-        stmt = (
-            select(WorkspaceInvitation)
-            .where(WorkspaceInvitation.workspace_id == workspace_id)
-            .order_by(WorkspaceInvitation.created_at.desc())
+    async def list(
+        self,
+        workspace_id: uuid.UUID,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> tuple[list[WorkspaceInvitation], str | None]:
+        """Приглашения рабочего пространства, страницами.
+
+        Потолок обязателен: рабочее пространство, приглашавшее людей пачками,
+        отдавало бы весь перечень в каждом ответе. Курсор составной, «время
+        заведения и идентификатор»: приглашения заводятся пачкой и делят одну
+        отметку времени, и одного времени для продолжения мало.
+        """
+        wanted = portion(limit)
+        stmt = select(WorkspaceInvitation).where(
+            WorkspaceInvitation.workspace_id == workspace_id
         )
-        return list((await self._session.execute(stmt)).scalars().all())
+
+        after = read_moment_cursor(cursor)
+        if after is not None:
+            moment, last_id = after
+            # Кортежное сравнение совпадает с порядком сортировки: убывание по
+            # времени и по идентификатору внутри одной отметки.
+            stmt = stmt.where(
+                text(
+                    "(workspace_invitations.created_at, workspace_invitations.id)"
+                    " < (:cursor_moment, :cursor_id)"
+                ).bindparams(cursor_moment=moment, cursor_id=last_id)
+            )
+
+        stmt = stmt.order_by(
+            WorkspaceInvitation.created_at.desc(), WorkspaceInvitation.id.desc()
+        ).limit(wanted + 1)
+
+        found = list((await self._session.execute(stmt)).scalars().all())
+        # Читается на одну больше: так видно, есть ли следующая страница, без
+        # второго запроса на счёт.
+        has_more = len(found) > wanted
+        found = found[:wanted]
+        next_cursor = (
+            moment_cursor(found[-1].created_at, found[-1].id) if has_more and found else None
+        )
+        return found, next_cursor
 
     async def revoke(self, actor: User, invitation_id: uuid.UUID, workspace_id: uuid.UUID) -> None:
         if not is_workspace_admin(actor.role):

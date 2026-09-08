@@ -23,8 +23,18 @@ export function listMembers(fetcher?: typeof fetch, headers?: Record<string, str
   return get<Member[]>('/api/workspace/members', { fetcher, headers });
 }
 
+/**
+ * Приглашения страницей.
+ *
+ * Сервер отдаёт объект с курсором, а не весь перечень: рабочее пространство,
+ * куда звали пачками, слало бы весь список в каждом ответе. Экран показывает
+ * первую страницу — этого хватает, чтобы отозвать лишнее.
+ */
 export function listInvitations(fetcher?: typeof fetch, headers?: Record<string, string>) {
-  return get<Invitation[]>('/api/workspace/invites', { fetcher, headers });
+  return get<{ items: Invitation[]; meta: { nextCursor: string | null } }>(
+    '/api/workspace/invites',
+    { fetcher, headers }
+  );
 }
 
 export function changeRole(userId: string, role: string, fetcher?: typeof fetch) {

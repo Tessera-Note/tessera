@@ -31,15 +31,30 @@ class InvitationController(Controller):
 
     @get()
     async def list_invites(
-        self, request: Request, db_session: NamedDependency[AsyncSession]
-    ) -> list[InvitationView]:
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> dict:
+        """Приглашения рабочего пространства, страницами.
+
+        Отдаётся объектом со страницей и курсором, как перечни меток, шаблонов
+        и проверок. Целиком перечень не отдаётся: рабочее пространство, куда
+        приглашали пачками, слало бы весь список в каждом ответе.
+        """
         principal: Principal = request.scope["principal"]
-        found = await InvitationService(db_session).list(principal.workspace_id)
+        found, next_cursor = await InvitationService(db_session).list(
+            principal.workspace_id, cursor=cursor, limit=limit
+        )
         # Токена в списке нет: он и есть учётные данные приглашённого.
-        return [
-            InvitationView(id=inv.id, email=inv.email, role=inv.role, createdAt=inv.created_at)
-            for inv in found
-        ]
+        return {
+            "items": [
+                InvitationView(id=inv.id, email=inv.email, role=inv.role, createdAt=inv.created_at)
+                for inv in found
+            ],
+            "meta": {"nextCursor": next_cursor},
+        }
 
     @post()
     async def invite(

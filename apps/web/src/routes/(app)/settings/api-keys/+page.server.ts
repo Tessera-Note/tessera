@@ -14,7 +14,10 @@ export const load: PageServerLoad = async ({ url, fetch, request, parent }) => {
   const all = admin && url.searchParams.get('all') === '1';
 
   try {
-    return { keys: await listApiKeys(all, fetch, headers), admin, all };
+    // Сервер отдаёт страницу с курсором: перечень ключей растёт, и целиком
+    // он уходил бы в каждом ответе. Экран показывает первую страницу.
+    const page = await listApiKeys(all, fetch, headers);
+    return { keys: page.items, admin, all };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

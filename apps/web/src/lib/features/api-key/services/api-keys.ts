@@ -23,7 +23,11 @@ export function listApiKeys(
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
-  return post<ApiKey[]>('/api/api-keys', { adminView }, { fetcher, headers });
+  return post<{ items: ApiKey[]; meta: { nextCursor: string | null } }>(
+    '/api/api-keys',
+    { adminView },
+    { fetcher, headers }
+  );
 }
 
 export function createApiKey(

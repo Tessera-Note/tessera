@@ -12,13 +12,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import ApiKey, User, Workspace
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
+from tessera_api.services.paging import moment_cursor, portion, read_moment_cursor
 from tessera_api.services.tokens import TokenService
 
 #: Путь к настройке «доступ к API только администраторам». Значение из v1.
@@ -66,25 +67,53 @@ class ApiKeyService:
         if _api_restricted_to_admins(workspace) and not is_workspace_admin(user.role):
             raise forbidden("error.api_key.restricted_to_admins")
 
-    async def list(self, user: User, workspace: Workspace, *, all_keys: bool = False) -> list[dict]:
-        """Ключи человека, а администратору — по желанию все.
+    async def list(
+        self,
+        user: User,
+        workspace: Workspace,
+        *,
+        all_keys: bool = False,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> tuple[list[dict], str | None]:
+        """Ключи человека, а администратору — по желанию все, страницами.
 
         Значение ключа не отдаётся: его нет в базе. Список нужен, чтобы
         отозвать лишнее, а не чтобы вспомнить сам ключ.
+
+        Потолок обязателен: у рабочего пространства со многими ключами весь
+        перечень уходил бы в каждом ответе. Курсор составной, «время заведения
+        и идентификатор»: ключи заводят подряд, и одного времени мало.
         """
         if all_keys and not is_workspace_admin(user.role):
             raise forbidden("error.common.admin_required")
 
+        wanted = portion(limit)
         stmt = (
             select(ApiKey)
             .where(ApiKey.workspace_id == workspace.id)
             .where(ApiKey.deleted_at.is_(None))
-            .order_by(ApiKey.created_at.desc())
         )
         if not all_keys:
             stmt = stmt.where(ApiKey.creator_id == user.id)
 
-        found = (await self._session.execute(stmt)).scalars().all()
+        after = read_moment_cursor(cursor)
+        if after is not None:
+            moment, last_id = after
+            stmt = stmt.where(
+                text(
+                    "(api_keys.created_at, api_keys.id) < (:cursor_moment, :cursor_id)"
+                ).bindparams(cursor_moment=moment, cursor_id=last_id)
+            )
+
+        stmt = stmt.order_by(ApiKey.created_at.desc(), ApiKey.id.desc()).limit(wanted + 1)
+
+        found = list((await self._session.execute(stmt)).scalars().all())
+        has_more = len(found) > wanted
+        found = found[:wanted]
+        next_cursor = (
+            moment_cursor(found[-1].created_at, found[-1].id) if has_more and found else None
+        )
         return [
             {
                 "id": one.id,
@@ -95,7 +124,7 @@ class ApiKeyService:
                 "createdAt": one.created_at,
             }
             for one in found
-        ]
+        ], next_cursor
 
     async def create(
         self,
@@ -156,9 +185,7 @@ class ApiKeyService:
             "token": token,
         }
 
-    async def _own_or_admin(
-        self, key_id: uuid.UUID, user: User, workspace: Workspace
-    ) -> ApiKey:
+    async def _own_or_admin(self, key_id: uuid.UUID, user: User, workspace: Workspace) -> ApiKey:
         found = await self._session.get(ApiKey, key_id)
         if found is None or found.deleted_at is not None or found.workspace_id != workspace.id:
             raise not_found("error.api_key.not_found")
@@ -166,9 +193,7 @@ class ApiKeyService:
             raise forbidden("error.api_key.not_yours")
         return found
 
-    async def rename(
-        self, key_id: uuid.UUID, user: User, workspace: Workspace, name: str
-    ) -> dict:
+    async def rename(self, key_id: uuid.UUID, user: User, workspace: Workspace, name: str) -> dict:
         if not name or not name.strip():
             raise bad_request("error.api_key.name_required")
         if len(name) > MAX_NAME:
