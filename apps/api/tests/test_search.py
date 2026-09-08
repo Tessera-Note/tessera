@@ -45,12 +45,34 @@ pytestmark = needs_database
 
 
 class TestSearchPages:
-    async def test_finds_by_word_form(self, session: AsyncSession, workspace, owner) -> None:
+    async def test_finds_by_word_form(self, session: AsyncSession, workspace, owner, space) -> None:
         """Кириллица приводится к основе.
 
         Это то, ради чего в v1 меняли конфигурацию: под `english` запрос
         «прокат» не находил страницу со словом «прокате».
+
+        Страница заводится самим тестом. Опора на уже лежащее в базе делала
+        проверку зелёной или красной в зависимости от того, что там осталось от
+        прошлых работ, — а не от того, работает ли приведение к основе.
         """
+        from tessera_api.services.pages import PageService
+
+        await PageService(session).create(
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+            title="Кино",
+            content={
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "фильмы в текущем прокате"}],
+                    }
+                ],
+            },
+        )
+
         hits = await SearchService(session).search_pages(
             "прокат", user_id=owner.id, workspace_id=workspace.id
         )

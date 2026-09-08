@@ -123,6 +123,25 @@ class TestCreate:
         )
         assert page.text_content == "текст внутри"
 
+    async def test_author_watches_the_page_they_created(self, session: AsyncSession, world) -> None:
+        """Создавший подписан на свою страницу, как в v1.
+
+        Уведомления идут наблюдателям, и без этой подписки автор не узнавал бы
+        ни о комментарии к своей странице, ни о чужой правке. Отказом это не
+        проявляется: страница создаётся, просто извещать о ней некого.
+        """
+        from tessera_api.services.notifications import WatcherService
+
+        page = await PageService(session).create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Своя страница",
+        )
+
+        watchers = await WatcherService(session).watcher_ids(page.id)
+        assert world["owner"].id in watchers
+
     async def test_parent_from_other_space_is_refused(self, session: AsyncSession, world) -> None:
         """Родитель из другого пространства перенёс бы страницу через границу
         доступа: пространство определяет, кто её видит."""
@@ -209,9 +228,7 @@ class TestListings:
     постранично: закрытая страница не должна называться в списке.
     """
 
-    async def test_recent_shows_the_newest_first(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_recent_shows_the_newest_first(self, session: AsyncSession, world) -> None:
         service = PageService(session)
         first = await service.create(
             user_id=world["owner"].id,
@@ -241,16 +258,12 @@ class TestListings:
         assert second.id in order
         assert order.index(second.id) < order.index(first.id)
 
-    async def test_recent_of_a_foreign_space_is_refused(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_recent_of_a_foreign_space_is_refused(self, session: AsyncSession, world) -> None:
         """Пространство, в котором человек не состоит, — «не найдено», а не
         пустой список: пустой не отличить от «там ничего нет»."""
         service = PageService(session)
         with pytest.raises(AppError) as failure:
-            await service.recent(
-                world["owner"].id, world["workspace"].id, space_id=uuid.uuid4()
-            )
+            await service.recent(world["owner"].id, world["workspace"].id, space_id=uuid.uuid4())
         assert failure.value.code == "error.space.space_not_found"
 
     async def test_created_by_lists_only_that_persons_pages(
@@ -270,14 +283,10 @@ class TestListings:
         assert mine.id in [one[0].id for one in found]
 
         stranger = uuid.uuid4()
-        theirs = await service.created_by(
-            stranger, world["owner"].id, world["workspace"].id
-        )
+        theirs = await service.created_by(stranger, world["owner"].id, world["workspace"].id)
         assert theirs == []
 
-    async def test_created_by_narrows_to_a_space(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_created_by_narrows_to_a_space(self, session: AsyncSession, world) -> None:
         """Отбор делает запрос, а не вызывающий.
 
         Предел в полсотни строк берётся до отбора: отсев на стороне клиента
@@ -419,8 +428,7 @@ class TestTrash:
         await service.move_to_trash(parent, world["owner"].id)
 
         listed = [
-            one.id
-            for one in await service.deleted_in_space(world["space"].id, world["owner"].id)
+            one.id for one in await service.deleted_in_space(world["space"].id, world["owner"].id)
         ]
         assert parent.id in listed
         assert child.id not in listed
@@ -458,14 +466,10 @@ class TestSidebar:
         )
         return root, child
 
-    async def test_a_page_with_children_is_marked(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_a_page_with_children_is_marked(self, session: AsyncSession, world) -> None:
         root, _ = await self._branch(session, world)
 
-        rows = await PageService(session).sidebar(
-            None, world["space"].id, world["owner"].id
-        )
+        rows = await PageService(session).sidebar(None, world["space"].id, world["owner"].id)
 
         by_id = {row["id"]: row for row in rows}
         assert by_id[root.id]["hasChildren"] is True
@@ -473,44 +477,30 @@ class TestSidebar:
     async def test_a_leaf_is_marked_as_such(self, session: AsyncSession, world) -> None:
         root, child = await self._branch(session, world)
 
-        rows = await PageService(session).sidebar(
-            root.id, world["space"].id, world["owner"].id
-        )
+        rows = await PageService(session).sidebar(root.id, world["space"].id, world["owner"].id)
 
         assert [(row["id"], row["hasChildren"]) for row in rows] == [(child.id, False)]
 
-    async def test_a_base_is_marked_as_a_base(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_a_base_is_marked_as_a_base(self, session: AsyncSession, world) -> None:
         """Без признака база в дереве неотличима от страницы и открывается
         пустым редактором вместо таблицы."""
         root, _ = await self._branch(session, world)
-        await session.execute(
-            update(Page).where(Page.id == root.id).values(is_base=True)
-        )
+        await session.execute(update(Page).where(Page.id == root.id).values(is_base=True))
         await session.commit()
 
-        rows = await PageService(session).sidebar(
-            None, world["space"].id, world["owner"].id
-        )
+        rows = await PageService(session).sidebar(None, world["space"].id, world["owner"].id)
 
         by_id = {row["id"]: row for row in rows}
         assert by_id[root.id]["isBase"] is True
 
-    async def test_the_right_to_edit_comes_along(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_the_right_to_edit_comes_along(self, session: AsyncSession, world) -> None:
         root, _ = await self._branch(session, world)
 
-        rows = await PageService(session).sidebar(
-            None, world["space"].id, world["owner"].id
-        )
+        rows = await PageService(session).sidebar(None, world["space"].id, world["owner"].id)
         by_id = {row["id"]: row for row in rows}
         assert by_id[root.id]["canEdit"] is True
 
-    async def test_a_reader_is_told_they_cannot_edit(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_a_reader_is_told_they_cannot_edit(self, session: AsyncSession, world) -> None:
         """Иначе панель предлагает читателю правку, и она отваливается при
         нажатии."""
         root, _ = await self._branch(session, world)
@@ -539,13 +529,9 @@ class TestSidebar:
         by_id = {row["id"]: row for row in rows}
         assert by_id[root.id]["canEdit"] is False
 
-    async def test_an_empty_branch_asks_nothing_more(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_an_empty_branch_asks_nothing_more(self, session: AsyncSession, world) -> None:
         assert (
-            await PageService(session).sidebar(
-                uuid.uuid4(), world["space"].id, world["owner"].id
-            )
+            await PageService(session).sidebar(uuid.uuid4(), world["space"].id, world["owner"].id)
             == []
         )
 
@@ -668,9 +654,7 @@ class TestForceDelete:
         assert await session.get(Page, root.id) is None
         assert await session.get(Page, child.id) is None
 
-    async def test_a_live_page_is_not_removed_this_way(
-        self, session: AsyncSession, world
-    ) -> None:
+    async def test_a_live_page_is_not_removed_this_way(self, session: AsyncSession, world) -> None:
         """Живая страница сперва уходит в корзину, откуда её ещё можно вернуть."""
         service = PageService(session)
         page = await service.create(

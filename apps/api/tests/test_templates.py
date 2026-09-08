@@ -116,9 +116,7 @@ class TestWorkspaceScope:
             session, workspace, space, owner, role=UserRole.MEMBER, space_role=SpaceRole.ADMIN
         )
         with pytest.raises(AppError):
-            await TemplateService(session).create(
-                user=member, workspace=workspace, title="Общий"
-            )
+            await TemplateService(session).create(user=member, workspace=workspace, title="Общий")
 
     async def test_member_reads_a_workspace_template(
         self, session: AsyncSession, workspace, owner, space
@@ -331,9 +329,7 @@ class TestListing:
 
         second = await service.list(owner, workspace.id, limit=2, cursor=first.next_cursor)
         # Продолжение, а не повтор: страницы не пересекаются.
-        assert {one["id"] for one in second.items}.isdisjoint(
-            {one["id"] for one in first.items}
-        )
+        assert {one["id"] for one in second.items}.isdisjoint({one["id"] for one in first.items})
         assert second.next_cursor is None
 
     async def test_a_broken_cursor_starts_over(
@@ -359,7 +355,12 @@ class TestListing:
         await service.create(user=owner, workspace=workspace, title="Общий")
 
         found = await service.list(owner, workspace.id, space_id=space.id)
-        assert [one["id"] for one in found.items] == [here["id"]]
+        # Проверяется отбор, а не пустота пространства: фикстура берёт настоящее
+        # пространство стенда, и заведённый там раньше шаблон — обычные данные,
+        # а не поломка. Равенство всему списку краснело бы от них.
+        ids = [one["id"] for one in found.items]
+        assert here["id"] in ids
+        assert all(one["spaceId"] == space.id for one in found.items)
 
 
 class TestEditing:
@@ -508,9 +509,7 @@ class TestUse:
         service = TemplateService(session)
         content = {
             "type": "doc",
-            "content": [
-                {"type": "paragraph", "content": [{"type": "text", "text": "заготовка"}]}
-            ],
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": "заготовка"}]}],
         }
         created = await service.create(
             user=owner, workspace=workspace, title="Отчёт", icon="📄", content=content

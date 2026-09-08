@@ -38,6 +38,16 @@
   --accent-soft: #efe9fd;
   --danger: #b3405c;
   --danger-surface: #d4657f;
+
+  /* Подсветка кода. Классы расставляет lowlight, раскрасить их без этих правил
+     нечем: блок выглядит одноцветным, и различить строку от ключевого слова
+     нельзя. Гамма та же сиреневая, что у остального оформления. */
+  --code-comment: #6f6786;
+  --code-keyword: #7a4fd0;
+  --code-string: #a63d5c;
+  --code-number: #2f6f9f;
+  --code-title: #b4508a;
+  --code-variable: #a3502f;
 }
 
 :root[data-theme='dark'] {
@@ -59,6 +69,14 @@
   --accent-soft: #2a2340;
   --danger: #f0899f;
   --danger-surface: #c95a75;
+
+  /* Тёмная гамма подсветки: те же роли, поднятая светлота. */
+  --code-comment: #8f87ab;
+  --code-keyword: #b79bf7;
+  --code-string: #f0899f;
+  --code-number: #7fc4f0;
+  --code-title: #f2a2d4;
+  --code-variable: #e8a878;
 }
 
 @theme inline {
@@ -344,6 +362,69 @@ progress {
   padding: 0;
   background: none;
   font-size: 0.875rem;
+}
+
+/*
+ * Подсветка синтаксиса. `lowlight` расставляет классы `hljs-*` и на сервере, и
+ * в браузере, но без правил ниже они ничего не красят: замерено на стенде —
+ * девять размеченных кусков, у всех вычисленный цвет совпадал с цветом обычного
+ * текста.
+ *
+ * Роли собраны группами, как в первой версии: комментарий приглушён, ключевое
+ * слово выделено гаммой оформления, строка и число разведены по тону.
+ */
+.tessera-doc pre .hljs-comment,
+.tessera-doc pre .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.tessera-doc pre .hljs-keyword,
+.tessera-doc pre .hljs-selector-tag,
+.tessera-doc pre .hljs-literal,
+.tessera-doc pre .hljs-type {
+  color: var(--code-keyword);
+}
+
+.tessera-doc pre .hljs-string,
+.tessera-doc pre .hljs-symbol,
+.tessera-doc pre .hljs-bullet,
+.tessera-doc pre .hljs-regexp {
+  color: var(--code-string);
+}
+
+.tessera-doc pre .hljs-number,
+.tessera-doc pre .hljs-meta,
+.tessera-doc pre .hljs-built_in,
+.tessera-doc pre .hljs-builtin-name,
+.tessera-doc pre .hljs-params {
+  color: var(--code-number);
+}
+
+.tessera-doc pre .hljs-title,
+.tessera-doc pre .hljs-section,
+.tessera-doc pre .hljs-function .hljs-title {
+  color: var(--code-title);
+}
+
+.tessera-doc pre .hljs-variable,
+.tessera-doc pre .hljs-template-variable,
+.tessera-doc pre .hljs-attribute,
+.tessera-doc pre .hljs-attr,
+.tessera-doc pre .hljs-tag,
+.tessera-doc pre .hljs-name,
+.tessera-doc pre .hljs-selector-id,
+.tessera-doc pre .hljs-selector-class,
+.tessera-doc pre .hljs-link {
+  color: var(--code-variable);
+}
+
+.tessera-doc pre .hljs-emphasis {
+  font-style: italic;
+}
+
+.tessera-doc pre .hljs-strong {
+  font-weight: 700;
 }
 
 /*

@@ -120,9 +120,7 @@ class TestLifecycle:
 
         Иначе настройка проверки позволяла бы подтвердить самому себе.
         """
-        world, service, _ = await self._setup(
-            session, workspace, owner, space, verifiers=[]
-        )
+        world, service, _ = await self._setup(session, workspace, owner, space, verifiers=[])
         with pytest.raises(AppError):
             await service.verify(world["root"], owner.id)
 
@@ -218,9 +216,7 @@ class TestLifecycle:
     async def test_non_verifier_cannot_reject(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
-        world, service, record = await self._setup(
-            session, workspace, owner, space, verifiers=[]
-        )
+        world, service, record = await self._setup(session, workspace, owner, space, verifiers=[])
         await session.execute(
             update(PageVerification)
             .where(PageVerification.id == record.id)
@@ -260,10 +256,14 @@ class TestLifecycle:
         await service.remove(world["root"], owner.id)
 
         left = (
-            await session.execute(
-                select(PageVerifier.id).where(PageVerifier.page_verification_id == record.id)
+            (
+                await session.execute(
+                    select(PageVerifier.id).where(PageVerifier.page_verification_id == record.id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert list(left) == []
         assert await session.get(PageVerification, record.id) is None
 
@@ -314,11 +314,12 @@ class TestListing:
         world, service = await self._setup(session, workspace, owner, space)
 
         mine = await service.listing(owner.id, workspace.id, verifier_id=owner.id)
-        assert [one["pageId"] for one in mine.items] == [world["root"].id]
+        # Своя проверка в выдаче есть, чужой в ней нет. Равенство всему списку
+        # краснело бы от проверок, заведённых на стенде раньше: фикстура берёт
+        # настоящее пространство, а не пустое.
+        assert world["root"].id in [one["pageId"] for one in mine.items]
 
-        assert (
-            await service.listing(owner.id, workspace.id, verifier_id=uuid.uuid4())
-        ).items == []
+        assert (await service.listing(owner.id, workspace.id, verifier_id=uuid.uuid4())).items == []
 
     async def test_the_row_carries_the_page_and_the_space(
         self, session: AsyncSession, workspace, owner, space
@@ -383,13 +384,9 @@ class TestListing:
         assert len(first.items) == 1
         assert first.next_cursor is not None
 
-        second = await service.listing(
-            owner.id, workspace.id, limit=1, cursor=first.next_cursor
-        )
+        second = await service.listing(owner.id, workspace.id, limit=1, cursor=first.next_cursor)
         # Продолжение, а не повтор.
-        assert {one["id"] for one in second.items}.isdisjoint(
-            {one["id"] for one in first.items}
-        )
+        assert {one["id"] for one in second.items}.isdisjoint({one["id"] for one in first.items})
 
     async def test_a_broken_cursor_starts_over(
         self, session: AsyncSession, workspace, owner, space
@@ -413,11 +410,16 @@ class TestVerifiers:
             verifier_ids=[owner.id, world["outsider_id"]],
         )
         rows = (
-            await session.execute(
-                select(PageVerifier.user_id, PageVerifier.is_primary)
-                .where(PageVerifier.page_verification_id == record.id)
+            (
+                await session.execute(
+                    select(PageVerifier.user_id, PageVerifier.is_primary).where(
+                        PageVerifier.page_verification_id == record.id
+                    )
+                )
             )
-        ).tuples().all()
+            .tuples()
+            .all()
+        )
         primary = [user for user, is_primary in rows if is_primary]
         assert primary == [owner.id]
 
@@ -426,20 +428,22 @@ class TestVerifiers:
     ) -> None:
         world = await _world(session, workspace, owner, space)
         service = PageVerificationService(session)
-        record = await service.create(
-            page=world["root"], user_id=owner.id, verifier_ids=[owner.id]
-        )
+        record = await service.create(page=world["root"], user_id=owner.id, verifier_ids=[owner.id])
         await service.update_settings(
             page=world["root"], user_id=owner.id, verifier_ids=[world["outsider_id"]]
         )
 
         left = (
-            await session.execute(
-                select(PageVerifier.user_id).where(
-                    PageVerifier.page_verification_id == record.id
+            (
+                await session.execute(
+                    select(PageVerifier.user_id).where(
+                        PageVerifier.page_verification_id == record.id
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert list(left) == [world["outsider_id"]]
 
     async def test_settings_change_does_not_move_the_deadline_by_itself(
@@ -507,9 +511,7 @@ class TestValidation:
         world = await _world(session, workspace, owner, space)
         stranger = uuid.uuid4()
         with pytest.raises(AppError):
-            await PageVerificationService(session).create(
-                page=world["root"], user_id=stranger
-            )
+            await PageVerificationService(session).create(page=world["root"], user_id=stranger)
 
 
 @needs_database
@@ -517,9 +519,7 @@ class TestPeriodicPasses:
     async def _verified(self, session, workspace, owner, space, *, expires_at):
         world = await _world(session, workspace, owner, space)
         service = PageVerificationService(session)
-        record = await service.create(
-            page=world["root"], user_id=owner.id, verifier_ids=[owner.id]
-        )
+        record = await service.create(page=world["root"], user_id=owner.id, verifier_ids=[owner.id])
         await session.execute(
             update(PageVerification)
             .where(PageVerification.id == record.id)
@@ -537,9 +537,7 @@ class TestPeriodicPasses:
         assert await expire_overdue(session, None) >= 1
         assert (await session.get(PageVerification, record.id)).status == Status.EXPIRED
 
-    async def test_pass_is_idempotent(
-        self, session: AsyncSession, workspace, owner, space
-    ) -> None:
+    async def test_pass_is_idempotent(self, session: AsyncSession, workspace, owner, space) -> None:
         """Условие по состоянию исключает уже переведённые.
 
         Повторный проход меняет ноль строк, и такт может пройти дважды после
@@ -569,9 +567,7 @@ class TestPeriodicPasses:
         await session.flush()
 
         await expire_overdue(session, None)
-        assert (
-            await session.get(PageVerification, record.id)
-        ).status == Status.PENDING_APPROVAL
+        assert (await session.get(PageVerification, record.id)).status == Status.PENDING_APPROVAL
 
     async def test_record_without_a_deadline_is_untouched(
         self, session: AsyncSession, workspace, owner, space
@@ -616,10 +612,14 @@ class TestNotifications:
 
         for user_id, expected in ((world["outsider_id"], 1), (owner.id, 0)):
             found = (
-                await session.execute(
-                    select(Notification.type)
-                    .where(Notification.user_id == user_id)
-                    .where(Notification.type == NotificationType.PAGE_VERIFIED)
+                (
+                    await session.execute(
+                        select(Notification.type)
+                        .where(Notification.user_id == user_id)
+                        .where(Notification.type == NotificationType.PAGE_VERIFIED)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             assert len(list(found)) == expected

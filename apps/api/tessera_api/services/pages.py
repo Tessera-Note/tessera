@@ -83,9 +83,7 @@ class PageService:
 
     async def _reindex(self, page: Page) -> None:
         if self._queue is not None:
-            await self._queue.enqueue(
-                JobName.INDEX_PAGE_EMBEDDING, page_id=str(page.id)
-            )
+            await self._queue.enqueue(JobName.INDEX_PAGE_EMBEDDING, page_id=str(page.id))
 
     async def _drop_index(self, page_ids: list[uuid.UUID]) -> None:
         """Снять векторы. Ключ провайдера для этого не нужен.
@@ -96,9 +94,7 @@ class PageService:
         if self._queue is None:
             return
         for page_id in page_ids:
-            await self._queue.enqueue(
-                JobName.REMOVE_PAGE_EMBEDDING, page_id=str(page_id)
-            )
+            await self._queue.enqueue(JobName.REMOVE_PAGE_EMBEDDING, page_id=str(page_id))
 
     async def _refresh_tree(self, page: Page) -> None:
         """Сообщить, что дерево изменилось.
@@ -176,6 +172,13 @@ class PageService:
         # связями от несуществующего содержимого.
         await BacklinkService(self._session).rebuild(created)
         await TransclusionService(self._session).sync(created)
+
+        # Создавший подписывается на свою страницу, как в v1: иначе он не узнает
+        # ни о комментарии к ней, ни о чужой правке — уведомления идут только
+        # наблюдателям, а сам автор в их число не попадал.
+        from tessera_api.services.notifications import WatcherService
+
+        await WatcherService(self._session).watch_page(user_id=user_id, page=created)
 
         await self._session.commit()
         await self._refresh_tree(created)
@@ -564,9 +567,7 @@ class PageService:
                 raise not_found("error.page.page_not_found")
             if parent.space_id != page.space_id:
                 raise bad_request("error.page.parent_in_other_space")
-            if parent_page_id == page_id or parent_page_id in set(
-                await self._descendants(page_id)
-            ):
+            if parent_page_id == page_id or parent_page_id in set(await self._descendants(page_id)):
                 raise bad_request("error.page.parent_is_descendant")
             await self._access.validate_can_edit(parent, user_id)
 
