@@ -72,7 +72,9 @@ from tests.conftest import RealtimeDouble, needs_database
 DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 
 
-def content_client(seen: list | None = None, *, pdf: str | None = None) -> ContentClient:
+def content_client(
+    seen: list | None = None, *, pdf: str | None = None, doc: dict | None = None
+) -> ContentClient:
     """Сервис преобразования, отвечающий пустым документом.
 
     Настоящий здесь не нужен: схема узлов живёт в нём, и проверять её второй
@@ -81,6 +83,9 @@ def content_client(seen: list | None = None, *, pdf: str | None = None) -> Conte
     Разбор PDF по умолчанию отвечает отказом «нет текстового слоя»: разбирать
     PDF умеет только настоящий сервис, а проверкам нужен предсказуемый ответ.
     Разметка задаётся доводом `pdf` там, где проверяется успешный ввоз.
+
+    Довод `doc` задаёт разобранный документ там, где проверяется обработка
+    разобранного, а не сам разбор.
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -90,7 +95,7 @@ def content_client(seen: list | None = None, *, pdf: str | None = None) -> Conte
             if pdf is None:
                 return httpx.Response(400, json={"error": "pdf_no_text_layer"})
             return httpx.Response(200, json={"html": pdf})
-        return httpx.Response(200, json={"content": DOC})
+        return httpx.Response(200, json={"content": doc or DOC})
 
     return ContentClient("http://collab:3001", transport=httpx.MockTransport(handler))
 
@@ -206,6 +211,28 @@ class TestTitleHeading:
             "type": "doc",
             "content": [],
         }
+
+    def test_the_case_and_the_spacing_do_not_matter(self) -> None:
+        """Выгрузка пишет название в теле не тем же написанием, что в оглавлении.
+
+        При точном сравнении заголовок оставался бы задвоенным ровно там, где
+        он и задваивается.
+        """
+        body = self._doc(self._heading("ОТЧЁТ   за  год"), {"type": "paragraph"})
+        assert drop_title_heading(body, "Отчёт за год")["content"] == [{"type": "paragraph"}]
+
+    def test_an_empty_heading_stays(self) -> None:
+        """Пустой заголовок не совпадает ни с каким названием.
+
+        Снятый, он был бы правкой документа там, где о повторе названия речи
+        не было.
+        """
+        body = self._doc(self._heading(""), {"type": "paragraph"})
+        assert len(drop_title_heading(body, "Отчёт")["content"]) == 2
+
+    def test_a_page_without_a_title_keeps_its_heading(self) -> None:
+        body = self._doc(self._heading("Отчёт"), {"type": "paragraph"})
+        assert len(drop_title_heading(body, "")["content"]) == 2
 
 
 class TestArchiveSafety:
@@ -1541,6 +1568,41 @@ class TestForeignArchives:
         assert "Экспортировано Confluence" not in sent
         assert "Attachments" not in sent
 
+    async def test_a_confluence_page_does_not_repeat_its_title(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Название выгрузка хранит отдельно от тела, но пишет и первым заголовком.
+
+        Оставленный, он повторяет название страницы: одно и то же видно и в
+        дереве, и первой строкой тела. Одиночный ввоз это снимал, архивный нет.
+        """
+        task = await _task(session, workspace, owner, space, source="confluence")
+        storage = _StorageDouble(_confluence_archive())
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 1},
+                    "content": [{"type": "text", "text": CONF_TOP}],
+                },
+                {"type": "paragraph", "content": [{"type": "text", "text": "Дамп ежедневно"}]},
+            ],
+        }
+
+        await ImportService(session, content_client(doc=doc), storage=storage).run_archive(task.id)
+
+        pages = await _pages_of(session, space.id, (CONF_TOP, CONF_CHILD))
+        for page in pages.values():
+            await session.refresh(page)
+        assert [one["type"] for one in pages[CONF_TOP].content["content"]] == ["paragraph"]
+        # У вложенной страницы название другое, и тот же заголовок для неё —
+        # часть документа. Снимать его нельзя.
+        assert [one["type"] for one in pages[CONF_CHILD].content["content"]] == [
+            "heading",
+            "paragraph",
+        ]
+
     async def test_an_attachment_is_brought_in_and_its_link_rewritten(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
@@ -1741,6 +1803,47 @@ class TestDocxImport:
             space_id=space.id,
         )
         assert page.title == "Договор поставки"
+
+    def _titled(self, title: str, body: str) -> dict:
+        """Разобранный документ, начатый заголовком с названием.
+
+        Схема узлов живёт в соседней службе, и здесь она подменена: проверяется
+        обращение с разобранным, а не сам разбор.
+        """
+        return {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 1},
+                    "content": [{"type": "text", "text": title}],
+                },
+                {"type": "paragraph", "content": [{"type": "text", "text": body}]},
+            ],
+        }
+
+    async def test_the_title_does_not_stay_a_heading_inside(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Название взято из первого заголовка — внутри страницы он лишний.
+
+        Оставленный, он повторяет название: одно и то же видно и в дереве, и
+        первой строкой тела. У Markdown и HTML снятие было, у Word нет.
+        """
+        service = ImportService(
+            session, content_client(doc=self._titled("Договор поставки", "Обычный абзац."))
+        )
+        page = await service.import_file(
+            file_name="договор.docx",
+            data=self._document(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+
+        await session.refresh(page)
+        assert page.title == "Договор поставки"
+        assert [one["type"] for one in page.content["content"]] == ["paragraph"]
 
     async def test_a_broken_document_is_refused(
         self, session: AsyncSession, workspace, owner, space
@@ -2407,6 +2510,46 @@ class TestPdfImport:
             space_id=space.id,
         )
         assert page.title == "Регламент"
+
+    def _titled(self, title: str, body: str) -> dict:
+        """Разобранный документ, начатый заголовком с названием.
+
+        Схема узлов живёт в соседней службе, и здесь она подменена: проверяется
+        обращение с разобранным, а не сам разбор.
+        """
+        return {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 1},
+                    "content": [{"type": "text", "text": title}],
+                },
+                {"type": "paragraph", "content": [{"type": "text", "text": body}]},
+            ],
+        }
+
+    async def test_the_title_does_not_stay_a_heading_inside(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Название взято из первого заголовка — внутри страницы он лишний."""
+        service = ImportService(
+            session,
+            content_client(
+                pdf="<h1>Регламент</h1><p>текст</p>", doc=self._titled("Регламент", "текст")
+            ),
+        )
+        page = await service.import_file(
+            file_name="регламент.pdf",
+            data=_pdf_without_text(),
+            user_id=owner.id,
+            workspace_id=workspace.id,
+            space_id=space.id,
+        )
+
+        await session.refresh(page)
+        assert page.title == "Регламент"
+        assert [one["type"] for one in page.content["content"]] == ["paragraph"]
 
     async def test_the_refusal_of_the_service_reaches_the_person(
         self, session: AsyncSession, workspace, owner, space

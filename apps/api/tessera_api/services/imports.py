@@ -195,6 +195,11 @@ def title_from_markdown(markdown: str, fallback: str) -> str:
     return os.path.splitext(fallback or "")[0][:250] or "Untitled"
 
 
+def _same_heading(text: str, title: str) -> bool:
+    """Один ли это заголовок с названием страницы."""
+    return " ".join(text.split()).casefold() == " ".join((title or "").split()).casefold()
+
+
 def drop_title_heading(content: dict, title: str) -> dict:
     """Снять первый заголовок, если он и есть название страницы.
 
@@ -219,7 +224,10 @@ def drop_title_heading(content: dict, title: str) -> dict:
     text = "".join(
         one.get("text") or "" for one in (first.get("content") or []) if isinstance(one, dict)
     ).strip()
-    if not text or text != (title or "").strip():
+    # Сравнение без учёта регистра и лишних пробелов: выгрузка пишет название в
+    # теле не всегда тем же написанием, что в оглавлении, и точное равенство
+    # оставляло бы заголовок задвоенным ровно там, где он и задваивается.
+    if not text or not _same_heading(text, title):
         return content
 
     nodes = nodes[1:]
@@ -516,9 +524,10 @@ class ImportService:
                 # Пустой разбор здесь — не пустой документ, а не разобранный:
                 # битый или защищённый файл выглядит так же.
                 raise bad_request("error.import.no_text")
+            title = title_from_html(html, file_name)
             return (
-                title_from_html(html, file_name),
-                await self._content.html_to_json(html),
+                title,
+                drop_title_heading(await self._content.html_to_json(html), title),
                 images,
             )
 
@@ -551,9 +560,10 @@ class ImportService:
         # структуру. Отказы (пустой файл, битый файл, скан без текстового слоя)
         # приходят оттуда кодами и здесь не повторяются.
         html = await self._content.pdf_to_html(data)
+        title = title_from_html(html, file_name)
         return (
-            title_from_html(html, file_name),
-            await self._content.html_to_json(html),
+            title,
+            drop_title_heading(await self._content.html_to_json(html), title),
             [],
         )
 
@@ -1440,6 +1450,11 @@ class ImportService:
         except Exception:  # noqa: BLE001 — одна страница не отменяет архив
             logger.info("Страница выгрузки не разобрана: %s", entry.path)
             return page
+
+        # Название выгрузка хранит отдельно от тела, но пишет его и первым
+        # заголовком внутри. Оставленный, он повторяет название страницы —
+        # заголовок виден дважды. Одиночный ввоз это уже снимал, архивный нет.
+        content = drop_title_heading(content, name)
 
         return await pages.update(page=page, user_id=task.creator_id, content=content)
 
