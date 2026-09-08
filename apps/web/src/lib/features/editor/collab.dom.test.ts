@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { plainText } from './collab';
+import { nextStatus, plainText, seedDecision } from './collab';
 
 describe('plainText', () => {
   it('собирает абзацы отдельными строками', () => {
@@ -96,5 +96,60 @@ describe('plainText', () => {
     expect(plainText({})).toEqual([]);
     expect(plainText({ type: 'doc', content: [] })).toEqual([]);
     expect(plainText('строка')).toEqual([]);
+  });
+});
+
+describe('nextStatus', () => {
+  it('состоявшееся подключение даёт рабочее состояние', () => {
+    expect(nextStatus('connecting', 'connected')).toBe('ready');
+    expect(nextStatus('offline', 'connected')).toBe('ready');
+  });
+
+  it('повторная попытка после разрыва не выводит из разрыва', () => {
+    // Библиотека повторяет попытки и о каждой сообщает `connecting`. Приняв
+    // это за начальную загрузку, экран затирал бы сообщение о потерянной
+    // связи словом «загрузка».
+    expect(nextStatus('offline', 'connecting')).toBe('offline');
+    expect(nextStatus('offline', 'disconnected')).toBe('offline');
+  });
+
+  it('до первого подключения это именно загрузка', () => {
+    expect(nextStatus('connecting', 'connecting')).toBe('connecting');
+    expect(nextStatus('ready', 'connecting')).toBe('connecting');
+  });
+});
+
+describe('seedDecision', () => {
+  const content = { type: 'doc', content: [{ type: 'paragraph' }] };
+
+  it('один источник — ещё не решение', () => {
+    // Документ приходит с сервера и из хранилища браузера. Засев по одному из
+    // них пришёлся бы на миг, когда второе ещё не применено, и страница
+    // показала бы своё содержимое дважды.
+    expect(seedDecision({ fromServer: true, fromBrowser: false, empty: true, content })).toBe(
+      'wait'
+    );
+    expect(seedDecision({ fromServer: false, fromBrowser: true, empty: true, content })).toBe(
+      'wait'
+    );
+  });
+
+  it('пустой документ у непустой страницы засевается', () => {
+    expect(seedDecision({ fromServer: true, fromBrowser: true, empty: true, content })).toBe(
+      'seed'
+    );
+  });
+
+  it('непустой документ не трогается', () => {
+    // Тело уже в документе: повторный засев удвоил бы его.
+    expect(seedDecision({ fromServer: true, fromBrowser: true, empty: false, content })).toBe(
+      'skip'
+    );
+  });
+
+  it('пустой странице класть нечего', () => {
+    expect(seedDecision({ fromServer: true, fromBrowser: true, empty: true, content: null })).toBe(
+      'skip'
+    );
   });
 });

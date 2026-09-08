@@ -333,6 +333,9 @@ importers:
       socket.io-client:
         specifier: 4.8.3
         version: 4.8.3
+      y-indexeddb:
+        specifier: 9.0.12
+        version: 9.0.12(yjs@13.6.30)
       y-prosemirror:
         specifier: 1.3.7
         version: 1.3.7(prosemirror-model@1.25.9)(prosemirror-state@1.4.4)(prosemirror-view@1.41.9)(y-protocols@1.0.6(yjs@13.6.30))(yjs@13.6.30)

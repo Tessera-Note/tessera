@@ -34,6 +34,50 @@ export const DOCUMENT_UNREADABLE = 'document.unreadable';
 export const ACCESS_REVOKED = 'access.revoked';
 export const ACCESS_CHANGED = 'access.changed';
 
+/** Что видно про канал: подключаемся, работаем, связь потеряна. */
+export type CollabStatus = 'connecting' | 'ready' | 'offline';
+
+/**
+ * Состояние канала после сообщения библиотеки.
+ *
+ * «Подключение» после разрыва — это по-прежнему разрыв. Библиотека повторяет
+ * попытки и о каждой сообщает `connecting`; принимая это за начальную загрузку,
+ * экран затирал бы сообщение о потерянной связи словом «загрузка», и человек
+ * читал бы обрыв как незаконченное открытие страницы.
+ *
+ * Из разрыва выводит только состоявшееся подключение.
+ */
+export function nextStatus(current: CollabStatus, reported: string): CollabStatus {
+  if (reported === 'connected') return 'ready';
+  if (current === 'offline') return 'offline';
+  return 'connecting';
+}
+
+/**
+ * Что делать с телом страницы, когда пришло состояние документа.
+ *
+ * `wait` — источник пока один. Документ приходит из двух мест: с сервера и из
+ * хранилища браузера, где лежит набранное без связи. Решение по одному из них
+ * пришлось бы на миг, когда второе ещё не применено: документ выглядит пустым,
+ * засев проходит, а следом прилетает то же самое — и страница показывает своё
+ * содержимое дважды. Ожидание хранилища при этом ограничено по времени: не
+ * ответить оно может и вовсе.
+ *
+ * `seed` — документ пуст, а тело у страницы есть: подключившийся первым обязан
+ * его положить, иначе пустой документ означал бы, что страница потеряла текст.
+ *
+ * `skip` — класть нечего: тело уже в документе либо его нет вовсе.
+ */
+export function seedDecision(state: {
+  fromServer: boolean;
+  fromBrowser: boolean;
+  empty: boolean;
+  content: unknown;
+}): 'wait' | 'seed' | 'skip' {
+  if (!state.fromServer || !state.fromBrowser) return 'wait';
+  return state.empty && state.content ? 'seed' : 'skip';
+}
+
 /**
  * Плоский текст документа.
  *

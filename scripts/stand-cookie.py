@@ -12,8 +12,14 @@
     docker exec tessera-v2-api python /tmp/stand-session.py > .stand-session
     python3 scripts/stand-cookie.py
 
-Затем открыть в браузере http://127.0.0.1:9099 — он поставит куку и переведёт на
+Затем открыть в браузере http://localhost:9099 — он поставит куку и переведёт на
 стенд. Сервер отвечает один раз и завершается: держать его дольше незачем.
+
+Узел важен. Кука принадлежит узлу, а не порту, и поставленная на `localhost`
+на `127.0.0.1` не уйдёт. Открывать надо тем же именем, каким задан `APP_URL`:
+канал событий сверяет происхождение страницы с ним и при расхождении отвергает
+соединение — страницы при этом работают, а живые обновления просто не приходят,
+и стенд выглядит сломанным там, где он цел.
 
 Файл `.stand-session` содержит учётные данные. Он в `.gitignore`, и после
 осмотра его следует удалить.
@@ -24,15 +30,24 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlsplit
 
 #: Где лежит выданный токен. Рядом с корнем репозитория, а не в исходниках.
 TOKEN_FILE = pathlib.Path(__file__).resolve().parent.parent / ".stand-session"
 
+#: Адрес, по которому открыт стенд. Тот же, что у приложения в `APP_URL`:
+#: расхождение отвергает канал событий.
+APP_URL = os.environ.get("APP_URL", "http://localhost:8080").rstrip("/")
+
 #: Куда переводить после установки куки.
-TARGET = "http://127.0.0.1:8080/home"
+TARGET = f"{APP_URL}/home"
+
+#: Узлы, которые считаются стендом. Боевой домен сюда не попадает.
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 #: Порт передачи. Свой, а не порт стенда: куки принадлежат узлу, а не порту,
 #: и поставленная здесь кука уйдёт и на 8080.
@@ -40,6 +55,12 @@ PORT = 9099
 
 
 def main() -> None:
+    # Только стенд: выдача сеанса в обход входа на боевом узле недопустима, а
+    # `APP_URL` берётся из окружения и указать может куда угодно.
+    if (urlsplit(APP_URL).hostname or "") not in LOCAL_HOSTS:
+        print(f"APP_URL не указывает на стенд: {APP_URL}", file=sys.stderr)
+        raise SystemExit(1)
+
     if not TOKEN_FILE.exists():
         print(f"нет файла {TOKEN_FILE.name}: сначала выдайте сеанс", file=sys.stderr)
         raise SystemExit(1)

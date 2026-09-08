@@ -32,12 +32,15 @@
     collabAddress,
     collabToken,
     documentName,
-    plainText
+    nextStatus,
+    plainText,
+    seedDecision
   } from './collab';
   import { Suggest } from './menus/suggest.svelte';
   import AskAi from './menus/AskAi.svelte';
   import BubbleMenu from './menus/BubbleMenu.svelte';
   import CommentBox from './menus/CommentBox.svelte';
+  import DocumentView from './DocumentView.svelte';
   import DragHandle from './menus/DragHandle.svelte';
   import EmptyStart from './EmptyStart.svelte';
   import FindReplace from './menus/FindReplace.svelte';
@@ -144,6 +147,19 @@
   /** Переключатель права правки. Ставится, когда редактор собран. */
   let setEditable: ((value: boolean) => void) | null = null;
   let provider: { destroy: () => void } | null = null;
+  /** Хранилище документа в браузере. Держит правки, набранные без связи. */
+  let persistence: { destroy: () => void } | null = null;
+  /** Предел ожидания хранилища. Снимается, как только оно ответило. */
+  let waiting: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Сколько ждать хранилище браузера.
+   *
+   * Обычно оно отвечает за миллисекунды. Но открыться оно может и не суметь —
+   * в окне без сохранения данных и при запрещённых данных сайта, — а ответа об
+   * этом не приходит вовсе. Без предела страница осталась бы на чтении навсегда.
+   */
+  const STORAGE_WAIT = 3000;
 
   /** Подбор по знаку. Заводится вместе с редактором: без него ему нечего читать. */
   let suggest = $state<Suggest | null>(null);
@@ -217,6 +233,7 @@
           { Collaboration },
           { CollaborationCaret },
           { HocuspocusProvider },
+          { IndexeddbPersistence },
           Y,
           { editorExtensions }
         ] = await Promise.all([
@@ -224,21 +241,34 @@
           import('@tiptap/extension-collaboration'),
           import('@tiptap/extension-collaboration-caret'),
           import('@hocuspocus/provider'),
+          import('y-indexeddb'),
           import('yjs'),
           import('./extensions')
         ]);
-
-        const { token } = await collabToken();
+        // Уход со страницы мог случиться, пока грузились библиотеки. Собранные
+        // после уборки редактор и соединение никто уже не закроет.
         if (cancelled) return;
 
+        const name = documentName(page);
         const document_ = new Y.Doc();
+        // Документ хранится и в самом браузере. Без этого правка, сделанная при
+        // обрыве связи, живёт только в памяти вкладки: перезагрузка до возврата
+        // связи стирает её без следа. Хранившееся уходит на сервер тем же
+        // порядком, что и набранное только что.
+        const local = new IndexeddbPersistence(name, document_);
+        persistence = local;
+
         const connection = new HocuspocusProvider({
           url: collabAddress(),
-          name: documentName(page),
+          name,
           document: document_,
-          token,
+          // Токен спрашивается перед каждым рукопожатием, а не берётся однажды:
+          // он живёт сутки, а вкладка живёт дольше. С просроченным канал не
+          // пускает, и вкладка осталась бы без связи навсегда — вместе со всем,
+          // что в ней набрано.
+          token: async () => (await collabToken()).token,
           onStatus: ({ status: state }) => {
-            status = state === 'connected' ? 'ready' : 'connecting';
+            status = nextStatus(status, state);
           },
           onDisconnect: () => {
             status = 'offline';
@@ -340,11 +370,21 @@
         const counted = made.storage.characterCount;
         if (counted) oncount?.({ words: counted.words(), characters: counted.characters() });
 
-        // Содержимое приходит из документа Yjs. Первым подключившимся его надо
-        // засеять: пустой документ означал бы, что страница потеряла текст.
-        connection.on('synced', () => {
+        // Содержимое приходит из документа Yjs, а тот собирается из двух
+        // источников: сервера и хранилища браузера. Правило засева — в
+        // `seedDecision`, там же и причина, почему ждать надо оба.
+        let fromServer = false;
+        let fromBrowser = false;
+        const seed = () => {
           if (made.isDestroyed) return;
-          if (made.isEmpty && content) {
+          const decision = seedDecision({
+            fromServer,
+            fromBrowser,
+            empty: made.isEmpty,
+            content
+          });
+          if (decision === 'wait') return;
+          if (decision === 'seed') {
             try {
               made.commands.setContent(content as never, { emitUpdate: false });
             } catch (error) {
@@ -356,6 +396,22 @@
             }
           }
           synced = true;
+        };
+
+        local.on('synced', () => {
+          if (waiting) clearTimeout(waiting);
+          waiting = null;
+          fromBrowser = true;
+          seed();
+        });
+        waiting = setTimeout(() => {
+          waiting = null;
+          fromBrowser = true;
+          seed();
+        }, STORAGE_WAIT);
+        connection.on('synced', () => {
+          fromServer = true;
+          seed();
         });
       } catch (error) {
         // Причина показывается как есть: отказ здесь означает, что редактор не
@@ -374,8 +430,14 @@
       editor?.view.dom.removeEventListener('keydown', keydown, true);
       editor?.destroy();
       provider?.destroy();
+      // Хранилище закрывается, а не очищается: набранное без связи обязано
+      // пережить и уход со страницы, и закрытие вкладки.
+      if (waiting) clearTimeout(waiting);
+      waiting = null;
+      persistence?.destroy();
       editor = null;
       provider = null;
+      persistence = null;
       setEditable = null;
       ready = null;
       suggest = null;
@@ -490,7 +552,7 @@
 {/snippet}
 
 <div data-component="EditorFrame">
-  {#if ready && editable}
+  {#if ready && editable && synced}
     <div
       data-component="EditorToolbar"
       class="mb-3 flex flex-wrap items-center gap-0.5 border-b border-border pb-2"
@@ -615,7 +677,7 @@
     </div>
   {/if}
 
-  {#if ready && editable}
+  {#if ready && editable && synced}
     {#if finding}
       <FindReplace editor={ready} tick={ticks} onclose={() => (finding = false)} />
     {/if}
@@ -630,13 +692,22 @@
     {/if}
   {/if}
 
-  <div bind:this={host}></div>
+  <!--
+    Пока совместный документ не доехал, показывается содержимое, пришедшее с
+    самой страницей. Оно уже на руках, и держать вместо него пустой лист — это
+    показывать потерю текста там, где потери нет: при недоступной службе
+    редактирования вся вика выглядела бы пустой.
+  -->
+  {#if !synced && !unreadable}
+    <DocumentView {content} />
+  {/if}
+  <div bind:this={host} hidden={!synced}></div>
 
   {#if ready && editable && empty}
     <EmptyStart {pageId} onfailure={(message) => (failure = message)} />
   {/if}
 
-  {#if ready && editable}
+  {#if ready && editable && synced}
     <DragHandle editor={ready} oninsert={(at) => (inserting = at)} />
 
     {#if selection && !linking && !commenting}
