@@ -18,17 +18,10 @@
 #      английским.
 #   3. Только после этого снять комментарии здесь и поправить правила в
 #      `.claude/skills/i18n/SKILL.md` и `.claude/agents/i18n-reviewer.md`:
-#      сейчас там написано, что не-английские словари правит Crowdin.
+#      сейчас там написано, что словари ведутся в репозитории и правятся
+#      напрямую.
 #
-# Первая версия (`apps/client/public/locales/<locale>/translation.json`) в
-# синхронизации больше не нуждается: ветка `main` оставлена ретро-веткой,
-# новых строк там не появляется.
-
 files: []
-#  - source: /apps/client/public/locales/en-US/translation.json
-#    translation: /apps/client/public/locales/%locale%/%original_file_name%
-#    type: i18next_json
-#
 #  - source: /apps/web/static/locales/en-US.json
 #    translation: /apps/web/static/locales/%locale%.json
 #    type: i18next_json

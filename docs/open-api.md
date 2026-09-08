@@ -1,55 +1,58 @@
-# Open API
+# Внешнее API
 
-This fork enables Tessera's existing open-source HTTP controllers for personal
-API keys. Use `Authorization: Bearer <API_KEY>` with the `/api` prefix. Keys
-inherit the permissions of the user who created them.
+Маршруты приложения доступны по личному ключу API. Ключ приходит заголовком
+`Authorization: Bearer <ключ>` и наследует права того человека, который его
+создал: проверка доступа к странице идёт тем же путём, что и для обращения из
+браузера.
 
-Successful JSON responses use `{ "data": ..., "success": true, "status": 200 }`.
-File uploads and downloads return their native HTTP payloads instead. List
-routes use the existing cursor fields: `limit`, `cursor`, and `beforeCursor`.
+Тем же заголовком приходит и обычный токен входа. Различить их по внешнему виду
+нечем — вид записан внутри подписанной части, — поэтому `api/guards.py` сначала
+пробует прочитать токен, а затем ключ.
 
-## Verified resource groups
+## Формат
 
-- API keys: list, create, rename, revoke.
-- Spaces and pages: CRUD, members, trees, moves, duplication, history, trash,
-  restore, breadcrumbs and recent pages.
-- Comments and attachments: comment CRUD, file upload/info, image upload,
-  avatar and space icon handling.
-- Search and shares: search, suggestions, public-share lifecycle and lookup.
-- User, workspace and groups: profile, workspace information/members and group
-  CRUD.
-- Import and export: page/space export, Markdown import and file-task list.
+Ответ отдаётся как есть, без обёртки. Первая версия заворачивала JSON в
+`{ data, success, status }`; здесь этого нет, и клиент, написанный под ту форму,
+работать не будет.
 
-## Compatibility verifiers
+Отказ приходит объектом `{code, message, params}`, где `code` это устойчивый
+ключ вроде `error.auth.session_expired`. Показывать человеку надо перевод по
+коду, а не `message`: `message` английский и предназначен разработчику.
 
-Run from the repository root after setting the two environment variables:
+Действия оформлены как `POST` с телом, а не как REST по методам. Загрузка и
+отдача файлов возвращают свой природный ответ, а не JSON.
 
-```powershell
-$env:TESSERA_API_URL = 'http://localhost:3000/api'
-$env:TESSERA_API_KEY = 'your-temporary-key'
-node scripts/verify-open-api-spaces-pages.mjs
-node scripts/verify-open-api-comments-attachments.mjs
-node scripts/verify-open-api-search-shares.mjs
-node scripts/verify-open-api-workspace-groups.mjs
-node scripts/verify-open-api-import-export.mjs
-node scripts/verify-open-api-system.mjs
-node scripts/verify-open-api-invites.mjs
-```
+Перечни постраничные: курсор по составному ключу, конец перечня показывает
+пустой `nextCursor`, а не короткая страница. Отбор по правам выбрасывает строки
+уже после выборки, поэтому страница бывает короче запрошенной.
 
-The verifiers create and clean up their own temporary data. Never commit a real
-API key.
+## Управление ключами
 
-For membership mutations, use a dedicated second test account:
+`/api/api-keys`: список, создание, переименование, отзыв. Ключ хранится хешем и
+целиком отдаётся один раз, при создании.
 
-```powershell
-$env:TESSERA_SECOND_USER_ID = 'second-test-user-uuid'
-node scripts/verify-open-api-multi-user.mjs
-node scripts/verify-open-api-workspace-members.mjs
-```
+## Что доступно
 
-## Endpoints that need a separate actor or external delivery
+| Область | Путь |
+|---|---|
+| пространства, страницы, дерево, корзина, история | `/api/spaces`, `/api/pages` |
+| комментарии, метки, избранное | `/api/comments`, `/api/labels`, `/api/favorites` |
+| вложения и файлы | `/api/attachments`, `/api/files` |
+| поиск и публичные ссылки | `/api/search`, `/api/share` |
+| рабочее пространство, участники, группы, приглашения | `/api/workspace`, `/api/groups` |
+| шаблоны и bases | `/api/templates`, `/api/bases` |
+| ввоз и вывоз | `/api/file-tasks`, обработчики вывоза в `api/exports.py` |
+| помощник | `/api/ai` |
 
-Workspace invitations use an `example.invalid` address and are revoked by the
-verifier. Member role changes and group/space member mutations are covered by
-the multi-user verifier using a temporary second account. API keys can call
-them when their creator has the required administrator permission.
+Полный перечень собирается из контроллеров в `apps/api/tessera_api/api`.
+
+## Ограничение частоты
+
+Глобального предела нет. Отдельные пределы стоят на входе, MFA, `/ai`, `/mcp`,
+вывозе и отрисовке PDF. Обращение по ключу считается тем же счётчиком, что и
+обращение человека.
+
+## MCP
+
+Тот же ключ работает и для MCP по пути `/mcp` — это отдельный протокол поверх
+JSON-RPC, 63 инструмента. Подробности в `docs/ai-context/mcp.md`.

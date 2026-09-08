@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@braintree/sanitize-url": "7.1.2",
+    "@docmost/pdf-inspector": "1.9.6",
     "@floating-ui/dom": "1.7.3",
     "@hocuspocus/provider": "3.4.4",
     "@hocuspocus/server": "3.4.4",
@@ -67,19 +68,9 @@
     "yjs": "^13.6.30"
   },
   "devDependencies": {
-    "@nx/js": "22.6.1",
     "@types/bytes": "3.1.5",
     "@types/qrcode": "1.5.6",
-    "@types/turndown": "5.0.6",
-    "concurrently": "9.2.3",
-    "nx": "22.6.1",
-    "tsx": "^4.21.0"
-  },
-  "workspaces": {
-    "packages": [
-      "apps/*",
-      "packages/*"
-    ]
+    "@types/turndown": "5.0.6"
   },
   "packageManager": "pnpm@10.18.3"
 }

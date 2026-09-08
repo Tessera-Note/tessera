@@ -9,16 +9,27 @@
 #   scripts/verify-image-contains.sh <подстрока> [путь-внутри-образа]
 #
 # Пример:
-#   scripts/verify-image-contains.sh base_jsonb_quarantine \
-#     /app/apps/server/dist/database/migrations/20260805T170000-normalize-base-jsonb.js
+#   scripts/verify-image-contains.sh open_session_for \
+#     /app/tessera_api/services/auth.py
 #
-# Без второго аргумента ищет по всему /app/apps/server/dist.
+# Без второго аргумента ищет по всему /app/tessera_api.
+#
+# Образ задаётся переменной IMAGE. Имя собирается из имени состава и имени
+# службы, отсюда удвоение. Умолчание — приложение; для экранов
+# IMAGE=tessera-v2-tessera-v2-web:latest с путём /app/apps/web/build, для
+# совместного редактирования IMAGE=tessera-v2-tessera-v2-collab:latest с путём
+# /app/services/collab/src.
+#
+# У приложения исходники в образе лежат как есть, поэтому подстрока ищется
+# такая же, как в файле. У экранов образ несёт сборку, а сборщик переписывает
+# исходник: там подстроку выбирать такую, которая переживает сборку — литерал
+# строки, имя ключа объекта.
 
 set -euo pipefail
 
-IMAGE="${IMAGE:-tessera-tessera:latest}"
+IMAGE="${IMAGE:-tessera-v2-tessera-v2-api:latest}"
 NEEDLE="${1:-}"
-TARGET="${2:-/app/apps/server/dist}"
+TARGET="${2:-/app/tessera_api}"
 
 if [ -z "$NEEDLE" ]; then
   echo "Использование: $0 <подстрока> [путь-внутри-образа]" >&2

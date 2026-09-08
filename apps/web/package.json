@@ -28,7 +28,6 @@
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.0-3a5ef40",
     "@hocuspocus/provider": "3.4.4",
-    "@tanstack/svelte-query": "6.1.38",
     "@tessera/editor-ext": "workspace:*",
     "@tiptap/core": "3.27.1",
     "@tiptap/extension-code-block": "3.27.1",
@@ -51,7 +50,6 @@
     "@tiptap/extensions": "3.27.1",
     "@tiptap/pm": "3.27.1",
     "@tiptap/starter-kit": "3.27.1",
-    "bits-ui": "2.18.1",
     "clsx": "2.1.1",
     "dompurify": "3.4.11",
     "katex": "0.16.40",

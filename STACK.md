@@ -8,118 +8,117 @@
 
 | Технология | Версия | Роль |
 |---|---|---|
-| Node | 22 | рантайм, база Docker-образа `node:22-slim` |
+| Python | 3.13 | рантайм приложения, база образа `python:3.13-slim` |
+| uv | 0.10.2 | зависимости и запуск Python-частей |
+| Node | 22 | рантайм экранов и сервиса совместного редактирования |
 | pnpm | 10.18.3 | пакетный менеджер, поле `packageManager` в корневом `package.json` |
-| Nx | 22.6.1 | оркестрация сборки монорепо, кеш таргетов `build` и `lint` |
-| TypeScript | 5.9.3 | типизация в обоих приложениях и пакетах |
+| TypeScript | 5.9.3 | типизация экранов и пакета расширений |
 
-Воркспейсы объявлены в `pnpm-workspace.yaml` как `apps/*` и `packages/*`. Там же живут `overrides` и `patchedDependencies`. В поле `pnpm` внутри `package.json` их держать нельзя, pnpm 11 молча игнорирует это поле.
+Воркспейсы объявлены в `pnpm-workspace.yaml` как `apps/*` и `packages/*`. Там же живут `overrides`. В поле `pnpm` внутри `package.json` их держать нельзя, pnpm 11 молча игнорирует это поле.
 
 `.npmrc` содержит `shamefully-hoist = true`.
 
-## Клиент, apps/client
+## Приложение, apps/api
 
 | Технология | Версия | Роль |
 |---|---|---|
-| React | 19.2.7 | рендер |
-| Vite | 8.0.16 | сборщик и dev-сервер, вывод через rolldown |
-| react-router-dom | 7.18.0 | маршрутизация |
-| Mantine (core, hooks, form, modals, notifications, spotlight, dates) | 9.3.2 | UI-библиотека и тема |
-| TanStack Query | 5.90.17 | серверное состояние, кеш, мутации |
-| Jotai | 2.20.1 | локальное разделяемое состояние (дерево, сокет, сайдбар) |
-| axios | 1.16.0 | HTTP-клиент |
-| i18next + react-i18next | 25.10.1 / 16.5.8 | локализация, загрузка словарей по HTTP |
+| Litestar | 2.24.0 | HTTP-каркас, контроллеры классами |
+| SQLAlchemy | 2.0.51 | модели и запросы, режим async |
+| asyncpg | 0.31.0 | драйвер PostgreSQL |
+| msgspec | 0.19.0 | DTO запросов и ответов, разбор и сериализация |
+| redis (python) | 6.4.0 | кеш, очереди, подписки |
+| arq | 0.25.0 | очереди задач и расписание |
+| PyJWT | 2.12.1 | токены входа |
+| bcrypt | 5.0.0 | хеши паролей |
+| aiobotocore | 3.9.0 | хранилище, совместимое с S3 |
+| cryptography | 50.0.0 | шифрование ключей провайдеров ИИ |
+| ldap3 | 2.9.1 | вход через LDAP |
+| signxml | 5.1.0 | подписи SAML |
+| python-socketio | 5.16.4 | канал событий |
+| pypdf | 6.15.0 | разбор PDF при ввозе и индексации |
+| python-docx | 1.2.0 | разбор DOCX |
+| pytest + pytest-asyncio | 9.1.1 / 1.4.0 | проверки, режим `asyncio_mode = auto` |
+| ruff | 0.16.1 | линт, длина строки 100, набор `E,F,I,UP,B,SIM` |
+
+Хранилище: PostgreSQL с pgvector (образ `pgvector/pgvector:pg18`) и Redis (образ `redis:8`).
+
+Слои направлены в одну сторону: `api` знает `services`, `services` знает `domain` и `infrastructure`. Обратных связей нет.
+
+## Экраны, apps/web
+
+| Технология | Версия | Роль |
+|---|---|---|
+| SvelteKit | 2.70.2 | каркас, маршруты, серверные загрузчики |
+| Svelte | 5.56.8 | компоненты и состояние на рунах |
+| adapter-node | 5.5.7 | сборка узлом, а не статикой |
+| Vite | 8.0.16 | сборщик и dev-сервер |
+| Tailwind CSS | 4.3.3 | стилизация, плагин `@tailwindcss/vite` |
+| bits-ui | 2.18.1 | доступные примитивы интерфейса |
+| @tabler/icons-svelte | 3.46 | иконки |
+| Tiptap | 3.27.1 | редактор, узлы через `@tessera/editor-ext` |
+| yjs + y-prosemirror + @hocuspocus/provider | 13.6 / 1.3.7 / 3.4.4 | совместное редактирование |
 | socket.io-client | 4.8.3 | канал событий |
-| Tiptap (через `@tessera/editor-ext`) | 3.27.1 | редактор |
-| zod + mantine-form-zod-resolver | 4.3.6 / 1.3.0 | валидация форм |
-| Vitest + Testing Library + jsdom | 4.1.6 | тесты |
-| ESLint + typescript-eslint | 9.28.0 / 8.57.1 | линт |
-| Prettier | 3.8.1 | форматирование, своего `.prettierrc` нет, действуют значения по умолчанию |
+| mermaid, katex, lowlight, dompurify | 11.15.0 / 0.16.40 / 3.3.0 / 3.4.11 | диаграммы, формулы, подсветка, санитайзинг |
+| @excalidraw/excalidraw | 0.18.0-3a5ef40 | редактор набросков |
+| Vitest | 4.1.10 | проверки |
+| svelte-check | 4.7.5 | проверка типов |
+| Prettier + prettier-plugin-svelte | 3.6.2 / 3.4.1 | форматирование, `lint` это `--check` без автофикса |
 
-Дополнительно `@excalidraw/excalidraw`, `react-drawio`, `mermaid`, `katex`, `highlight.js`, `@atlaskit/pragmatic-drag-and-drop` (дерево страниц), `posthog-js`, `@casl/react`.
+`react` и `react-dom` 19.2.7 присутствуют в зависимостях экранов не ради интерфейса: их требует `@excalidraw/excalidraw`, который остаётся React-компонентом и монтируется отдельно.
 
-TypeScript у клиента нестрогий: `strict: false`, `strictNullChecks: false`. Ужесточать без отдельной задачи не надо, это массовый дифф.
+Алиас `$lib` указывает на `apps/web/src/lib`, объявлен в `svelte.config.js`.
 
-Алиас `@/` указывает на `apps/client/src`, объявлен в трех местах и должен совпадать во всех: `tsconfig.json` (`paths`), `vite.config.ts` (`resolve.alias`), `vitest.config.ts` (`resolve.alias`).
-
-## Сервер, apps/server
+## Совместное редактирование, services/collab
 
 | Технология | Версия | Роль |
 |---|---|---|
-| NestJS | 11.1.27 | каркас приложения |
-| Fastify (`@nestjs/platform-fastify`) | 11.1.27 | HTTP-адаптер |
-| Kysely | 0.28.17 | типизированный SQL, вместо ORM |
-| postgres (драйвер) + kysely-postgres-js | 3.4.8 / 3.0.0 | подключение к PostgreSQL |
-| PostgreSQL с pgvector | образ `pgvector/pgvector:pg18` | хранилище, векторный поиск |
-| Redis | образ `redis:8`, клиент ioredis 5.10.1 | кеш, очереди, адаптер Socket.IO, локи Yjs |
-| BullMQ (`@nestjs/bullmq`) | 11.0.4 | очереди задач |
-| socket.io | 4.8.3 | канал событий |
-| ws + lib0 | 8.21.0 / 0.2.117 | транспорт Hocuspocus/Yjs |
-| class-validator + class-transformer | 0.15.1 / 0.5.1 | валидация DTO |
-| passport-jwt, `@nestjs/jwt` | 4.0.1 / 11.0.2 | аутентификация |
-| `@nestjs/throttler` + throttler-storage-redis | 6.5.0 | лимиты запросов |
-| nestjs-pino | 4.6.1 | логирование |
-| nestjs-cls | 6.2.0 | контекст запроса для аудита |
-| Jest + ts-jest + Supertest | 30.3.0 / 29.4.6 / 7.2.2 | тесты |
-| Prettier | 3.8.1 | форматирование, `.prettierrc` с `singleQuote: true` и `trailingComma: all` |
+| Node | 22 | рантайм, образ `node:22-slim` |
+| @hocuspocus/server | 3.4.4 | протокол совместного редактирования |
+| Tiptap + yjs | 3.27.1 / 13.6 | схема узлов документа и слияние правок |
 
-Интеграции: AWS S3, Azure Blob, nodemailer, postmark, react-email, Gotenberg (через HTTP), Stripe, ClickHouse, Typesense, `@modelcontextprotocol/sdk` 1.29.0, `ai` 6.0.134 с провайдерами OpenAI, Google, OpenAI-compatible, Ollama, `@langchain/textsplitters`, pgvector, scimmy (пропатчен), ldapts, `@node-saml/passport-saml`, openid-client, otpauth.
+Сервис собирается на glibc, а не на Alpine: разбор PDF идёт природным модулем, у которого нет сборки под musl. Своих решений о правах он не принимает и в базу не пишет — спрашивает приложение маршрутами `/api/internal/collab/*` с общим секретом `COLLAB_INTERNAL_TOKEN`.
 
-TypeScript у сервера `strict: true`, но с послаблениями `strictNullChecks: false`, `noImplicitAny: false`, `strictBindCallApply: false`.
-
-Алиасы сервера объявлены в `apps/server/tsconfig.json` и продублированы в `moduleNameMapper` внутри jest-конфига в `apps/server/package.json`. При добавлении нового алиаса менять оба места.
-
-| Алиас | Куда |
-|---|---|
-| `@tessera/db/*` | `apps/server/src/database/*` |
-| `@tessera/transactional/*` | `apps/server/src/integrations/transactional/*` |
-| `@tessera/ee/*` | `apps/server/src/ee/*` |
-| `@tessera/base-formula/server` | сборка `packages/base-formula/dist/index.server` |
-| `@tessera/base-formula/client` | сборка `packages/base-formula/dist/index.client` |
+Проверки запускаются встроенным средством Node: `node --test services/collab/src/*.test.js`.
 
 ## Внутренний сервис, services/hub
 
 | Технология | Версия | Роль |
 |---|---|---|
 | Python | 3.13 | рантайм, образ `python:3.13-slim` |
-| Litestar | 2.24.0 | HTTP-каркас, контроллеры классами |
+| Litestar | 2.24.0 | HTTP-каркас |
 | SQLAlchemy | 2.0.51 | модели и запросы, режим async |
 | asyncpg | 0.31.0 | драйвер PostgreSQL |
 | Alembic | 1.18.5 | миграции своей базы `tessera_hub` |
 | markdown-it-py | 4.2.0 | разметка страниц документации |
-| uv | 0.10.2 | зависимости и запуск |
-| ruff | 0.16.1 | линт и форматирование |
-| pytest | 9.1.1 | тесты, SQLite во временном файле |
+| pytest | 9.1.1 | проверки, SQLite во временном файле |
 
-Сервис закрывает обращения, которые в исходном коде уходили на сторонние
-адреса: последняя версия, прием телеметрии, документация, лицензия и
-поддержка. Подробности в `services/hub/README.md`.
+Сервис закрывает обращения, которые в исходном коде уходили на сторонние адреса: последняя версия, прием телеметрии, документация, лицензия и поддержка. Подробности в `services/hub/README.md`.
 
 ## Пакеты
 
 | Пакет | Роль | Особенность |
 |---|---|---|
-| `@tessera/editor-ext` | общие расширения редактора Tiptap | `module` указывает на исходники `src/index.ts`, сборка через `tsc --build` |
-| `@tessera/base-formula` | движок формул для bases | два входа, `./client` резолвится в исходник, `./server` в `dist`. Изолированной сборке сервера нужен `dist` |
+| `@tessera/editor-ext` | общие расширения редактора Tiptap | `module` указывает на исходники `src/index.ts`, сборка через `tsc --build`. Экраны берут типы из `dist`, поэтому пакет собирается первым |
 
 ## Конфиг-файлы
 
 | Файл | Роль |
 |---|---|
-| `package.json` (корень) | скрипты монорепо, общие зависимости редактора |
-| `pnpm-workspace.yaml` | воркспейсы, `overrides`, `patchedDependencies` |
-| `pnpm-lock.yaml` | замороженные версии, руками не править |
-| `nx.json` | `targetDefaults`, кеш, `affected.defaultBase: main` |
+| `package.json` (корень) | скрипты рабочего пространства, общие зависимости редактора |
+| `pnpm-workspace.yaml` | воркспейсы и `overrides` |
+| `pnpm-lock.yaml`, `apps/api/uv.lock` | замороженные версии, руками не править |
 | `.npmrc` | `shamefully-hoist` |
-| `Dockerfile` | многостадийная сборка публикуемого образа |
-| `docker-compose.yml` | локальный стек: приложение, PostgreSQL с pgvector, Redis, Gotenberg |
-| `deploy/docker-compose.vps.yml` | продакшен-стек на VPS |
+| `apps/api/pyproject.toml` | зависимости приложения, настройки ruff и pytest |
+| `apps/api/schema/schema.hcl` | объявленная схема базы, применяется Atlas |
+| `apps/api/schema/baseline.sql`, `after-atlas.sql` | снимок схемы и доводка после Atlas, руками не правятся |
+| `apps/api/docker-compose.v2.yml` | стенд: приложение со своими базой, Redis и хранилищем |
+| `apps/api/docker-compose.v2.server.yml` | боевой состав: те же процессы, база и хранилище общие с прежним экземпляром |
+| `apps/api/Dockerfile`, `apps/web/Dockerfile`, `services/collab/Dockerfile` | сборка образов |
+| `apps/web/{svelte,vite,vitest}.config.ts`, `tsconfig.json` | конфиги экранов |
 | `deploy/nginx/*.conf` | обратный прокси, http и https варианты |
+| `deploy/searxng/settings.yml` | настройка своего поиска в сети |
+| `deploy/postgres-init/01-hub-database.sh` | создание базы внутреннего сервиса при первом старте |
 | `crowdin.yml` | синхронизация переводов **выключена**, причина и порядок включения в самом файле |
-| `patches/scimmy@1.3.5.patch` | патч зависимости |
-| `apps/client/{vite,vitest}.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.js` | конфиги клиента |
-| `apps/server/{nest-cli.json,tsconfig.json,tsconfig.build.json,eslint.config.mjs,.prettierrc}` | конфиги сервера |
-| `apps/server/test/jest-e2e.json` | конфиг e2e, тот же allowlist `transformIgnorePatterns`, что и у юнит-тестов |
 
 ## Команды
 
@@ -127,90 +126,86 @@ TypeScript у сервера `strict: true`, но с послаблениями 
 
 | Скрипт | Команда |
 |---|---|
-| `pnpm dev` | клиент и сервер параллельно |
-| `pnpm build` | `nx run-many -t build` |
-| `pnpm start` | продакшен-старт сервера |
-| `pnpm collab` | отдельный процесс коллаборации |
-| `pnpm clean` | удалить `dist` и кеш Vite |
+| `pnpm dev` | экраны в режиме разработки |
+| `pnpm build` | расширения редактора затем экраны |
+| `pnpm clean` | удалить `dist` и `.svelte-kit` |
 
-Клиент, через `pnpm --filter client <script>`: `dev`, `build` (`tsc` затем Vite), `preview`, `lint`, `format`, `test`, `test:watch`.
+Приложение, через `uv run --project apps/api <команда>`: `pytest`, `ruff check .`, `litestar --app tessera_api.app:create_app run --reload`.
 
-Сервер, через `pnpm --filter server <script>`: `start:dev`, `start:prod`, `build`, `lint` (с `--fix`), `format`, `test`, `test:e2e`, `test:cov`, `email:dev`, `collab:dev`, `collab:prod`, `migration:create`, `migration:up`, `migration:down`, `migration:latest`, `migration:redo`, `migration:reset`, `migration:codegen`.
+Экраны, через `pnpm --filter @tessera/web <script>`: `dev`, `build` (шрифты Excalidraw затем Vite), `preview`, `check`, `test`, `lint`.
 
-Пакеты: `pnpm --filter @tessera/editor-ext build`, `pnpm --filter @tessera/base-formula build`, у base-formula есть `bench`.
+Пакеты: `pnpm --filter @tessera/editor-ext build`.
+
+Внутренний сервис, в каталоге `services/hub`: `uv run pytest`, `uv run ruff check .`, `uv run alembic upgrade head`.
 
 ## Переменные окружения
 
-Конфигурация читается из `.env` в корне репозитория. Отдельных `.env` по приложениям нет: Vite грузит корневой через `loadEnv` с путем на два уровня выше, сервер через `@nestjs/config`. Отправной точкой служит `.env.example`.
+Приложение читает окружение один раз при сборке, в `apps/api/tessera_api/config.py`. Умолчания задаются там и только там: пустая строка приравнена к отсутствующему значению, потому что compose подставляет пустую строку переменным, которых нет в файле окружения, и без этого правила она перебивала бы умолчание.
 
-Обязательные для приложения: `APP_URL`, `APP_SECRET` (минимум 32 символа), `DATABASE_URL`, `REDIS_URL`.
+Стенд берёт значения из `apps/api/.env`. Обязательны четыре: `APP_SECRET` (не короче 32 знаков), `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `COLLAB_INTERNAL_TOKEN`. Смысл каждой описан в шапке `apps/api/docker-compose.v2.yml`.
 
-Отдельно `POSTGRES_PASSWORD`. Приложение его не читает, он настраивает сам контейнер базы, и от него же по умолчанию берется `HUB_POSTGRES_PASSWORD`. В `docker-compose.yml` он записан как `${POSTGRES_PASSWORD}` без `:?`, поэтому отсутствие переменной compose не останавливает: подставляется пустая строка с предупреждением, база поднимается настроенной неверно, и это всплывает позже отказом подключения. В `deploy/docker-compose.vps.yml` стоит `${POSTGRES_PASSWORD:?...}`, там команда падает сразу. Значение обязано совпадать с паролем внутри `DATABASE_URL`.
-
-Обрывает выполнение compose в `docker-compose.yml` только `MINIO_ROOT_PASSWORD`, он единственный записан с `:?`.
-
-Группы переменных, распознаваемых `EnvironmentService` (74 метода доступа).
+Группы переменных, распознаваемых `Settings` (44 имени).
 
 | Группа | Переменные |
 |---|---|
-| приложение | `APP_URL`, `APP_NAME`, `APP_SECRET`, `PORT`, `NODE_ENV`, `JWT_TOKEN_EXPIRES_IN`, `DEBUG_MODE`, `DEBUG_DB`, `LOG_HTTP`, `TRUST_PROXY_HOPS` |
-| база и очереди | `DATABASE_URL`, `DATABASE_MAX_POOL`, `REDIS_URL`, `POSTGRES_PASSWORD` (только для compose) |
-| хранилище | `STORAGE_DRIVER`, `AWS_S3_*`, `AZURE_STORAGE_*`, `FILE_UPLOAD_SIZE_LIMIT`, `FILE_IMPORT_SIZE_LIMIT` |
-| почта | `MAIL_DRIVER`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, `SMTP_*`, `POSTMARK_TOKEN` |
+| приложение | `APP_URL`, `APP_SECRET`, `HOST`, `PORT`, `DEBUG_MODE`, `TRUST_PROXY_HOPS`, `DISABLE_TELEMETRY` |
+| база и очереди | `DATABASE_URL`, `REDIS_URL` |
+| хранилище | `STORAGE_DRIVER`, `STORAGE_LOCAL_PATH`, `AWS_S3_ACCESS_KEY_ID`, `AWS_S3_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, `AWS_S3_REGION`, `AWS_S3_ENDPOINT`, `AWS_S3_FORCE_PATH_STYLE`, `FILE_UPLOAD_SIZE_LIMIT`, `FILE_IMPORT_SIZE_LIMIT` |
+| почта | `MAIL_DRIVER`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USERNAME`, `SMTP_PASSWORD` |
 | экспорт PDF | `GOTENBERG_URL`, `PDF_RENDER_BASE_URL`, `PDF_EXPORT_TIMEOUT` |
-| ИИ | `AI_DRIVER`, `AI_CHAT_MODEL`, `AI_COMPLETION_MODEL`, `AI_EMBEDDING_MODEL`, `AI_EMBEDDING_DIMENSION`, `AI_EMBEDDING_SUPPORTS_MRL`, `OPENAI_API_KEY`, `OPENAI_API_URL`, `GEMINI_API_KEY`, `OLLAMA_API_URL` |
-| вход через провайдера | `SAML_DISABLE_REQUESTED_AUTHN_CONTEXT`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SSO_EMERGENCY_PASSWORD_LOGIN` |
-| облако и биллинг | `CLOUD`, `SUBDOMAIN_HOST`, `BILLING_TRIAL_DAYS`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
-| внутренние сервисы | `HUB_INTERNAL_URL`, `HUB_URL`, `HUB_POSTGRES_PASSWORD`, `HUB_SUPPORT_EMAIL`, `HUB_SEED_RELEASE_VERSION`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET`, `MINIO_REGION` |
-| прочее | `COLLAB_URL`, `COLLAB_DISABLE_REDIS`, `DRAWIO_URL`, `IFRAME_EMBED_ALLOWED`, `IFRAME_ALLOWED_ORIGINS`, `DISABLE_TELEMETRY`, `POSTHOG_HOST`, `POSTHOG_KEY`, `CLICKHOUSE_URL` |
+| ИИ | `AI_DRIVER`, `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_COMPLETION_MODEL`, `AI_EMBEDDING_MODEL`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_API_URL` |
+| вход через провайдера | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| соседние службы | `HUB_INTERNAL_URL`, `HUB_URL`, `CONTENT_SERVICE_URL`, `COLLAB_INTERNAL_TOKEN` |
 
-`TRUST_PROXY_HOPS` это число обратных прокси перед приложением, по умолчанию 1. От него зависит, какой адрес считается адресом клиента: он идет в пороги частоты и в журнал аудита. Значение `true` (доверять всей цепочке `X-Forwarded-For`) намеренно недоступно: оно позволяет подставить адрес заголовком.
+Экраны читают три значения: `API_INTERNAL_URL` (адрес приложения для отрисовки на сервере, только в `hooks.server.ts`, в браузер не попадает), `PUBLIC_API_URL` и `PUBLIC_DRAWIO_URL`.
 
-Клиент видит только те значения, которые перечислены в блоке `define` внутри `apps/client/vite.config.ts` (в dev) либо инжектируются в `index.html` модулем `StaticModule` (в продакшене), и читает их через `apps/client/src/lib/config.ts`. Добавление новой клиентской переменной требует правки трех мест: `.env.example`, `vite.config.ts`, `config.ts`.
+Сервис совместного редактирования читает `API_URL`, `COLLAB_INTERNAL_TOKEN`, `HOST`, `PORT`, `MAX_PDF_BODY` и четыре порога слияния: `COLLAB_DEBOUNCE_MS`, `COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`, `COLLAB_SWEEP_INTERVAL_MS`.
 
-При добавлении любой новой переменной обновить `.env.example` и `EnvironmentService`.
+Только compose: `LOCAL_PORT`, `POSTGRES_PASSWORD`, `HUB_POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET`, `MINIO_REGION`, `SEARXNG_SECRET`, `PDF_ALLOW_LIST`.
+
+`TRUST_PROXY_HOPS` это число обратных прокси перед приложением, по умолчанию 1. От него зависит, какой адрес считается адресом клиента: он идет в пороги частоты и в журнал аудита. Значение «доверять всей цепочке `X-Forwarded-For`» намеренно недоступно: оно позволяет подставить адрес заголовком.
+
+При добавлении любой новой переменной обновить `.env.example` и `Settings`.
 
 ## Локализация
 
-Движок i18next с загрузкой словарей по HTTP из `apps/client/public/locales/<locale>/translation.json`. Fallback `en-US`, режим `load: 'currentOnly'`.
+Словари лежат по одному файлу на локаль в `apps/web/static/locales` и загружаются приложением. Отдельного движка нет: подстановка и множественные формы реализованы в `apps/web/src/lib/i18n`.
 
 Локали: `de-DE`, `en-US`, `es-ES`, `fr-FR`, `it-IT`, `ja-JP`, `ko-KR`, `nl-NL`, `pt-BR`, `ru-RU`, `uk-UA`, `zh-CN`.
 
-Словарь плоский, ключ это английская фраза целиком (`"Add members": "Добавить участников"`). Namespace нет. Интерполяция в формате i18next `{{variable}}`.
+Наборы ключей совпадают: 2318 у десяти локалей и 2336 у `ru-RU` и `uk-UA` (разница это славянские формы `_few` и `_many` у девяти множественных семейств). Совпадение проверяет `apps/web/src/lib/i18n/dictionaries.test.ts`, соответствие кодов отказов — `error-codes.test.ts`.
 
-Первая версия: `en-US` и `pt-BR` по 1338 ключей, `ru-RU` и `uk-UA` по 1291.
-
-Вторая версия: словари лежат по одному файлу на локаль в `apps/web/static/locales`, наборы ключей совпадают — 2318 у десяти локалей и 2336 у `ru-RU` и `uk-UA` (разница это славянские формы `_few` и `_many` у девяти множественных семейств). Совпадение наборов проверяет `apps/web/src/lib/i18n/dictionaries.test.ts`.
-
-Переводы **не** синхронизируются: Crowdin выключен, словари ведутся в репозитории и правятся напрямую. Довод и порядок включения в `crowdin.yml`. Не-английский словарь править можно — перезаписывать его больше нечему.
+Переводы **не** синхронизируются: Crowdin выключен, словари ведутся в репозитории и правятся напрямую. Довод и порядок включения в `crowdin.yml`.
 
 ## Порты и сеть
 
 | Порт | Что |
 |---|---|
-| 3000 | сервер Nest, он же отдает собранный SPA через `StaticModule` |
-| 5173 | dev-сервер Vite, проксирует `/api`, `/socket.io` и `/collab` на `APP_URL` |
-| 5019 | предпросмотр писем, `pnpm --filter server email:dev` |
-| 4000 | tessera-hub: версии, телеметрия, документация, лицензия, поддержка |
-| 8081 | tessera-drawio: редактор диаграмм |
-| 9000, 9001 | tessera-minio: хранилище вложений и его консоль |
+| 8080 | `LOCAL_PORT`, единственный внешний порт стенда: за ним прокси |
+| 3000 | приложение внутри состава, снаружи стенда 3100 |
+| 3001 | сервис совместного редактирования, снаружи стенда 3101 |
+| 3200 | dev-сервер Vite, проксирует `/api`, `/socket.io` и `/collab` |
+| 4000 | tessera-v2-hub: версии, телеметрия, документация, лицензия, поддержка |
+| 8081 | tessera-v2-drawio: редактор диаграмм |
+| 9000, 9001 | tessera-v2-minio: хранилище вложений и его консоль |
+
+Прокси нужен и на своей машине: за одним адресом стоят три процесса, и без него браузер ходил бы на три разных происхождения, а кука входа стала бы сторонней.
 
 Два независимых realtime-канала: сырой WebSocket `/collab` (Hocuspocus/Yjs, документы вида `page.<pageId>`) и Socket.IO (дерево, страницы, комментарии, уведомления, кеш).
 
 ## Что зафиксировано
 
 - версии мажоров не мигрируются без отдельной задачи
-- состояние клиента разделено намеренно: серверное в TanStack Query, интерфейсное в Jotai. Не смешивать и не подменять одно другим
-- стилизация через Mantine и CSS-модули рядом с компонентом. Другой подход к стилям не вводить
-- база через Kysely, не Prisma и не TypeORM
-- миграции только TypeScript-файлы в `apps/server/src/database/migrations/`, применяются скриптами `migration:*`
-- лимит тела HTTP-запроса 10 МБ, задан в `apps/server/src/main.ts`
-- ответы JSON оборачиваются в `{ data, success, status }` интерцептором. Нативный ответ только через `@SkipTransform()`
+- бизнес-логика, права и запись в базу только на Python. Исключение одно и закрытое, см. `CLAUDE.md`
+- схема базы объявляется в `schema.hcl` и применяется Atlas. Файлов миграций в коде приложения нет
+- стилизация через Tailwind. Другой подход к стилям не вводить
+- состояние экранов на рунах Svelte 5. Библиотеки серверного состояния здесь нет: данные приходят серверными загрузчиками маршрута и модулями `lib/features/<домен>/services`
+- отказы приходят кодом (`error.*`), человеку их разворачивает словарь. Готовый текст с сервера не приходит
+- шрифты Excalidraw отдаёт само приложение из `apps/web/static/excalidraw-assets`, каталог кладёт сборка
 
 ## Особенности
 
-- `apps/server/src/ee` это обычный каталог репозитория. Раньше он был git-сабмодулем на сторонний репозиторий, сабмодуль отвязан, внешних зависимостей такого рода в проекте нет
-- `apps/server/src/ee/ee.module.ts` подгружается динамически через `require` в `apps/server/src/app.module.ts`. При `CLOUD=true` его отсутствие завершает процесс
-- в текущем чекауте нет `node_modules`, нет `.git` и нет `.github/workflows`, хотя `docs/ai-context/verification-operations.md` и `docs/deployment.md` описывают деплой через GitHub Actions
-- клиентский `LicenseCheckService` возвращает все функции как доступные. Гейты в интерфейсе структурные, а не барьер лицензии. Серверные решения о безопасности на них строить нельзя
-- часть корпоративных функций присутствует только интерфейсом и миграциями, без серверной реализации: SSO, SCIM, MFA, billing, мутации верификации страниц, realtime для bases. Подробности в `docs/ai-context/enterprise-security.md` и `bases-templates.md`
+- часть проверок приложения работает против настоящей базы и без `DATABASE_URL` пропускается. Зелёный прогон без этой переменной не означает, что проверено всё
+- проверки на настоящей базе идут в откатываемой транзакции и ничего в ней не оставляют
+- в текущем чекауте нет `.github/workflows`: CI недоступен, проверять локально
+- вход на стенд идёт не через форму: сеанс выдаёт `scripts/stand-session.py`, cookie ставит `scripts/stand-cookie.py`
