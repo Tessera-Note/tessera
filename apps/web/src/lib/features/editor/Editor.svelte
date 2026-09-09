@@ -61,6 +61,13 @@
     author: { name: string; color: string };
     /** Кто правит — идентификатор. Пишется в упоминания, как в v1. */
     userId?: string | null;
+    /**
+     * Показывать ли полосу форматирования.
+     *
+     * Личная настройка человека («Закреплённая панель редактора»). Умолчание
+     * — показывать: так было до появления настройки.
+     */
+    toolbar?: boolean;
     /** Пространство страницы. Сужает поиск страниц при упоминании. */
     spaceId?: string | null;
     /**
@@ -79,6 +86,7 @@
     author,
     userId = null,
     spaceId = null,
+    toolbar = true,
     oncount
   }: Props = $props();
 
@@ -552,7 +560,7 @@
 {/snippet}
 
 <div data-component="EditorFrame">
-  {#if ready && editable && synced}
+  {#if ready && editable && synced && toolbar}
     <div
       data-component="EditorToolbar"
       class="mb-3 flex flex-wrap items-center gap-0.5 border-b border-border pb-2"

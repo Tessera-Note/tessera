@@ -27,6 +27,35 @@ export function updateProfile(values: ProfilePatch, fetcher?: typeof fetch) {
   return post<User>('/api/users/update', values, { fetcher });
 }
 
+/** Что человек выбрал в настройках чтения. Пустое означает «не выбирал». */
+export type ReadingPreferences =
+  | {
+      fullPageWidth?: boolean;
+      editorToolbar?: boolean;
+    }
+  | null
+  | undefined;
+
+/**
+ * Лист во всю ширину.
+ *
+ * Умолчание — узкий лист: настройка заводится, когда человек её включил, и
+ * отсутствие значения означает, что он этого не делал.
+ */
+export function wantsWidePage(preferences: ReadingPreferences): boolean {
+  return preferences?.fullPageWidth === true;
+}
+
+/**
+ * Полоса форматирования над редактором.
+ *
+ * Умолчание обратное: полоса была до появления настройки, и её отсутствие
+ * означает согласие. Значение заводится только отказом.
+ */
+export function wantsToolbar(preferences: ReadingPreferences): boolean {
+  return preferences?.editorToolbar !== false;
+}
+
 /**
  * Переключатели уведомлений: поле запроса, ключ хранения и подпись.
  *

@@ -32,6 +32,7 @@
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
   import { editModeGate } from '$lib/features/page/edit-mode';
+  import { wantsToolbar, wantsWidePage } from '$lib/features/user/services/profile';
   import { sidePanel } from '$lib/features/page/side-panel.svelte';
   import { addFavorite, removeFavorite } from '$lib/features/page/services/favorites';
   import EmojiPicker from '$lib/features/editor/EmojiPicker.svelte';
@@ -79,6 +80,9 @@
     );
     if (decided !== null) editing = decided;
   });
+
+  /** Лист во всю ширину. Личная настройка, умолчание — узкий лист. */
+  const wide = $derived(wantsWidePage(data.session?.user.settings?.preferences));
 
   /**
    * Цвет чужого курсора.
@@ -412,7 +416,13 @@
 <!-- Отступ под правую панель только там, где она отодвигает содержимое: на
      узком экране она лежит поверх, и отступ оставлял бы пустую полосу. -->
 <div class:lg:mr-aside={sidePanel.open}>
-  <article data-route="page" class="mx-auto max-w-3xl">
+  <!--
+    Ширина листа — личная настройка человека («Полная ширина страницы» в
+    настройках чтения). Она сохранялась, но нигде не применялась: переключатель
+    стоял и не делал ничего. В v1 её применяет тот же лист
+    (`features/editor/full-editor.tsx`).
+  -->
+  <article data-route="page" class="mx-auto" class:max-w-3xl={!wide}>
     <!--
       Полоса действий закреплена сверху, как в v1
       (`features/page/components/header/page-header.module.css`). Раньше крошки
@@ -613,6 +623,7 @@
       }}
       userId={data.session?.user.id}
       spaceId={data.page.spaceId}
+      toolbar={wantsToolbar(data.session?.user.settings?.preferences)}
       oncount={(counted) => (stats = counted)}
     />
   </article>
