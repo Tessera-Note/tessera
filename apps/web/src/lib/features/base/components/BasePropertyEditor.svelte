@@ -88,7 +88,7 @@
       values.choiceOrder = kept.map((one) => one.id);
       values.alphabetize = alphabetize;
     }
-    if (type === 'number') {
+    if (type === 'number' || type === 'formula') {
       values.format = numberFormat;
       values.separator = separator;
       values.precision = precision.trim() === '' ? undefined : Number(precision);
@@ -156,7 +156,11 @@
     Настройки вида. Без них число показывается как есть — вычисленное среднее
     выглядит как `6.66333333333333`, — а у даты пропадает время.
   -->
-  {#if type === 'number'}
+  <!--
+    Настройки числа нужны и формуле: её значение чаще всего число, и без них
+    вычисленное среднее показывается пятнадцатью знаками.
+  -->
+  {#if type === 'number' || type === 'formula'}
     <label class="mb-2 block">
       <span class="mb-1 block text-xs text-text-muted">{t('Format')}</span>
       <Select

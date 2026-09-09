@@ -75,20 +75,85 @@
 
   const save = () =>
     act('save', async () => {
-      const moved = scope !== (data.template.spaceId ?? '');
-      await updateTemplate({
-        templateId: data.template.id,
-        title: title.trim() || data.template.title,
-        description,
-        icon: icon ?? '',
-        content: body?.content() ?? undefined,
-        // Перенос отдельным признаком: пустое значение означает «шаблон
-        // рабочего пространства», а не «область не меняем», и без признака
-        // сервер не отличил бы одно от другого.
-        ...(moved ? { move: true, moveToSpaceId: scope || undefined } : {})
-      });
+      await store();
       await invalidateAll();
     });
+
+  /** Записать шаблон. Общая часть для кнопки и для сохранения по таймеру. */
+  async function store() {
+    const moved = scope !== (data.template.spaceId ?? '');
+    await updateTemplate({
+      templateId: data.template.id,
+      title: title.trim() || data.template.title,
+      description,
+      icon: icon ?? '',
+      content: body?.content() ?? undefined,
+      // Перенос отдельным признаком: пустое значение означает «шаблон
+      // рабочего пространства», а не «область не меняем», и без признака
+      // сервер не отличил бы одно от другого.
+      ...(moved ? { move: true, moveToSpaceId: scope || undefined } : {})
+    });
+  }
+
+  /**
+   * Правка сохраняется сама, как в v1.
+   *
+   * Совместной правки у шаблона нет, и запись по кнопке означала, что уход со
+   * страницы теряет набранное молча. Таймер отсчитывается от последней правки:
+   * запись на каждое нажатие — это запрос на букву.
+   *
+   * Перенос в другое пространство сюда не входит: он меняет права и делается
+   * осознанно, кнопкой.
+   */
+  const AUTOSAVE_DELAY = 1500;
+
+  let autosave = $state<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let dirty = false;
+
+  function touched() {
+    dirty = true;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void flush();
+    }, AUTOSAVE_DELAY);
+  }
+
+  async function flush() {
+    if (!dirty || busy) return;
+    dirty = false;
+    autosave = 'saving';
+    try {
+      await store();
+      autosave = 'saved';
+    } catch {
+      // Причина показывается отдельной строкой: молчащий отказ здесь означает
+      // потерянную правку, о которой человек узнает только на другой машине.
+      autosave = 'failed';
+      dirty = true;
+    }
+  }
+
+  $effect(() => {
+    // Правка полей ловится сравнением с загруженным, а не событием ввода:
+    // после записи маршрут перечитывается, значения совпадают, и таймер не
+    // заводится на собственное же сохранение.
+    const changed =
+      title !== data.template.title ||
+      description !== (data.template.description ?? '') ||
+      icon !== data.template.icon;
+    if (changed) touched();
+  });
+
+  $effect(() => {
+    // Несохранённое уходит с закрытием вкладки, если не записать его сейчас.
+    // Уход со страницы внутри приложения ловится тем же способом.
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (dirty) void flush();
+    };
+  });
 
   const remove = () =>
     act('delete', async () => {
@@ -108,6 +173,20 @@
 
   {#if failure}<Notice message={failure} />{/if}
   {#if saved && !failure}<Notice tone="info" message={t('Saved')} />{/if}
+
+  <!--
+    Состояние записи по таймеру. Без него автосохранение молчит, и человек не
+    отличает записанное от потерянного.
+  -->
+  <p class="mb-4 h-4 text-sm text-text-muted" data-component="TemplateAutosave">
+    {#if autosave === 'saving'}
+      {t('Saving...')}
+    {:else if autosave === 'saved'}
+      {t('Saved')}
+    {:else if autosave === 'failed'}
+      <span class="text-danger">{t('Save failed. Retry')}</span>
+    {/if}
+  </p>
 
   <Panel title={t('Details')}>
     <label class="mb-4 block">
@@ -164,6 +243,7 @@
     <div class="mb-4 rounded border border-border p-3">
       <PlainEditor
         bind:this={body}
+        onchange={touched}
         initial={data.template.content}
         spaceId={data.template.spaceId}
         userId={data.session?.user.id}

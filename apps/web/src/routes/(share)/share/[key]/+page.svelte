@@ -159,7 +159,6 @@
     bind:this={article}
     data-route="shared-page"
     class="min-w-0 flex-1 rounded border border-border bg-surface p-8"
-    class:max-w-3xl={!wide}
   >
     <h1 class="text-3xl font-semibold">
       {#if data.page.icon}<span aria-hidden="true">{data.page.icon}</span>{/if}

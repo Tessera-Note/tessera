@@ -976,6 +976,60 @@ def test_the_type_lists_are_not_empty() -> None:
 
 
 @needs_database
+class TestFormulaDisplay(TestBaseFixture):
+    """Настройки показа у формулы переживают разбор выражения.
+
+    Разбор собирает свои поля заново на каждое сохранение. Без отдельного
+    переноса он стирал формат числа, и настройка «два знака после запятой»
+    молча пропадала — вычисленное среднее снова показывалось пятнадцатью
+    знаками.
+    """
+
+    async def test_display_options_survive_the_parser(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        service, _, user_id, base_id, _ = await self._base(session, workspace, space)
+        await service.create_property(base_id, user_id, workspace.id, name="Цена", kind="number")
+        formula = await service.create_property(
+            base_id,
+            user_id,
+            workspace.id,
+            name="Вдвое",
+            kind="formula",
+            type_options={"source": 'prop("Цена") * 2', "precision": 2, "format": "plain"},
+        )
+
+        assert formula["typeOptions"]["precision"] == 2
+        assert formula["typeOptions"]["source"] == 'prop("Цена") * 2'
+
+    async def test_display_options_survive_an_update(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        service, _, user_id, base_id, _ = await self._base(session, workspace, space)
+        await service.create_property(base_id, user_id, workspace.id, name="Цена", kind="number")
+        formula = await service.create_property(
+            base_id,
+            user_id,
+            workspace.id,
+            name="Вдвое",
+            kind="formula",
+            type_options={"source": 'prop("Цена") * 2'},
+        )
+
+        updated = await service.update_property(
+            base_id,
+            user_id,
+            workspace.id,
+            property_id_value=formula["id"],
+            type_options={"source": 'prop("Цена") * 3', "precision": 1, "separator": "space-comma"},
+        )
+
+        assert updated["typeOptions"]["precision"] == 1
+        assert updated["typeOptions"]["separator"] == "space-comma"
+        assert updated["typeOptions"]["source"] == 'prop("Цена") * 3'
+
+
+@needs_database
 class TestPropertyDefaults(TestBaseFixture):
     """Значение по умолчанию у флажка.
 

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import {
+    IconArrowBackUp,
+    IconArrowForwardUp,
     IconBlockquote,
     IconBold,
     IconCode,
@@ -13,8 +15,10 @@
     IconListNumbers,
     IconMinus,
     IconPlus,
+    IconColumns,
     IconSourceCode,
-    IconStrikethrough
+    IconStrikethrough,
+    IconTable
   } from '@tabler/icons-svelte';
   import type { ComponentType } from 'svelte';
   import type { Editor as TiptapEditor } from '@tiptap/core';
@@ -30,9 +34,11 @@
     initial: unknown;
     spaceId?: string | null;
     userId?: string | null;
+    /** Документ изменился. Нужен сохранению по таймеру у того, кто редактор поставил. */
+    onchange?: (() => void) | null;
     fail: (error: unknown) => void;
   };
-  const { initial, spaceId = null, userId = null, fail }: Props = $props();
+  const { initial, spaceId = null, userId = null, onchange = null, fail }: Props = $props();
 
   const t = $derived(locale.t);
 
@@ -112,6 +118,9 @@
           suggest?.refresh();
         });
       });
+      // Правка документа отдельно от перерисовки панели: перемещение каретки
+      // — тоже транзакция, а сохранять на каждое движение курсора незачем.
+      made.on('update', () => untrack(() => onchange?.()));
       made.view.dom.addEventListener('keydown', keydown, true);
     })();
 
@@ -159,6 +168,15 @@
 <div data-component="PlainEditorFrame">
   {#if ready}
     <div class="mb-3 flex flex-wrap items-center gap-0.5 border-b border-border pb-2">
+      <!-- Отмена и повтор: у шаблона своей истории правок нет, и без них
+           ошибочная правка стирается только руками. -->
+      {@render action(IconArrowBackUp, t('Undo'), null, () => ready?.chain().focus().undo().run())}
+      {@render action(IconArrowForwardUp, t('Redo'), null, () =>
+        ready?.chain().focus().redo().run()
+      )}
+
+      <span class="mx-1 h-5 w-px bg-border"></span>
+
       {@render action(IconBold, t('Bold'), 'bold', () => ready?.chain().focus().toggleBold().run())}
       {@render action(IconItalic, t('Italic'), 'italic', () =>
         ready?.chain().focus().toggleItalic().run()
@@ -208,6 +226,12 @@
       )}
       {@render action(IconSourceCode, t('Code block'), 'codeBlock', () =>
         ready?.chain().focus().toggleCodeBlock().run()
+      )}
+      {@render action(IconTable, t('Table'), 'table', () =>
+        ready?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      )}
+      {@render action(IconColumns, t('Columns'), 'columns', () =>
+        ready?.chain().focus().insertColumns({ layout: 'two_equal' }).run()
       )}
       {@render action(IconMinus, t('Divider'), 'horizontalRule', () =>
         ready?.chain().focus().setHorizontalRule().run()

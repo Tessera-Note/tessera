@@ -126,11 +126,20 @@ class BaseRights:
     can_edit: bool
 
 
+#: Настройки показа, не относящиеся к разбору формулы.
+#:
+#: Разбор собирает свои поля заново на каждое сохранение, и без этого перечня
+#: он стирал бы формат числа: у формулы значение чаще всего число, и знаки
+#: после запятой у неё настраивают так же, как у обычного столбца.
+DISPLAY_OPTIONS = ("format", "precision", "separator", "currency")
+
+
 def _formula_options(
     source: str,
     properties: list[BaseProperty],
     *,
     candidate_id: str,
+    display: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Разобрать формулу и собрать то, что ляжет в свойство.
 
@@ -156,6 +165,10 @@ def _formula_options(
     if cycle:
         raise bad_request("error.base.formula_cycle")
 
+    for key in DISPLAY_OPTIONS:
+        value = (display or {}).get(key)
+        if value is not None:
+            options[key] = value
     return options
 
 
@@ -664,6 +677,7 @@ class BaseService:
                 str((type_options or {}).get("source") or ""),
                 existing,
                 candidate_id=new_id,
+                display=type_options,
             )
         new_id = await self._add_property(
             page_id,
@@ -731,6 +745,7 @@ class BaseService:
                     str(type_options.get("source") or ""),
                     await self._properties(page_id),
                     candidate_id=property_id_value,
+                    display=type_options,
                 )
             else:
                 found.type_options = type_options
