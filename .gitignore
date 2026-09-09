@@ -91,3 +91,6 @@ __temp__/
 .claude/settings.local.json
 .claude/*.local.json
 .claude/*.local.*
+
+# Рабочие копии для сличения версий рядом: два экземпляра под одним корнем.
+/temp/
