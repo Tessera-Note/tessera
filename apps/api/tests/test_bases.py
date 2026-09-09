@@ -972,3 +972,59 @@ def test_the_type_lists_are_not_empty() -> None:
     """Пустой список видов пропустил бы любой вид молча."""
     assert "title" in PROPERTY_TYPES
     assert set(VIEW_TYPES) == {"table", "kanban", "calendar"}
+
+
+
+@needs_database
+class TestPropertyDefaults(TestBaseFixture):
+    """Значение по умолчанию у флажка.
+
+    Настройка обещает, что новая строка приходит отмеченной. Ставится она на
+    сервере, а не на экране: строку заводят и ввозом таблицы, и по API.
+    """
+
+    async def test_a_checkbox_default_reaches_a_new_row(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        service, _, user_id, base_id, _ = await self._base(session, workspace, space)
+        prop = await service.create_property(
+            base_id,
+            user_id,
+            workspace.id,
+            name="Готово",
+            kind="checkbox",
+            type_options={"defaultValue": True},
+        )
+
+        row = await service.create_row(base_id, user_id, workspace.id)
+        assert row["cells"][prop["id"]] is True
+
+    async def test_without_the_setting_the_cell_stays_empty(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        service, _, user_id, base_id, _ = await self._base(session, workspace, space)
+        prop = await service.create_property(
+            base_id, user_id, workspace.id, name="Готово", kind="checkbox"
+        )
+
+        row = await service.create_row(base_id, user_id, workspace.id)
+        assert prop["id"] not in row["cells"]
+
+    async def test_a_given_value_wins_over_the_default(
+        self, session: AsyncSession, workspace, space
+    ) -> None:
+        """Ввоз таблицы приносит свои значения, и умолчание их не перебивает."""
+        service, _, user_id, base_id, _ = await self._base(session, workspace, space)
+        prop = await service.create_property(
+            base_id,
+            user_id,
+            workspace.id,
+            name="Готово",
+            kind="checkbox",
+            type_options={"defaultValue": True},
+        )
+
+        row = await service.create_row(
+            base_id, user_id, workspace.id, cells={prop["id"]: False}
+        )
+        assert row["cells"][prop["id"]] is False

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { asList, cellText, choicesOf, isEmptyCell, sortKey } from './cells';
+import {
+  asList,
+  cellText,
+  choicesOf,
+  dateText,
+  isEmptyCell,
+  numberText,
+  shownChoices,
+  sortKey
+} from './cells';
 
 const select = {
   choices: [
@@ -98,5 +107,72 @@ describe('sortKey', () => {
   it('пустая ячейка не сравнивается ни с чем', () => {
     expect(sortKey(null, 'number', null)).toBeNull();
     expect(sortKey('', 'text', null)).toBeNull();
+  });
+});
+
+describe('numberText', () => {
+  it('без настроек число показывается как есть', () => {
+    expect(numberText(6.66333333333333, null)).toBe('6.66333333333333');
+  });
+
+  it('знаки после запятой округляют', () => {
+    // Ради этого настройка и заведена: вычисленное среднее показывалось
+    // пятнадцатью знаками.
+    expect(numberText(6.66333333333333, { precision: 2 })).toBe('6.66');
+    expect(numberText(6.669, { precision: 2 })).toBe('6.67');
+  });
+
+  it('тысячи разделяются выбранным знаком', () => {
+    expect(numberText(1234567.5, { precision: 2 })).toBe('1,234,567.50');
+    expect(numberText(1234567.5, { precision: 2, separator: 'space-comma' })).toBe('1 234 567,50');
+  });
+
+  it('отрицательное не теряет знак', () => {
+    expect(numberText(-1234.5, { precision: 1 })).toBe('-1,234.5');
+  });
+
+  it('проценты умножаются на сто', () => {
+    expect(numberText(0.42, { format: 'percent', precision: 0 })).toBe('42%');
+  });
+
+  it('деньги показываются с кодом валюты', () => {
+    expect(numberText(10, { format: 'currency', precision: 2, currency: 'eur' })).toBe('10.00 EUR');
+  });
+});
+
+describe('dateText', () => {
+  it('без настройки время не показывается', () => {
+    // У срока время бессмысленно, а показанное «00:00» читается как «в полночь».
+    expect(dateText('2026-03-05T14:30:00Z', null, 'en-GB')).toBe('05/03/2026');
+  });
+
+  it('со временем показывается и оно', () => {
+    const shown = dateText('2026-03-05T14:30:00Z', { includeTime: true }, 'en-GB');
+    expect(shown.startsWith('05/03/2026')).toBe(true);
+    expect(shown.length).toBeGreaterThan('05/03/2026'.length);
+  });
+
+  it('негодная дата показывается как есть', () => {
+    expect(dateText('не дата', { includeTime: true })).toBe('не дата');
+  });
+});
+
+describe('shownChoices', () => {
+  const options = {
+    choices: [
+      { id: 'b', name: 'Бета' },
+      { id: 'a', name: 'Альфа' }
+    ]
+  };
+
+  it('без настройки порядок остаётся тем, в каком варианты завели', () => {
+    expect(shownChoices(options).map((one) => one.name)).toEqual(['Бета', 'Альфа']);
+  });
+
+  it('с настройкой варианты идут по алфавиту', () => {
+    expect(shownChoices({ ...options, alphabetize: true }).map((one) => one.name)).toEqual([
+      'Альфа',
+      'Бета'
+    ]);
   });
 });

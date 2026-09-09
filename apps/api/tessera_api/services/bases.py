@@ -805,6 +805,19 @@ class BaseService:
 
     # --- строки -----------------------------------------------------------
 
+    async def _defaults(self, page_id: uuid.UUID) -> dict:
+        """Значения новых ячеек по настройкам свойств.
+
+        Пока такое значение одно — отметка флажка. Настройка обещает, что новая
+        строка приходит отмеченной, и без этого она остаётся пустой.
+        """
+        found: dict = {}
+        for one in await self._properties(page_id):
+            options = one.type_options or {}
+            if one.type == "checkbox" and options.get("defaultValue") is True:
+                found[one.id] = True
+        return found
+
     async def create_row(
         self,
         page_id: uuid.UUID,
@@ -817,6 +830,11 @@ class BaseService:
     ) -> dict:
         """Завести строку. Версия схемы не поднимается: состав свойств тот же."""
         page = await self._editable(page_id, user_id, workspace_id)
+
+        # Значения по умолчанию из настроек свойств. Ставятся здесь, а не на
+        # экране: строку заводят и ввозом таблицы, и по API, а обещание
+        # «отмечено по умолчанию» относится к свойству, а не к одному экрану.
+        cells = {**await self._defaults(page_id), **(cells or {})}
 
         last = (
             await self._session.execute(

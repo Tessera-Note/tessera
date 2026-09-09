@@ -2361,5 +2361,7 @@
   "error.page_verification.invalid_type": "Unknown verification type",
   "Draft, then approval by the named people, then obsolete.": "Draft, then approval by the named people, then obsolete.",
   "Mark as verified right away": "Mark as verified right away",
-  "Narrow page": "Narrow page"
+  "Narrow page": "Narrow page",
+  "Plain": "Plain",
+  "Expand row": "Expand row"
 }

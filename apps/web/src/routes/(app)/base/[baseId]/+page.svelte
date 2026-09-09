@@ -65,6 +65,9 @@
   let viewId = $state<string | null>(null);
   /** Открыты настройки отбора и порядка. */
   let tuning = $state(false);
+  /** Открыты ли формы заведения. Обе прячутся за кнопкой панели, как в v1. */
+  let addingView = $state(false);
+  let addingProperty = $state(false);
   /** Какая строка открыта карточкой. */
   let opened = $state<string | null>(null);
   /** Отмеченные строки. Групповое удаление берёт их отсюда. */
@@ -89,7 +92,29 @@
   });
 
   const view = $derived(data.base.views.find((one) => one.id === viewId) ?? null);
-  const config = $derived<ViewConfig>(view?.config ?? {});
+
+  /**
+   * Свои, ещё не отданные всем настройки отбора и порядка.
+   *
+   * Представление общее: записанный отбор меняет таблицу у всех, кто её
+   * откроет. Человек же чаще всего отбирает для себя — посмотреть свои строки,
+   * отсортировать по сроку, — и молчаливая запись такого отбора переставляет
+   * таблицу у всей команды. Поэтому правка живёт здесь, а всем уходит
+   * отдельным действием, как в v1.
+   *
+   * `null` означает «своих изменений нет»: показывается общее представление.
+   */
+  let draft = $state<ViewConfig | null>(null);
+  const config = $derived<ViewConfig>(draft ?? view?.config ?? {});
+  const changedLocally = $derived(draft !== null);
+
+  $effect(() => {
+    // Смена представления и перечитывание страницы сбрасывают своё: настройки
+    // относятся к тому представлению, над которым их делали.
+    void viewId;
+    void data.base.views;
+    draft = null;
+  });
 
   /**
    * Люди для ячеек с человеком.
@@ -171,6 +196,18 @@
   const openedRow = $derived(rows.find((one) => one.id === opened) ?? null);
 
   /**
+   * Соседи открытой записи в показанном порядке.
+   *
+   * Именно в показанном, а не в порядке хранения: человек листает то, что
+   * видит, и отбор с сортировкой обязаны действовать и здесь.
+   */
+  const openedAt = $derived(shownRows.findIndex((one) => one.id === opened));
+  const previousRow = $derived(openedAt > 0 ? shownRows[openedAt - 1] : null);
+  const nextRow = $derived(
+    openedAt >= 0 && openedAt < shownRows.length - 1 ? shownRows[openedAt + 1] : null
+  );
+
+  /**
    * База обновляется от канала событий.
    *
    * Подписка отдельная: комнаты базы сервер заводит по просьбе, а не при
@@ -222,10 +259,33 @@
     );
   }
 
-  /** Сохранить настройки представления целиком: сервер пишет `config` как есть. */
+  /**
+   * Сохранить название, если оно изменилось.
+   *
+   * Уходом из поля, а не кнопкой: название правят на месте, и кнопка рядом с
+   * заголовком превращала бы экран базы в форму. Пустое имя не сохраняется —
+   * база без названия не находится ни в дереве, ни в поиске.
+   */
+  function renameIfChanged() {
+    const wanted = name.trim();
+    if (!wanted || wanted === (data.base.name ?? '')) return;
+    return act('rename', () => renameBase(data.base.id, wanted));
+  }
+
+  /** Правка отбора и порядка. Ложится в своё, а не в общее представление. */
   function saveConfig(next: ViewConfig) {
-    if (!view) return;
-    return act(view.id, () => updateView({ baseId: data.base.id, viewId: view.id, config: next }));
+    draft = next;
+  }
+
+  /** Отдать свои настройки всем. Сервер пишет `config` как есть. */
+  function publishConfig() {
+    if (!view || draft === null) return;
+    const wanted = draft;
+    return act(view.id, async () => {
+      await updateView({ baseId: data.base.id, viewId: view.id, config: wanted });
+      await invalidateAll();
+      draft = null;
+    });
   }
 
   /**
@@ -284,20 +344,23 @@
 <section data-route="base" class="mx-auto max-w-6xl">
   {#if failure}<Notice message={failure} />{/if}
 
-  <div class="mb-6 flex items-end gap-3">
-    <label class="flex-1">
-      <span class="mb-1 block text-sm text-text-muted">{t('Name')}</span>
-      <TextInput bind:value={name} disabled={!canEdit} />
-    </label>
-    {#if canEdit}
-      <Button
-        disabled={busy === 'rename' || !name.trim()}
-        onclick={() => act('rename', () => renameBase(data.base.id, name.trim()))}
-      >
-        {t('Save')}
-      </Button>
-    {/if}
-  </div>
+  <!--
+    Название правится на месте и сохраняется уходом из поля, как заголовок
+    страницы. Поле с подписью и кнопкой «Сохранить» рядом превращало экран базы
+    в форму настроек.
+  -->
+  <input
+    class="mb-4 w-full border-none bg-transparent p-0 text-2xl font-semibold text-text outline-none placeholder:text-text-muted"
+    data-component="BaseName"
+    bind:value={name}
+    disabled={!canEdit}
+    aria-label={t('Name')}
+    placeholder={t('Untitled base')}
+    onblur={renameIfChanged}
+    onkeydown={(event) => {
+      if (event.key === 'Enter') (event.currentTarget as HTMLInputElement).blur();
+    }}
+  />
 
   <div data-component="BaseViews" class="mb-4 flex flex-wrap items-center gap-2">
     {#each data.base.views as one (one.id)}
@@ -321,40 +384,111 @@
     {/each}
 
     {#if canEdit}
-      <form
-        class="flex items-center gap-2"
-        onsubmit={(event) => {
-          event.preventDefault();
-          if (!newView.trim()) return;
-          return act('view', async () => {
-            await createView(data.base.id, newView.trim(), newViewType);
-            newView = '';
-          });
-        }}
-      >
-        <input
-          class="h-8 rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
-          bind:value={newView}
-          placeholder={t('View name')}
-        />
-        <div class="w-32">
-          <Select bind:value={newViewType} compact label={t('Type')} options={viewTypes} />
-        </div>
-        <Button type="submit" disabled={busy === 'view' || !newView.trim()}>{t('Add')}</Button>
-      </form>
-    {/if}
-
-    {#if view}
+      <!-- Заведение представления прячется за «плюсом»: форма, стоящая рядом с
+           вкладками всегда, читается как часть таблицы. -->
       <button
-        class="ml-auto rounded px-2 py-1 text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+        class="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-text"
         type="button"
-        aria-expanded={tuning}
-        onclick={() => (tuning = !tuning)}
+        title={t('Add view')}
+        aria-label={t('Add view')}
+        aria-expanded={addingView}
+        onclick={() => (addingView = !addingView)}
       >
-        {t('Filter and sort')}
+        <IconPlus size={16} stroke={1.7} />
       </button>
     {/if}
+
+    <!-- Панель инструментов представления. В v1 это ряд значков над таблицей,
+         а не кнопки, расставленные по экрану. -->
+    <div class="ml-auto flex items-center gap-1">
+      {#if view}
+        <button
+          class="rounded px-2 py-1 text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+          class:bg-surface-active={tuning}
+          type="button"
+          aria-expanded={tuning}
+          onclick={() => (tuning = !tuning)}
+        >
+          {t('Filter and sort')}
+        </button>
+      {/if}
+      {#if canEdit}
+        <button
+          class="rounded px-2 py-1 text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+          class:bg-surface-active={addingProperty}
+          type="button"
+          aria-expanded={addingProperty}
+          onclick={() => (addingProperty = !addingProperty)}
+        >
+          {t('Add property')}
+        </button>
+      {/if}
+      <button
+        class="rounded px-2 py-1 text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+        type="button"
+        disabled={busy === 'csv'}
+        onclick={() => act('csv', () => exportCsv(data.base.id, `${data.base.name ?? 'base'}.csv`))}
+      >
+        {t('Export CSV')}
+      </button>
+      {#if canEdit}
+        <!-- Удаление базы стоит последним и с подтверждением: соседство с
+             кнопками правки сделало бы промах слишком дешёвым. -->
+        <Confirm
+          label={t('Delete base')}
+          question={t('The base and all its rows will be moved to trash.')}
+          disabled={busy === 'base'}
+          onconfirm={removeBase}
+        />
+      {/if}
+    </div>
   </div>
+
+  {#if canEdit && addingView}
+    <form
+      class="mb-4 flex items-center gap-2"
+      onsubmit={(event) => {
+        event.preventDefault();
+        if (!newView.trim()) return;
+        return act('view', async () => {
+          await createView(data.base.id, newView.trim(), newViewType);
+          newView = '';
+          addingView = false;
+        });
+      }}
+    >
+      <input
+        class="h-8 rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
+        bind:value={newView}
+        placeholder={t('View name')}
+      />
+      <div class="w-32">
+        <Select bind:value={newViewType} compact label={t('Type')} options={viewTypes} />
+      </div>
+      <Button type="submit" disabled={busy === 'view' || !newView.trim()}>{t('Add')}</Button>
+      <Button variant="quiet" onclick={() => (addingView = false)}>{t('Cancel')}</Button>
+    </form>
+  {/if}
+
+  {#if changedLocally}
+    <!--
+      Свои настройки отбора и порядка. Показываются только тому, кто их сделал,
+      пока он не отдаст их всем: представление общее, и молчаливая запись
+      переставляла бы таблицу у всей команды.
+    -->
+    <div
+      data-component="BaseLocalConfig"
+      class="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+    >
+      <span class="text-text-muted">{t('Filter and sort changes are visible only to you')}</span>
+      {#if canEdit}
+        <Button variant="quiet" disabled={busy === view?.id} onclick={publishConfig}>
+          {t('Save for everyone')}
+        </Button>
+      {/if}
+      <Button variant="quiet" onclick={() => (draft = null)}>{t('Discard')}</Button>
+    </div>
+  {/if}
 
   {#if view && tuning}
     <BaseFilters
@@ -405,6 +539,7 @@
       {context}
       {people}
       editable={canEdit}
+      pageId={data.base.id}
       {busy}
       {selected}
       onwrite={write}
@@ -424,7 +559,11 @@
 
   <div class="mb-8 flex flex-wrap gap-3">
     {#if canEdit}
-      <Button disabled={busy === 'row'} onclick={() => act('row', () => createRow(data.base.id))}>
+      <Button
+        variant="quiet"
+        disabled={busy === 'row'}
+        onclick={() => act('row', () => createRow(data.base.id))}
+      >
         {t('New row')}
       </Button>
     {/if}
@@ -435,28 +574,9 @@
       -->
       <Button variant="quiet" onclick={loadMore}>{t('Load more')}</Button>
     {/if}
-    <Button
-      variant="quiet"
-      disabled={busy === 'csv'}
-      onclick={() => act('csv', () => exportCsv(data.base.id, `${data.base.name ?? 'base'}.csv`))}
-    >
-      {t('Export CSV')}
-    </Button>
-    {#if canEdit}
-      <!--
-        Удаление стоит здесь, а не рядом с названием: соседство с кнопкой
-        сохранения имени сделало бы промах слишком дешёвым.
-      -->
-      <Confirm
-        label={t('Delete base')}
-        question={t('The base and all its rows will be moved to trash.')}
-        disabled={busy === 'base'}
-        onconfirm={removeBase}
-      />
-    {/if}
   </div>
 
-  {#if canEdit}
+  {#if canEdit && addingProperty}
     <form
       class="card-soft rounded-md border border-border bg-surface-raised p-5"
       onsubmit={(event) => {
@@ -469,6 +589,7 @@
             type: newPropertyType
           });
           newProperty = '';
+          addingProperty = false;
         });
       }}
     >
@@ -499,7 +620,10 @@
       {context}
       {people}
       editable={canEdit}
+      pageId={data.base.id}
       {busy}
+      onprevious={previousRow ? () => (opened = previousRow.id) : null}
+      onnext={nextRow ? () => (opened = nextRow.id) : null}
       onwrite={(property, value) => write(openedRow, property, value)}
       ondelete={() =>
         act(openedRow.id, async () => {

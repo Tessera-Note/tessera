@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    IconArrowsDiagonal,
     IconEye,
     IconEyeOff,
     IconGripVertical,
@@ -24,6 +25,8 @@
     context: CellContext;
     people: { id: string; name: string | null }[];
     editable: boolean;
+    /** Страница базы. Нужна ячейке с файлом. */
+    pageId: string;
     busy: string | null;
     /** Отмеченные строки. Держит их экран: групповое действие тоже его. */
     selected: string[];
@@ -54,6 +57,7 @@
     context,
     people,
     editable,
+    pageId,
     busy,
     selected,
     onwrite,
@@ -272,7 +276,7 @@
     <tbody>
       {#each rows as row, at (row.id)}
         <tr
-          class="border-b border-border last:border-0"
+          class="group border-b border-border last:border-0"
           class:bg-surface-active={marked.has(row.id)}
         >
           {#if editable}
@@ -298,22 +302,40 @@
                 {context}
                 {people}
                 {editable}
+                {pageId}
                 onwrite={(value) => onwrite(row, property, value)}
               />
             </td>
           {/each}
-          <td class="whitespace-nowrap p-2 text-right">
-            <Button variant="quiet" onclick={() => onopen(row)}>{t('Open')}</Button>
-            {#if editable}
-              <!-- Строка уходит без возврата, и вопрос здесь обязателен: соседи
-                   в этой же ячейке — «Открыть», промах стоит строки. -->
-              <Confirm
-                label={t('Delete')}
-                question={t('Delete record?')}
-                disabled={busy === row.id}
-                onconfirm={() => ondeleteRow(row)}
-              />
-            {/if}
+          <!--
+            Действия строки показываются при наведении, а не двумя столбцами
+            кнопок: постоянные «Открыть» и «Удалить» у каждой строки забирают
+            ширину у самих данных и делают таблицу похожей на форму.
+            На узком экране наведения нет, поэтому там они видны всегда.
+          -->
+          <td class="w-0 whitespace-nowrap p-2 text-right">
+            <span
+              class="flex justify-end gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100"
+            >
+              <button
+                class="rounded px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
+                type="button"
+                title={t('Expand row')}
+                aria-label={t('Expand row')}
+                onclick={() => onopen(row)}
+              >
+                <IconArrowsDiagonal size={15} stroke={1.7} />
+              </button>
+              {#if editable}
+                <!-- Строка уходит без возврата, и вопрос здесь обязателен. -->
+                <Confirm
+                  label={t('Delete')}
+                  question={t('Delete record?')}
+                  disabled={busy === row.id}
+                  onconfirm={() => ondeleteRow(row)}
+                />
+              {/if}
+            </span>
           </td>
         </tr>
       {:else}

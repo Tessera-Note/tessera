@@ -36,6 +36,7 @@ function render(props: Record<string, unknown>): HTMLElement {
       value: null,
       context: {},
       editable: true,
+      pageId: 'page-1',
       people: [],
       onwrite: () => {},
       ...props

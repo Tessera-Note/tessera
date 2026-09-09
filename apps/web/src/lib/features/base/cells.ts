@@ -20,6 +20,8 @@ export type PageRef = { id: string; slugId: string; title: string | null; icon: 
 export type CellContext = {
   people?: Record<string, Person>;
   pages?: Record<string, PageRef>;
+  /** Язык показа дат. Берётся из выбора человека, а не из браузера. */
+  locale?: string;
 };
 
 /** Варианты выбора свойства в том порядке, в каком их задали. */
@@ -35,6 +37,21 @@ export function choicesOf(options: unknown): Choice[] {
   // правятся раздельно, и рассинхрон между ними — обычное дело.
   for (const one of choices) if (!order.includes(one.id)) sorted.push(one);
   return sorted;
+}
+
+/**
+ * Варианты в том порядке, в каком их показывать.
+ *
+ * По алфавиту, если свойство так настроено: набор пополняют по ходу работы, и
+ * порядок заведения перестаёт быть порядком, в котором его удобно читать.
+ */
+export function shownChoices(options: unknown): Choice[] {
+  const found = choicesOf(options);
+  const wanted = (options ?? {}) as { alphabetize?: boolean };
+  if (!wanted.alphabetize) return found;
+  return [...found].sort((left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+  );
 }
 
 /** Значения ячейки со множественным выбором всегда перечнем. */
@@ -93,6 +110,99 @@ export function errorKey(value: unknown): string | null {
 }
 
 /**
+ * Настройки вида свойства.
+ *
+ * Число, дата и флажок показываются по-разному в зависимости от того, как
+ * свойство настроено: без настроек вычисленное среднее выглядит как
+ * `6.66333333333333`, а срок — как строка из базы.
+ */
+export type NumberOptions = {
+  /** Как показывать: просто число, деньги или проценты. */
+  format?: 'plain' | 'currency' | 'percent';
+  /** Сколько знаков после запятой. Пусто — сколько есть. */
+  precision?: number;
+  /** Разделители: тысяч и дробной части. */
+  separator?: 'comma-period' | 'period-comma' | 'space-comma' | 'space-period';
+  /** Код валюты, если формат денежный. */
+  currency?: string;
+};
+
+export type DateOptions = {
+  /** Показывать ли время рядом с датой. */
+  includeTime?: boolean;
+  /** Двенадцать часов или двадцать четыре. */
+  timeFormat?: '12' | '24';
+};
+
+/** Разделители по имени набора. Первый — тысяч, второй — дробной части. */
+const SEPARATORS: Record<string, [string, string]> = {
+  'comma-period': [',', '.'],
+  'period-comma': ['.', ','],
+  'space-comma': [' ', ','],
+  'space-period': [' ', '.']
+};
+
+/** Настройки вида как объект. Негодное значение — это их отсутствие. */
+function settings(typeOptions: unknown): Record<string, unknown> {
+  return typeOptions && typeof typeOptions === 'object' && !Array.isArray(typeOptions)
+    ? (typeOptions as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Число по настройкам свойства.
+ *
+ * Разделители подставляются сами, а не средствами языка вывода: набор выбирает
+ * человек, и язык браузера читателя не должен менять вид таблицы, собранной
+ * кем-то другим.
+ */
+export function numberText(value: number, typeOptions: unknown): string {
+  const options = settings(typeOptions) as NumberOptions;
+  const shown = options.format === 'percent' ? value * 100 : value;
+
+  const precision = typeof options.precision === 'number' ? options.precision : null;
+  let text = precision === null ? String(shown) : shown.toFixed(precision);
+
+  const [thousands, decimal] = SEPARATORS[options.separator ?? 'comma-period'] ?? [',', '.'];
+  const negative = text.startsWith('-');
+  if (negative) text = text.slice(1);
+
+  const [whole, fraction] = text.split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousands);
+  text = fraction ? `${grouped}${decimal}${fraction}` : grouped;
+  if (negative) text = `-${text}`;
+
+  if (options.format === 'percent') return `${text}%`;
+  if (options.format === 'currency') {
+    const code = (options.currency || 'USD').toUpperCase();
+    return `${text} ${code}`;
+  }
+  return text;
+}
+
+/**
+ * Дата по настройкам свойства.
+ *
+ * Без времени по умолчанию: у срока время бессмысленно, а показанное «00:00»
+ * читается как «в полночь».
+ */
+export function dateText(value: string, typeOptions: unknown, language?: string): string {
+  const moment = new Date(value);
+  if (Number.isNaN(moment.getTime())) return value;
+
+  const options = settings(typeOptions) as DateOptions;
+  const date = moment.toLocaleDateString(language);
+  if (!options.includeTime) return date;
+
+  const time = moment.toLocaleTimeString(language, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: options.timeFormat === '12'
+  });
+  return `${date} ${time}`;
+}
+
+/**
  * Ячейка строкой для показа и для сравнения.
  *
  * Одна функция на оба применения намеренно: отбор «содержит» ищет по тому же
@@ -130,6 +240,29 @@ export function cellText(
 
   const failed = errorCode(value);
   if (failed) return `#${failed}`;
+
+  if (type === 'file') {
+    // Файлы лежат перечнем описаний. Показывается имя: адрес человеку ничего
+    // не говорит, а в отборе «содержит» ищут именно по имени.
+    return asList(value)
+      .map((one) =>
+        one && typeof one === 'object'
+          ? String((one as { name?: unknown }).name ?? '')
+          : String(one)
+      )
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  if (type === 'number' || type === 'formula') {
+    const asNumber = typeof value === 'number' ? value : Number(value);
+    if (typeof value !== 'object' && Number.isFinite(asNumber)) {
+      return numberText(asNumber, typeOptions);
+    }
+  }
+
+  if (type === 'date' && typeof value === 'string')
+    return dateText(value, typeOptions, context.locale);
 
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);

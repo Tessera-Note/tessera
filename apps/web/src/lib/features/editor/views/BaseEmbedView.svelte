@@ -247,6 +247,7 @@
           {context}
           people={people.map((one) => ({ id: one.id, name: one.name }))}
           editable={canEdit}
+          pageId={base.id}
           {busy}
           selected={marked}
           onwrite={write}
@@ -276,6 +277,7 @@
           {context}
           people={people.map((one) => ({ id: one.id, name: one.name }))}
           editable={canEdit}
+          pageId={base.id}
           {busy}
           onwrite={(property, value) => write(openedRow, property, value)}
           ondelete={() => {

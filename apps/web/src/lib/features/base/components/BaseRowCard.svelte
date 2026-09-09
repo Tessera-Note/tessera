@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconX } from '@tabler/icons-svelte';
+  import { IconChevronDown, IconChevronUp, IconX } from '@tabler/icons-svelte';
   import Confirm from '$lib/components/ui/Confirm.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
   import BaseCell from './BaseCell.svelte';
@@ -13,13 +13,36 @@
     context: CellContext;
     people: { id: string; name: string | null }[];
     editable: boolean;
+    /** Страница базы. Нужна ячейке с файлом. */
+    pageId: string;
     busy: string | null;
+    /**
+     * Переход к соседней записи.
+     *
+     * Карточку открывают, чтобы просмотреть строки подряд. Без перехода
+     * приходится закрывать её и искать следующую в таблице глазами.
+     * Отсутствие обработчика означает край перечня — кнопка гаснет.
+     */
+    onprevious?: (() => void) | null;
+    onnext?: (() => void) | null;
     onwrite: (property: BaseProperty, value: unknown) => void;
     ondelete: () => void;
     onclose: () => void;
   };
-  const { row, properties, context, people, editable, busy, onwrite, ondelete, onclose }: Props =
-    $props();
+  const {
+    row,
+    properties,
+    context,
+    people,
+    editable,
+    pageId,
+    busy,
+    onprevious = null,
+    onnext = null,
+    onwrite,
+    ondelete,
+    onclose
+  }: Props = $props();
 
   const t = $derived(locale.t);
 
@@ -36,7 +59,22 @@
   Карточка строки. Показывает **все** свойства, включая скрытые в таблице:
   колонку прячут ради ширины, а не ради тайны, и в карточке она нужна.
 -->
-<svelte:window onkeydown={(event) => event.key === 'Escape' && onclose()} />
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key === 'Escape') {
+      onclose();
+      return;
+    }
+    // Стрелки листают записи, как в v1. Только без набора текста: иначе
+    // перемещение каретки внутри поля уводило бы на соседнюю строку.
+    const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(
+      (event.target as HTMLElement | null)?.tagName ?? ''
+    );
+    if (inField) return;
+    if (event.key === 'ArrowUp') onprevious?.();
+    if (event.key === 'ArrowDown') onnext?.();
+  }}
+/>
 
 <div
   data-component="BaseRowCard"
@@ -46,6 +84,26 @@
 >
   <div class="mb-4 flex items-start gap-2">
     <h2 class="flex-1 text-lg font-medium">{title}</h2>
+    <button
+      class="flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-surface-hover disabled:opacity-40"
+      type="button"
+      title={t('Previous record')}
+      aria-label={t('Previous record')}
+      disabled={!onprevious}
+      onclick={() => onprevious?.()}
+    >
+      <IconChevronUp size={17} stroke={1.7} />
+    </button>
+    <button
+      class="flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-surface-hover disabled:opacity-40"
+      type="button"
+      title={t('Next record')}
+      aria-label={t('Next record')}
+      disabled={!onnext}
+      onclick={() => onnext?.()}
+    >
+      <IconChevronDown size={17} stroke={1.7} />
+    </button>
     <button
       class="flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-surface-hover"
       type="button"
@@ -68,6 +126,7 @@
             {context}
             {people}
             {editable}
+            {pageId}
             onwrite={(value) => onwrite(property, value)}
           />
         </dd>

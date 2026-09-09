@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { asList, cellText, choicesOf, errorKey, type CellContext } from '../cells';
+  import { asList, cellText, errorKey, shownChoices, type CellContext } from '../cells';
   import { COMPUTED_TYPES, type PropertyType } from '../types';
   import { locale } from '$lib/stores/i18n.svelte';
+  import { attachmentUrl, uploadPageFile } from '$lib/features/page/services/attachments';
   import type { BaseProperty } from '../services/bases';
 
   type Props = {
@@ -11,15 +12,17 @@
     editable: boolean;
     /** Кого можно выбрать в ячейке с человеком. */
     people: { id: string; name: string | null }[];
+    /** Страница базы. По ней складываются файлы ячейки и проверяются права. */
+    pageId: string;
     onwrite: (value: unknown) => void;
   };
-  const { property, value, context, editable, people, onwrite }: Props = $props();
+  const { property, value, context, editable, people, pageId, onwrite }: Props = $props();
 
   const t = $derived(locale.t);
   const type = $derived(property.type as PropertyType);
   /** Вычисляемое значение ставит сервер: поле ввода обещало бы правку, которой нет. */
   const computed = $derived(COMPUTED_TYPES.includes(type));
-  const choices = $derived(choicesOf(property.typeOptions));
+  const choices = $derived(shownChoices(property.typeOptions));
   const shown = $derived(cellText(value, type, property.typeOptions, context));
   /**
    * Ячейка, которую не удалось посчитать.
@@ -29,6 +32,67 @@
    * из двенадцати локалей.
    */
   const failed = $derived(errorKey(value));
+
+  /** Можно ли выбрать нескольких. Настройка свойства, умолчание — одного. */
+  const manyPeople = $derived(
+    Boolean((property.typeOptions as { allowMultiple?: boolean } | null)?.allowMultiple)
+  );
+
+  /** Со временем или без. Настройка свойства, умолчание — без времени. */
+  const withTime = $derived(
+    Boolean((property.typeOptions as { includeTime?: boolean } | null)?.includeTime)
+  );
+
+  /**
+   * Значение для поля ввода даты.
+   *
+   * Поле со временем принимает `ГГГГ-ММ-ДДTчч:мм`, поле без времени — только
+   * дату. Лишние знаки поле молча отбрасывает вместе со значением.
+   */
+  const dateValue = $derived.by(() => {
+    if (typeof value !== 'string') return '';
+    return withTime ? value.slice(0, 16).replace(' ', 'T') : value.slice(0, 10);
+  });
+
+  /** Прикреплённые файлы. Негодная запись пропускается, а не роняет ячейку. */
+  const files = $derived.by(() => {
+    if (!Array.isArray(value)) return [] as { id: string; name: string; url: string }[];
+    return value
+      .filter((one): one is Record<string, unknown> => Boolean(one) && typeof one === 'object')
+      .map((one) => ({
+        id: String(one.id ?? ''),
+        name: String(one.name ?? one.id ?? ''),
+        url: String(one.url ?? '')
+      }))
+      .filter((one) => one.id);
+  });
+
+  let uploading = $state(false);
+
+  /**
+   * Прикрепить файл к ячейке.
+   *
+   * Через загрузку вложения страницы: у базы есть своя страница, и её
+   * идентификатор задаёт и права, и место хранения. Отказ не гасится молча —
+   * иначе выбранный файл просто не появляется, и человек нажимает снова.
+   */
+  async function attach(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    uploading = true;
+    try {
+      const saved = await uploadPageFile(file, pageId);
+      onwrite([
+        ...files,
+        { id: saved.id, name: saved.fileName ?? file.name, url: attachmentUrl(saved) }
+      ]);
+    } finally {
+      uploading = false;
+      input.value = '';
+    }
+  }
 
   /** Пустая строка означает «очистить»: сервер понимает `null`. */
   function write(raw: string) {
@@ -116,25 +180,36 @@
     {/each}
   </div>
 {:else if type === 'person'}
+  <!-- Один человек или несколько — по настройке свойства. Список с несколькими
+       строками там, где их разрешили: одиночный выбор молча терял бы остальных. -->
   <select
     class={field}
-    value={typeof value === 'string' ? value : ''}
+    multiple={manyPeople}
+    size={manyPeople ? 3 : undefined}
+    value={manyPeople ? asList(value) : typeof value === 'string' ? value : ''}
     aria-label={property.name}
     onchange={(event) => {
-      const picked = (event.currentTarget as HTMLSelectElement).value;
-      onwrite(picked === '' ? null : picked);
+      const control = event.currentTarget as HTMLSelectElement;
+      if (manyPeople) {
+        const picked = Array.from(control.selectedOptions).map((one) => one.value);
+        onwrite(picked.length ? picked : null);
+        return;
+      }
+      onwrite(control.value === '' ? null : control.value);
     }}
   >
-    <option value="">—</option>
+    {#if !manyPeople}<option value="">—</option>{/if}
     {#each people as one (one.id)}
       <option value={one.id}>{one.name ?? one.id}</option>
     {/each}
   </select>
 {:else if type === 'date'}
+  <!-- Со временем или без — по настройке свойства: у срока время бессмысленно,
+       а у отметки события без него теряется половина сведений. -->
   <input
     class={field}
-    type="date"
-    value={typeof value === 'string' ? value.slice(0, 10) : ''}
+    type={withTime ? 'datetime-local' : 'date'}
+    value={dateValue}
     aria-label={property.name}
     onchange={(event) => write((event.currentTarget as HTMLInputElement).value)}
   />
@@ -146,6 +221,35 @@
     aria-label={property.name}
     onchange={(event) => writeNumber((event.currentTarget as HTMLInputElement).value)}
   />
+{:else if type === 'file'}
+  <!--
+    Файлы кладутся тем же путём, что вложения страницы: у базы есть своя
+    страница, и её идентификатор задаёт и права, и место хранения. Своего
+    хранилища у ячейки нет и заводить его незачем.
+  -->
+  <div class="flex flex-wrap items-center gap-2">
+    {#each files as one (one.id)}
+      <span class="flex items-center gap-1 rounded bg-surface-muted px-1.5 py-0.5 text-xs">
+        <a class="hover:underline" href={one.url} target="_blank" rel="noopener">{one.name}</a>
+        {#if editable}
+          <button
+            class="text-text-muted hover:text-danger"
+            type="button"
+            aria-label={t('Remove')}
+            onclick={() => onwrite(files.filter((other) => other.id !== one.id))}
+          >
+            ×
+          </button>
+        {/if}
+      </span>
+    {/each}
+    {#if editable}
+      <label class="cursor-pointer text-xs text-text-muted hover:text-text">
+        {uploading ? t('Loading...') : t('Add')}
+        <input class="hidden" type="file" onchange={attach} />
+      </label>
+    {/if}
+  </div>
 {:else if type === 'longText'}
   <textarea
     class="{field} min-h-16"

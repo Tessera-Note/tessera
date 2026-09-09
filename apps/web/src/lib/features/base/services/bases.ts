@@ -54,10 +54,8 @@ export type RowPage = {
  *
  * Перечислены не все девятнадцать. `title` заводит только сервер — при
  * заведении базы и при превращении страницы в базу; второе такое свойство
- * означало бы две колонки названия. `file` пропущен: загрузки файла в ячейку
- * у этого экрана нет, и предлагать вид, который нечем заполнить, незачем.
- * `formula` пропущен по той же причине: выражение вводится в настройках,
- * которых нет.
+ * означало бы две колонки названия. Остальные восемнадцать здесь: у файла есть
+ * ячейка с загрузкой, у формулы — поле выражения в настройках свойства.
  */
 export const PROPERTY_TYPES = [
   { value: 'text', label: 'Text' },
@@ -69,6 +67,8 @@ export const PROPERTY_TYPES = [
   { value: 'status', label: 'Status' },
   { value: 'multiSelect', label: 'Multi-select' },
   { value: 'person', label: 'Person' },
+  { value: 'file', label: 'File' },
+  { value: 'formula', label: 'Formula' },
   { value: 'page', label: 'Page' },
   { value: 'url', label: 'URL' },
   { value: 'email', label: 'Email' },
