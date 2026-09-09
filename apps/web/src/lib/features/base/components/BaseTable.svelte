@@ -27,6 +27,8 @@
     editable: boolean;
     /** Страница базы. Нужна ячейке с файлом. */
     pageId: string;
+    /** Отказ загрузки файла в ячейку. Показывает его экран. */
+    onfail?: ((error: unknown) => void) | null;
     busy: string | null;
     /** Отмеченные строки. Держит их экран: групповое действие тоже его. */
     selected: string[];
@@ -58,6 +60,7 @@
     people,
     editable,
     pageId,
+    onfail = null,
     busy,
     selected,
     onwrite,
@@ -303,6 +306,7 @@
                 {people}
                 {editable}
                 {pageId}
+                {onfail}
                 onwrite={(value) => onwrite(row, property, value)}
               />
             </td>

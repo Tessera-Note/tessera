@@ -230,9 +230,11 @@
     -->
     <label class="mb-2 block">
       <span class="mb-1 block text-xs text-text-muted">{t('Formula')}</span>
+      <!-- Образец нейтральный: названия столбцов — данные человека, и русский
+           пример остался бы русским во всех двенадцати локалях. -->
       <TextInput
         bind:value={formulaSource}
-        placeholder="prop(&quot;Цена&quot;) * prop(&quot;Кол-во&quot;)"
+        placeholder="prop(&quot;A&quot;) * prop(&quot;B&quot;)"
       />
     </label>
   {/if}

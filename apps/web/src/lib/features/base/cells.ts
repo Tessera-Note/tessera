@@ -254,11 +254,10 @@ export function cellText(
       .join(', ');
   }
 
-  if (type === 'number' || type === 'formula') {
-    const asNumber = typeof value === 'number' ? value : Number(value);
-    if (typeof value !== 'object' && Number.isFinite(asNumber)) {
-      return numberText(asNumber, typeOptions);
-    }
+  // Только настоящее число. Формула возвращает и «да/нет», и текст, а `Number`
+  // превращает `true` в единицу — такая ячейка показывала бы «1» вместо «да».
+  if ((type === 'number' || type === 'formula') && typeof value === 'number') {
+    return numberText(value, typeOptions);
   }
 
   if (type === 'date' && typeof value === 'string')

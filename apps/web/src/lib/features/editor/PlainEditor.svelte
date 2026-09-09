@@ -85,7 +85,8 @@
       const made = new Editor({
         element: host,
         // Совместной правки здесь нет намеренно: у шаблона нет документа Yjs,
-        // его правит один человек и сохраняет кнопкой.
+        // его правит один человек. Записывает набранное тот, кто поставил
+        // редактор, — по событию `onchange`.
         extensions: editorExtensions((key, values) => t(key, values)),
         content: (start as never) ?? undefined,
         editorProps: {

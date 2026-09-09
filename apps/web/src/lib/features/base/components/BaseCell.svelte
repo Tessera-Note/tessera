@@ -15,8 +15,19 @@
     /** Страница базы. По ней складываются файлы ячейки и проверяются права. */
     pageId: string;
     onwrite: (value: unknown) => void;
+    /** Отказ загрузки файла. Показывает его тот, у кого есть место для сообщения. */
+    onfail?: ((error: unknown) => void) | null;
   };
-  const { property, value, context, editable, people, pageId, onwrite }: Props = $props();
+  const {
+    property,
+    value,
+    context,
+    editable,
+    people,
+    pageId,
+    onwrite,
+    onfail = null
+  }: Props = $props();
 
   const t = $derived(locale.t);
   const type = $derived(property.type as PropertyType);
@@ -88,6 +99,11 @@
         ...files,
         { id: saved.id, name: saved.fileName ?? file.name, url: attachmentUrl(saved) }
       ]);
+    } catch (error) {
+      // Отказ уходит наверх: в самой ячейке места для сообщения нет, а
+      // молчащий отказ выглядит как «файл просто не появился», и человек
+      // нажимает снова.
+      onfail?.(error);
     } finally {
       uploading = false;
       input.value = '';

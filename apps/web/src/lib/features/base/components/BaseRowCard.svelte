@@ -15,6 +15,8 @@
     editable: boolean;
     /** Страница базы. Нужна ячейке с файлом. */
     pageId: string;
+    /** Отказ загрузки файла в ячейку. Показывает его экран. */
+    onfail?: ((error: unknown) => void) | null;
     busy: string | null;
     /**
      * Переход к соседней записи.
@@ -36,6 +38,7 @@
     people,
     editable,
     pageId,
+    onfail = null,
     busy,
     onprevious = null,
     onnext = null,
@@ -127,6 +130,7 @@
             {people}
             {editable}
             {pageId}
+            {onfail}
             onwrite={(value) => onwrite(property, value)}
           />
         </dd>

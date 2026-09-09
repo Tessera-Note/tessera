@@ -382,3 +382,45 @@ class TestAllowedDomains:
         """Совпадение хвоста — не совпадение домена."""
         with pytest.raises(AppError):
             assert_domain_allowed("anna@notacme.com", self._workspace("acme.com"))
+
+    def test_no_workspace_allows_everyone(self) -> None:
+        """Записи пространства нет — сверять не с чем, и отказ был бы выдумкой."""
+        assert_domain_allowed("anna@example.com", None)
+
+
+@needs_database
+class TestInvitingOutsideTheDomains:
+    """Домен сверяется и при выписке приглашения.
+
+    Иначе письмо уходит, человек переходит по ссылке и получает отказ на шаге
+    принятия — приглашённым его уже назвали.
+    """
+
+    async def test_inviting_outside_the_list_is_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        workspace.email_domains = ["acme.com"]
+        await session.commit()
+
+        with pytest.raises(AppError) as error:
+            await InvitationService(session).create(
+                actor=owner,
+                emails=["anna@example.com"],
+                role=UserRole.MEMBER,
+                workspace_id=workspace.id,
+            )
+        assert error.value.code == "error.auth.email_domain_not_approved"
+
+    async def test_inviting_inside_the_list_passes(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        workspace.email_domains = ["acme.com"]
+        await session.commit()
+
+        made = await InvitationService(session).create(
+            actor=owner,
+            emails=["anna@acme.com"],
+            role=UserRole.MEMBER,
+            workspace_id=workspace.id,
+        )
+        assert len(made) == 1

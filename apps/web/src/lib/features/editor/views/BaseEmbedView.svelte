@@ -248,6 +248,7 @@
           people={people.map((one) => ({ id: one.id, name: one.name }))}
           editable={canEdit}
           pageId={base.id}
+          onfail={(error) => (failure = errorText(error, t))}
           {busy}
           selected={marked}
           onwrite={write}
@@ -278,6 +279,7 @@
           people={people.map((one) => ({ id: one.id, name: one.name }))}
           editable={canEdit}
           pageId={base.id}
+          onfail={(error) => (failure = errorText(error, t))}
           {busy}
           onwrite={(property, value) => write(openedRow, property, value)}
           ondelete={() => {

@@ -540,6 +540,7 @@
       {people}
       editable={canEdit}
       pageId={data.base.id}
+      onfail={(error) => (failure = errorText(error, t))}
       {busy}
       {selected}
       onwrite={write}
@@ -621,6 +622,7 @@
       {people}
       editable={canEdit}
       pageId={data.base.id}
+      onfail={(error) => (failure = errorText(error, t))}
       {busy}
       onprevious={previousRow ? () => (opened = previousRow.id) : null}
       onnext={nextRow ? () => (opened = nextRow.id) : null}

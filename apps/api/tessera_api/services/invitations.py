@@ -69,6 +69,14 @@ class InvitationService:
         if not normalized:
             raise bad_request("error.workspace.no_emails")
 
+        # Домен сверяется и здесь, а не только при принятии: письмо уходит
+        # сразу, и отказ на шаге принятия приходит человеку, которого уже
+        # позвали. Проверка на принятии всё равно остаётся — список могли
+        # сузить после выписки.
+        workspace = await self._session.get(Workspace, workspace_id)
+        for one in normalized:
+            assert_domain_allowed(one, workspace)
+
         # Уже заведённых не приглашаем повторно: приглашение такому человеку
         # ничего не даёт, а выглядит как приглашение.
         existing = (

@@ -11,7 +11,7 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import bad_request, not_found, unauthorized
-from tessera_api.infrastructure.models import User, UserSession
+from tessera_api.infrastructure.models import User, UserSession, Workspace
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
 from tessera_api.services.mfa import MfaService
@@ -19,7 +19,7 @@ from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
 
-def assert_domain_allowed(email: str, workspace: object) -> None:
+def assert_domain_allowed(email: str, workspace: Workspace | None) -> None:
     """Принимается ли адрес этого домена в рабочем пространстве.
 
     Список доменов заводят, чтобы сузить круг: с ним заводить учётную запись
@@ -31,7 +31,7 @@ def assert_domain_allowed(email: str, workspace: object) -> None:
     """
     allowed = [
         one.strip().lower()
-        for one in (getattr(workspace, "email_domains", None) or [])
+        for one in ((workspace.email_domains if workspace is not None else None) or [])
         if one and one.strip()
     ]
     if not allowed:

@@ -176,3 +176,20 @@ describe('shownChoices', () => {
     ]);
   });
 });
+
+describe('cellText у формулы', () => {
+  it('число показывается по настройкам', () => {
+    expect(cellText(6.66333333333333, 'formula', { precision: 2 })).toBe('6.66');
+  });
+
+  it('логическое значение остаётся логическим', () => {
+    // `Number(true)` — единица, и без проверки вида такая ячейка показывала бы
+    // «1» вместо «true».
+    expect(cellText(true, 'formula', { precision: 2 })).toBe('true');
+    expect(cellText(false, 'formula', null)).toBe('false');
+  });
+
+  it('текст не превращается в число', () => {
+    expect(cellText('42', 'formula', { precision: 2 })).toBe('42');
+  });
+});
