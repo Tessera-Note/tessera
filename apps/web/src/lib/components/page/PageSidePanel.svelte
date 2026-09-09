@@ -13,6 +13,7 @@
   import { attachLabels, detachLabel, type Label } from '$lib/features/page/services/labels';
   import { getVersion, type Version } from '$lib/features/page/services/history';
   import { plainText } from '$lib/features/page/document';
+  import { VERIFICATION_TYPES } from '$lib/features/verification/services/verifications';
   import {
     createShare,
     revokeShare,
@@ -314,6 +315,10 @@
   let rejectComment = $state('');
   /** Кому подтверждать. Без них подтвердить страницу будет некому. */
   let verifierIds = $state<string[]>([]);
+  /** Порядок работы: повторная проверка или утверждение документа. */
+  let verificationType = $state('expiring');
+  /** Подтвердить сразу. Действует только у повторной проверки. */
+  let confirmNow = $state(false);
 
   const configure = () =>
     act(async () => {
@@ -321,7 +326,9 @@
         pageId,
         periodAmount,
         periodUnit,
-        verifierIds
+        verifierIds,
+        type: verificationType,
+        confirmed: verificationType !== 'qms' && confirmNow
       });
       await invalidateAll();
     });
@@ -501,6 +508,29 @@
       {:else if !verification.configured}
         <p class="text-text-muted">{t('No approval has been requested yet.')}</p>
         {#if verification.canManage}
+          <!--
+            Порядок работы выбирается при заведении, как в v1. Их два, и они
+            означают разное: повторная проверка идёт по расписанию, утверждение
+            документа — через отправку и утверждающего. Сменить его потом
+            нельзя, поэтому выбор стоит здесь.
+          -->
+          <label class="block">
+            <span class="mb-1 block text-xs text-text-muted">{t('Type')}</span>
+            <select
+              class="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text outline-none focus:border-accent"
+              bind:value={verificationType}
+            >
+              {#each VERIFICATION_TYPES as one (one.value)}
+                <option value={one.value}>{t(one.label)}</option>
+              {/each}
+            </select>
+            <span class="mt-1 block text-xs text-text-muted">
+              {verificationType === 'qms'
+                ? t('Draft, then approval by the named people, then obsolete.')
+                : t('Verifiers re-confirm this page on a schedule.')}
+            </span>
+          </label>
+
           <div class="flex items-end gap-2">
             <label class="w-16">
               <span class="mb-1 block text-xs text-text-muted">{t('Number')}</span>
@@ -536,6 +566,15 @@
               {/each}
             </select>
           </label>
+          {#if verificationType !== 'qms'}
+            <!-- Подтвердить сразу можно только повторную проверку: у
+                 утверждения подтверждает утверждающий, и отметка здесь лишала
+                 бы его смысла. Сервер это и проверяет. -->
+            <label class="flex items-center gap-2">
+              <input type="checkbox" bind:checked={confirmNow} />
+              <span class="text-xs text-text-muted">{t('Mark as verified right away')}</span>
+            </label>
+          {/if}
           <Button disabled={busy || verifierIds.length === 0} onclick={configure}>
             {t('Set up verification')}
           </Button>

@@ -144,7 +144,7 @@
   "Apply": "Застосувати",
   "Approval rejected": "Затвердження відхилено",
   "Approval requests": "Прохання про затвердження",
-  "Approval workflow": "Процес погодження",
+  "Approval workflow": "Затвердження документа",
   "Approve": "Погодити",
   "Approved": "Погоджено",
   "Approved by {{name}} {{time}}": "Погоджено: {{name}} {{time}}",
@@ -1311,7 +1311,7 @@
   "Recents": "Нещодавні",
   "Record actions": "Дії із записом",
   "Recurring": "Регулярна",
-  "Recurring verification": "Регулярна перевірка",
+  "Recurring verification": "Повторна перевірка",
   "Red": "Червоний",
   "Redo": "Повторити",
   "Refresh": "Оновити",
@@ -1784,7 +1784,7 @@
   "Verified until": "Перевірено до",
   "Verified until {{date}}": "Перевірено до {{date}}",
   "Verifiers": "Верифікатори",
-  "Verifiers re-confirm this page on a schedule.": "Верифікатори повторно підтверджують цю сторінку за розкладом.",
+  "Verifiers re-confirm this page on a schedule.": "Ті, хто підтверджує, перепідтверджують сторінку за розкладом.",
   "Verify": "Підтвердити",
   "Verify and enable": "Підтвердити й увімкнути",
   "Verify backup code": "Підтвердити резервний код",
@@ -2375,5 +2375,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "Учасники можуть переписувати, перекладати й скорочувати текст просто на сторінці.",
   "error.workspace.invalid_domain": "«{{domain}}» — не доменне ім'я",
   "error.workspace.too_many_domains": "Забагато доменів у списку",
-  "Only people with an email address in these domains can join this workspace.": "Створити обліковий запис зможе лише той, чия адреса в цих доменах. Порожньо — будь-які."
+  "Only people with an email address in these domains can join this workspace.": "Створити обліковий запис зможе лише той, чия адреса в цих доменах. Порожньо — будь-які.",
+  "error.page_verification.invalid_type": "Невідомий вид перевірки",
+  "Draft, then approval by the named people, then obsolete.": "Чернетка, затвердження названими людьми, потім застарівання.",
+  "Mark as verified right away": "Підтвердити одразу",
+  "Narrow page": "Вузький аркуш"
 }

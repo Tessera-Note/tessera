@@ -1307,7 +1307,7 @@
   "Recents": "Recentes",
   "Record actions": "Ações do registro",
   "Recurring": "Recorrente",
-  "Recurring verification": "Verificação recorrente",
+  "Recurring verification": "Verificação periódica",
   "Red": "Vermelho",
   "Redo": "Refazer",
   "Refresh": "Atualizar",
@@ -1776,7 +1776,7 @@
   "Verified until": "Verificado até",
   "Verified until {{date}}": "Verificado até {{date}}",
   "Verifiers": "Verificadores",
-  "Verifiers re-confirm this page on a schedule.": "Os verificadores confirmam novamente esta página em uma programação definida.",
+  "Verifiers re-confirm this page on a schedule.": "Os verificadores reconfirmam esta página conforme um cronograma.",
   "Verify": "Verificar",
   "Verify and enable": "Verificar e ativar",
   "Verify backup code": "Verificar código de backup",
@@ -2357,5 +2357,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "Os membros podem reescrever, traduzir e encurtar o texto na própria página.",
   "error.workspace.invalid_domain": "\"{{domain}}\" não é um nome de domínio válido",
   "error.workspace.too_many_domains": "Domínios demais na lista",
-  "Only people with an email address in these domains can join this workspace.": "Somente quem tiver um endereço nesses domínios poderá entrar. Vazio significa qualquer um."
+  "Only people with an email address in these domains can join this workspace.": "Somente quem tiver um endereço nesses domínios poderá entrar. Vazio significa qualquer um.",
+  "error.page_verification.invalid_type": "Tipo de verificação desconhecido",
+  "Draft, then approval by the named people, then obsolete.": "Rascunho, aprovação pelas pessoas indicadas e depois obsoleto.",
+  "Mark as verified right away": "Marcar como verificada imediatamente",
+  "Narrow page": "Página estreita"
 }

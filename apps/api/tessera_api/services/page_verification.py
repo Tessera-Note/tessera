@@ -27,6 +27,7 @@ from tessera_api.infrastructure.models import (
     PageVerification,
     PageVerifier,
     Space,
+    User,
 )
 from tessera_api.infrastructure.repositories import SpaceMemberRepo
 from tessera_api.services.notification_mail import NotificationMailer
@@ -96,6 +97,19 @@ def _decode_cursor(raw: str | None) -> tuple[datetime, uuid.UUID] | None:
 #: Режимы срока: считать от подтверждения или взять назначенную дату.
 MODE_PERIOD = "period"
 MODE_FIXED = "fixed"
+
+#: Виды проверки. Их два, и они означают разное.
+#:
+#: `expiring` — повторная проверка по расписанию: страницу подтверждают, срок
+#: истекает, её подтверждают снова. Заводящий может подтвердить её сразу.
+#:
+#: `qms` — утверждение документа: черновик, отправка на утверждение,
+#: утверждение названными людьми, устаревание. Подтвердить её при заведении
+#: нельзя — подтверждает утверждающий, и заведение поверх этого лишало бы
+#: утверждение смысла.
+TYPE_EXPIRING = "expiring"
+TYPE_QMS = "qms"
+VERIFICATION_TYPES = (TYPE_EXPIRING, TYPE_QMS)
 
 PERIOD_UNITS = ("day", "week", "month", "year")
 
@@ -233,11 +247,18 @@ class PageVerificationService:
         period_unit: str | None = None,
         fixed_expires_at: datetime | None = None,
         verifier_ids: list[uuid.UUID] | None = None,
+        kind: str = TYPE_EXPIRING,
+        confirmed: bool = False,
     ) -> PageVerification:
         """Завести проверку страницы.
 
         Повторное заведение отвергается: настройка меняется правкой, а
         заведение поверх существующей потеряло бы историю подтверждений.
+
+        `kind` выбирает порядок: повторная проверка или утверждение документа.
+        `confirmed` подтверждает страницу сразу и работает только у первого:
+        у утверждения подтверждает утверждающий, и подтверждение при заведении
+        лишало бы его смысла.
         """
         rights = await self.rights(page, user_id)
         if not rights.can_manage:
@@ -245,7 +266,16 @@ class PageVerificationService:
         if await self._record(page) is not None:
             raise bad_request("error.page_verification.already_configured")
 
+        if kind not in VERIFICATION_TYPES:
+            raise bad_request("error.page_verification.invalid_type")
+
         self._check_period(mode, period_amount, period_unit)
+
+        # Подтверждение при заведении проверяется здесь, а не принимается по
+        # факту вызова: полагаться на форму нельзя, иначе прямой запрос объявил
+        # бы страницу проверенной без действия человека.
+        verified_now = kind != TYPE_QMS and confirmed
+        now = datetime.now(UTC)
 
         verification_id = uuid.uuid4()
         await self._session.execute(
@@ -254,8 +284,10 @@ class PageVerificationService:
                 page_id=page.id,
                 workspace_id=page.workspace_id,
                 space_id=page.space_id,
-                type="expiring",
-                status=Status.PENDING,
+                type=kind,
+                status=Status.VERIFIED if verified_now else Status.PENDING,
+                verified_at=now if verified_now else None,
+                verified_by_id=user_id if verified_now else None,
                 mode=mode,
                 period_amount=period_amount,
                 period_unit=period_unit,
@@ -532,6 +564,38 @@ class PageVerificationService:
         await self._flush_notifications()
         return await self._require(page)
 
+    async def _verifiers_of(
+        self, verification_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[dict]]:
+        """Подтверждающие по записям проверки, одним запросом.
+
+        Строка перечня называет, с кого спрашивать; без имён она называет
+        страницу и молчит о том, кто за неё отвечает.
+        """
+        if not verification_ids:
+            return {}
+
+        rows = (
+            await self._session.execute(
+                select(PageVerifier, User)
+                .join(User, User.id == PageVerifier.user_id)
+                .where(PageVerifier.page_verification_id.in_(verification_ids))
+            )
+        ).all()
+
+        found: dict[uuid.UUID, list[dict]] = {}
+        for link, user in rows:
+            found.setdefault(link.page_verification_id, []).append(
+                {
+                    "userId": user.id,
+                    "name": user.name,
+                    "email": user.email,
+                    "avatarUrl": user.avatar_url,
+                    "isPrimary": bool(link.is_primary),
+                }
+            )
+        return found
+
     async def listing(
         self,
         user_id: uuid.UUID,
@@ -541,6 +605,7 @@ class PageVerificationService:
         status: str | None = None,
         query: str | None = None,
         verifier_id: uuid.UUID | None = None,
+        kind: str | None = None,
         cursor: str | None = None,
         limit: int = DEFAULT_LIST,
     ) -> VerificationPage:
@@ -572,6 +637,8 @@ class PageVerificationService:
             stmt = stmt.where(PageVerification.space_id == space_id)
         if status:
             stmt = stmt.where(PageVerification.status == status)
+        if kind:
+            stmt = stmt.where(PageVerification.type == kind)
 
         # Поиск по названию: обычное вхождение без учёта регистра, не полнотекст.
         # Экран открывают, чтобы найти известную страницу, а не искать по смыслу;
@@ -613,6 +680,11 @@ class PageVerificationService:
         has_more = len(rows) > portion
         rows = rows[:portion]
 
+        # Подтверждающие для показанной страницы: строка перечня называет, с
+        # кого спрашивать. Одним запросом по всей странице, а не по запросу на
+        # строку.
+        people = await self._verifiers_of([record.id for record, _, _ in rows])
+
         found: list[dict] = []
         for record, page, space in rows:
             if not (await self._access.rights(page, user_id)).can_view:
@@ -621,6 +693,8 @@ class PageVerificationService:
                 {
                     "id": record.id,
                     "pageId": record.page_id,
+                    "type": record.type,
+                    "verifiers": people.get(record.id, []),
                     "status": record.status,
                     "mode": record.mode,
                     "expiresAt": record.expires_at,

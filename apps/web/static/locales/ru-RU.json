@@ -144,7 +144,7 @@
   "Apply": "Применить",
   "Approval rejected": "Утверждение отклонено",
   "Approval requests": "Просьбы об утверждении",
-  "Approval workflow": "Процесс утверждения",
+  "Approval workflow": "Утверждение документа",
   "Approve": "Утвердить",
   "Approved": "Утверждено",
   "Approved by {{name}} {{time}}": "Утверждено: {{name}}, {{time}}",
@@ -1311,7 +1311,7 @@
   "Recents": "Недавние",
   "Record actions": "Действия с записью",
   "Recurring": "Регулярно",
-  "Recurring verification": "Регулярная проверка",
+  "Recurring verification": "Повторная проверка",
   "Red": "Красный",
   "Redo": "Повторить",
   "Refresh": "Обновить",
@@ -1784,7 +1784,7 @@
   "Verified until": "Проверено до",
   "Verified until {{date}}": "Подтверждено до: {{date}}",
   "Verifiers": "Проверяющие",
-  "Verifiers re-confirm this page on a schedule.": "Проверяющие повторно подтверждают эту страницу по расписанию.",
+  "Verifiers re-confirm this page on a schedule.": "Подтверждающие переподтверждают страницу по расписанию.",
   "Verify": "Подтвердить",
   "Verify and enable": "Подтвердить и включить",
   "Verify backup code": "Подтвердить резервный код",
@@ -2375,5 +2375,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "Участники могут переписывать, переводить и сокращать текст прямо на странице.",
   "error.workspace.invalid_domain": "«{{domain}}» — не доменное имя",
   "error.workspace.too_many_domains": "Слишком много доменов в списке",
-  "Only people with an email address in these domains can join this workspace.": "Завести учётную запись сможет только тот, чей адрес в этих доменах. Пусто — любые."
+  "Only people with an email address in these domains can join this workspace.": "Завести учётную запись сможет только тот, чей адрес в этих доменах. Пусто — любые.",
+  "error.page_verification.invalid_type": "Неизвестный вид проверки",
+  "Draft, then approval by the named people, then obsolete.": "Черновик, утверждение названными людьми, затем устаревание.",
+  "Mark as verified right away": "Подтвердить сразу",
+  "Narrow page": "Узкий лист"
 }

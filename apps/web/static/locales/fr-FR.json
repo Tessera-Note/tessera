@@ -144,7 +144,7 @@
   "Apply": "Appliquer",
   "Approval rejected": "Approbation refusée",
   "Approval requests": "Demandes d'approbation",
-  "Approval workflow": "Flux d’approbation",
+  "Approval workflow": "Circuit d'approbation",
   "Approve": "Approuver",
   "Approved": "Approuvé",
   "Approved by {{name}} {{time}}": "Approuvé par {{name}} {{time}}",
@@ -743,7 +743,7 @@
   "Français (French)": "Français",
   "Full access": "Accès complet",
   "Full page width": "Largeur de page complète",
-  "Full width": "Largeur complète",
+  "Full width": "Pleine largeur",
   "General": "Général",
   "Generate new backup codes": "Générer de nouveaux codes de secours",
   "Generated MFA backup codes": "Codes de secours d'authentification à deux facteurs générés",
@@ -1776,7 +1776,7 @@
   "Verified until": "Vérifié jusqu’au",
   "Verified until {{date}}": "Vérifié jusqu’au {{date}}",
   "Verifiers": "Vérificateurs",
-  "Verifiers re-confirm this page on a schedule.": "Les vérificateurs reconfirment cette page selon une fréquence définie.",
+  "Verifiers re-confirm this page on a schedule.": "Les vérificateurs reconfirment cette page selon un calendrier.",
   "Verify": "Vérifier",
   "Verify and enable": "Vérifier et activer",
   "Verify backup code": "Vérifier le code de secours",
@@ -2357,5 +2357,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "Les membres peuvent réécrire, traduire et raccourcir le texte directement dans la page.",
   "error.workspace.invalid_domain": "« {{domain}} » n'est pas un nom de domaine valide",
   "error.workspace.too_many_domains": "Trop de domaines dans la liste",
-  "Only people with an email address in these domains can join this workspace.": "Seules les personnes ayant une adresse dans ces domaines peuvent rejoindre. Vide signifie tous."
+  "Only people with an email address in these domains can join this workspace.": "Seules les personnes ayant une adresse dans ces domaines peuvent rejoindre. Vide signifie tous.",
+  "error.page_verification.invalid_type": "Type de vérification inconnu",
+  "Draft, then approval by the named people, then obsolete.": "Brouillon, approbation par les personnes désignées, puis obsolète.",
+  "Mark as verified right away": "Marquer comme vérifiée tout de suite",
+  "Narrow page": "Page étroite"
 }

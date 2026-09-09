@@ -4,6 +4,10 @@ import { post } from '$lib/api/client';
 export type VerificationRow = {
   id: string;
   pageId: string;
+  /** Вид проверки: повторная или утверждение документа. */
+  type: string;
+  /** Кто подтверждает. Пусто — состав не назначен. */
+  verifiers: { userId: string; name: string | null; email: string; isPrimary: boolean }[];
   status: string;
   mode: string;
   expiresAt: string | null;
@@ -27,6 +31,18 @@ export const VERIFICATION_STATUSES = [
   { value: 'obsolete', label: 'Obsolete' }
 ] as const;
 
+/**
+ * Виды проверки. Их два, и они означают разный порядок работы.
+ *
+ * Повторная проверка идёт по расписанию: подтвердили, срок истёк, подтвердили
+ * снова. Утверждение документа — черновик, отправка, утверждение названными
+ * людьми, устаревание.
+ */
+export const VERIFICATION_TYPES = [
+  { value: 'expiring', label: 'Recurring verification' },
+  { value: 'qms', label: 'Approval workflow' }
+] as const;
+
 /** Страница перечня и место, откуда продолжать. */
 export type VerificationPage = {
   items: VerificationRow[];
@@ -46,6 +62,7 @@ export function listVerifications(
     status?: string;
     query?: string;
     verifierId?: string;
+    type?: string;
     cursor?: string;
     limit?: number;
   } = {},

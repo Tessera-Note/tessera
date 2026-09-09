@@ -2357,5 +2357,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "Members can rewrite, translate and shorten text right in the page.",
   "error.workspace.invalid_domain": "\"{{domain}}\" is not a valid domain name",
   "error.workspace.too_many_domains": "Too many domains in the list",
-  "Only people with an email address in these domains can join this workspace.": "Only people with an email address in these domains can join this workspace."
+  "Only people with an email address in these domains can join this workspace.": "Only people with an email address in these domains can join this workspace.",
+  "error.page_verification.invalid_type": "Unknown verification type",
+  "Draft, then approval by the named people, then obsolete.": "Draft, then approval by the named people, then obsolete.",
+  "Mark as verified right away": "Mark as verified right away",
+  "Narrow page": "Narrow page"
 }

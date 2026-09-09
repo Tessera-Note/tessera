@@ -6,6 +6,7 @@
   import { locale } from '$lib/stores/i18n.svelte';
   import {
     VERIFICATION_STATUSES,
+    VERIFICATION_TYPES,
     listVerifications,
     type VerificationRow
   } from '$lib/features/verification/services/verifications';
@@ -27,12 +28,13 @@
    * вопрос, ради которого экран открывают; отдельно взятое состояние по всем
    * пространствам отвечает на него только наполовину.
    */
-  function choose(key: 'status' | 'spaceId' | 'q' | 'verifierId', value: string) {
+  function choose(key: 'status' | 'spaceId' | 'q' | 'verifierId' | 'type', value: string) {
     const next: Record<string, string> = {
       status: data.status ?? '',
       spaceId: data.spaceId ?? '',
       q: data.query ?? '',
       verifierId: data.verifierId ?? '',
+      type: data.type ?? '',
       [key]: value
     };
     const params = new URLSearchParams();
@@ -151,6 +153,20 @@
       </select>
     </label>
 
+    <label class="min-w-48 flex-1">
+      <span class="mb-1 block text-sm text-text-muted">{t('Type')}</span>
+      <select
+        class="h-9 w-full rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
+        value={data.type ?? ''}
+        onchange={(event) => choose('type', (event.currentTarget as HTMLSelectElement).value)}
+      >
+        <option value="">{t('No filters applied')}</option>
+        {#each VERIFICATION_TYPES as one (one.value)}
+          <option value={one.value}>{t(one.label)}</option>
+        {/each}
+      </select>
+    </label>
+
     {#if data.members.length > 0}
       <label class="min-w-48 flex-1">
         <span class="mb-1 block text-sm text-text-muted">{t('Verifiers')}</span>
@@ -174,6 +190,9 @@
       <thead class="border-b border-border text-text-muted">
         <tr>
           <th class="p-3 font-medium">{t('Page')}</th>
+          <!-- Кто подтверждает. Без столбца строка называет страницу и молчит
+               о том, с кого спрашивать. -->
+          <th class="p-3 font-medium">{t('Verifiers')}</th>
           <th class="p-3 font-medium">{t('Status')}</th>
           <th class="p-3 font-medium">{t('Expires')}</th>
         </tr>
@@ -188,11 +207,18 @@
               </a>
               <p class="text-xs text-text-muted">{row.spaceName ?? row.spaceSlug}</p>
             </td>
+            <td class="p-3 text-text-muted">
+              {#if row.verifiers?.length}
+                {row.verifiers.map((one) => one.name || one.email).join(', ')}
+              {:else}
+                —
+              {/if}
+            </td>
             <td class="p-3 text-text-muted">{t(label(row.status))}</td>
             <td class="p-3 text-text-muted">{when(row.expiresAt)}</td>
           </tr>
         {:else}
-          <tr><td class="p-3 text-text-muted" colspan="3">{t('No pages')}</td></tr>
+          <tr><td class="p-3 text-text-muted" colspan="4">{t('No pages')}</td></tr>
         {/each}
       </tbody>
     </table>

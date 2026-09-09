@@ -25,6 +25,8 @@ from tessera_api.services.notifications import NotificationType
 from tessera_api.services.page_verification import (
     MODE_FIXED,
     MODE_PERIOD,
+    TYPE_EXPIRING,
+    TYPE_QMS,
     PageVerificationService,
     Status,
     _add_period,
@@ -623,3 +625,60 @@ class TestNotifications:
                 .all()
             )
             assert len(list(found)) == expected
+
+
+@needs_database
+class TestVerificationTypes:
+    """Два порядка проверки, как в первой версии.
+
+    «Повторная проверка» подтверждается по расписанию и может быть подтверждена
+    сразу при заведении. «Утверждение документа» так не работает: подтверждает
+    утверждающий после отправки, и подтверждение при заведении лишало бы его
+    смысла. Во второй версии вид не выбирался вовсе — заводился всегда первый.
+    """
+
+    async def _page(self, session, workspace, owner, space):
+        world = await _world(session, workspace, owner, space)
+        return world["root"], PageVerificationService(session)
+
+    async def test_the_default_type_is_the_recurring_one(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page, service = await self._page(session, workspace, owner, space)
+        record = await service.create(page=page, user_id=owner.id, period_amount=1)
+        assert record.type == TYPE_EXPIRING
+        assert record.status == Status.PENDING
+
+    async def test_the_recurring_one_can_be_confirmed_at_once(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page, service = await self._page(session, workspace, owner, space)
+        record = await service.create(
+            page=page, user_id=owner.id, period_amount=1, confirmed=True
+        )
+        assert record.status == Status.VERIFIED
+        assert record.verified_by_id == owner.id
+
+    async def test_the_approval_one_starts_as_a_draft(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Подтверждение при заведении у утверждения не действует.
+
+        Проверяется на сервере, а не формой: прямой запрос объявил бы документ
+        утверждённым без утверждающего.
+        """
+        page, service = await self._page(session, workspace, owner, space)
+        record = await service.create(
+            page=page, user_id=owner.id, period_amount=1, kind=TYPE_QMS, confirmed=True
+        )
+        assert record.type == TYPE_QMS
+        assert record.status == Status.PENDING
+        assert record.verified_at is None
+
+    async def test_an_unknown_type_is_refused(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page, service = await self._page(session, workspace, owner, space)
+        with pytest.raises(AppError) as error:
+            await service.create(page=page, user_id=owner.id, kind="что-то своё")
+        assert error.value.code == "error.page_verification.invalid_type"

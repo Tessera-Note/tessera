@@ -4,6 +4,7 @@
   import { headings } from '$lib/features/page/document';
   import { errorText } from '$lib/api/failure';
   import { searchShared, type SharedHit } from '$lib/features/share/services/share';
+  import { shareWidth } from '$lib/features/share/width.svelte';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -39,6 +40,9 @@
    * помещается, и там оглавление остаётся складным блоком над текстом.
    */
   const chapters = $derived(headings(data.page.content));
+  /** Лист во всю ширину. Выбор читателя, помнится в его браузере. */
+  const wide = $derived(shareWidth.wide);
+
   let showToc = $state(false);
   let article = $state<HTMLElement | null>(null);
 
@@ -100,58 +104,62 @@
 
 <!-- На узком экране ветвь встаёт над текстом, а не рядом: столбец в 224
      пикселя из 390 не оставляет места самой странице. -->
-<div class="flex flex-col gap-6 sm:flex-row" class:justify-center={!hasBranch}>
-  {#if hasBranch}
-    <aside data-component="SharedTree" class="w-full shrink-0 sm:w-56">
-      <form class="mb-3" onsubmit={search}>
-        <input
-          class="h-8 w-full rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
-          type="search"
-          placeholder={t('Search')}
-          bind:value={query}
-        />
-      </form>
+<div class="flex flex-col gap-6 sm:flex-row" class:justify-center={!hasBranch && !wide}>
+  <!--
+    Столбец с поиском стоит и у ссылки на одну страницу. Раньше он появлялся
+    только вместе с ветвью, и посторонний, открывший такую ссылку, искать по
+    ней не мог вовсе, хотя поиск по ключу работает и для неё.
+  -->
+  <aside data-component="SharedTree" class="w-full shrink-0 sm:w-56">
+    <form class="mb-3" onsubmit={search}>
+      <input
+        class="h-8 w-full rounded border border-border-input bg-surface px-2 text-sm text-text outline-none focus:border-accent"
+        type="search"
+        placeholder={t('Search')}
+        bind:value={query}
+      />
+    </form>
 
-      {#if failure}<p class="mb-2 text-xs text-danger">{failure}</p>{/if}
+    {#if failure}<p class="mb-2 text-xs text-danger">{failure}</p>{/if}
 
-      {#if searching}
-        <p class="text-xs text-text-muted">{t('Loading...')}</p>
-      {:else if hits}
-        <ul class="space-y-1 text-sm">
-          {#each hits as hit (hit.id)}
-            <li>
-              <a class="block truncate rounded px-2 py-1 hover:bg-surface" href="?p={hit.slugId}">
-                {hit.title ?? t('Untitled')}
-              </a>
-            </li>
-          {:else}
-            <li class="px-2 text-xs text-text-muted">{t('No pages match your search.')}</li>
-          {/each}
-        </ul>
-        <button
-          class="mt-2 px-2 text-xs text-text-muted hover:underline"
-          type="button"
-          onclick={() => {
-            hits = null;
-            query = '';
-          }}
-        >
-          {t('Show all')}
-        </button>
-      {:else}
-        <ul class="space-y-0.5 text-sm">
-          {#each childrenOf(null) as node (node.id)}
-            {@render branchNode(node, 0)}
-          {/each}
-        </ul>
-      {/if}
-    </aside>
-  {/if}
+    {#if searching}
+      <p class="text-xs text-text-muted">{t('Loading...')}</p>
+    {:else if hits}
+      <ul class="space-y-1 text-sm">
+        {#each hits as hit (hit.id)}
+          <li>
+            <a class="block truncate rounded px-2 py-1 hover:bg-surface" href="?p={hit.slugId}">
+              {hit.title ?? t('Untitled')}
+            </a>
+          </li>
+        {:else}
+          <li class="px-2 text-xs text-text-muted">{t('No pages match your search.')}</li>
+        {/each}
+      </ul>
+      <button
+        class="mt-2 px-2 text-xs text-text-muted hover:underline"
+        type="button"
+        onclick={() => {
+          hits = null;
+          query = '';
+        }}
+      >
+        {t('Show all')}
+      </button>
+    {:else if hasBranch}
+      <ul class="space-y-0.5 text-sm">
+        {#each childrenOf(null) as node (node.id)}
+          {@render branchNode(node, 0)}
+        {/each}
+      </ul>
+    {/if}
+  </aside>
 
   <article
     bind:this={article}
     data-route="shared-page"
     class="min-w-0 flex-1 rounded border border-border bg-surface p-8"
+    class:max-w-3xl={!wide}
   >
     <h1 class="text-3xl font-semibold">
       {#if data.page.icon}<span aria-hidden="true">{data.page.icon}</span>{/if}

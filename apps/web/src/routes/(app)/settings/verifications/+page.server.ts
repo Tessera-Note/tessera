@@ -13,10 +13,12 @@ export const load: PageServerLoad = async ({ url, fetch, request }) => {
   const spaceId = url.searchParams.get('spaceId') ?? undefined;
   const query = url.searchParams.get('q') ?? undefined;
   const verifierId = url.searchParams.get('verifierId') ?? undefined;
+  // Вид проверки: повторная или утверждение документа. Отбор из v1.
+  const type = url.searchParams.get('type') ?? undefined;
 
   try {
     const [page, members] = await Promise.all([
-      listVerifications({ status, spaceId, query, verifierId }, fetch, headers),
+      listVerifications({ status, spaceId, query, verifierId, type }, fetch, headers),
       // Перечень подтверждающих виден администратору; участнику отбор по
       // человеку не показывается вовсе, и отказ перечня его не отменяет.
       listMembers(fetch, headers).catch(() => [])
@@ -26,6 +28,7 @@ export const load: PageServerLoad = async ({ url, fetch, request }) => {
       spaceId,
       query,
       verifierId,
+      type,
       rows: page.items,
       nextCursor: page.meta.nextCursor,
       members

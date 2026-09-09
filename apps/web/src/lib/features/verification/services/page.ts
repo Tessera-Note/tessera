@@ -50,6 +50,10 @@ export function configureVerification(
     periodAmount?: number;
     periodUnit?: string;
     verifierIds?: string[];
+    /** Порядок работы: `expiring` — повторная проверка, `qms` — утверждение. */
+    type?: string;
+    /** Подтвердить сразу. У утверждения не действует, и сервер это проверяет. */
+    confirmed?: boolean;
   },
   fetcher?: typeof fetch
 ) {

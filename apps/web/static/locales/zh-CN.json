@@ -144,7 +144,7 @@
   "Apply": "应用",
   "Approval rejected": "已拒绝审批",
   "Approval requests": "审批请求",
-  "Approval workflow": "审批工作流",
+  "Approval workflow": "审批流程",
   "Approve": "批准",
   "Approved": "已批准",
   "Approved by {{name}} {{time}}": "由 {{name}} 于 {{time}} 批准",
@@ -1307,7 +1307,7 @@
   "Recents": "最近使用",
   "Record actions": "记录操作",
   "Recurring": "定期",
-  "Recurring verification": "定期验证",
+  "Recurring verification": "周期性校验",
   "Red": "红色",
   "Redo": "重做",
   "Refresh": "刷新",
@@ -1776,7 +1776,7 @@
   "Verified until": "验证有效期至",
   "Verified until {{date}}": "验证有效期至 {{date}}",
   "Verifiers": "验证者",
-  "Verifiers re-confirm this page on a schedule.": "验证者按计划重新确认此页面。",
+  "Verifiers re-confirm this page on a schedule.": "审核人按计划重新确认此页面。",
   "Verify": "验证",
   "Verify and enable": "验证并启用",
   "Verify backup code": "验证备用代码",
@@ -2357,5 +2357,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "成员可以直接在页面上改写、翻译和精简文本。",
   "error.workspace.invalid_domain": "“{{domain}}”不是有效的域名",
   "error.workspace.too_many_domains": "列表中的域名过多",
-  "Only people with an email address in these domains can join this workspace.": "只有邮箱属于这些域名的人才能加入。留空表示不限。"
+  "Only people with an email address in these domains can join this workspace.": "只有邮箱属于这些域名的人才能加入。留空表示不限。",
+  "error.page_verification.invalid_type": "未知的校验类型",
+  "Draft, then approval by the named people, then obsolete.": "草稿、由指定人员审批，之后作废。",
+  "Mark as verified right away": "立即标记为已校验",
+  "Narrow page": "窄页"
 }

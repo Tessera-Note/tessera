@@ -140,6 +140,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.ai.generation_disabled": "Text generation is turned off for this workspace",
     "error.workspace.invalid_domain": "\"{{domain}}\" is not a valid domain name",
     "error.workspace.too_many_domains": "Too many domains in the list",
+    "error.page_verification.invalid_type": "Unknown verification type",
     "error.auth.email_domain_not_approved": (
         'The email domain "{{domain}}" is not approved for this workspace'
     ),

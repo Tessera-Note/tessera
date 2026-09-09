@@ -17,6 +17,7 @@ from tessera_api.services.page_access import PageAccessService
 from tessera_api.services.page_verification import (
     DEFAULT_LIST,
     MODE_PERIOD,
+    TYPE_EXPIRING,
     PageVerificationService,
 )
 from tessera_api.services.realtime import RealtimeService
@@ -45,6 +46,8 @@ class VerificationListRequest(msgspec.Struct):
     query: str | None = None
     verifierId: str | None = None  # noqa: N815 — имя поля из v1
     status: str | None = None
+    #: Вид проверки: повторная или утверждение документа. Отбор из v1.
+    type: str | None = None
     #: Откуда продолжать. Приходит из прошлой выдачи.
     cursor: str | None = None
     limit: int | None = None
@@ -57,6 +60,9 @@ class ConfigureRequest(msgspec.Struct):
     periodUnit: str | None = None  # noqa: N815 — имя поля из v1
     fixedExpiresAt: datetime | None = None  # noqa: N815 — имя поля из v1
     verifierIds: list[uuid.UUID] | None = None  # noqa: N815 — имя поля из v1
+    #: Вид проверки и подтверждение при заведении. Оба из v1.
+    type: str = TYPE_EXPIRING
+    confirmed: bool = False
 
 
 class RejectRequest(msgspec.Struct):
@@ -99,6 +105,7 @@ class PageVerificationController(Controller):
                 if data.verifierId
                 else None
             ),
+            kind=data.type,
             cursor=data.cursor,
             limit=data.limit or DEFAULT_LIST,
         )
@@ -139,6 +146,8 @@ class PageVerificationController(Controller):
             period_unit=data.periodUnit,
             fixed_expires_at=data.fixedExpiresAt,
             verifier_ids=data.verifierIds,
+            kind=data.type,
+            confirmed=data.confirmed,
         )
         return await service.info(page, principal.user_id)
 

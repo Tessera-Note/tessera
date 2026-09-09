@@ -743,7 +743,7 @@
   "Français (French)": "Français (francese)",
   "Full access": "Accesso completo",
   "Full page width": "Pagina a larghezza intera",
-  "Full width": "Larghezza intera",
+  "Full width": "Larghezza piena",
   "General": "Generale",
   "Generate new backup codes": "Genera nuovi codici di backup",
   "Generated MFA backup codes": "Codici di riserva per l'autenticazione a due fattori generati",
@@ -1776,7 +1776,7 @@
   "Verified until": "Verificato fino al",
   "Verified until {{date}}": "Verificato fino al {{date}}",
   "Verifiers": "Verificatori",
-  "Verifiers re-confirm this page on a schedule.": "I verificatori riconfermano questa pagina secondo una pianificazione.",
+  "Verifiers re-confirm this page on a schedule.": "I verificatori riconfermano questa pagina secondo un calendario.",
   "Verify": "Verifica",
   "Verify and enable": "Verifica e abilita",
   "Verify backup code": "Verifica codice di backup",
@@ -2357,5 +2357,9 @@
   "Members can rewrite, translate and shorten text right in the page.": "I membri possono riscrivere, tradurre e accorciare il testo direttamente nella pagina.",
   "error.workspace.invalid_domain": "«{{domain}}» non è un nome di dominio valido",
   "error.workspace.too_many_domains": "Troppi domini nell'elenco",
-  "Only people with an email address in these domains can join this workspace.": "Solo chi ha un indirizzo in questi domini può unirsi. Vuoto significa qualsiasi."
+  "Only people with an email address in these domains can join this workspace.": "Solo chi ha un indirizzo in questi domini può unirsi. Vuoto significa qualsiasi.",
+  "error.page_verification.invalid_type": "Tipo di verifica sconosciuto",
+  "Draft, then approval by the named people, then obsolete.": "Bozza, approvazione dalle persone indicate, poi obsoleto.",
+  "Mark as verified right away": "Segna subito come verificata",
+  "Narrow page": "Pagina stretta"
 }
