@@ -79,7 +79,18 @@
 <svelte:head><title>{t('API keys')} · Tessera</title></svelte:head>
 
 <section data-route="settings-api-keys">
-  <h1 class="mb-6 text-2xl font-semibold">{t('API keys')}</h1>
+  <h1 class="mb-2 text-2xl font-semibold">{t('API keys')}</h1>
+
+  <!-- Ссылка на описание API, как в v1: ключ заводят, чтобы им пользоваться, и
+       следующий вопрос человека — куда его слать. -->
+  <p class="mb-6 text-sm text-text-muted">
+    {t('Keys let an outside program work with the wiki on your behalf.')}
+    {#if data.apiDocsUrl}
+      <a class="hover:underline" href={data.apiDocsUrl} target="_blank" rel="noopener">
+        {t('API documentation')}
+      </a>
+    {/if}
+  </p>
 
   {#if failure}<Notice message={failure} />{/if}
 
@@ -134,6 +145,11 @@
       <thead class="border-b border-border text-text-muted">
         <tr>
           <th class="p-3 font-medium">{t('Name')}</th>
+          {#if data.all}
+            <!-- Чей ключ. Нужно только в общем перечне: в своём владелец один
+                 и назван в самом экране. -->
+            <th class="p-3 font-medium">{t('User')}</th>
+          {/if}
           <th class="p-3 font-medium">{t('Created')}</th>
           <th class="p-3 font-medium">{t('Expires')}</th>
           <th class="p-3 font-medium">{t('Last used')}</th>
@@ -154,6 +170,11 @@
                 <span class="font-medium">{key.name}</span>
               {/if}
             </td>
+            {#if data.all}
+              <td class="p-3 text-text-muted">
+                {key.creator?.name || key.creator?.email || t('Unknown')}
+              </td>
+            {/if}
             <td class="p-3 text-text-muted">{when(key.createdAt)}</td>
             <td class="p-3 text-text-muted">
               {when(key.expiresAt)}

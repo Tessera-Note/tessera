@@ -2361,5 +2361,13 @@
   "Українська (Ukrainian)": "Українська (Ukrainian)",
   "中文 (简体)": "中文 (简体)",
   "日本語 (Japanese)": "日本語 (Japanese)",
-  "한국어 (Korean)": "한국어 (Korean)"
+  "한국어 (Korean)": "한국어 (Korean)",
+  "Keys let an outside program work with the wiki on your behalf.": "Ключ позволяет посторонней программе работать с викой от вашего имени.",
+  "API documentation": "Описание API",
+  "Resolve Comments": "Решение обсуждений",
+  "Confluence Import": "Ввоз из Confluence",
+  "PDF & DOCX Import": "Ввоз PDF и DOCX",
+  "Accepted invitation": "Приглашение принято",
+  "Hide": "Скрыть",
+  "IP address": "IP-адрес"
 }

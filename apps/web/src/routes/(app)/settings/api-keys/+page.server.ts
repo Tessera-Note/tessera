@@ -7,7 +7,9 @@ export const load: PageServerLoad = async ({ url, fetch, request, parent }) => {
   const cookie = request.headers.get('cookie');
   const headers = cookie ? { cookie } : undefined;
 
-  const { session } = await parent();
+  // Адрес описания API приходит с общей загрузкой раздела настроек: узел
+  // соседа знает приложение, а не экран.
+  const { session, version } = await parent();
   const admin = session?.user.role === 'admin' || session?.user.role === 'owner';
   // Признак живёт в адресе: так его видно в истории браузера, и переключение
   // не теряется при перезагрузке. Не администратору он не предлагается вовсе.
@@ -17,7 +19,7 @@ export const load: PageServerLoad = async ({ url, fetch, request, parent }) => {
     // Сервер отдаёт страницу с курсором: перечень ключей растёт, и целиком
     // он уходил бы в каждом ответе. Экран показывает первую страницу.
     const page = await listApiKeys(all, fetch, headers);
-    return { keys: page.items, admin, all };
+    return { keys: page.items, admin, all, apiDocsUrl: version?.apiDocsUrl ?? null };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

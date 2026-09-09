@@ -2343,5 +2343,13 @@
   "Українська (Ukrainian)": "Українська (ucraniano)",
   "中文 (简体)": "中文 (简体)",
   "日本語 (Japanese)": "日本語 (japonés)",
-  "한국어 (Korean)": "한국어 (coreano)"
+  "한국어 (Korean)": "한국어 (coreano)",
+  "Keys let an outside program work with the wiki on your behalf.": "Las claves permiten que un programa externo trabaje con la wiki en su nombre.",
+  "API documentation": "Documentación de la API",
+  "Resolve Comments": "Resolución de comentarios",
+  "Confluence Import": "Importación desde Confluence",
+  "PDF & DOCX Import": "Importación de PDF y DOCX",
+  "Accepted invitation": "Invitación aceptada",
+  "Hide": "Ocultar",
+  "IP address": "Dirección IP"
 }

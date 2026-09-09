@@ -74,7 +74,12 @@ class GroupService:
         self._audit = AuditService(session)
 
     async def list(
-        self, workspace_id: uuid.UUID, *, cursor: str | None = None, limit: int | None = None
+        self,
+        workspace_id: uuid.UUID,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        query: str | None = None,
     ) -> GroupPage:
         """Группы пространства вместе с числом людей в каждой, страницами.
 
@@ -85,6 +90,10 @@ class GroupService:
         Постраничность курсорная, по имени: перечень пополняется во время
         просмотра, и смещение сдвигало бы окно — часть групп показалась бы
         дважды, часть не показалась бы вовсе.
+
+        Отбор по имени идёт здесь, а не на экране: перечень постраничный, и
+        отбор на клиенте искал бы только в показанной странице — на рабочем
+        пространстве с сотней групп поиск не находил бы существующую группу.
         """
         wanted = portion(limit)
         counts = (
@@ -98,6 +107,10 @@ class GroupService:
             .where(Group.workspace_id == workspace_id)
             .where(Group.deleted_at.is_(None))
         )
+
+        wanted_name = (query or "").strip()
+        if wanted_name:
+            stmt = stmt.where(Group.name.ilike(f"%{wanted_name}%"))
 
         after = read_text_cursor(cursor)
         if after is not None:

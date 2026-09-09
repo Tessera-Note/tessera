@@ -2343,5 +2343,13 @@
   "Українська (Ukrainian)": "Українська（乌克兰语）",
   "中文 (简体)": "中文 (简体)",
   "日本語 (Japanese)": "日本語（日语）",
-  "한국어 (Korean)": "한국어（韩语）"
+  "한국어 (Korean)": "한국어（韩语）",
+  "Keys let an outside program work with the wiki on your behalf.": "密钥允许外部程序以您的身份使用此维基。",
+  "API documentation": "API 文档",
+  "Resolve Comments": "解决评论",
+  "Confluence Import": "Confluence 导入",
+  "PDF & DOCX Import": "PDF 与 DOCX 导入",
+  "Accepted invitation": "已接受邀请",
+  "Hide": "隐藏",
+  "IP address": "IP 地址"
 }

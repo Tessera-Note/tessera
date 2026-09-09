@@ -33,10 +33,15 @@ class VersionController(Controller):
     @post("/")
     async def version(self, settings: NamedDependency[Settings]) -> dict:
         latest = await _latest(settings.hub_internal_url)
+        # Адреса собираются здесь, а не на экране: узел соседа задан окружением
+        # приложения, и экрану он неизвестен.
+        hub = settings.hub_url.rstrip("/")
         return {
             "currentVersion": VERSION,
             "latestVersion": latest,
-            "releaseUrl": f"{settings.hub_url.rstrip('/')}/releases",
+            "releaseUrl": f"{hub}/releases",
+            "docsUrl": f"{hub}/docs",
+            "apiDocsUrl": f"{hub}/docs/api",
         }
 
 

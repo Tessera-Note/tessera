@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invalidateAll } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import Confirm from '$lib/components/ui/Confirm.svelte';
   import Field from '$lib/components/ui/Field.svelte';
@@ -46,12 +46,20 @@
     cursor = data.nextCursor;
   });
 
+  /** Искомое уходит в адрес: перезагрузка и «показать ещё» продолжают тот же отбор. */
+  function search(event: SubmitEvent) {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const wanted = String(new FormData(form).get('q') ?? '').trim();
+    void goto(wanted ? `/settings/groups?q=${encodeURIComponent(wanted)}` : '/settings/groups');
+  }
+
   async function loadMore() {
     if (!cursor) return;
     loading = true;
     failure = null;
     try {
-      const next = await listGroups({ cursor });
+      const next = await listGroups({ cursor, q: data.q || undefined });
       more = [...more, ...next.items];
       cursor = next.meta.nextCursor;
     } catch (error) {
@@ -91,6 +99,22 @@
   <h1 class="mb-6 text-2xl font-semibold">{t('Groups')}</h1>
 
   {#if failure}<Notice message={failure} />{/if}
+
+  <!--
+    Поиск по группам. Отбор идёт на сервере и живёт в адресе: перечень
+    постраничный, и отбор на экране искал бы только в показанной странице.
+  -->
+  <form class="mb-6 flex gap-2" data-component="GroupSearch" onsubmit={search}>
+    <input
+      class="h-9 w-full max-w-sm rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
+      type="search"
+      name="q"
+      value={data.q}
+      placeholder={t('Search')}
+      aria-label={t('Search')}
+    />
+    <Button type="submit" variant="quiet">{t('Search')}</Button>
+  </form>
 
   {#if admin}
     <form

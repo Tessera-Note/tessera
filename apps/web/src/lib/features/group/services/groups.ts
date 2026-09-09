@@ -25,13 +25,16 @@ export type Paged<T> = { items: T[]; meta: { nextCursor: string | null } };
  * приходил бы в каждом ответе экрана.
  */
 export function listGroups(
-  values: { cursor?: string; limit?: number } = {},
+  values: { cursor?: string; limit?: number; q?: string } = {},
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
   const query = new URLSearchParams();
   if (values.cursor) query.set('cursor', values.cursor);
   if (values.limit) query.set('limit', String(values.limit));
+  // Отбор по имени идёт на сервере: перечень постраничный, и отбор здесь искал
+  // бы только в показанной странице.
+  if (values.q) query.set('q', values.q);
   const tail = query.toString();
   return get<Paged<Group>>(`/api/groups${tail ? `?${tail}` : ''}`, { fetcher, headers });
 }

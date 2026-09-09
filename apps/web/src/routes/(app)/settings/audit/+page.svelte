@@ -12,6 +12,7 @@
     setAuditRetention,
     type AuditRecord
   } from '$lib/features/audit/services/audit';
+  import { eventLabel } from '$lib/features/audit/labels';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
   import type { LayoutData } from '../../$types';
@@ -27,6 +28,36 @@
   let failure = $state<string | null>(null);
   let days = $state('');
   let eventFilter = $state('');
+  /** Раскрытая запись. Одна за раз: раскрытые подряд превращают журнал в простыню. */
+  let opened = $state<string | null>(null);
+
+  /**
+   * Изменённые поля записи.
+   *
+   * Приходят от сервера полем `changes` и по устройству повторяют v1: объект с
+   * перечнем `fields`. Негодное значение — это его отсутствие: журнал пишут
+   * разные места, и одна испорченная запись не повод ронять экран.
+   */
+  function changedFields(row: AuditRecord): string[] {
+    const changes = row.changes as { fields?: unknown } | null;
+    const fields = changes?.fields;
+    return Array.isArray(fields) ? fields.map((one) => String(one)) : [];
+  }
+
+  /** Подробности записи парами «поле — значение». */
+  function metadataPairs(row: AuditRecord): [string, string][] {
+    const metadata = row.metadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return [];
+    return Object.entries(metadata as Record<string, unknown>).map(([key, value]) => [
+      key,
+      typeof value === 'object' ? JSON.stringify(value) : String(value)
+    ]);
+  }
+
+  /** Есть ли что показывать под строкой. Без этого кнопка открывала бы пустоту. */
+  function hasDetails(row: AuditRecord): boolean {
+    return Boolean(changedFields(row).length || metadataPairs(row).length || row.ipAddress);
+  }
 
   // Первая страница приходит загрузчиком, остальные добираются кнопкой. Поэтому
   // список держится здесь, а не читается из данных напрямую: иначе дозагрузка
@@ -138,23 +169,75 @@
           <th class="p-3 font-medium">{t('Actor')}</th>
           <th class="p-3 font-medium">{t('Event')}</th>
           <th class="p-3 font-medium">{t('Resource')}</th>
+          <th class="p-3"></th>
         </tr>
       </thead>
       <tbody>
         {#each rows as row (row.id)}
-          <tr class="border-b border-border last:border-0">
+          {@const details = hasDetails(row)}
+          <tr class="border-b border-border last:border-0" class:border-0={opened === row.id}>
             <td class="p-3 text-text-muted">{when(row.createdAt)}</td>
             <td class="p-3">
               {row.actor?.name ??
                 row.actor?.email ??
                 t(row.actorType === 'system' ? 'System' : 'Unknown')}
             </td>
-            <td class="p-3 font-mono text-xs">{row.event}</td>
+            <td class="p-3">{t(eventLabel(row.event))}</td>
             <td class="p-3 text-text-muted">{row.resourceType ?? ''}</td>
+            <td class="p-3 text-right">
+              {#if details}
+                <!-- Раскрытие, как в v1: изменённые поля и подробности лежат в
+                     самой записи, а строкой их не показать. -->
+                <button
+                  class="rounded px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
+                  type="button"
+                  aria-expanded={opened === row.id}
+                  onclick={() => (opened = opened === row.id ? null : row.id)}
+                >
+                  {opened === row.id ? t('Hide') : t('Details')}
+                </button>
+              {/if}
+            </td>
           </tr>
+          {#if opened === row.id}
+            <tr class="border-b border-border last:border-0">
+              <td class="px-3 pb-3" colspan="5">
+                <div class="flex flex-wrap gap-8 rounded bg-surface px-3 py-2">
+                  {#if changedFields(row).length}
+                    <div>
+                      <p class="mb-1 text-xs font-semibold">{t('Changed fields')}</p>
+                      <div class="flex flex-wrap gap-1.5">
+                        {#each changedFields(row) as field (field)}
+                          <span class="rounded bg-surface-raised px-1.5 py-0.5 text-xs">
+                            {field}
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                  {#if metadataPairs(row).length}
+                    <div>
+                      <p class="mb-1 text-xs font-semibold">{t('Metadata')}</p>
+                      {#each metadataPairs(row) as [key, value] (key)}
+                        <p class="text-xs text-text-muted">
+                          <span class="font-medium">{key}</span>: {value}
+                        </p>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if row.ipAddress}
+                    <div>
+                      <p class="mb-1 text-xs font-semibold">{t('IP address')}</p>
+                      <p class="font-mono text-xs text-text-muted">{row.ipAddress}</p>
+                    </div>
+                  {/if}
+                </div>
+              </td>
+            </tr>
+          {/if}
         {:else}
           <tr>
-            <td class="p-6 text-center text-text-muted" colspan="4">{t('No results found')}</td>
+            <td class="p-6 text-center text-text-muted" colspan="5">{t('No results found')}</td>
           </tr>
         {/each}
       </tbody>

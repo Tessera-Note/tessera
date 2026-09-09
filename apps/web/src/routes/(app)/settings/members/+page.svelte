@@ -36,6 +36,22 @@
 
   const t = $derived(locale.t);
 
+  /**
+   * Поиск по участникам.
+   *
+   * Отбор на экране, а не на сервере: перечень приходит целиком, страниц у
+   * него нет, и отбирать здесь — значит отбирать по всему списку, а не по
+   * показанной части.
+   */
+  let wanted = $state('');
+  const shown = $derived.by(() => {
+    const needle = wanted.trim().toLowerCase();
+    if (!needle) return data.members;
+    return data.members.filter((one) =>
+      `${one.name ?? ''} ${one.email}`.toLowerCase().includes(needle)
+    );
+  });
+
   let emails = $state('');
   let inviteRole = $state('member');
   let busy = $state<string | null>(null);
@@ -109,6 +125,18 @@
     </Button>
   </form>
 
+  <div class="mb-3 flex items-center gap-3">
+    <input
+      class="h-9 w-full max-w-sm rounded border border-border-input bg-surface px-3 text-sm text-text outline-none focus:border-accent"
+      data-component="MemberSearch"
+      type="search"
+      bind:value={wanted}
+      placeholder={t('Search')}
+      aria-label={t('Search')}
+    />
+    <span class="text-sm text-text-muted">{shown.length}</span>
+  </div>
+
   <div class="mb-8 card-soft rounded-md border border-border bg-surface-raised">
     <table data-component="MemberTable" class="w-full text-left text-sm">
       <thead class="border-b border-border text-text-muted">
@@ -120,7 +148,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each data.members as member (member.id)}
+        {#each shown as member (member.id)}
           <tr class="border-b border-border last:border-0">
             <td class="p-3">
               <div class="flex items-center gap-2">

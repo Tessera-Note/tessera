@@ -512,6 +512,7 @@ class GroupController(Controller):
         db_session: NamedDependency[AsyncSession],
         cursor: str | None = None,
         limit: int | None = None,
+        q: str | None = None,
     ) -> dict:
         """Группы рабочего пространства со счётчиком людей, страницами.
 
@@ -524,7 +525,7 @@ class GroupController(Controller):
         """
         principal: Principal = request.scope["principal"]
         found = await GroupService(db_session).list(
-            principal.workspace_id, cursor=cursor, limit=limit
+            principal.workspace_id, cursor=cursor, limit=limit, query=q
         )
         return {
             "items": [_group_view(group, people) for group, people in found.items],

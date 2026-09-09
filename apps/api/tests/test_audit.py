@@ -11,8 +11,10 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import delete, insert, select, update
@@ -31,6 +33,35 @@ from tessera_api.services.audit import (
     purge_expired,
 )
 from tests.conftest import needs_database
+
+
+class TestEventLabels:
+    """У каждого события есть название для человека.
+
+    Журнал показывал коды (`user.logged_in`, `space.deleted`), и строка
+    читалась как запись в лог. Подписи живут на стороне экрана, а перечень
+    событий — здесь, поэтому проверка стоит здесь: заведённое событие без
+    подписи человек увидит кодом, и заметить это иначе нечем.
+    """
+
+    def _labels(self) -> set[str]:
+        source = (
+            Path(__file__).resolve().parents[3]
+            / "apps/web/src/lib/features/audit/labels.ts"
+        ).read_text(encoding="utf-8")
+        return set(re.findall(r"'([a-z_]+\.[a-z_]+)':", source))
+
+    def test_every_event_has_a_label(self) -> None:
+        events = {
+            value
+            for name, value in vars(AuditEvent).items()
+            if not name.startswith("_") and isinstance(value, str)
+        }
+        assert events - self._labels() == set()
+
+    def test_the_check_is_not_vacuous(self) -> None:
+        """Опора проверки: перечень действительно прочитан."""
+        assert len(self._labels()) > 30
 
 
 class TestChangedFields:

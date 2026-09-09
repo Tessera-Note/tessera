@@ -4,6 +4,8 @@ export type ApiKey = {
   id: string;
   name: string;
   creatorId?: string;
+  /** Кто завёл ключ. Пусто, если запись владельца удалена. */
+  creator?: { id: string; name: string | null; email: string } | null;
   expiresAt: string | null;
   lastUsedAt?: string | null;
   createdAt: string;

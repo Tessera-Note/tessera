@@ -33,6 +33,26 @@ export function workspaceSettings(fetcher?: typeof fetch, headers?: Record<strin
   return get<WorkspaceSettings>('/api/workspace/settings', { fetcher, headers });
 }
 
+/** Выпуск: своя версия, доступная и адрес записей о выпусках. */
+export type Version = {
+  currentVersion: string;
+  latestVersion: string | null;
+  releaseUrl: string;
+  docsUrl: string;
+  apiDocsUrl: string;
+};
+
+/**
+ * Сведения о выпуске.
+ *
+ * Отдаёт их соседний сервис, и развёртывание без него — обычный случай.
+ * Вызывающий обязан пережить отказ: номер версии в панели важен, но не
+ * настолько, чтобы из-за недоступного соседа не открылся раздел настроек.
+ */
+export function version(fetcher?: typeof fetch, headers?: Record<string, string>) {
+  return post<Version>('/api/version', {}, { fetcher, headers });
+}
+
 export function updateWorkspace(values: WorkspacePatch, fetcher?: typeof fetch) {
   return post<WorkspaceSettings>('/api/workspace/update', values, { fetcher });
 }

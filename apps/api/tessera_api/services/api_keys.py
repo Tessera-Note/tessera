@@ -39,6 +39,13 @@ def _api_restricted_to_admins(workspace: Workspace) -> bool:
     return bool(settings)
 
 
+def _person(user: User | None) -> dict | None:
+    """Владелец ключа для экрана. Удалённая запись — это отсутствие владельца."""
+    if user is None:
+        return None
+    return {"id": user.id, "name": user.name, "email": user.email}
+
+
 @dataclass(frozen=True, slots=True)
 class ApiKeyPrincipal:
     """Кто стоит за ключом."""
@@ -114,11 +121,23 @@ class ApiKeyService:
         next_cursor = (
             moment_cursor(found[-1].created_at, found[-1].id) if has_more and found else None
         )
+
+        # Кто завёл ключ. Нужно администратору в общем перечне: без имени он
+        # видит ключи и не знает, чьи они, а отзывать приходится вслепую. Имена
+        # читаются одним запросом по найденной странице, а не по ключу на
+        # запрос.
+        owners: dict[uuid.UUID, User] = {}
+        creator_ids = {one.creator_id for one in found if one.creator_id}
+        if creator_ids:
+            rows = await self._session.execute(select(User).where(User.id.in_(creator_ids)))
+            owners = {person.id: person for person in rows.scalars().all()}
+
         return [
             {
                 "id": one.id,
                 "name": one.name,
                 "creatorId": one.creator_id,
+                "creator": _person(owners.get(one.creator_id)),
                 "expiresAt": one.expires_at,
                 "lastUsedAt": one.last_used_at,
                 "createdAt": one.created_at,

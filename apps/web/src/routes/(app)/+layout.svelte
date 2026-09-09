@@ -2,7 +2,26 @@
   import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
-  import { IconMenu2, IconPencil, IconStarFilled, IconTrash, IconX } from '@tabler/icons-svelte';
+  import {
+    IconAdjustments,
+    IconCertificate,
+    IconHistory,
+    IconKey,
+    IconLock,
+    IconMenu2,
+    IconPencil,
+    IconSettings,
+    IconShieldCheck,
+    IconShieldLock,
+    IconSparkles,
+    IconStarFilled,
+    IconTrash,
+    IconUser,
+    IconUsers,
+    IconUsersGroup,
+    IconWorld,
+    IconX
+  } from '@tabler/icons-svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import { onRealtime } from '$lib/features/realtime/socket';
   import PageTree from '$lib/components/page/PageTree.svelte';
@@ -47,20 +66,43 @@
     data.session?.user.role === 'admin' || data.session?.user.role === 'owner'
   );
 
-  const settingsSections = $derived([
-    { href: '/settings/account', label: t('My Profile') },
-    { href: '/settings/preferences', label: t('Reading') },
-    { href: '/settings/security', label: t('2-step verification') },
-    { href: '/settings/api-keys', label: t('API keys') },
-    ...(isAdmin ? [{ href: '/settings/sso', label: t('Single sign-on (SSO)') }] : []),
-    { href: '/settings/members', label: t('Members') },
-    { href: '/settings/groups', label: t('Groups') },
-    { href: '/settings/workspace', label: t('Workspace settings') },
-    { href: '/settings/ai', label: t('AI') },
-    { href: '/settings/sharing', label: t('Public sharing') },
-    { href: '/settings/verifications', label: t('Page verification') },
-    { href: '/settings/audit', label: t('Audit log') },
-    { href: '/settings/license', label: t('License') }
+  /**
+   * Разделы настроек тремя группами, как в v1.
+   *
+   * Плоским списком из тринадцати пунктов не видно, что своё, что общее и что
+   * системное: «Мой профиль» и «Журнал аудита» стоят рядом и выглядят
+   * равнозначными. Значок нужен по той же причине — он отличает строки
+   * быстрее, чем чтение.
+   */
+  const settingsGroups = $derived([
+    {
+      title: t('Account'),
+      items: [
+        { href: '/settings/account', label: t('My Profile'), icon: IconUser },
+        { href: '/settings/preferences', label: t('Reading'), icon: IconAdjustments },
+        { href: '/settings/security', label: t('2-step verification'), icon: IconShieldLock },
+        { href: '/settings/api-keys', label: t('API keys'), icon: IconKey }
+      ]
+    },
+    {
+      title: t('Workspace'),
+      items: [
+        { href: '/settings/members', label: t('Members'), icon: IconUsers },
+        { href: '/settings/groups', label: t('Groups'), icon: IconUsersGroup },
+        ...(isAdmin
+          ? [{ href: '/settings/sso', label: t('Single sign-on (SSO)'), icon: IconLock }]
+          : []),
+        { href: '/settings/workspace', label: t('Workspace settings'), icon: IconSettings },
+        { href: '/settings/ai', label: t('AI'), icon: IconSparkles },
+        { href: '/settings/sharing', label: t('Public sharing'), icon: IconWorld },
+        { href: '/settings/verifications', label: t('Page verification'), icon: IconShieldCheck },
+        { href: '/settings/audit', label: t('Audit log'), icon: IconHistory }
+      ]
+    },
+    {
+      title: t('System'),
+      items: [{ href: '/settings/license', label: t('License'), icon: IconCertificate }]
+    }
   ]);
 
   /**
@@ -306,16 +348,27 @@
         >
           {t('Back')}
         </a>
-        {#each settingsSections as section (section.href)}
-          <a
-            class="flex min-h-[30px] items-center rounded px-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text"
-            class:bg-surface-active={page.url.pathname === section.href}
-            class:text-text={page.url.pathname === section.href}
-            href={section.href}
-          >
-            {section.label}
-          </a>
+        {#each settingsGroups as group (group.title)}
+          <p class="px-2.5 pb-1 pt-3 text-xs font-semibold uppercase text-text-muted">
+            {group.title}
+          </p>
+          {#each group.items as section (section.href)}
+            <a
+              class="flex min-h-[30px] items-center gap-2 rounded px-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text"
+              class:bg-surface-active={page.url.pathname === section.href}
+              class:text-text={page.url.pathname === section.href}
+              href={section.href}
+            >
+              <section.icon class="shrink-0" size={16} stroke={1.7} aria-hidden="true" />
+              <span class="truncate">{section.label}</span>
+            </a>
+          {/each}
         {/each}
+        {#if data.version?.currentVersion}
+          <!-- Номер версии внизу панели, как в v1: спрашивают его редко, а
+               когда спрашивают — ищут именно здесь. -->
+          <p class="px-2.5 pt-4 text-xs text-text-muted">v{data.version.currentVersion}</p>
+        {/if}
       </nav>
     {:else if inChat}
       <nav data-component="ChatList" class="space-y-0.5">
