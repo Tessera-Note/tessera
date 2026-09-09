@@ -529,13 +529,30 @@ class TestFeatureFlags:
         for empty in (Workspace(settings=None), Workspace(settings={}), None):
             assert feature_enabled(empty, "chat") is True
             assert feature_enabled(empty, "search") is True
+            assert feature_enabled(empty, "generative") is True
             assert feature_enabled(empty, "mcp") is False
 
     def test_the_defaults_differ_by_feature(self) -> None:
-        """Помощник и поиск — свои возможности продукта, в v1 у них выключателя
-        нет вовсе. Канал инструментов открывает вики посторонней программе, и
-        в v1 он выключен: такое включают осознанно."""
-        assert FEATURE_DEFAULTS == {"chat": True, "search": True, "mcp": False}
+        """Помощник, поиск и правка текста в редакторе — свои возможности
+        продукта, в v1 у первых двух выключателя нет вовсе. Канал инструментов
+        открывает вики посторонней программе, и в v1 он выключен: такое
+        включают осознанно."""
+        assert FEATURE_DEFAULTS == {
+            "chat": True,
+            "search": True,
+            "generative": True,
+            "mcp": False,
+        }
+
+    def test_generation_is_switched_off_by_the_flag(self) -> None:
+        """Выключенная правка текста обязана быть выключенной и для маршрута.
+
+        Экран прячет меню, но обращение к маршруту идёт и мимо экрана; в v1
+        признак жил только на клиенте, и выключение ничего не закрывало.
+        """
+        workspace = Workspace(settings={"ai": {"generative": False}})
+        assert feature_enabled(workspace, "generative") is False
+        assert feature_enabled(Workspace(settings={"ai": {}}), "generative") is True
 
     def test_an_unknown_feature_is_off(self) -> None:
         """Незнакомое имя не должно оказаться включённым само собой."""

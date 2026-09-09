@@ -28,6 +28,8 @@
   let name = $state('');
   let description = $state('');
   let retention = $state('');
+  /** Домены строкой через запятую: перечнем их хранит сервер. */
+  let domains = $state('');
 
   /**
    * Сколько файлов разобрал последний проход. `null` — прохода ещё не было.
@@ -101,6 +103,7 @@
     name = data.settings.name ?? '';
     description = data.settings.description ?? '';
     retention = String(data.settings.trashRetentionDays ?? '');
+    domains = (data.settings.emailDomains ?? []).join(', ');
   });
 
   async function save(key: string, values: WorkspacePatch) {
@@ -126,6 +129,21 @@
   const saveRetention = (event: SubmitEvent) => {
     event.preventDefault();
     return save('retention', { trashRetentionDays: Number(retention) });
+  };
+
+  /**
+   * Домены вводятся строкой через запятую, а хранятся перечнем.
+   *
+   * Разделителем считается и пробел: человек пишет их и так, и так, а
+   * приведение к одному виду делает сервер — он же и сверяет.
+   */
+  const saveDomains = (event: SubmitEvent) => {
+    event.preventDefault();
+    const wanted = domains
+      .split(/[\s,;]+/)
+      .map((one) => one.trim())
+      .filter(Boolean);
+    return save('emailDomains', { emailDomains: wanted });
   };
 </script>
 
@@ -210,6 +228,23 @@
       disabled={busy === 'enforceSso'}
       onchange={(checked) => save('enforceSso', { enforceSso: checked })}
     />
+
+    <!--
+      Домены почты, с которых принимается заведение учётной записи. Список
+      сужает круг: пустой означает «любые», иначе заведённый пустым он закрыл
+      бы вход всем. Стоит рядом с принуждением к провайдеру — там же, где в v1.
+    -->
+    <form class="mb-4" onsubmit={saveDomains}>
+      <Field
+        label={t('Allowed email domains')}
+        hint={t('Only people with an email address in these domains can join this workspace.')}
+      >
+        <TextInput bind:value={domains} placeholder="acme.com, example.org" />
+      </Field>
+      <Button type="submit" variant="quiet" disabled={busy === 'emailDomains'}>
+        {busy === 'emailDomains' ? t('Loading...') : t('Save')}
+      </Button>
+    </form>
 
     <Toggle
       checked={data.settings.disablePublicSharing}

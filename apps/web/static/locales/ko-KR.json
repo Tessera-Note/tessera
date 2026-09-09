@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "PDF 및 DOCX 가져오기",
   "Accepted invitation": "초대 수락",
   "Hide": "숨기기",
-  "IP address": "IP 주소"
+  "IP address": "IP 주소",
+  "error.ai.generation_disabled": "이 워크스페이스에서는 텍스트 생성이 꺼져 있습니다",
+  "Text generation in the editor": "편집기에서 텍스트 생성",
+  "Members can rewrite, translate and shorten text right in the page.": "구성원이 페이지에서 바로 문장을 고치고, 번역하고, 줄일 수 있습니다.",
+  "error.workspace.invalid_domain": "'{{domain}}'은(는) 올바른 도메인 이름이 아닙니다",
+  "error.workspace.too_many_domains": "목록에 도메인이 너무 많습니다",
+  "Only people with an email address in these domains can join this workspace.": "이 도메인의 이메일 주소를 가진 사람만 참여할 수 있습니다. 비워 두면 모두 허용합니다."
 }

@@ -68,6 +68,14 @@
      * — показывать: так было до появления настройки.
      */
     toolbar?: boolean;
+    /**
+     * Разрешена ли правка текста помощником.
+     *
+     * Настройка рабочего пространства. Выключенная возможность обязана
+     * пропадать с экрана, а не отвечать отказом на нажатие: кнопка, которая
+     * всегда отказывает, читается как поломка.
+     */
+    generative?: boolean;
     /** Пространство страницы. Сужает поиск страниц при упоминании. */
     spaceId?: string | null;
     /**
@@ -87,6 +95,7 @@
     userId = null,
     spaceId = null,
     toolbar = true,
+    generative = true,
     oncount
   }: Props = $props();
 
@@ -645,7 +654,9 @@
       </button>
       {@render action(IconSearch, t('Find and replace'), null, () => (finding = !finding))}
       {@render action(IconListTree, t('Table of contents'), null, () => (toc = !toc))}
-      {@render action(IconSparkles, t('Ask AI'), null, () => (asking = !asking))}
+      {#if generative}
+        {@render action(IconSparkles, t('Ask AI'), null, () => (asking = !asking))}
+      {/if}
     </div>
   {/if}
 
@@ -692,7 +703,7 @@
     {#if toc}
       <Toc editor={ready} tick={ticks} />
     {/if}
-    {#if asking}
+    {#if asking && generative}
       <AskAi editor={ready} onclose={() => (asking = false)} />
     {/if}
     {#if inTable}

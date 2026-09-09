@@ -19,6 +19,29 @@ from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.tokens import DEFAULT_EXPIRES, TokenService
 
 
+def assert_domain_allowed(email: str, workspace: object) -> None:
+    """Принимается ли адрес этого домена в рабочем пространстве.
+
+    Список доменов заводят, чтобы сузить круг: с ним заводить учётную запись
+    может только тот, чей адрес в списке. Пустой список и его отсутствие
+    означают «любые» — заведённый пустым, он закрыл бы вход всем.
+
+    Сверка без учёта регистра: домен в адресе регистронезависим, а список
+    вводит человек.
+    """
+    allowed = [
+        one.strip().lower()
+        for one in (getattr(workspace, "email_domains", None) or [])
+        if one and one.strip()
+    ]
+    if not allowed:
+        return
+
+    domain = (email or "").rpartition("@")[2].strip().lower()
+    if domain not in allowed:
+        raise bad_request("error.auth.email_domain_not_approved", {"domain": domain})
+
+
 def _verify_password(plain: str, hashed: str | None) -> bool:
     """Сверить пароль.
 

@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "PDF & DOCX Import",
   "Accepted invitation": "Accepted invitation",
   "Hide": "Hide",
-  "IP address": "IP address"
+  "IP address": "IP address",
+  "error.ai.generation_disabled": "Text generation is turned off for this workspace",
+  "Text generation in the editor": "Text generation in the editor",
+  "Members can rewrite, translate and shorten text right in the page.": "Members can rewrite, translate and shorten text right in the page.",
+  "error.workspace.invalid_domain": "\"{{domain}}\" is not a valid domain name",
+  "error.workspace.too_many_domains": "Too many domains in the list",
+  "Only people with an email address in these domains can join this workspace.": "Only people with an email address in these domains can join this workspace."
 }

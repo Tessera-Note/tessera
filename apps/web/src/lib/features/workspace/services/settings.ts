@@ -16,6 +16,9 @@ export type WorkspaceSettings = {
   aiChatEnabled: boolean;
   /** Умный поиск по смыслу. Включён по той же причине, что и помощник. */
   aiSearchEnabled: boolean;
+  aiGenerativeEnabled: boolean;
+  /** Домены почты, с которых принимается заведение записи. Пусто — любые. */
+  emailDomains: string[];
   /** Включён ли канал MCP. Тот же признак читает маршрут `/api/mcp`. */
   mcpEnabled: boolean;
   /** С чего открывает страницу тот, кто своего выбора не делал. */

@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "PDF 与 DOCX 导入",
   "Accepted invitation": "已接受邀请",
   "Hide": "隐藏",
-  "IP address": "IP 地址"
+  "IP address": "IP 地址",
+  "error.ai.generation_disabled": "此工作区已关闭文本生成",
+  "Text generation in the editor": "编辑器中的文本生成",
+  "Members can rewrite, translate and shorten text right in the page.": "成员可以直接在页面上改写、翻译和精简文本。",
+  "error.workspace.invalid_domain": "“{{domain}}”不是有效的域名",
+  "error.workspace.too_many_domains": "列表中的域名过多",
+  "Only people with an email address in these domains can join this workspace.": "只有邮箱属于这些域名的人才能加入。留空表示不限。"
 }

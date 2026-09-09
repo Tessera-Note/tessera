@@ -24,7 +24,9 @@ from tessera_api.infrastructure.models import (
     Group,
     GroupUser,
     User,
+    Workspace,
 )
+from tessera_api.services.auth import assert_domain_allowed
 
 
 def extract_group_names(profile: dict | None, claim_name: str | None = None) -> list[str] | None:
@@ -204,6 +206,12 @@ class SsoIdentityService:
 
         if not provider.allow_signup:
             raise unauthorized("error.sso.signup_disabled")
+
+        # Список разрешённых доменов сужает круг и здесь: подпись настройки
+        # прямо говорит про регистрацию через провайдера, и заведение в обход
+        # списка сделало бы её пустой.
+        workspace = await self._session.get(Workspace, workspace_id)
+        assert_domain_allowed(email, workspace)
 
         user_id = uuid.uuid4()
         await self._session.execute(

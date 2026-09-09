@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import UserRole
-from tessera_api.infrastructure.models import Group, GroupUser, User
+from tessera_api.infrastructure.models import Group, GroupUser, User, Workspace
+from tessera_api.services.auth import assert_domain_allowed
 from tessera_api.services.invitations import InvitationService
 from tests.conftest import needs_database
 
@@ -343,3 +344,41 @@ class TestListing:
         found, cursor = await service.list(workspace.id, limit=50)
         assert found
         assert cursor is None
+
+
+class TestAllowedDomains:
+    """Список разрешённых доменов почты.
+
+    Заводят его, чтобы сузить круг: с ним учётную запись заводит только тот,
+    чей адрес в списке. Во второй версии колонка была, а проверки не было —
+    приглашение принималось с любого адреса.
+    """
+
+    def _workspace(self, *domains: str) -> Workspace:
+        return Workspace(id=uuid.uuid4(), email_domains=list(domains))
+
+    def test_an_empty_list_allows_everyone(self) -> None:
+        """Пустой список означает «любые», а не «никакие».
+
+        Истолкованный как запрет, он закрыл бы вход всем — в том числе там, где
+        список просто не заводили.
+        """
+        for workspace in (self._workspace(), Workspace(id=uuid.uuid4(), email_domains=None)):
+            assert_domain_allowed("anna@example.com", workspace)
+
+    def test_a_listed_domain_passes(self) -> None:
+        assert_domain_allowed("anna@acme.com", self._workspace("acme.com"))
+
+    def test_a_domain_outside_the_list_is_refused(self) -> None:
+        with pytest.raises(AppError) as error:
+            assert_domain_allowed("anna@example.com", self._workspace("acme.com"))
+        assert error.value.code == "error.auth.email_domain_not_approved"
+
+    def test_the_case_does_not_matter(self) -> None:
+        """Домен регистронезависим, а список вводит человек."""
+        assert_domain_allowed("Anna@ACME.com", self._workspace("Acme.COM"))
+
+    def test_a_neighbouring_domain_does_not_pass(self) -> None:
+        """Совпадение хвоста — не совпадение домена."""
+        with pytest.raises(AppError):
+            assert_domain_allowed("anna@notacme.com", self._workspace("acme.com"))

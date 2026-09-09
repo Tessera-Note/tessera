@@ -137,6 +137,12 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.ai.unknown_web_search_driver": "Unknown web search provider",
     "error.ai_chat.chat_not_found": "Conversation not found",
     "error.ai_chat.disabled": "The assistant is turned off for this workspace",
+    "error.ai.generation_disabled": "Text generation is turned off for this workspace",
+    "error.workspace.invalid_domain": "\"{{domain}}\" is not a valid domain name",
+    "error.workspace.too_many_domains": "Too many domains in the list",
+    "error.auth.email_domain_not_approved": (
+        'The email domain "{{domain}}" is not approved for this workspace'
+    ),
     "error.ai_chat.message_not_found": "Message not found",
     "error.ai_chat.tool_not_allowed": "The agent is not allowed to use this tool",
     "error.ai_chat.unknown_decision": "Unknown decision",

@@ -76,6 +76,7 @@ class UpdateWorkspaceRequest(msgspec.Struct):
     name: str | None = None
     description: str | None = None
     trashRetentionDays: int | None = None  # noqa: N815 — имя поля из v1
+    emailDomains: list[str] | None = None  # noqa: N815 — имя поля из v1
     enforceMfa: bool | None = None  # noqa: N815 — имя поля из v1
     enforceSso: bool | None = None  # noqa: N815 — имя поля из v1
     disablePublicSharing: bool | None = None  # noqa: N815 — имя поля из v1
@@ -84,6 +85,7 @@ class UpdateWorkspaceRequest(msgspec.Struct):
     allowPersonalSpaces: bool | None = None  # noqa: N815 — имя поля из v1
     aiChatEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
     aiSearchEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
+    aiGenerativeEnabled: bool | None = None  # noqa: N815 — рядом с остальными признаками
     mcpEnabled: bool | None = None  # noqa: N815 — имя поля из v1
     #: Режим, с которого новый участник открывает страницу. Не признак:
     #: одно из двух значений, и таблица признаков его не описывает.
@@ -105,6 +107,7 @@ class WorkspaceSettingsView(msgspec.Struct):
     description: str | None
     hostname: str | None
     trashRetentionDays: int | None  # noqa: N815 — имя поля из v1
+    emailDomains: list[str]  # noqa: N815 — имя поля из v1
     enforceMfa: bool  # noqa: N815 — имя поля из v1
     enforceSso: bool  # noqa: N815 — имя поля из v1
     disablePublicSharing: bool  # noqa: N815 — имя поля из v1
@@ -113,6 +116,7 @@ class WorkspaceSettingsView(msgspec.Struct):
     allowPersonalSpaces: bool  # noqa: N815 — имя поля из v1
     aiChatEnabled: bool  # noqa: N815 — рядом с остальными признаками
     aiSearchEnabled: bool  # noqa: N815 — рядом с остальными признаками
+    aiGenerativeEnabled: bool  # noqa: N815 — рядом с остальными признаками
     mcpEnabled: bool  # noqa: N815 — имя поля из v1
     defaultPageEditMode: str = "read"  # noqa: N815 — имя поля из v1
     isScimEnabled: bool = False  # noqa: N815 — имя поля из v1
@@ -131,6 +135,7 @@ def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
         description=workspace.description,
         hostname=workspace.hostname,
         trashRetentionDays=workspace.trash_retention_days,
+        emailDomains=list(workspace.email_domains or []),
         enforceMfa=bool(workspace.enforce_mfa),
         enforceSso=bool(workspace.enforce_sso),
         disablePublicSharing=flag(workspace, ("sharing", "disabled")),
@@ -142,6 +147,7 @@ def _settings_view(workspace: Workspace) -> WorkspaceSettingsView:
         # показало бы выключенным то, что на деле работает.
         aiChatEnabled=feature_enabled(workspace, "chat"),
         aiSearchEnabled=feature_enabled(workspace, "search"),
+        aiGenerativeEnabled=feature_enabled(workspace, "generative"),
         mcpEnabled=feature_enabled(workspace, "mcp"),
         defaultPageEditMode=WorkspaceService.page_edit_mode(workspace),
         isScimEnabled=bool(workspace.is_scim_enabled),
@@ -270,6 +276,7 @@ class WorkspaceController(Controller):
             name=data.name,
             description=data.description,
             trash_retention_days=data.trashRetentionDays,
+            email_domains=data.emailDomains,
             enforce_mfa=data.enforceMfa,
             enforce_sso=data.enforceSso,
             flags={
@@ -279,6 +286,7 @@ class WorkspaceController(Controller):
                 "allowPersonalSpaces": data.allowPersonalSpaces,
                 "aiChatEnabled": data.aiChatEnabled,
                 "aiSearchEnabled": data.aiSearchEnabled,
+                "aiGenerativeEnabled": data.aiGenerativeEnabled,
                 "mcpEnabled": data.mcpEnabled,
             },
             default_page_edit_mode=data.defaultPageEditMode,

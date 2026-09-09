@@ -129,7 +129,7 @@
   "Allow signup": "サインアップを許可",
   "Allow viewers to add comments on pages in this space.": "このスペース内のページに閲覧者がコメントを追加できるようにします。",
   "Allow viewers to comment": "閲覧者によるコメントを許可",
-  "Allowed email domains": "許可されたメールドメイン",
+  "Allowed email domains": "許可するメールドメイン",
   "Alphabetize": "アルファベット順",
   "Already added": "追加済み",
   "Already part of an existing workspace?": "すでにワークスペースに参加していますか？",
@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "PDF と DOCX の取り込み",
   "Accepted invitation": "招待を承諾",
   "Hide": "隠す",
-  "IP address": "IP アドレス"
+  "IP address": "IP アドレス",
+  "error.ai.generation_disabled": "このワークスペースではテキスト生成が無効です",
+  "Text generation in the editor": "エディターでのテキスト生成",
+  "Members can rewrite, translate and shorten text right in the page.": "メンバーはページ内で文章を書き換え、翻訳し、短くできます。",
+  "error.workspace.invalid_domain": "「{{domain}}」はドメイン名ではありません",
+  "error.workspace.too_many_domains": "一覧のドメインが多すぎます",
+  "Only people with an email address in these domains can join this workspace.": "これらのドメインのメールアドレスを持つ人だけが参加できます。空欄はすべて許可します。"
 }

@@ -129,7 +129,7 @@
   "Allow signup": "Autoriser l’inscription",
   "Allow viewers to add comments on pages in this space.": "Autoriser les spectateurs à ajouter des commentaires sur les pages de cet espace.",
   "Allow viewers to comment": "Autoriser les spectateurs à commenter",
-  "Allowed email domains": "Domaines e-mail autorisés",
+  "Allowed email domains": "Domaines de messagerie autorisés",
   "Alphabetize": "Trier par ordre alphabétique",
   "Already added": "Déjà ajouté",
   "Already part of an existing workspace?": "Vous faites déjà partie d'un espace de travail ?",
@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "Import PDF et DOCX",
   "Accepted invitation": "Invitation acceptée",
   "Hide": "Masquer",
-  "IP address": "Adresse IP"
+  "IP address": "Adresse IP",
+  "error.ai.generation_disabled": "La génération de texte est désactivée pour cet espace de travail",
+  "Text generation in the editor": "Génération de texte dans l'éditeur",
+  "Members can rewrite, translate and shorten text right in the page.": "Les membres peuvent réécrire, traduire et raccourcir le texte directement dans la page.",
+  "error.workspace.invalid_domain": "« {{domain}} » n'est pas un nom de domaine valide",
+  "error.workspace.too_many_domains": "Trop de domaines dans la liste",
+  "Only people with an email address in these domains can join this workspace.": "Seules les personnes ayant une adresse dans ces domaines peuvent rejoindre. Vide signifie tous."
 }

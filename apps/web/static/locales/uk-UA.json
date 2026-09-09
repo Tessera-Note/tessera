@@ -2369,5 +2369,11 @@
   "PDF & DOCX Import": "Ввезення PDF і DOCX",
   "Accepted invitation": "Запрошення прийнято",
   "Hide": "Сховати",
-  "IP address": "IP-адреса"
+  "IP address": "IP-адреса",
+  "error.ai.generation_disabled": "Створення тексту вимкнено в цьому робочому просторі",
+  "Text generation in the editor": "Створення тексту в редакторі",
+  "Members can rewrite, translate and shorten text right in the page.": "Учасники можуть переписувати, перекладати й скорочувати текст просто на сторінці.",
+  "error.workspace.invalid_domain": "«{{domain}}» — не доменне ім'я",
+  "error.workspace.too_many_domains": "Забагато доменів у списку",
+  "Only people with an email address in these domains can join this workspace.": "Створити обліковий запис зможе лише той, чия адреса в цих доменах. Порожньо — будь-які."
 }

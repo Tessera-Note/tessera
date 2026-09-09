@@ -19,7 +19,7 @@ from tessera_api.infrastructure.models import (
 )
 from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
-from tessera_api.services.auth import hash_password
+from tessera_api.services.auth import assert_domain_allowed, hash_password
 from tessera_api.services.notification_mail import compose_plain
 from tessera_api.services.paging import moment_cursor, portion, read_moment_cursor
 
@@ -320,6 +320,9 @@ class InvitationService:
         # строки, то есть содержать он может что угодно.
         if not secrets.compare_digest(invitation.token.encode(), token.encode()):
             raise bad_request("error.workspace.invalid_invitation_token")
+
+        workspace = await self._session.get(Workspace, invitation.workspace_id)
+        assert_domain_allowed(invitation.email, workspace)
 
         already = (
             await self._session.execute(

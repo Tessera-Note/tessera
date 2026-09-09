@@ -129,7 +129,7 @@
   "Allow signup": "Registrierung erlauben",
   "Allow viewers to add comments on pages in this space.": "Erlauben Sie Zuschauern, Kommentare auf Seiten in diesem Bereich hinzuzufügen.",
   "Allow viewers to comment": "Zuschauern erlauben, Kommentare zu hinterlassen",
-  "Allowed email domains": "Erlaubte E-Mail-Domains",
+  "Allowed email domains": "Zulässige E-Mail-Domains",
   "Alphabetize": "Alphabetisch sortieren",
   "Already added": "Bereits hinzugefügt",
   "Already part of an existing workspace?": "Sie gehören bereits zu einem Arbeitsbereich?",
@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "PDF- und DOCX-Import",
   "Accepted invitation": "Einladung angenommen",
   "Hide": "Ausblenden",
-  "IP address": "IP-Adresse"
+  "IP address": "IP-Adresse",
+  "error.ai.generation_disabled": "Die Texterzeugung ist für diesen Arbeitsbereich deaktiviert",
+  "Text generation in the editor": "Texterzeugung im Editor",
+  "Members can rewrite, translate and shorten text right in the page.": "Mitglieder können Text direkt auf der Seite umschreiben, übersetzen und kürzen.",
+  "error.workspace.invalid_domain": "„{{domain}}“ ist kein gültiger Domainname",
+  "error.workspace.too_many_domains": "Zu viele Domains in der Liste",
+  "Only people with an email address in these domains can join this workspace.": "Nur Personen mit einer E-Mail-Adresse in diesen Domains können beitreten. Leer bedeutet alle."
 }

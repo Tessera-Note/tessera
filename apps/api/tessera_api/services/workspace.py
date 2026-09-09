@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -37,6 +38,35 @@ MAX_NAME = 64
 #: Предел срока хранения корзины. Тот же порядок, что у журнала: десять лет.
 MAX_TRASH_DAYS = 3650
 
+#: Сколько доменов принимается в списке разрешённых. Предел не от жадности:
+#: список сверяется на каждом заведении учётной записи, и без потолка его можно
+#: раздуть до размера, на котором сверка становится заметной.
+MAX_EMAIL_DOMAINS = 50
+
+#: Домен: буквы, цифры, дефис и точки, минимум одна точка. Проверка нестрогая
+#: намеренно — задача отсечь явный мусор («@», пробелы, адрес целиком), а не
+#: повторить разбор доменных имён.
+_DOMAIN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def _clean_domains(values: list[str]) -> list[str]:
+    """Привести список доменов к одному виду.
+
+    Человек вводит их как придётся: с «@», в разном регистре, с пробелами и
+    повторами. Хранить надо один вид, иначе сверка на входе промахнётся о
+    собственную запись. Порядок сохраняется — по нему список читают.
+    """
+    seen: list[str] = []
+    for raw in values:
+        one = (raw or "").strip().lower().lstrip("@")
+        if not one:
+            continue
+        if not _DOMAIN.match(one):
+            raise bad_request("error.workspace.invalid_domain", {"domain": one})
+        if one not in seen:
+            seen.append(one)
+    return seen
+
 #: Режим, с которого новый участник открывает страницу. Не признак, а одно из
 #: двух значений, поэтому живёт отдельно от таблицы признаков.
 PAGE_EDIT_MODE = ("preferences", "defaultPageEditMode")
@@ -57,6 +87,7 @@ JSON_FLAGS = {
     # именно это и случилось с помощником, у которого записи не было.
     "aiChatEnabled": ("ai", "chat"),
     "aiSearchEnabled": ("ai", "search"),
+    "aiGenerativeEnabled": ("ai", "generative"),
     "mcpEnabled": ("ai", "mcp"),
 }
 
@@ -99,6 +130,7 @@ class WorkspaceService:
         flags: dict[str, bool] | None = None,
         default_page_edit_mode: str | None = None,
         scim_enabled: bool | None = None,
+        email_domains: list[str] | None = None,
     ) -> Workspace:
         """Правка общих настроек рабочего пространства.
 
@@ -137,6 +169,17 @@ class WorkspaceService:
             if trash_retention_days != workspace.trash_retention_days:
                 workspace.trash_retention_days = trash_retention_days
                 changed.append("trashRetentionDays")
+
+        if email_domains is not None:
+            # Домены приводятся к одному виду: человек вводит их через запятую
+            # и как придётся — с пробелами, с «@», в разном регистре. Хранить
+            # надо один вид, иначе сверка на входе промахнётся.
+            wanted = _clean_domains(email_domains)
+            if len(wanted) > MAX_EMAIL_DOMAINS:
+                raise bad_request("error.workspace.too_many_domains")
+            if wanted != list(workspace.email_domains or []):
+                workspace.email_domains = wanted
+                changed.append("emailDomains")
 
         if enforce_mfa is not None and bool(workspace.enforce_mfa) != enforce_mfa:
             workspace.enforce_mfa = enforce_mfa

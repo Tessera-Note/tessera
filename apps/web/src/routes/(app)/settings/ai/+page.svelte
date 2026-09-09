@@ -27,7 +27,7 @@
   const t = $derived(locale.t);
 
   /** Возможности, которые можно включать и выключать. */
-  type Feature = 'aiChatEnabled' | 'aiSearchEnabled' | 'mcpEnabled';
+  type Feature = 'aiChatEnabled' | 'aiSearchEnabled' | 'aiGenerativeEnabled' | 'mcpEnabled';
 
   /**
    * Нажатое, но ещё не подтверждённое сервером.
@@ -44,6 +44,7 @@
   const features = $derived({
     aiChatEnabled: pending.aiChatEnabled ?? data.workspace.aiChatEnabled,
     aiSearchEnabled: pending.aiSearchEnabled ?? data.workspace.aiSearchEnabled,
+    aiGenerativeEnabled: pending.aiGenerativeEnabled ?? data.workspace.aiGenerativeEnabled,
     mcpEnabled: pending.mcpEnabled ?? data.workspace.mcpEnabled
   });
 
@@ -253,6 +254,13 @@
       onchange={(checked) => flip('aiChatEnabled', checked)}
     />
 
+    <Toggle
+      checked={features.aiGenerativeEnabled}
+      label={t('Text generation in the editor')}
+      hint={t('Members can rewrite, translate and shorten text right in the page.')}
+      disabled={switching === 'aiGenerativeEnabled'}
+      onchange={(checked) => flip('aiGenerativeEnabled', checked)}
+    />
     <Toggle
       checked={features.aiSearchEnabled}
       label={t('Semantic search')}

@@ -125,6 +125,10 @@ class Workspace(Base, SoftDeleteMixin):
     # Сколько дней хранить журнал аудита. Ноль и пустое значение означают
     # «хранить вечно»: уборка отсекает и то и другое одним условием.
     audit_retention_days: Mapped[int | None] = mapped_column(BigInteger)
+    # Домены почты, с которых принимается приглашение. Пустой перечень означает
+    # «любые»: список заводят, чтобы сузить, и пустой список, толкуемый как
+    # запрет, закрыл бы вход всем.
+    email_domains: Mapped[list[str] | None] = mapped_column(ARRAY(String))
 
 
 class Space(Base, SoftDeleteMixin):

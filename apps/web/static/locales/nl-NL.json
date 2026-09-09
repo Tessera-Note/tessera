@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "PDF- en DOCX-import",
   "Accepted invitation": "Uitnodiging geaccepteerd",
   "Hide": "Verbergen",
-  "IP address": "IP-adres"
+  "IP address": "IP-adres",
+  "error.ai.generation_disabled": "Tekstgeneratie is uitgeschakeld voor deze werkruimte",
+  "Text generation in the editor": "Tekstgeneratie in de editor",
+  "Members can rewrite, translate and shorten text right in the page.": "Leden kunnen tekst direct op de pagina herschrijven, vertalen en inkorten.",
+  "error.workspace.invalid_domain": "'{{domain}}' is geen geldige domeinnaam",
+  "error.workspace.too_many_domains": "Te veel domeinen in de lijst",
+  "Only people with an email address in these domains can join this workspace.": "Alleen mensen met een e-mailadres in deze domeinen kunnen deelnemen. Leeg betekent alle."
 }

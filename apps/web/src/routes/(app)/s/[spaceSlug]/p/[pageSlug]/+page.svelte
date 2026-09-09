@@ -624,6 +624,7 @@
       userId={data.session?.user.id}
       spaceId={data.page.spaceId}
       toolbar={wantsToolbar(data.session?.user.settings?.preferences)}
+      generative={data.session?.workspace.aiGenerativeEnabled !== false}
       oncount={(counted) => (stats = counted)}
     />
   </article>

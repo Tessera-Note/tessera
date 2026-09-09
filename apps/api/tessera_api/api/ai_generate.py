@@ -29,9 +29,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.guards import Principal
 from tessera_api.config import Settings
 from tessera_api.domain.errors import AppError, bad_request, not_found
-from tessera_api.infrastructure.repositories import UserRepo
+from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.throttle import Limit, Throttle
 from tessera_api.services.ai import AiService
+from tessera_api.services.ai_settings import feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -70,15 +71,34 @@ def _frame(payload: dict) -> str:
 class AiController(Controller):
     path = "/api/ai"
 
-    async def _actor(self, request: Request, db_session: AsyncSession, throttle: Throttle):  # noqa: ANN202
+    async def _actor(  # noqa: ANN202
+        self,
+        request: Request,
+        db_session: AsyncSession,
+        throttle: Throttle,
+        *,
+        feature: str | None = None,
+    ):
         """Кто спрашивает — и не слишком ли часто.
 
         Предел берётся до всякой работы: смысл в том, чтобы к провайдеру не
         ушёл лишний запрос, а не в том, чтобы отказать после того, как за него
         уже заплачено.
+
+        `feature` называет возможность, которую пространство может держать
+        выключенной. Проверка стоит здесь, а не только на экране: выключенная
+        возможность обязана быть выключенной и для того, кто обращается мимо
+        экрана.
         """
         principal: Principal = request.scope["principal"]
         await throttle.check(f"user:{principal.user_id}", AI_LIMIT)
+
+        if feature is not None:
+            workspace = await WorkspaceRepo(db_session).by_id(principal.workspace_id)
+            if workspace is None:
+                raise not_found("error.common.workspace_not_found")
+            if not feature_enabled(workspace, feature):
+                raise bad_request("error.ai.generation_disabled")
 
         actor = await UserRepo(db_session).by_id(principal.user_id, principal.workspace_id)
         if actor is None:
@@ -99,7 +119,9 @@ class AiController(Controller):
         Нужен там, где ответ вставляют разом: в потоке текст появляется по
         кускам, и для короткой правки это лишняя сложность на клиенте.
         """
-        actor, principal = await self._actor(request, db_session, throttle)
+        actor, principal = await self._actor(
+            request, db_session, throttle, feature="generative"
+        )
         content = await AiService(db_session, settings).generate(
             workspace_id=principal.workspace_id,
             content=data.content,
@@ -118,7 +140,9 @@ class AiController(Controller):
         settings: NamedDependency[Settings],
         throttle: NamedDependency[Throttle],
     ) -> ServerSentEvent:
-        actor, principal = await self._actor(request, db_session, throttle)
+        actor, principal = await self._actor(
+            request, db_session, throttle, feature="generative"
+        )
         service = AiService(db_session, settings)
 
         async def frames() -> AsyncIterator[str]:

@@ -2351,5 +2351,11 @@
   "PDF & DOCX Import": "Importazione PDF e DOCX",
   "Accepted invitation": "Invito accettato",
   "Hide": "Nascondi",
-  "IP address": "Indirizzo IP"
+  "IP address": "Indirizzo IP",
+  "error.ai.generation_disabled": "La generazione di testo è disattivata per questo spazio di lavoro",
+  "Text generation in the editor": "Generazione di testo nell'editor",
+  "Members can rewrite, translate and shorten text right in the page.": "I membri possono riscrivere, tradurre e accorciare il testo direttamente nella pagina.",
+  "error.workspace.invalid_domain": "«{{domain}}» non è un nome di dominio valido",
+  "error.workspace.too_many_domains": "Troppi domini nell'elenco",
+  "Only people with an email address in these domains can join this workspace.": "Solo chi ha un indirizzo in questi domini può unirsi. Vuoto significa qualsiasi."
 }

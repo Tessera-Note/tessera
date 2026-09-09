@@ -568,7 +568,7 @@ class AiSettingsService:
 #:
 #: Канал инструментов выключен, и тоже как в v1: он открывает вики наружу
 #: посторонней программе, а такое включают осознанно.
-FEATURE_DEFAULTS = {"chat": True, "search": True, "mcp": False}
+FEATURE_DEFAULTS = {"chat": True, "search": True, "generative": True, "mcp": False}
 
 
 def feature_enabled(workspace: Workspace | None, name: str) -> bool:
