@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api import pages as pages_api
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import SpaceRole
-from tessera_api.infrastructure.models import Page, Space, SpaceMember, User
+from tessera_api.infrastructure.models import Page, Space, SpaceMember, User, Workspace
 from tessera_api.services.backlinks import extract_page_mentions
 from tessera_api.services.pages import PageService, extract_text, generate_slug_id
 from tests.conftest import needs_database
@@ -97,6 +97,55 @@ pytestmark = needs_database
 def world(workspace, owner, space) -> dict:
     """Живые владелец, пространство и рабочее пространство из оснастки."""
     return {"workspace": workspace, "owner": owner, "space": space}
+
+
+@pytest.fixture
+async def own_world(session: AsyncSession) -> dict:
+    """Своё рабочее пространство с владельцем и пространством.
+
+    Для проверок, которые смотрят на всё рабочее пространство разом. Проверки
+    идут против живой базы стенда, и её свежие страницы вытесняли свои из
+    выборки «недавних»: проверка падала не из-за кода, а из-за соседей по
+    базе. В своём рабочем пространстве посторонних страниц нет.
+    """
+    workspace_id, space_id, owner_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await session.execute(
+        insert(Workspace).values(
+            id=workspace_id, name="Своё", hostname=f"own-{uuid.uuid4().hex[:8]}"
+        )
+    )
+    await session.execute(
+        insert(Space).values(
+            id=space_id,
+            name="Своё пространство",
+            slug=f"own-{uuid.uuid4().hex[:8]}",
+            workspace_id=workspace_id,
+        )
+    )
+    await session.execute(
+        insert(User).values(
+            id=owner_id,
+            email=f"own-{uuid.uuid4().hex[:8]}@example.com",
+            name="Свой владелец",
+            role="owner",
+            workspace_id=workspace_id,
+        )
+    )
+    await session.execute(
+        insert(SpaceMember).values(
+            id=uuid.uuid4(),
+            user_id=owner_id,
+            space_id=space_id,
+            role=SpaceRole.ADMIN,
+            added_by_id=owner_id,
+        )
+    )
+    await session.flush()
+    return {
+        "workspace": await session.get(Workspace, workspace_id),
+        "owner": await session.get(User, owner_id),
+        "space": await session.get(Space, space_id),
+    }
 
 
 class TestCreate:
@@ -362,18 +411,22 @@ class TestListings:
     постранично: закрытая страница не должна называться в списке.
     """
 
-    async def test_recent_shows_the_newest_first(self, session: AsyncSession, world) -> None:
+    async def test_recent_shows_the_newest_first(
+        self, session: AsyncSession, own_world
+    ) -> None:
+        # Своё рабочее пространство: выборка берёт полсотни свежих страниц,
+        # и на общем стенде их занимали посторонние.
         service = PageService(session)
         first = await service.create(
-            user_id=world["owner"].id,
-            workspace_id=world["workspace"].id,
-            space_id=world["space"].id,
+            user_id=own_world["owner"].id,
+            workspace_id=own_world["workspace"].id,
+            space_id=own_world["space"].id,
             title="Раньше",
         )
         second = await service.create(
-            user_id=world["owner"].id,
-            workspace_id=world["workspace"].id,
-            space_id=world["space"].id,
+            user_id=own_world["owner"].id,
+            workspace_id=own_world["workspace"].id,
+            space_id=own_world["space"].id,
             title="Позже",
         )
 
@@ -387,7 +440,7 @@ class TestListings:
         )
         await session.flush()
 
-        found = await service.recent(world["owner"].id, world["workspace"].id, limit=50)
+        found = await service.recent(own_world["owner"].id, own_world["workspace"].id, limit=50)
         order = [one[0].id for one in found]
         assert second.id in order
         assert order.index(second.id) < order.index(first.id)
