@@ -1361,7 +1361,7 @@
   "Images": "画像",
   "Move external images to storage": "外部画像をストレージに移動",
   "Moved external images to storage": "外部画像をストレージに移動しました",
-  "Download images that pages link to from other servers and keep them as attachments here. Pages written before this became automatic still point outside.": "他のサーバーにあるページ内の画像をダウンロードし、ここに添付ファイルとして保存します。自動化より前に書かれたページは今も外部を参照しています。",
+  "Download images from other servers that pages link to, and keep them here as attachments. Pages written before this became automatic still point outside.": "ページが参照している他のサーバー上の画像をダウンロードし、ここに添付ファイルとして保存します。自動化より前に書かれたページは今も外部を参照しています。",
   "Started. The result will appear in the audit log when the pass is done.": "開始しました。処理が終わると監査ログに結果が表示されます。",
   "Reset": "リセット",
   "Reset MFA for member": "メンバーの二要素認証を初期化",

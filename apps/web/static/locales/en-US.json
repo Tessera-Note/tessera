@@ -1361,7 +1361,7 @@
   "Images": "Images",
   "Move external images to storage": "Move external images to storage",
   "Moved external images to storage": "Moved external images to storage",
-  "Download images that pages link to from other servers and keep them as attachments here. Pages written before this became automatic still point outside.": "Download images that pages link to from other servers and keep them as attachments here. Pages written before this became automatic still point outside.",
+  "Download images from other servers that pages link to, and keep them here as attachments. Pages written before this became automatic still point outside.": "Download images from other servers that pages link to, and keep them here as attachments. Pages written before this became automatic still point outside.",
   "Started. The result will appear in the audit log when the pass is done.": "Started. The result will appear in the audit log when the pass is done.",
   "Reset": "Reset",
   "Reset MFA for member": "Reset MFA for member",

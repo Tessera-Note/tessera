@@ -324,7 +324,7 @@
   <Panel title={t('Images')}>
     <p class="mb-3 text-sm text-text-muted">
       {t(
-        'Download images that pages link to from other servers and keep them as attachments here. Pages written before this became automatic still point outside.'
+        'Download images from other servers that pages link to, and keep them here as attachments. Pages written before this became automatic still point outside.'
       )}
     </p>
     {#if rehosting}
