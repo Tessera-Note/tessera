@@ -292,7 +292,7 @@
         persistence = local;
 
         const connection = new HocuspocusProvider({
-          url: collabAddress(),
+          url: collabAddress(name),
           name,
           document: document_,
           // Токен спрашивается перед каждым рукопожатием, а не берётся однажды:

@@ -18,10 +18,16 @@ export function collabToken(fetcher?: typeof fetch) {
  * Тот же путь, что в v1: `/collab` на том же происхождении, что и страница.
  * Схема выводится из адреса страницы, иначе за обратным прокси с TLS браузер
  * откажется открывать незащищённое соединение.
+ *
+ * Имя документа уходит ещё и доводом адреса. Сервер открывает документ по
+ * первому сообщению протокола, а прокси сообщений не разбирает: закрепить
+ * соединение за репликой (`hash $arg_documentName consistent` в nginx) он может
+ * только по адресу. Сервер сверяет одно с другим и расхождение отвергает.
  */
-export function collabAddress(): string {
+export function collabAddress(documentName: string): string {
   const secure = window.location.protocol === 'https:';
-  return `${secure ? 'wss' : 'ws'}://${window.location.host}/collab`;
+  const query = new URLSearchParams({ documentName }).toString();
+  return `${secure ? 'wss' : 'ws'}://${window.location.host}/collab?${query}`;
 }
 
 /** Имя документа. Совпадает с тем, что разбирает сервис: `page.<id>`. */

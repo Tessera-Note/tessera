@@ -178,7 +178,17 @@ export function createCollabServer() {
     // на десятке вкладок превращает журнал в поток.
     quiet: true,
 
-    async onAuthenticate({ documentName, token, connectionConfig }) {
+    async onAuthenticate({ documentName, token, connectionConfig, requestParameters }) {
+      // Имя документа приходит дважды: доводом адреса и первым сообщением
+      // протокола. Прокси закрепляет соединение за репликой по адресу —
+      // сообщений он не разбирает, — а документ открывается по сообщению.
+      // Разойдясь, они привели бы соединение на реплику, где документ не
+      // живёт, и правки двух реплик по одному документу не сошлись бы молча.
+      // Поэтому расхождение, как и отсутствие довода, это отказ.
+      if (requestParameters?.get('documentName') !== documentName) {
+        log(`${documentName}: имя в адресе подключения не совпало с именем документа`);
+        throw new Error('document name mismatch');
+      }
       const answer = await authorize(token, documentName);
       if (!answer?.canEdit) {
         connectionConfig.readOnly = true;

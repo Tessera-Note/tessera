@@ -98,7 +98,9 @@ for (let index = 0; index < CLIENTS; index += 1) {
         30000
       );
       const provider = new HocuspocusProvider({
-        url: `${BASE.replace(/^http/, 'ws')}/collab`,
+        // Имя документа и доводом адреса: по нему прокси закрепляет
+        // соединение за репликой, и сервис без него соединение отвергает.
+        url: `${BASE.replace(/^http/, 'ws')}/collab?documentName=${encodeURIComponent(name)}`,
         name,
         document: document_,
         token,

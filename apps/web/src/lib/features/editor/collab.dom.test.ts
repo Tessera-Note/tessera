@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { nextStatus, plainText, seedDecision } from './collab';
+import { collabAddress, documentName, nextStatus, plainText, seedDecision } from './collab';
 
 describe('plainText', () => {
   it('собирает абзацы отдельными строками', () => {
@@ -151,5 +151,19 @@ describe('seedDecision', () => {
     expect(seedDecision({ fromServer: true, fromBrowser: true, empty: true, content: null })).toBe(
       'skip'
     );
+  });
+});
+
+describe('collabAddress', () => {
+  it('несёт имя документа доводом адреса', () => {
+    // Прокси закрепляет соединение за репликой по адресу: первое сообщение
+    // протокола, где имя идёт для сервера, он не разбирает.
+    const address = new URL(collabAddress(documentName('abc')));
+    expect(address.pathname).toBe('/collab');
+    expect(address.searchParams.get('documentName')).toBe('page.abc');
+  });
+
+  it('берёт схему у страницы', () => {
+    expect(collabAddress('page.x').startsWith('ws://')).toBe(true);
   });
 });

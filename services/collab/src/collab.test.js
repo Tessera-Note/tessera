@@ -89,7 +89,16 @@ async function withChannel(answers, run) {
  * Сокетом управляет сам провайдер: при переданном снаружи он не подключается
  * без явного `attach`, и проверка молча ждала бы события, которого не будет.
  */
-function connect(port, { token = 'токен', documentName = `page.${PAGE_ID}` } = {}) {
+function connect(
+  port,
+  {
+    token = 'токен',
+    documentName = `page.${PAGE_ID}`,
+    // Имя документа идёт и доводом адреса: по нему прокси закрепляет
+    // соединение за репликой, и сервер сверяет его с именем из протокола.
+    address = `ws://127.0.0.1:${port}/collab?documentName=${encodeURIComponent(documentName)}`,
+  } = {},
+) {
   return new Promise((resolve) => {
     const messages = [];
     let provider;
@@ -103,7 +112,7 @@ function connect(port, { token = 'токен', documentName = `page.${PAGE_ID}` 
     };
 
     provider = new HocuspocusProvider({
-      url: `ws://127.0.0.1:${port}/collab`,
+      url: address,
       WebSocketPolyfill: WebSocket,
       name: documentName,
       token,
@@ -167,6 +176,35 @@ test('подключение спрашивает права у серверно
     assert.ok(asked, 'права не спрошены');
     assert.equal(asked.body.documentName, `page.${PAGE_ID}`);
     assert.equal(asked.body.token, 'токен');
+  });
+});
+
+test('имя документа в адресе обязано совпадать с именем в протоколе', async () => {
+  // Прокси закрепляет соединение за репликой по адресу, а документ
+  // открывается по сообщению протокола. Разошедшиеся имена привели бы
+  // соединение на реплику, где документ не живёт.
+  await withChannel(AUTHORIZED, async ({ port, seen }) => {
+    const other = 'page.33333333-3333-4333-8333-333333333333';
+    const result = await connect(port, {
+      address: `ws://127.0.0.1:${port}/collab?documentName=${encodeURIComponent(other)}`,
+    });
+    assert.equal(result.ok, false, 'соединение открылось с чужим именем в адресе');
+    close(result);
+    assert.equal(
+      seen.some((one) => one.path === '/api/internal/collab/authorize'),
+      false,
+      'права спрошены, хотя имя в адресе не совпало',
+    );
+  });
+});
+
+test('без имени в адресе соединение не открывается', async () => {
+  // Без довода прокси положил бы соединение на реплику пустого имени — не на
+  // ту, где живёт документ.
+  await withChannel(AUTHORIZED, async ({ port }) => {
+    const result = await connect(port, { address: `ws://127.0.0.1:${port}/collab` });
+    assert.equal(result.ok, false, 'соединение открылось без имени в адресе');
+    close(result);
   });
 });
 
