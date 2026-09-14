@@ -40,7 +40,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError, bad_request, forbidden, not_found
 from tessera_api.infrastructure.content import ContentClient
-from tessera_api.infrastructure.document_text import from_odt, tidy
 from tessera_api.infrastructure.models import (
     BaseProperty,
     BaseRow,
@@ -68,6 +67,7 @@ from tessera_api.services.import_archives import (
     parse_confluence_tree,
     title_from_file_name,
 )
+from tessera_api.services.odt_import import odt_to_html
 from tessera_api.services.pages import PageService
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.shares import ShareService
@@ -546,12 +546,17 @@ class ImportService:
             )
 
         if suffix == ".odt":
-            text = from_odt(data)
-            if not text.strip():
+            # Тем же путём, что и Word: разбор отдаёт разметку, а документ
+            # редактора собирает общий путь ввоза HTML. Плоский текст здесь
+            # приезжал одним абзацем — разметка считает одиночный перевод
+            # строки мягким переносом, — и терял заголовки и списки.
+            html = odt_to_html(data)
+            if not html.strip():
                 raise bad_request("error.import.no_text")
+            title = title_from_html(html, file_name)
             return (
-                _title_from_text(text, file_name),
-                await self._content.markdown_to_json(text),
+                title,
+                drop_title_heading(await self._content.html_to_json(html), title),
                 [],
             )
 
@@ -1664,19 +1669,6 @@ def table_to_html(rows: list[list[str]]) -> str:
     head = f"<thead><tr>{cells(rows[0], 'th')}</tr></thead>"
     body = "".join(f"<tr>{cells(row, 'td')}</tr>" for row in rows[1:])
     return f"<table>{head}<tbody>{body}</tbody></table>"
-
-
-def _title_from_text(text: str, fallback: str) -> str:
-    """Название из первой непустой строки.
-
-    У DOCX и PDF своего заголовка нет: первая строка — лучшее, что есть, а имя
-    файла остаётся запасным вариантом.
-    """
-    for line in tidy(text).splitlines():
-        stripped = line.strip()
-        if stripped:
-            return stripped[:250]
-    return os.path.splitext(fallback or "")[0][:250] or "Untitled"
 
 
 def _reason(error: Exception) -> str:
