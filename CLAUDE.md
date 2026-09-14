@@ -126,7 +126,8 @@ tessera/
     templates/                  шаблон техдокументации
     deployment-from-scratch.md, open-api.md, future-roadmap.md
   deploy/                       nginx, backup-db.sh, postgres-init, searxng
-  scripts/                      вход на стенд, сверка образа, данные эмодзи
+  scripts/                      вход на стенд, сверка образа, данные эмодзи,
+                                нагрузка на совместную правку
   .claude/                      конфигурация Claude Code
 ```
 
