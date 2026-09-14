@@ -28,6 +28,7 @@
   import Editor from '$lib/features/editor/Editor.svelte';
   import Breadcrumbs from '$lib/components/page/Breadcrumbs.svelte';
   import PageTitle from '$lib/components/page/PageTitle.svelte';
+  import PagePresence from '$lib/components/page/PagePresence.svelte';
   import PageSidePanel from '$lib/components/page/PageSidePanel.svelte';
   import { ApiError } from '$lib/api/client';
   import { errorText } from '$lib/api/failure';
@@ -49,6 +50,7 @@
   import { createTemplate } from '$lib/features/template/services/templates';
   import { downloadPdf, exportPagePdf, listFileTasks } from '$lib/features/page/services/pdf';
   import { locale } from '$lib/stores/i18n.svelte';
+  import type { Present } from '$lib/features/editor/presence';
   import type { PageData } from './$types';
 
   type Props = { data: PageData };
@@ -98,6 +100,15 @@
 
   /** Счёт слов и знаков. Приходит от редактора: считает он, показывает панель. */
   let stats = $state<{ words: number; characters: number } | null>(null);
+
+  /**
+   * Кто ещё открыл эту страницу.
+   *
+   * Приходит от редактора: сведения объявляются в канале совместного
+   * редактирования, и там же берёт их расширение чужих курсоров. Второй
+   * источник расходился бы с курсорами в тексте.
+   */
+  let present = $state<Present[]>([]);
 
   let busy = $state(false);
   let failure = $state<string | null>(null);
@@ -618,15 +629,22 @@
       content={data.page.content}
       editable={canEdit && editing}
       author={{
+        id: data.session?.user.id ?? null,
         name: data.session?.user.name ?? data.session?.user.email ?? '',
-        color: caretColor(data.session?.user.id ?? '')
+        color: caretColor(data.session?.user.id ?? ''),
+        avatarUrl: data.session?.user.avatarUrl ?? null
       }}
       userId={data.session?.user.id}
       spaceId={data.page.spaceId}
       toolbar={wantsToolbar(data.session?.user.settings?.preferences)}
       generative={data.session?.workspace.aiGenerativeEnabled !== false}
       oncount={(counted) => (stats = counted)}
+      onpresence={(people) => (present = people)}
     />
+
+    <!-- Внизу листа, а не в заголовке: заголовок занят действиями над
+         страницей, и присутствие там читалось бы как ещё одна кнопка. -->
+    <PagePresence people={present} />
   </article>
 
   {#if sidePanel.open}

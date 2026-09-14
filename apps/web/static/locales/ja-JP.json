@@ -1356,6 +1356,8 @@
   "Resend invitation": "招待を再度送る",
   "Resend verification email": "確認メールを再送信",
   "Resent invitation": "招待を再送しました",
+  "On this page right now": "現在このページにいる人",
+  "Tabs: {{count}}": "タブ: {{count}}",
   "Images": "画像",
   "Move external images to storage": "外部画像をストレージに移動",
   "Moved external images to storage": "外部画像をストレージに移動しました",

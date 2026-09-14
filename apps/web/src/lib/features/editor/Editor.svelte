@@ -36,6 +36,7 @@
     plainText,
     seedDecision
   } from './collab';
+  import { presentPeople, type Present } from './presence';
   import { Suggest } from './menus/suggest.svelte';
   import AskAi from './menus/AskAi.svelte';
   import BubbleMenu from './menus/BubbleMenu.svelte';
@@ -57,8 +58,14 @@
     content: unknown;
     /** Правка разрешена. Читателю редактор открывается только на чтение. */
     editable: boolean;
-    /** Кто правит — имя и цвет для чужого курсора. */
-    author: { name: string; color: string };
+    /**
+     * Кто правит.
+     *
+     * Имя и цвет рисуют чужой курсор в тексте. Идентификатор и аватар нужны
+     * перечню присутствующих: тот же набор объявляется в канале, и второй
+     * источник расходился бы с курсорами.
+     */
+    author: { id?: string | null; name: string; color: string; avatarUrl?: string | null };
     /** Кто правит — идентификатор. Пишется в упоминания, как в v1. */
     userId?: string | null;
     /**
@@ -86,6 +93,14 @@
      * разметке расходился бы с первым на каждом узле без текста.
      */
     oncount?: (counted: { words: number; characters: number }) => void;
+    /**
+     * Кто ещё открыл страницу.
+     *
+     * Отдаётся наружу, а не показывается здесь: перечень стоит внизу листа,
+     * вне редактора, и держать его внутри значило бы рисовать его поверх
+     * текста.
+     */
+    onpresence?: (people: Present[]) => void;
   };
   const {
     pageId,
@@ -96,7 +111,8 @@
     spaceId = null,
     toolbar = true,
     generative = true,
-    oncount
+    oncount,
+    onpresence
   }: Props = $props();
 
   const t = $derived(locale.t);
@@ -289,6 +305,17 @@
           },
           onDisconnect: () => {
             status = 'offline';
+          },
+          /**
+           * Кто ещё открыл страницу.
+           *
+           * Тот же набор, что рисует чужие курсоры: объявляет его расширение
+           * курсоров, а читают оба места. Свой номер вкладки спрашивается у
+           * канала на каждом изменении — до подключения его нет вовсе, и
+           * запомненный однажды оказался бы пустым.
+           */
+          onAwarenessChange: ({ states }) => {
+            onpresence?.(presentPeople(states, connection.awareness?.clientID ?? null));
           },
           /**
            * Служебные сообщения канала.
