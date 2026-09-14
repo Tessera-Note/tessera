@@ -59,6 +59,14 @@
   });
 
   const ready = $derived(data.pages.length === 0 || painted >= data.pages.length || impatient);
+
+  /**
+   * Ветвь не поместилась в одну выгрузку.
+   *
+   * Говорится на самом листе, а не только на экране: файл уходит дальше без
+   * экрана, и читающий его иначе считал бы документ полным.
+   */
+  const cut = $derived((data.totalPages ?? data.pages.length) > data.pages.length);
 </script>
 
 <svelte:head>
@@ -74,6 +82,18 @@
   data-route="pdf-render"
   class="mx-auto max-w-3xl p-6 text-black"
 >
+  {#if cut}
+    <p data-component="PrintCutNote" class="mb-6 border-l-2 border-black pl-3 text-sm">
+      {t(
+        'This document contains {{included}} of {{total}} pages. The rest did not fit into one export.',
+        {
+          included: data.pages.length,
+          total: data.totalPages ?? data.pages.length
+        }
+      )}
+    </p>
+  {/if}
+
   {#if withContents}
     <!-- Отдельным листом: оглавление, приклеенное к первой странице, читается
          как её часть. -->

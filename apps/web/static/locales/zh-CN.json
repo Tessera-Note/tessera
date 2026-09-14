@@ -1356,6 +1356,8 @@
   "Resend invitation": "重新发送邀请",
   "Resend verification email": "重新发送验证邮件",
   "Resent invitation": "已重新发送邀请",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "本文档包含 {{total}} 页中的 {{included}} 页。其余页面超出了单次导出的上限。",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "PDF 包含 {{total}} 页中的 {{included}} 页，这是单次导出的上限。请分别导出其余子页面。",
   "On this page right now": "当前在此页面的人",
   "Tabs: {{count}}": "标签页：{{count}}",
   "Images": "图片",

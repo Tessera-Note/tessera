@@ -1356,6 +1356,8 @@
   "Resend invitation": "초대 재전송",
   "Resend verification email": "인증 이메일 다시 보내기",
   "Resent invitation": "초대를 다시 보냈습니다",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "이 문서에는 전체 {{total}}페이지 중 {{included}}페이지가 들어 있습니다. 나머지는 한 번의 내보내기에 들어가지 않았습니다.",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "PDF에는 전체 {{total}}페이지 중 {{included}}페이지가 들어 있습니다. 이것이 한 번의 내보내기 한도입니다. 나머지 하위 페이지는 따로 내보내세요.",
   "On this page right now": "지금 이 페이지에 있는 사람",
   "Tabs: {{count}}": "탭: {{count}}",
   "Images": "이미지",

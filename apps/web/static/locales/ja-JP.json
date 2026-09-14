@@ -1356,6 +1356,8 @@
   "Resend invitation": "招待を再度送る",
   "Resend verification email": "確認メールを再送信",
   "Resent invitation": "招待を再送しました",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "この文書には全{{total}}ページのうち{{included}}ページが含まれています。残りは1回のエクスポートに収まりませんでした。",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "PDFには全{{total}}ページのうち{{included}}ページが含まれています。これが1回のエクスポートの上限です。残りのサブページは個別にエクスポートしてください。",
   "On this page right now": "現在このページにいる人",
   "Tabs: {{count}}": "タブ: {{count}}",
   "Images": "画像",

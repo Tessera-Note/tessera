@@ -1356,6 +1356,8 @@
   "Resend invitation": "Uitnodiging opnieuw verzenden",
   "Resend verification email": "Verificatie-e-mail opnieuw verzenden",
   "Resent invitation": "Uitnodiging opnieuw verzonden",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "Dit document bevat {{included}} van {{total}} pagina's. De rest paste niet in één export.",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "De PDF bevat {{included}} van {{total}} pagina's, het maximum voor één export. Exporteer de overige subpagina's apart.",
   "On this page right now": "Nu op deze pagina",
   "Tabs: {{count}}": "Tabbladen: {{count}}",
   "Images": "Afbeeldingen",

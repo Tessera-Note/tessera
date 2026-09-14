@@ -1360,6 +1360,8 @@
   "Resend invitation": "Отправить приглашение повторно",
   "Resend verification email": "Отправить письмо для подтверждения повторно",
   "Resent invitation": "Приглашение отправлено повторно",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "В документ вошли страницы: {{included}} из {{total}}. Остальные не поместились в одну выгрузку.",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "В PDF вошли страницы: {{included}} из {{total}} — это предел одной выгрузки. Остальные подстраницы выгрузите отдельно.",
   "On this page right now": "Сейчас на этой странице",
   "Tabs: {{count}}": "Вкладок: {{count}}",
   "Images": "Изображения",

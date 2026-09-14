@@ -243,6 +243,13 @@
   let savedTemplate = $state(false);
   /** Задание печати: пока оно идёт, человеку сообщается, что оно идёт. */
   let printing = $state(false);
+  /**
+   * Ветвь не поместилась в одну выгрузку: сколько вошло и сколько было.
+   *
+   * Сообщается сразу, при постановке, а не после скачивания: обрезанный
+   * документ иначе выглядит полным.
+   */
+  let cutExport = $state<{ included: number; total: number } | null>(null);
 
   /**
    * Отправить страницу на печать.
@@ -253,8 +260,12 @@
   const exportPdf = (includeChildren: boolean) =>
     act(async () => {
       printing = true;
+      cutExport = null;
       try {
         const task = await exportPagePdf({ pageId: data.page.id, includeChildren });
+        if (task.includedPages < task.totalPages) {
+          cutExport = { included: task.includedPages, total: task.totalPages };
+        }
         await waitForPdf(task.fileTaskId);
       } finally {
         printing = false;
@@ -615,6 +626,15 @@
 
     {#if failure}<Notice message={failure} />{/if}
     {#if savedTemplate}<Notice tone="info" message={t('Template created successfully')} />{/if}
+    {#if cutExport}
+      <Notice
+        tone="info"
+        message={t(
+          'The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.',
+          cutExport
+        )}
+      />
+    {/if}
 
     <!--
       Один и тот же редактор и на чтение, и на правку. Второй рисовальщик для

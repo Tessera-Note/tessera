@@ -1356,6 +1356,8 @@
   "Resend invitation": "Renvoyer l'invitation",
   "Resend verification email": "Renvoyer l’e-mail de vérification",
   "Resent invitation": "Invitation renvoyée",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "Ce document contient {{included}} pages sur {{total}}. Les autres ne tenaient pas dans une seule exportation.",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "Le PDF contient {{included}} pages sur {{total}}, la limite d'une exportation. Exportez les sous-pages restantes séparément.",
   "On this page right now": "En ce moment sur cette page",
   "Tabs: {{count}}": "Onglets : {{count}}",
   "Images": "Images",

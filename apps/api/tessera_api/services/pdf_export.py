@@ -113,9 +113,10 @@ class PdfExportService:
         # на экране.
         await self._access.validate_can_view(page, user_id)
 
-        page_ids = (
-            await self._viewable_branch(page, user_id) if include_children else [page.id]
-        )
+        if include_children:
+            page_ids, total = await self._viewable_branch(page, user_id)
+        else:
+            page_ids, total = [page.id], 1
 
         task_id = uuid.uuid4()
         title = page.title or "untitled"
@@ -138,6 +139,9 @@ class PdfExportService:
                 task_metadata={
                     "includeChildren": include_children,
                     "pageIds": [str(one) for one in page_ids],
+                    # Сколько страниц ветви человек видит всего. Больше, чем
+                    # вошло, — документ неполный, и лист говорит об этом сам.
+                    "totalPages": total,
                 },
             )
         )
@@ -146,7 +150,13 @@ class PdfExportService:
         if self._queue is not None:
             await self._queue.enqueue(JobName.PDF_EXPORT, task_id=str(task_id))
 
-        return {"fileTaskId": str(task_id)}
+        # Сколько вошло и сколько было: обрезанная ветвь обязана быть видна
+        # человеку сразу, а не обнаруживаться по недостающим страницам.
+        return {
+            "fileTaskId": str(task_id),
+            "includedPages": len(page_ids),
+            "totalPages": total,
+        }
 
     async def _locale_of(self, user_id: uuid.UUID | None) -> str | None:
         """Язык человека. Пусто, если его нет: тогда лист берёт запасной."""
@@ -155,24 +165,35 @@ class PdfExportService:
         user = await self._session.get(User, user_id)
         return (user.locale or None) if user is not None else None
 
-    async def _viewable_branch(self, page: Page, user_id: uuid.UUID) -> list[uuid.UUID]:
+    async def _viewable_branch(
+        self, page: Page, user_id: uuid.UUID
+    ) -> tuple[list[uuid.UUID], int]:
         """Страница и её потомки, доступные этому человеку.
 
         Отбор идёт по каждой странице: ограничение ставится на любую из ветви,
         и печать по одному лишь членству в пространстве вынесла бы закрытую
         подстраницу в общий документ.
+
+        Возвращает то, что войдёт в документ, и сколько страниц ветви человек
+        видит всего. Предел `MAX_PAGES` отсчитывается по видимым: срез до
+        проверки прав отдавал место закрытым страницам, и в документ входило
+        меньше, чем мог бы. Разница двух чисел — то, что не вошло; молча
+        обрезанный документ выглядит полным.
         """
         pages = PageService(self._session)
         ids = [page.id, *await pages._descendants(page.id)]  # noqa: SLF001 — свой пакет
 
         allowed: list[uuid.UUID] = []
-        for one in ids[:MAX_PAGES]:
+        total = 0
+        for one in ids:
             found = await self._session.get(Page, one)
             if found is None or found.deleted_at is not None:
                 continue
             if (await self._access.rights(found, user_id)).can_view:
-                allowed.append(found.id)
-        return allowed
+                total += 1
+                if len(allowed) < MAX_PAGES:
+                    allowed.append(found.id)
+        return allowed, total
 
     def issue_render_token(self, task_id: uuid.UUID, workspace_id: uuid.UUID) -> str:
         now = datetime.now(UTC)
@@ -241,7 +262,12 @@ class PdfExportService:
                     "content": await shares.public_content(one, tokens),
                 }
                 for one in rows
-            ]
+            ],
+            # Сколько страниц ветви было видно заказчику. Лист сравнивает это
+            # с числом вошедших и называет неполноту на самом документе:
+            # файл уходит дальше без экрана, на котором её показали.
+            # Задания, заведённые до появления поля, считаются полными.
+            "totalPages": int((task.task_metadata or {}).get("totalPages") or len(wanted)),
         }
 
     async def run(self, task_id: uuid.UUID) -> None:

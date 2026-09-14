@@ -1356,6 +1356,8 @@
   "Resend invitation": "Rispedisci invito",
   "Resend verification email": "Invia nuovamente email di verifica",
   "Resent invitation": "Invito inviato di nuovo",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "Questo documento contiene {{included}} pagine su {{total}}. Le altre non rientravano in un'unica esportazione.",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "Il PDF contiene {{included}} pagine su {{total}}, il limite di un'esportazione. Esporta separatamente le sottopagine rimanenti.",
   "On this page right now": "In questa pagina adesso",
   "Tabs: {{count}}": "Schede: {{count}}",
   "Images": "Immagini",

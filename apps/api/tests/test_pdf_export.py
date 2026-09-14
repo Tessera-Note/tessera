@@ -160,6 +160,85 @@ class TestTask:
         task = await session.get(FileTask, uuid.UUID(made["fileTaskId"]))
         assert (task.task_metadata or {})["pageIds"] == [str(parent.id)]
 
+    async def test_a_cut_branch_says_so(
+        self, session: AsyncSession, workspace, owner, space, monkeypatch
+    ) -> None:
+        """Ветвь больше предела выгружается частью, и об этом говорится.
+
+        Раньше она обрезалась молча: человек получал сотню страниц из
+        полутораста и считал документ полным. Предел уменьшен, чтобы не
+        заводить сотню страниц ради одной проверки.
+        """
+        monkeypatch.setattr("tessera_api.services.pdf_export.MAX_PAGES", 2)
+        parent = await _page(session, workspace, owner, space, "Родитель")
+        await _page(session, workspace, owner, space, "Первый", parent.id)
+        await _page(session, workspace, owner, space, "Второй", parent.id)
+
+        made = await _service(session).create_task(
+            page_id=str(parent.id),
+            include_children=True,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+
+        assert made["includedPages"] == 2
+        assert made["totalPages"] == 3
+        task = await session.get(FileTask, uuid.UUID(made["fileTaskId"]))
+        assert len((task.task_metadata or {})["pageIds"]) == 2
+        assert (task.task_metadata or {})["totalPages"] == 3
+
+    async def test_a_whole_branch_is_not_called_cut(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        parent = await _page(session, workspace, owner, space, "Родитель")
+        await _page(session, workspace, owner, space, "Потомок", parent.id)
+
+        made = await _service(session).create_task(
+            page_id=str(parent.id),
+            include_children=True,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        assert made["includedPages"] == made["totalPages"] == 2
+
+    async def test_closed_pages_do_not_eat_the_limit(
+        self, session: AsyncSession, workspace, owner, space, monkeypatch
+    ) -> None:
+        """Предел отсчитывается по видимым страницам.
+
+        Срез до проверки прав отдавал место закрытым: в документ входило
+        меньше, чем мог бы, и закрытая страница при этом ещё и считалась.
+        """
+        monkeypatch.setattr("tessera_api.services.pdf_export.MAX_PAGES", 2)
+        parent = await _page(session, workspace, owner, space, "Родитель")
+        closed = await _page(session, workspace, owner, space, "Закрытая", parent.id)
+        opened = await _page(session, workspace, owner, space, "Открытая", parent.id)
+        await _close(session, workspace, space, closed, owner)
+        reader_id = await _reader(session, workspace, space, owner)
+
+        made = await _service(session).create_task(
+            page_id=str(parent.id),
+            include_children=True,
+            user_id=reader_id,
+            workspace_id=workspace.id,
+        )
+
+        task = await session.get(FileTask, uuid.UUID(made["fileTaskId"]))
+        assert set((task.task_metadata or {})["pageIds"]) == {str(parent.id), str(opened.id)}
+        assert made["totalPages"] == 2
+
+    async def test_a_single_page_is_whole(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        page = await _page(session, workspace, owner, space, "Одна")
+        made = await _service(session).create_task(
+            page_id=str(page.id),
+            include_children=False,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        assert made["includedPages"] == made["totalPages"] == 1
+
     async def test_a_page_one_cannot_read_is_not_exported(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
@@ -210,6 +289,50 @@ class TestRenderToken:
 
         assert [one["pageId"] for one in data["pages"]] == [str(page.id)]
         assert data["pages"][0]["title"] == "Печатаемая"
+
+    async def test_the_sheet_knows_how_many_pages_there_were(
+        self, session: AsyncSession, workspace, owner, space, monkeypatch
+    ) -> None:
+        """Неполнота называется на самом листе: файл уходит дальше без экрана."""
+        monkeypatch.setattr("tessera_api.services.pdf_export.MAX_PAGES", 1)
+        parent = await _page(session, workspace, owner, space, "Родитель")
+        await _page(session, workspace, owner, space, "Потомок", parent.id)
+        service = _service(session)
+        made = await service.create_task(
+            page_id=str(parent.id),
+            include_children=True,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+
+        data = await service.render_data(
+            service.issue_render_token(uuid.UUID(made["fileTaskId"]), workspace.id)
+        )
+        assert len(data["pages"]) == 1
+        assert data["totalPages"] == 2
+
+    async def test_an_old_task_counts_as_whole(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Задание, заведённое до появления счёта, неполным не называется."""
+        page = await _page(session, workspace, owner, space, "Старая")
+        service = _service(session)
+        made = await service.create_task(
+            page_id=str(page.id),
+            include_children=False,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+        task_id = uuid.UUID(made["fileTaskId"])
+        await session.execute(
+            update(FileTask)
+            .where(FileTask.id == task_id)
+            .values(task_metadata={"includeChildren": False, "pageIds": [str(page.id)]})
+        )
+        await session.flush()
+
+        data = await service.render_data(service.issue_render_token(task_id, workspace.id))
+        assert data["totalPages"] == 1
 
     async def test_the_language_of_the_one_who_asked_goes_along(
         self, session: AsyncSession, workspace, owner, space

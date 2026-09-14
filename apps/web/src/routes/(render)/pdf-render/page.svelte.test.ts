@@ -19,12 +19,15 @@ const { default: PdfRenderPage } = await import('./[pageId]/+page.svelte');
 let host: HTMLElement | null = null;
 let component: Record<string, unknown> | null = null;
 
-function render(pages: { pageId: string; title: string; content: unknown }[]): HTMLElement {
+function render(
+  pages: { pageId: string; title: string; content: unknown }[],
+  totalPages?: number
+): HTMLElement {
   host = document.createElement('div');
   document.body.appendChild(host);
   component = mount(PdfRenderPage, {
     target: host,
-    props: { data: { pages } as never }
+    props: { data: { pages, totalPages } as never }
   }) as Record<string, unknown>;
   flushSync();
   return host;
@@ -127,5 +130,25 @@ describe('Лист для печати', () => {
     vi.advanceTimersByTime(15001);
     flushSync();
     expect(ready(box)).toBe(true);
+  });
+});
+
+describe('Неполная ветвь', () => {
+  it('лист называет неполноту сам', () => {
+    // Файл уходит дальше без экрана, на котором её показали: без пометки на
+    // самом листе обрезанный документ читался бы как полный.
+    const box = render(two, 150);
+    const note = box.querySelector('[data-component="PrintCutNote"]');
+    expect(note?.textContent).toContain('2');
+    expect(note?.textContent).toContain('150');
+  });
+
+  it('полной ветви пометка не нужна', () => {
+    expect(render(two, 2).querySelector('[data-component="PrintCutNote"]')).toBeNull();
+  });
+
+  it('без счёта ветвь считается полной', () => {
+    // Задания, заведённые до появления счёта, неполными не называются.
+    expect(render(two).querySelector('[data-component="PrintCutNote"]')).toBeNull();
   });
 });

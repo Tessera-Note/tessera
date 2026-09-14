@@ -1356,6 +1356,8 @@
   "Resend invitation": "Resend invitation",
   "Resend verification email": "Resend verification email",
   "Resent invitation": "Resent invitation",
+  "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.": "This document contains {{included}} of {{total}} pages. The rest did not fit into one export.",
+  "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.": "The PDF contains {{included}} of {{total}} pages, the limit for one export. Export the remaining subpages separately.",
   "On this page right now": "On this page right now",
   "Tabs: {{count}}": "Tabs: {{count}}",
   "Images": "Images",

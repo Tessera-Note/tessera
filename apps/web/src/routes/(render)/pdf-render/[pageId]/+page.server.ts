@@ -20,7 +20,10 @@ export const load: PageServerLoad = async ({ url, fetch }) => {
   }
 
   try {
-    return { pages: (await renderData(token, fetch)).pages };
+    const answer = await renderData(token, fetch);
+    // Сколько страниц ветви было видно заказчику. Больше, чем вошло, — лист
+    // называет неполноту сам: файл уходит дальше без экрана, где её показали.
+    return { pages: answer.pages, totalPages: answer.totalPages ?? answer.pages.length };
   } catch (failure) {
     if (failure instanceof ApiError) {
       error(failure.status, { message: failure.message, code: failure.code });

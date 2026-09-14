@@ -15,7 +15,13 @@ export function exportPagePdf(
   values: { pageId: string; includeChildren?: boolean },
   fetcher?: typeof fetch
 ) {
-  return post<{ fileTaskId: string }>('/api/pdf-export/page', values, { fetcher });
+  // `includedPages` меньше `totalPages` — ветвь больше предела одной
+  // выгрузки, и в документ вошла только часть. Человеку это говорится сразу.
+  return post<{ fileTaskId: string; includedPages: number; totalPages: number }>(
+    '/api/pdf-export/page',
+    values,
+    { fetcher }
+  );
 }
 
 /**
@@ -29,7 +35,11 @@ export function renderData(
   fetcher?: typeof fetch,
   headers?: Record<string, string>
 ) {
-  return post<{ pages: RenderPage[] }>('/api/pdf-export/render', { token }, { fetcher, headers });
+  return post<{ pages: RenderPage[]; totalPages?: number }>(
+    '/api/pdf-export/render',
+    { token },
+    { fetcher, headers }
+  );
 }
 
 /** Задание выгрузки в том виде, в каком его отдаёт сервер. */
