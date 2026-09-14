@@ -59,3 +59,14 @@ export function version(fetcher?: typeof fetch, headers?: Record<string, string>
 export function updateWorkspace(values: WorkspacePatch, fetcher?: typeof fetch) {
   return post<WorkspaceSettings>('/api/workspace/update', values, { fetcher });
 }
+
+/**
+ * Перенести внешние картинки уже написанных страниц в своё хранилище.
+ *
+ * Право распорядителя: проход переписывает тела чужих страниц. Ответ означает
+ * «поставлено в очередь», а не «сделано»: проход обходит страницы
+ * пространства и скачивает каждую картинку, итог уходит в журнал аудита.
+ */
+export function rehostImages(fetcher?: typeof fetch) {
+  return post<{ scheduled: boolean }>('/api/workspace/rehost-images', {}, { fetcher });
+}

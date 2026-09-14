@@ -50,6 +50,9 @@ class AuditEvent:
     WORKSPACE_INVITE_RESENT = "workspace.invite_resent"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
+    #: Итог прохода по внешним картинкам. Своего экрана у прохода нет,
+    #: и подробности отчёта лежат в самой записи журнала.
+    WORKSPACE_IMAGES_REHOSTED = "workspace.images_rehosted"
     SPACE_CREATED = "space.created"
     SPACE_UPDATED = "space.updated"
     SPACE_DELETED = "space.deleted"

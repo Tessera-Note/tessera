@@ -216,6 +216,45 @@ PDF_EXPORT = func(pdf_export, name=JobName.PDF_EXPORT)
 
 PAGE_UPDATE_DIGEST = func(page_update_digest, name=JobName.PAGE_UPDATE_DIGEST)
 
+
+@retrying
+async def rehost_images(
+    ctx: dict, *, workspace_id: str, user_id: str, after: str | None = None
+) -> int:
+    """Перенести внешние картинки уже написанных страниц в своё хранилище.
+
+    Проход идёт кусками и продолжает сам себя: предел задания десять минут, а
+    одно скачивание ждёт до двадцати секунд. Продолжение ставится отсюда, а не
+    из службы: очередь принадлежит слою заданий, и служба, ставящая себе
+    следующий такт, знала бы про него.
+
+    Возвращает число перенесённых картинок этого куска.
+    """
+    from tessera_api.services.media_rehost import MediaRehostService
+
+    database: Database = ctx["database"]
+    settings: Settings = ctx["settings"]
+    async with database.session() as session:
+        report = await MediaRehostService(session, ctx["storage"], ctx["queue"]).run(
+            workspace_id=uuid.UUID(workspace_id),
+            user_id=uuid.UUID(user_id),
+            size_limit=settings.file_upload_size_limit,
+            after=uuid.UUID(after) if after else None,
+        )
+
+    if report["next"]:
+        queue: JobQueue = ctx["queue"]
+        await queue.enqueue(
+            JobName.REHOST_IMAGES,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            after=report["next"],
+        )
+    return int(report["moved"])
+
+
+REHOST_IMAGES = func(rehost_images, name=JobName.REHOST_IMAGES)
+
 #: Полный состав обработчиков. Список видно целиком, и забытый в нём
 #: обработчик заметен: задание встанет в очередь и не разберётся никем.
 HANDLERS = [
@@ -227,6 +266,7 @@ HANDLERS = [
     IMPORT_ARCHIVE,
     PAGE_UPDATE_DIGEST,
     PDF_EXPORT,
+    REHOST_IMAGES,
 ]
 
 

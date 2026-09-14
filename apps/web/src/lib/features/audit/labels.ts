@@ -13,6 +13,7 @@ export const AUDIT_EVENT_LABELS: Record<string, string> = {
   'workspace.created': 'Created workspace',
   'workspace.updated': 'Updated workspace',
   'workspace.invite_resent': 'Resent invitation',
+  'workspace.images_rehosted': 'Moved external images to storage',
 
   'user.invited': 'Created invitation',
   'user.invite_accepted': 'Accepted invitation',

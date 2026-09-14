@@ -16,7 +16,11 @@
     removeIcon,
     uploadImage
   } from '$lib/features/page/services/images';
-  import { updateWorkspace, type WorkspacePatch } from '$lib/features/workspace/services/settings';
+  import {
+    rehostImages,
+    updateWorkspace,
+    type WorkspacePatch
+  } from '$lib/features/workspace/services/settings';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -50,6 +54,28 @@
       busy = null;
     }
   }
+  /**
+   * Поставлен ли проход по внешним картинкам.
+   *
+   * Именно «поставлен», а не «сделан»: проход обходит страницы пространства и
+   * скачивает каждую картинку, то есть длится минутами, и его итог приходит в
+   * журнал аудита, а не сюда.
+   */
+  let rehosting = $state(false);
+
+  async function runRehosting() {
+    busy = 'rehosting';
+    failure = null;
+    try {
+      await rehostImages();
+      rehosting = true;
+    } catch (error) {
+      failure = errorText(error, t);
+    } finally {
+      busy = null;
+    }
+  }
+
   let busy = $state<string | null>(null);
   let failure = $state<string | null>(null);
   let saved = $state(false);
@@ -292,6 +318,23 @@
     {/if}
     <Button disabled={busy === 'indexing'} onclick={runIndexing}>
       {busy === 'indexing' ? t('Loading...') : t('Index attachments')}
+    </Button>
+  </Panel>
+
+  <Panel title={t('Images')}>
+    <p class="mb-3 text-sm text-text-muted">
+      {t(
+        'Download images that pages link to from other servers and keep them as attachments here. Pages written before this became automatic still point outside.'
+      )}
+    </p>
+    {#if rehosting}
+      <Notice
+        tone="info"
+        message={t('Started. The result will appear in the audit log when the pass is done.')}
+      />
+    {/if}
+    <Button disabled={busy === 'rehosting'} onclick={runRehosting}>
+      {busy === 'rehosting' ? t('Loading...') : t('Move external images to storage')}
     </Button>
   </Panel>
 

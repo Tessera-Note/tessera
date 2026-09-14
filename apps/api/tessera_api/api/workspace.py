@@ -15,6 +15,7 @@ from tessera_api.api.guards import PUBLIC, Principal
 from tessera_api.domain.errors import forbidden, not_found
 from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import AuthProvider, User, Workspace
+from tessera_api.infrastructure.queue import JobName, JobQueue
 from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.infrastructure.storage import Storage
 from tessera_api.services.ai_settings import feature_enabled
@@ -307,6 +308,36 @@ class WorkspaceController(Controller):
         if workspace is None:
             raise not_found("error.common.workspace_not_found")
         return _settings_view(workspace)
+
+    @post("/rehost-images")
+    async def rehost_images(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        queue: NamedDependency[JobQueue],
+    ) -> dict:
+        """Перенести внешние картинки уже написанных страниц в своё хранилище.
+
+        Ставится заданием, а не выполняется здесь: проход обходит страницы
+        пространства и скачивает каждую найденную картинку, то есть длится
+        минутами.
+
+        Права распорядителя: проход переписывает тела чужих страниц и делает
+        запросы наружу от имени сервера.
+
+        Второй запуск при уже идущем проходе безвреден — перенесённая картинка
+        уже своя и второй раз не скачивается, — поэтому и не запрещается:
+        признака «идёт» у очереди нет, а заводить его ради этого незачем.
+        """
+        actor, principal = await self._actor(request, db_session)
+        if not is_workspace_admin(actor.role):
+            raise forbidden("error.common.admin_required")
+        await queue.enqueue(
+            JobName.REHOST_IMAGES,
+            workspace_id=str(principal.workspace_id),
+            user_id=str(principal.user_id),
+        )
+        return {"scheduled": True}
 
     @post("/members/change-role")
     async def change_role(

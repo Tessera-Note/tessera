@@ -66,6 +66,9 @@ class JobName:
     IMPORT_ARCHIVE = "import-task"
     #: Отложенная сводка правок. Имя из v1.
     PAGE_UPDATE_DIGEST = "page-update-digest"
+    #: Проход по внешним картинкам уже написанных страниц. Своё имя, в v1
+    #: такого прохода нет вовсе.
+    REHOST_IMAGES = "workspace-rehost-images"
 
 
 def retrying(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
