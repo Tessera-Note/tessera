@@ -183,12 +183,19 @@ class PdfExportService:
         pages = PageService(self._session)
         ids = [page.id, *await pages._descendants(page.id)]  # noqa: SLF001 — свой пакет
 
+        rows = {
+            one.id: one
+            for one in (
+                await self._session.execute(select(Page).where(Page.id.in_(ids)))
+            )
+            .scalars()
+            .all()
+            if one.deleted_at is None
+        }
+
         allowed: list[uuid.UUID] = []
         total = 0
-        for one in ids:
-            found = await self._session.get(Page, one)
-            if found is None or found.deleted_at is not None:
-                continue
+        for found in _tree_order(page.id, rows):
             if (await self._access.rights(found, user_id)).can_view:
                 total += 1
                 if len(allowed) < MAX_PAGES:
@@ -358,6 +365,40 @@ class PdfExportService:
 
         body = await self._storage.get(task.file_path)
         return task.file_name, body
+
+
+def _tree_order(root_id: uuid.UUID, rows: dict[uuid.UUID, Page]) -> list[Page]:
+    """Страницы ветви в порядке дерева: обход в глубину, соседи по позиции.
+
+    Порядок тот же, что у дерева на экране (`PageService.children`): позиция,
+    пустая в конце, затем время заведения. Ветвь приходит из рекурсивного
+    запроса без сортировки, и в его порядке подстраницы стояли в PDF
+    вразнобой, а при обрезке ветви больше предела в документ входили не первые
+    страницы по дереву, а произвольные. Сортируется здесь, а не в общем
+    запросе: остальным его пользователям — восстановлению, переносу,
+    удалению — порядок не важен.
+
+    Позиции сравниваются как строки, по кодам знаков: в базе у колонки
+    сортировка `C`, и это тот же порядок.
+    """
+    earliest = datetime.min.replace(tzinfo=UTC)
+    children: dict[uuid.UUID, list[Page]] = {}
+    for one in rows.values():
+        if one.id != root_id and one.parent_page_id is not None:
+            children.setdefault(one.parent_page_id, []).append(one)
+    for group in children.values():
+        group.sort(
+            key=lambda one: (one.position is None, one.position or "", one.created_at or earliest)
+        )
+
+    ordered: list[Page] = []
+    stack = [rows[root_id]] if root_id in rows else []
+    while stack:
+        current = stack.pop()
+        ordered.append(current)
+        # В стопку в обратном порядке: первым снимается первый по дереву.
+        stack.extend(reversed(children.get(current.id, [])))
+    return ordered
 
 
 def _safe(name: str) -> str:

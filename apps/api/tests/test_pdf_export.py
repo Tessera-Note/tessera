@@ -187,6 +187,69 @@ class TestTask:
         assert len((task.task_metadata or {})["pageIds"]) == 2
         assert (task.task_metadata or {})["totalPages"] == 3
 
+    async def test_a_cut_branch_takes_the_first_pages_of_the_tree(
+        self, session: AsyncSession, workspace, owner, space, monkeypatch
+    ) -> None:
+        """В обрезанную выгрузку входят первые страницы по дереву, а не произвольные.
+
+        Ветвь собирается рекурсивным запросом без сортировки, и прежде PDF шёл в
+        его порядке: подстраницы стояли вразнобой, а при обрезке входили
+        случайные. Страницы заведены в одном порядке, а в дереве стоят в другом
+        — решает позиция, как на экране.
+        """
+        monkeypatch.setattr("tessera_api.services.pdf_export.MAX_PAGES", 4)
+        parent = await _page(session, workspace, owner, space, "Родитель")
+        late = await _page(session, workspace, owner, space, "Вторая по дереву", parent.id)
+        early = await _page(session, workspace, owner, space, "Первая по дереву", parent.id)
+        last = await _page(session, workspace, owner, space, "Третья по дереву", parent.id)
+        nested = await _page(session, workspace, owner, space, "Внутри первой", early.id)
+        early.position, late.position, last.position, nested.position = "a0", "a1", "a2", "a0"
+        await session.flush()
+
+        made = await _service(session).create_task(
+            page_id=str(parent.id),
+            include_children=True,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+
+        task = await session.get(FileTask, uuid.UUID(made["fileTaskId"]))
+        # Обход в глубину: вложенная идёт сразу за своей, а не после соседей.
+        assert (task.task_metadata or {})["pageIds"] == [
+            str(parent.id),
+            str(early.id),
+            str(nested.id),
+            str(late.id),
+        ]
+        assert made["totalPages"] == 5
+
+    async def test_a_whole_branch_follows_the_tree(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Необрезанная ветвь идёт тем же порядком, что дерево на экране."""
+        parent = await _page(session, workspace, owner, space, "Родитель")
+        second = await _page(session, workspace, owner, space, "Вторая", parent.id)
+        first = await _page(session, workspace, owner, space, "Первая", parent.id)
+        unplaced = await _page(session, workspace, owner, space, "Без позиции", parent.id)
+        first.position, second.position, unplaced.position = "a0", "a1", None
+        await session.flush()
+
+        made = await _service(session).create_task(
+            page_id=str(parent.id),
+            include_children=True,
+            user_id=owner.id,
+            workspace_id=workspace.id,
+        )
+
+        task = await session.get(FileTask, uuid.UUID(made["fileTaskId"]))
+        # Страница без позиции — в конце, как в дереве.
+        assert (task.task_metadata or {})["pageIds"] == [
+            str(parent.id),
+            str(first.id),
+            str(second.id),
+            str(unplaced.id),
+        ]
+
     async def test_a_whole_branch_is_not_called_cut(
         self, session: AsyncSession, workspace, owner, space
     ) -> None:
