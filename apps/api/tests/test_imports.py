@@ -989,6 +989,10 @@ class TestArchiveTask:
         assert node["attrs"]["entityType"] == "page"
         assert node["attrs"]["entityId"] == str(pages["Соседняя"].id)
         assert node["attrs"]["slugId"] == pages["Соседняя"].slug_id
+        # Подпись узла упоминания лежит в свойствах, а не текстом: без
+        # пересчёта плоского текста слово, бывшее ссылкой, пропало бы из
+        # поиска по странице.
+        assert "Соседняя" in (pages["Ссылающаяся"].text_content or "")
 
     async def test_an_ordinary_link_stays_a_link(
         self, session: AsyncSession, workspace, owner, space

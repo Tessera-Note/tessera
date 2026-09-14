@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from typing import Any
 from urllib.parse import urlparse
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import Text, cast, delete, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.infrastructure.models import Backlink, Page
@@ -146,6 +146,91 @@ def extract_internal_link_slugs(content: Any) -> list[str]:
     return found
 
 
+def _mention_target(node: dict) -> uuid.UUID | None:
+    """Какую страницу упоминает узел. Пусто, если это не упоминание страницы."""
+    if node.get("type") != "mention":
+        return None
+    attrs = node.get("attrs") or {}
+    if attrs.get("entityType") != "page":
+        return None
+    raw = attrs.get("entityId")
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except ValueError:
+        return None
+
+
+def _merge_text(nodes: list[Any]) -> list[Any]:
+    """Склеить соседние текстовые узлы с одинаковым оформлением.
+
+    Развёрнутое упоминание встаёт вплотную к соседнему тексту. Два текстовых
+    узла подряд с одинаковыми пометками схема редактора считает одним, и
+    оставлять их врозь значит полагаться на то, что каждый разборщик склеит их
+    сам.
+    """
+    made: list[Any] = []
+    for node in nodes:
+        last = made[-1] if made else None
+        if (
+            isinstance(node, dict)
+            and isinstance(last, dict)
+            and node.get("type") == "text"
+            and last.get("type") == "text"
+            and (last.get("marks") or []) == (node.get("marks") or [])
+        ):
+            made[-1] = {**last, "text": f"{last.get('text') or ''}{node.get('text') or ''}"}
+            continue
+        made.append(node)
+    return made
+
+
+def unfold_mentions(content: Any, targets: set[uuid.UUID]) -> Any | None:
+    """Развернуть упоминания заданных страниц обратно в текст.
+
+    Нужно при удалении страницы насовсем. Узел упоминания несёт идентификатор
+    цели, и сам по себе он переживает её удаление: связь в таблице обратных
+    ссылок уходит вместе со строкой страницы, а узел остаётся в теле каждой
+    страницы, где его поставили. Показ помечает его как недоступный, но
+    ссылка на несуществующее живёт в содержимом дальше и уходит в выгрузку,
+    в историю и в следующий ввоз.
+
+    Подпись берётся из самого узла: она заморожена при вставке и цели, которой
+    уже нет, не требует. Узел без подписи убирается целиком — пустой текстовый
+    узел схема редактора не допускает.
+
+    Возвращает новое содержимое или пусто, если разворачивать было нечего:
+    вызывающему это служит признаком того, что страницу можно не переписывать.
+    """
+    if not content or not targets:
+        return None
+
+    changed = False
+
+    def rebuild(node: Any) -> Any:
+        nonlocal changed
+        if isinstance(node, list):
+            made: list[Any] = []
+            for item in node:
+                one = rebuild(item)
+                if one is not None:
+                    made.append(one)
+            return _merge_text(made)
+        if not isinstance(node, dict):
+            return node
+        if _mention_target(node) in targets:
+            changed = True
+            label = str((node.get("attrs") or {}).get("label") or "").strip()
+            return {"type": "text", "text": label} if label else None
+        children = node.get("content")
+        if children is None:
+            return node
+        return {**node, "content": rebuild(children)}
+
+    made = rebuild(content)
+    return made if changed else None
+
 class BacklinkService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -224,6 +309,69 @@ class BacklinkService:
             )
 
         return len(targets)
+
+    async def unfold(self, *, workspace_id: uuid.UUID, targets: list[uuid.UUID]) -> int:
+        """Развернуть в текст упоминания страниц, удаляемых насовсем.
+
+        Источники ищутся по содержимому, а не по таблице обратных ссылок.
+        Таблица пересчитывается при сохранении источника и держит только связи
+        между живыми страницами: источник, сохранённый после того, как цель
+        ушла в корзину, связь потерял, а узел в его теле остался. Поиск по
+        содержимому таких не пропускает. Страницы в корзине тоже переписываются:
+        их ещё вернут, и вернуть их полагается без мёртвых ссылок.
+
+        Двоичное состояние снимается вместе с содержимым: сосед предпочитает
+        его JSON, и оставленное вернуло бы упоминание назад при следующем
+        открытии страницы. Документ соберётся из JSON.
+
+        Версия в историю не пишется и отметка правки не двигается: страницу
+        никто не правил, а удаление одной страницы, поднявшее «изменено» у
+        десятка чужих, читается как чужая работа.
+
+        Открытая в этот момент вкладка правку не увидит: её документ живёт в
+        памяти соседа, и сохранение из неё вернёт узел. Показ к этому готов —
+        упоминание без цели видно перечёркнутым.
+
+        Возвращает число переписанных страниц.
+        """
+        from tessera_api.services.pages import extract_text
+
+        if not targets:
+            return 0
+
+        wanted = set(targets)
+        # Отбор по тексту содержимого: идентификатор цели лежит в свойствах
+        # узла, а не отдельным столбцом, и обойти все страницы пространства
+        # ради разбора каждой дороже, чем отсеять их запросом. Без учёта
+        # регистра: идентификатор приходит из содержимого, то есть от
+        # редактора, и его написание ничем здесь не закреплено.
+        matches = or_(*[cast(Page.content, Text).ilike(f"%{one}%") for one in wanted])
+        candidates = (
+            (
+                await self._session.execute(
+                    select(Page)
+                    .where(Page.workspace_id == workspace_id)
+                    .where(Page.id.notin_(wanted))
+                    .where(Page.content.isnot(None))
+                    .where(matches)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        touched = 0
+        for page in candidates:
+            made = unfold_mentions(page.content, wanted)
+            if made is None:
+                continue
+            await self._session.execute(
+                update(Page)
+                .where(Page.id == page.id)
+                .values(content=made, text_content=extract_text(made), ydoc=None)
+            )
+            touched += 1
+        return touched
 
     async def count(self, page: Page, user_id: uuid.UUID) -> int:
         """Сколько страниц ссылается сюда.

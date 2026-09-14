@@ -45,6 +45,11 @@ def extract_text(content: dict | None) -> str:
     Обход всех узлов, а не только верхних: текст внутри таблицы, выноски или
     списка тоже ищется. Пропуск вложенных узлов означал бы, что часть страницы
     молча не находится.
+
+    Подпись упоминания берётся из свойств узла: текстом она не лежит нигде, а
+    на странице видна обычным словом. Без неё имя человека и название
+    страницы, поставленные упоминанием, не находились бы поиском — и то же
+    слово, набранное вручную, находилось бы.
     """
     if not content:
         return ""
@@ -56,6 +61,10 @@ def extract_text(content: dict | None) -> str:
             text = node.get("text")
             if isinstance(text, str):
                 parts.append(text)
+            if node.get("type") == "mention":
+                label = (node.get("attrs") or {}).get("label")
+                if isinstance(label, str) and label:
+                    parts.append(label)
             for child in node.get("content") or []:
                 walk(child)
         elif isinstance(node, list):
@@ -252,6 +261,12 @@ class PageService:
             # дают страницу, которая не находится поиском по собственному
             # тексту, и заметить это нечем.
             values["text_content"] = extract_text(content)
+            # Двоичное состояние снимается. Сосед по совместному
+            # редактированию предпочитает его JSON, и правка мимо
+            # совместного документа — через MCP, внешним обращением, уборкой
+            # — вернулась бы назад при следующем открытии страницы, ничем не
+            # отметившись. Без него документ соберётся из JSON.
+            values["ydoc"] = None
 
         await self._session.execute(update(Page).where(Page.id == page.id).values(**values))
 
@@ -541,6 +556,10 @@ class PageService:
             await AttachmentService(self._session, storage, self._queue).delete_page_attachments(
                 ids
             )
+        # Упоминания разворачиваются до удаления строк: узел упоминания хранит
+        # идентификатор цели и переживает её удаление, а таблица обратных
+        # ссылок уходит вместе со строкой.
+        await BacklinkService(self._session).unfold(workspace_id=page.workspace_id, targets=ids)
         await self._session.execute(delete(Page).where(Page.id.in_(ids)))
         await self._session.commit()
         await self._refresh_tree(page)

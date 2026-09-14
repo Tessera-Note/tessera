@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, insert, select
@@ -21,16 +22,22 @@ from tessera_api.services.backlinks import (
     extract_user_mentions,
     internal_page_segment,
     page_slug_id,
+    unfold_mentions,
 )
 from tessera_api.services.page_access import ACCESS_RESTRICTED
 from tests.conftest import needs_database
 from tests.test_page_access import _world
 
 
-def _mention(entity_id: str, entity_type: str = "page") -> dict:
+def _mention(entity_id: str, entity_type: str = "page", label: str = "Цель") -> dict:
     return {
         "type": "mention",
-        "attrs": {"id": entity_id, "entityType": entity_type, "entityId": entity_id},
+        "attrs": {
+            "id": entity_id,
+            "entityType": entity_type,
+            "entityId": entity_id,
+            "label": label,
+        },
     }
 
 
@@ -403,3 +410,184 @@ class TestIncoming:
     ) -> None:
         world = await _world(session, workspace, owner, space)
         assert await BacklinkService(session).incoming(world["child"], owner.id) == []
+
+
+class TestUnfold:
+    """Разворот упоминания в текст.
+
+    Проверяется то, ради чего разворот заведён: узел упоминания несёт
+    идентификатор цели и переживает её удаление насовсем. Связь в таблице
+    уходит вместе со строкой страницы, а узел остаётся в теле каждого
+    источника и виден там перечёркнутой ссылкой в никуда.
+    """
+
+    def test_mention_of_the_target_becomes_its_label(self) -> None:
+        target = uuid.uuid4()
+        made = unfold_mentions(_doc(_mention(str(target), label="Регламент")), {target})
+        assert made == _doc({"type": "text", "text": "Регламент"})
+
+    def test_a_mention_of_another_page_is_left_alone(self) -> None:
+        other = uuid.uuid4()
+        assert unfold_mentions(_doc(_mention(str(other))), {uuid.uuid4()}) is None
+
+    def test_a_person_is_left_alone(self) -> None:
+        """Вид сущности различается: удаление страницы имени не касается."""
+        same = uuid.uuid4()
+        content = _doc(_mention(str(same), entity_type="user"))
+        assert unfold_mentions(content, {same}) is None
+
+    def test_a_mention_without_a_label_goes_away(self) -> None:
+        """Пустой текстовый узел схема редактора не допускает."""
+        target = uuid.uuid4()
+        made = unfold_mentions(_doc(_mention(str(target), label="")), {target})
+        assert made == {"type": "doc", "content": [{"type": "paragraph", "content": []}]}
+
+    def test_a_broken_identifier_is_left_alone(self) -> None:
+        content = _doc(
+            {"type": "mention", "attrs": {"entityType": "page", "entityId": "не идентификатор"}}
+        )
+        assert unfold_mentions(content, {uuid.uuid4()}) is None
+
+    def test_nothing_to_unfold_gives_nothing(self) -> None:
+        """Пусто значит «переписывать страницу не надо»."""
+        plain = _doc({"type": "text", "text": "Просто текст"})
+        assert unfold_mentions(plain, {uuid.uuid4()}) is None
+        assert unfold_mentions(None, {uuid.uuid4()}) is None
+        assert unfold_mentions(_doc(_mention(str(uuid.uuid4()))), set()) is None
+
+    def test_the_unfolded_text_joins_its_neighbours(self) -> None:
+        """Два текстовых узла подряд с одинаковыми пометками — один узел."""
+        target = uuid.uuid4()
+        content = _doc(
+            {"type": "text", "text": "см. "},
+            _mention(str(target), label="Регламент"),
+            {"type": "text", "text": " и далее"},
+        )
+        made = unfold_mentions(content, {target})
+        assert made == _doc({"type": "text", "text": "см. Регламент и далее"})
+
+    def test_text_with_other_marks_is_not_joined(self) -> None:
+        target = uuid.uuid4()
+        bold = {"type": "text", "text": "жирно", "marks": [{"type": "bold"}]}
+        made = unfold_mentions(_doc(bold, _mention(str(target), label="Цель")), {target})
+        assert made == _doc(bold, {"type": "text", "text": "Цель"})
+
+    def test_a_mention_deep_inside_is_reached(self) -> None:
+        """Упоминание бывает в ячейке таблицы, а не только в абзаце."""
+        target = uuid.uuid4()
+        content = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "table",
+                    "content": [
+                        {
+                            "type": "tableRow",
+                            "content": [
+                                {
+                                    "type": "tableCell",
+                                    "content": [
+                                        {
+                                            "type": "paragraph",
+                                            "content": [_mention(str(target), label="Цель")],
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        made = unfold_mentions(content, {target})
+        assert made is not None
+        assert extract_page_mentions(made) == []
+        assert "Цель" in str(made)
+
+    def test_the_original_is_not_changed(self) -> None:
+        """Вызывающий сравнивает прежнее с новым, и правка на месте это ломает."""
+        target = uuid.uuid4()
+        content = _doc(_mention(str(target), label="Цель"))
+        before = str(content)
+        unfold_mentions(content, {target})
+        assert str(content) == before
+
+    def test_several_targets_at_once(self) -> None:
+        first, second = uuid.uuid4(), uuid.uuid4()
+        content = _doc(
+            _mention(str(first), label="Первая"),
+            _mention(str(second), label="Вторая"),
+        )
+        made = unfold_mentions(content, {first, second})
+        assert made == _doc({"type": "text", "text": "ПерваяВторая"})
+
+
+@needs_database
+class TestUnfoldOnDelete:
+    """Разворот упоминаний в базе, по всем источникам пространства."""
+
+    async def test_the_source_page_is_rewritten(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        world = await _world(session, workspace, owner, space)
+        source, target = world["root"], world["child"]
+        source.content = _doc(_mention(str(target.id), label="Ребёнок"))
+        source.text_content = ""
+        # Двоичное состояние есть у всякой страницы, которую открывали в
+        # редакторе. Оставленное, оно вернуло бы упоминание назад.
+        source.ydoc = b"\x00\x01"
+        await session.flush()
+
+        assert await BacklinkService(session).unfold(
+            workspace_id=workspace.id, targets=[target.id]
+        ) == 1
+
+        await session.refresh(source)
+        assert extract_page_mentions(source.content) == []
+        assert "Ребёнок" in (source.text_content or "")
+        assert source.ydoc is None
+
+    async def test_the_deleted_page_itself_is_not_rewritten(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Строка цели всё равно уходит, и лишняя запись в неё ни к чему."""
+        world = await _world(session, workspace, owner, space)
+        target = world["child"]
+        target.content = _doc(_mention(str(target.id), label="Сама себя"))
+        await session.flush()
+
+        assert await BacklinkService(session).unfold(
+            workspace_id=workspace.id, targets=[target.id]
+        ) == 0
+
+    async def test_a_page_in_the_trash_is_rewritten_too(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Её ещё вернут, и вернуть её полагается без мёртвой ссылки."""
+        world = await _world(session, workspace, owner, space)
+        source, target = world["root"], world["child"]
+        source.content = _doc(_mention(str(target.id), label="Ребёнок"))
+        source.deleted_at = datetime.now(UTC)
+        await session.flush()
+
+        assert await BacklinkService(session).unfold(
+            workspace_id=workspace.id, targets=[target.id]
+        ) == 1
+
+    async def test_another_workspace_is_not_touched(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        """Отбор идёт по рабочему пространству, а не по одному идентификатору."""
+        world = await _world(session, workspace, owner, space)
+        source, target = world["root"], world["child"]
+        source.content = _doc(_mention(str(target.id), label="Ребёнок"))
+        await session.flush()
+
+        assert await BacklinkService(session).unfold(
+            workspace_id=uuid.uuid4(), targets=[target.id]
+        ) == 0
+
+    async def test_no_targets_is_no_work(
+        self, session: AsyncSession, workspace, owner, space
+    ) -> None:
+        assert await BacklinkService(session).unfold(workspace_id=workspace.id, targets=[]) == 0

@@ -68,7 +68,7 @@ from tessera_api.services.import_archives import (
     title_from_file_name,
 )
 from tessera_api.services.odt_import import odt_to_html
-from tessera_api.services.pages import PageService
+from tessera_api.services.pages import PageService, extract_text
 from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.shares import ShareService
 from tessera_api.services.spreadsheet import (
@@ -1336,6 +1336,11 @@ class ImportService:
             }
             if resolved:
                 page.content = _with_mentions(page.content, resolved, task.creator_id)
+                # Плоский текст пересчитывается: узел упоминания хранит подпись
+                # в свойствах, а не текстом, и слово, бывшее ссылкой, исчезло
+                # бы из поиска по странице. Подстановка адресов ниже текста не
+                # касается — она правит только свойства узлов.
+                page.text_content = extract_text(page.content)
                 changed = True
 
             if addresses:

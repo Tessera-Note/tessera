@@ -459,6 +459,59 @@ class TestTrashCleanup:
         assert not await self._alive_page(session, child)
 
     @needs_database
+    async def test_a_mention_of_an_expired_page_is_unfolded(
+        self, session, workspace, owner, space, tmp_path
+    ) -> None:
+        """Срок в корзине истёк — узел упоминания не остаётся в чужом теле.
+
+        Тот же разворот, что и при удалении насовсем руками: страница уходит,
+        а узел с её идентификатором пережил бы её и был бы виден в источнике
+        перечёркнутой ссылкой в никуда.
+        """
+        from tessera_api.infrastructure.models import Page
+        from tessera_api.services.backlinks import extract_page_mentions
+        from tessera_api.services.maintenance import (
+            DEFAULT_TRASH_RETENTION_DAYS,
+            cleanup_trash,
+        )
+
+        long_ago = datetime.now(UTC) - timedelta(days=DEFAULT_TRASH_RETENTION_DAYS + 1)
+        target = await self._page(session, workspace, owner, space, deleted_at=long_ago)
+        source = await self._page(session, workspace, owner, space)
+        await session.execute(
+            update(Page)
+            .where(Page.id == source)
+            .values(
+                content={
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "mention",
+                                    "attrs": {
+                                        "entityType": "page",
+                                        "entityId": str(target),
+                                        "label": "Цель",
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
+        await session.flush()
+
+        await cleanup_trash(session, TaskResources(storage=LocalStorage(str(tmp_path))))
+
+        rewritten = await session.get(Page, source)
+        await session.refresh(rewritten)
+        assert extract_page_mentions(rewritten.content) == []
+        assert "Цель" in (rewritten.text_content or "")
+
+    @needs_database
     async def test_recently_deleted_page_survives(
         self, session, workspace, owner, space, tmp_path
     ) -> None:

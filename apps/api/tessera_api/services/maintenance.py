@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.infrastructure.models import Page, UserSession, Workspace
 from tessera_api.infrastructure.scheduler import PeriodicTask, TaskResources
 from tessera_api.services.attachments import AttachmentService
+from tessera_api.services.backlinks import BacklinkService
 from tessera_api.services.telemetry import TELEMETRY_INTERVAL
 
 #: Ключи блокировок. Своя тысяча, не пересекающаяся с v1: там заняты
@@ -168,6 +169,10 @@ async def cleanup_trash(session: AsyncSession, resources: TaskResources) -> int:
         )
 
         await attachments.delete_page_attachments(list(family))
+        # То же, что при удалении насовсем руками: узел упоминания переживает
+        # свою цель, и развернуть его надо, пока идентификатор ещё о чём-то
+        # говорит.
+        await BacklinkService(session).unfold(workspace_id=workspace_id, targets=list(family))
         await session.execute(delete(Page).where(Page.id.in_(family)))
         removed += len(family)
 

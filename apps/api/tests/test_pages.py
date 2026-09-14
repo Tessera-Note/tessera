@@ -14,6 +14,7 @@ from tessera_api.api import pages as pages_api
 from tessera_api.domain.errors import AppError
 from tessera_api.domain.roles import SpaceRole
 from tessera_api.infrastructure.models import Page, Space, SpaceMember, User
+from tessera_api.services.backlinks import extract_page_mentions
 from tessera_api.services.pages import PageService, extract_text, generate_slug_id
 from tests.conftest import needs_database
 
@@ -45,6 +46,39 @@ class TestExtractText:
             ],
         }
         assert extract_text(document) == "снаружи внутри"
+
+    def test_a_mention_is_searchable_by_its_label(self) -> None:
+        """Подпись упоминания на странице видна обычным словом.
+
+        Текстом она не лежит нигде, только в свойствах узла: без неё имя
+        человека и название страницы, поставленные упоминанием, не находились
+        бы поиском — а то же слово, набранное вручную, находилось бы.
+        """
+        document = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "см."},
+                        {
+                            "type": "mention",
+                            "attrs": {"entityType": "page", "label": "Регламент"},
+                        },
+                    ],
+                }
+            ],
+        }
+        assert extract_text(document) == "см. Регламент"
+
+    def test_a_mention_without_a_label_adds_nothing(self) -> None:
+        document = {
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "mention", "attrs": {}}]}
+            ],
+        }
+        assert extract_text(document) == ""
 
     def test_empty_document(self) -> None:
         assert extract_text(None) == ""
@@ -202,6 +236,55 @@ class TestUpdate:
             content={"type": "doc", "content": [{"type": "text", "text": "новое"}]},
         )
         assert updated.text_content == "новое"
+
+    async def test_content_clears_the_collab_state(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Правка мимо совместного документа снимает двоичное состояние.
+
+        Сосед по совместному редактированию предпочитает двоичное состояние
+        JSON, и оставленное вернуло бы прежнее тело при следующем открытии
+        страницы — молча, без единого отказа. Так теряются правки через MCP,
+        внешним обращением и уборкой.
+        """
+        service = PageService(session)
+
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Заголовок",
+            content={"type": "doc", "content": [{"type": "text", "text": "старое"}]},
+        )
+        page.ydoc = b"\x00\x01"
+        await session.flush()
+
+        updated = await service.update(
+            page=page,
+            user_id=world["owner"].id,
+            content={"type": "doc", "content": [{"type": "text", "text": "новое"}]},
+        )
+        assert updated.ydoc is None
+
+    async def test_title_only_keeps_the_collab_state(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Тело не трогали — снимать нечего."""
+        service = PageService(session)
+
+        page = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Заголовок",
+        )
+        page.ydoc = b"\x00\x01"
+        await session.flush()
+
+        updated = await service.update(
+            page=page, user_id=world["owner"].id, title="Другой заголовок"
+        )
+        assert updated.ydoc == b"\x00\x01"
 
     async def test_title_only_keeps_text(self, session: AsyncSession, world) -> None:
         """Правка заголовка не стирает текст: содержимое не передавали."""
@@ -704,6 +787,60 @@ class TestForceDelete:
 
         assert await session.get(Page, root.id) is None
         assert await session.get(Page, child.id) is None
+
+    async def test_a_mention_of_it_is_unfolded_into_text(
+        self, session: AsyncSession, world
+    ) -> None:
+        """Узел упоминания не переживает свою цель.
+
+        Связь в таблице обратных ссылок уходит вместе со строкой страницы, а
+        узел остаётся в теле источника и виден там перечёркнутой ссылкой в
+        никуда. Подпись при этом сохраняется: текст страницы писали не ради
+        ссылки, а ради предложения, в котором она стоит.
+        """
+        service = PageService(session)
+        target = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Цель",
+        )
+        source = await service.create(
+            user_id=world["owner"].id,
+            workspace_id=world["workspace"].id,
+            space_id=world["space"].id,
+            title="Источник",
+            content={
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {"type": "text", "text": "см. "},
+                            {
+                                "type": "mention",
+                                "attrs": {
+                                    "entityType": "page",
+                                    "entityId": str(target.id),
+                                    "label": "Цель",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            },
+        )
+
+        source_id = source.id
+        await service.move_to_trash(target, world["owner"].id)
+        await service.force_delete(target.id, world["owner"].id)
+
+        # Запись шла запросом, минуя загруженный объект: без сброса читалось бы
+        # его прежнее состояние из карты сессии.
+        session.expire(source)
+        rewritten = await session.get(Page, source_id)
+        assert extract_page_mentions(rewritten.content) == []
+        assert "Цель" in (rewritten.text_content or "")
 
     async def test_a_live_page_is_not_removed_this_way(self, session: AsyncSession, world) -> None:
         """Живая страница сперва уходит в корзину, откуда её ещё можно вернуть."""
