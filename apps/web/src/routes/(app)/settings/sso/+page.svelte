@@ -76,6 +76,7 @@
     allowSignup: boolean;
     groupSync: boolean;
     groupClaimName: string;
+    matchClaimName: string;
     oidcIssuer: string;
     oidcClientId: string;
     oidcClientSecret: string;
@@ -97,6 +98,7 @@
     allowSignup: false,
     groupSync: false,
     groupClaimName: '',
+    matchClaimName: '',
     oidcIssuer: '',
     oidcClientId: '',
     oidcClientSecret: '',
@@ -144,6 +146,7 @@
           allowSignup: provider.allowSignup,
           groupSync: provider.groupSync,
           groupClaimName: provider.groupClaimName ?? '',
+          matchClaimName: provider.matchClaimName ?? '',
           oidcIssuer: provider.oidcIssuer ?? '',
           oidcClientId: provider.oidcClientId ?? '',
           samlUrl: provider.samlUrl ?? '',
@@ -327,6 +330,19 @@
             <TextInput bind:value={form.groupClaimName} placeholder="groups" />
           </Field>
         {/if}
+        <!--
+          Неизменный ключ человека у провайдера. Нужен на случай, когда у
+          провайдера сменились и идентификатор, и почта разом: без ключа
+          следующий вход завёл бы вторую запись того же человека.
+        -->
+        <Field
+          label={t('Stable claim for matching')}
+          hint={t(
+            'A claim the provider never changes for a person and that people cannot edit themselves, for example employeeNumber. If both the identifier and the email change at the provider, sign-in still finds the right member by it. Empty means matching by identifier and email only.'
+          )}
+        >
+          <TextInput bind:value={form.matchClaimName} placeholder="employeeNumber" />
+        </Field>
 
         <div class="flex gap-2">
           <Button type="submit" disabled={busy === 'save'}>

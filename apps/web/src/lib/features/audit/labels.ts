@@ -25,6 +25,9 @@ export const AUDIT_EVENT_LABELS: Record<string, string> = {
   'user.deactivated': 'Deactivated user',
   'user.activated': 'Activated user',
   'user.sso_unlinked': 'Removed sign-in provider link',
+  'user.sso_possible_duplicate': 'Flagged possible duplicate member',
+  'user.sso_relinked': 'Changed sign-in provider identifier',
+  'user.sso_merged': 'Merged duplicate member',
 
   'mfa.enabled': 'Enabled MFA',
   'mfa.disabled': 'Disabled MFA',

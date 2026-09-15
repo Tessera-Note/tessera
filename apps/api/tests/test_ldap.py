@@ -22,6 +22,7 @@ from tessera_api.services.ldap import (
     attribute_map,
     check_transport,
     group_names,
+    match_value_of,
     requested_attributes,
     stable_id,
     value_of,
@@ -47,6 +48,7 @@ def _provider(**overrides) -> AuthProvider:  # noqa: ANN003
     provider.ldap_user_attributes = overrides.get("ldap_user_attributes")
     provider.ldap_tls_enabled = overrides.get("ldap_tls_enabled", False)
     provider.ldap_tls_ca_cert = None
+    provider.match_claim_name = overrides.get("match_claim_name")
     return provider
 
 
@@ -177,6 +179,14 @@ class TestRequestedAttributes:
         wanted = requested_attributes(_provider())
         for one in (*ID_ATTRIBUTES, *DEFAULT_ATTRIBUTE_MAP.values()):
             assert one in wanted
+
+    def test_the_match_claim_is_requested(self) -> None:
+        """Каталог отдаёт только запрошенное: без этого ключ был бы всегда пуст,
+        и настройка сохранялась бы и молча не работала."""
+        assert "employeeNumber" in requested_attributes(
+            _provider(match_claim_name="employeeNumber")
+        )
+        assert "employeeNumber" not in requested_attributes(_provider())
 
     def test_no_duplicates(self) -> None:
         provider = _provider(ldap_user_attributes={"email": "mail", "name": "mail"})
@@ -347,3 +357,25 @@ class TestLogin:
         profile = await service.login(_provider(group_sync=True), "человек", "пароль")
 
         assert profile.groups == ["CN=Отдел,OU=x", "CN=Второй,OU=y"]
+
+
+class TestMatchValue:
+    """Значение неизменного ключа из записи каталога."""
+
+    def test_text_is_taken(self) -> None:
+        provider = _provider(match_claim_name="employeeNumber")
+        assert match_value_of({"employeeNumber": [" 1042 "]}, provider) == "1042"
+
+    def test_bytes_become_hex(self) -> None:
+        """Ключом могут назначить и `objectGUID`: байты в текстовую колонку не кладутся."""
+        provider = _provider(match_claim_name="objectGUID")
+        assert match_value_of({"objectGUID": [b"\x01\xab"]}, provider) == "01ab"
+
+    def test_nothing_without_a_configured_claim(self) -> None:
+        assert match_value_of({"employeeNumber": ["1042"]}, _provider()) is None
+
+    def test_a_missing_or_empty_attribute_is_no_key(self) -> None:
+        provider = _provider(match_claim_name="employeeNumber")
+        assert match_value_of({}, provider) is None
+        assert match_value_of({"employeeNumber": ["  "]}, provider) is None
+        assert match_value_of({"employeeNumber": [b""]}, provider) is None

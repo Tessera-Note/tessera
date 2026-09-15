@@ -293,3 +293,32 @@ WHERE gone.deleted_at IS NOT NULL
         AND lower(alive.slug) = lower(gone.slug)
   );
 ```
+
+### 3. Ключ сопоставления при входе через провайдера
+
+**Когда: до подъёма образа.** Запросы второй версии к провайдерам входа и их
+связям читают эти колонки; без них вход через провайдера и настройки единого
+входа отвечают пятисотыми (`UndefinedColumn`).
+
+Колонки допускают `NULL` и умолчания не имеют: первая версия их не читает и не
+пишет, её вставки оставляют их пустыми. Добавление такой колонки меняет только
+каталог, таблица не переписывается. Повтор ничего не меняет.
+
+```sql
+ALTER TABLE auth_providers ADD COLUMN IF NOT EXISTS match_claim_name character varying NULL;
+ALTER TABLE auth_accounts ADD COLUMN IF NOT EXISTS match_claim_value character varying NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_auth_accounts_provider_match_claim
+    ON auth_accounts (auth_provider_id, match_claim_value);
+```
+
+Проверка после — индекс действителен:
+
+```sql
+SELECT c.relname, i.indisvalid
+FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+WHERE c.relname = 'idx_auth_accounts_provider_match_claim';
+```
+
+`f` — удалить его (`DROP INDEX CONCURRENTLY idx_auth_accounts_provider_match_claim`)
+и выполнить последнюю команду заново: недействительный индекс `IF NOT EXISTS`
+не перестраивает, а пропускает.

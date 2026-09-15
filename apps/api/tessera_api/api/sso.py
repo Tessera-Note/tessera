@@ -49,6 +49,7 @@ from tessera_api.infrastructure.throttle import (
 from tessera_api.services.auth import AuthService
 from tessera_api.services.ldap import LdapService
 from tessera_api.services.oidc import FLOW_COOKIE, FLOW_TTL, FlowCodec, OidcService
+from tessera_api.services.realtime import RealtimeService
 from tessera_api.services.saml import SamlService
 from tessera_api.services.sso import SsoIdentityService
 from tessera_api.services.sso_providers import SsoProviderService
@@ -171,6 +172,7 @@ async def _issue_session(
     email: str,
     name: str | None,
     groups: list[str] | None,
+    match_value: str | None = None,
 ) -> str:
     """Общий конец всех трёх протоколов.
 
@@ -189,6 +191,7 @@ async def _issue_session(
         name=name,
         workspace_id=workspace.id,
         group_names=groups,
+        match_value=match_value,
     )
     return await AuthService(
         session, UserRepo(session), WorkspaceRepo(session), tokens
@@ -297,6 +300,7 @@ class SsoController(Controller):
                 code=request.query_params.get("code", ""),
                 state=request.query_params.get("state", ""),
                 group_claim=provider.group_claim_name,
+                match_claim=provider.match_claim_name,
             )
             token = await _issue_session(
                 db_session,
@@ -308,6 +312,7 @@ class SsoController(Controller):
                 email=profile.email,
                 name=profile.name,
                 groups=profile.groups,
+                match_value=profile.match_value,
             )
         except Exception as error:  # noqa: BLE001 — любой отказ это отказ входа
             response = _failed(settings.app_url, "OIDC", error)
@@ -419,6 +424,7 @@ class SsoController(Controller):
                 email=profile.email,
                 name=profile.name,
                 groups=profile.groups,
+                match_value=profile.match_value,
             )
         except Exception as error:  # noqa: BLE001 — любой отказ это отказ входа
             response = _failed(settings.app_url, "Google", error)
@@ -487,6 +493,7 @@ class SsoController(Controller):
                 saml_response=str(data.get("SAMLResponse") or ""),
                 relay_state=data.get("RelayState"),
                 group_claim=provider.group_claim_name,
+                match_claim=provider.match_claim_name,
             )
             token = await _issue_session(
                 db_session,
@@ -498,6 +505,7 @@ class SsoController(Controller):
                 email=profile.email,
                 name=profile.name,
                 groups=profile.groups,
+                match_value=profile.match_value,
             )
         except Exception as error:  # noqa: BLE001 — любой отказ это отказ входа
             return _failed(settings.app_url, "SAML", error)
@@ -559,6 +567,7 @@ class SsoController(Controller):
             email=profile.email,
             name=profile.name,
             groups=profile.groups,
+            match_value=profile.match_value,
         )
 
         response = Response({"success": True})
@@ -582,6 +591,13 @@ class UnlinkRequest(msgspec.Struct):
     userId: uuid.UUID  # noqa: N815 — имя поля из v1
 
 
+class MergeRequest(msgspec.Struct):
+    """«Это тот же человек»: запись-дубль и прежняя запись того же человека."""
+
+    userId: uuid.UUID  # noqa: N815 — запись-дубль, как у снятия связи
+    targetUserId: uuid.UUID  # noqa: N815 — прежняя запись, к которой переходят связи
+
+
 class CreateProviderRequest(msgspec.Struct):
     """Поля провайдера. Имена из v1: их шлёт уже написанный экран настроек."""
 
@@ -591,6 +607,8 @@ class CreateProviderRequest(msgspec.Struct):
     allowSignup: bool | None = None  # noqa: N815 — имя поля из v1
     groupSync: bool | None = None  # noqa: N815 — имя поля из v1
     groupClaimName: str | None = None  # noqa: N815 — имя поля из v1
+    #: Какое утверждение провайдера считать неизменным ключом человека.
+    matchClaimName: str | None = None  # noqa: N815 — имя в духе соседних
     oidcIssuer: str | None = None  # noqa: N815 — имя поля из v1
     oidcClientId: str | None = None  # noqa: N815 — имя поля из v1
     oidcClientSecret: str | None = None  # noqa: N815 — имя поля из v1
@@ -624,6 +642,8 @@ class UpdateProviderRequest(msgspec.Struct):
     allowSignup: bool | None = None  # noqa: N815 — имя поля из v1
     groupSync: bool | None = None  # noqa: N815 — имя поля из v1
     groupClaimName: str | None = None  # noqa: N815 — имя поля из v1
+    #: Какое утверждение провайдера считать неизменным ключом человека.
+    matchClaimName: str | None = None  # noqa: N815 — имя в духе соседних
     oidcIssuer: str | None = None  # noqa: N815 — имя поля из v1
     oidcClientId: str | None = None  # noqa: N815 — имя поля из v1
     oidcClientSecret: str | None = None  # noqa: N815 — имя поля из v1
@@ -646,6 +666,7 @@ _FIELDS = {
     "allowSignup": "allow_signup",
     "groupSync": "group_sync",
     "groupClaimName": "group_claim_name",
+    "matchClaimName": "match_claim_name",
     "oidcIssuer": "oidc_issuer",
     "oidcClientId": "oidc_client_id",
     "oidcClientSecret": "oidc_client_secret",
@@ -803,4 +824,25 @@ class SsoProviderController(Controller):
             actor,
             workspace,
             ip=client_ip(request, settings.trust_proxy_hops),
+        )
+
+    @post("/merge")
+    async def merge(
+        self,
+        data: MergeRequest,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[Settings],
+        realtime: NamedDependency[RealtimeService],
+    ) -> dict:
+        """«Это тот же человек»: связи дубля переходят к прежней записи."""
+        actor, workspace = await _actor(db_session, request.scope["principal"])
+        service = await self._service(db_session, settings)
+        return await service.merge_duplicate(
+            data.userId,
+            data.targetUserId,
+            actor,
+            workspace,
+            ip=client_ip(request, settings.trust_proxy_hops),
+            realtime=realtime,
         )

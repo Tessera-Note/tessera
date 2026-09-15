@@ -90,6 +90,8 @@ class SamlProfile:
     email: str
     name: str | None
     groups: list[str] | None
+    # Значение неизменного ключа человека, если сопоставление по нему настроено.
+    match_value: str | None = None
 
 
 def entity_id(app_url: str, provider_id: uuid.UUID) -> str:
@@ -250,6 +252,7 @@ class SamlService:
         saml_response: str,
         relay_state: str | None,
         group_claim: str | None = None,
+        match_claim: str | None = None,
     ) -> tuple[SamlProfile, RelayPayload]:
         """Разобрать ответ провайдера.
 
@@ -315,7 +318,7 @@ class SamlService:
             if one
         )
 
-        from tessera_api.services.sso import extract_group_names
+        from tessera_api.services.sso import extract_claim_value, extract_group_names
 
         return (
             SamlProfile(
@@ -323,6 +326,7 @@ class SamlService:
                 email=email.strip().lower(),
                 name=name or None,
                 groups=extract_group_names(attributes, group_claim),
+                match_value=extract_claim_value(attributes, match_claim),
             ),
             relay,
         )

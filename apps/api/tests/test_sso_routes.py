@@ -293,7 +293,11 @@ class TestOidcRoutes:
         class FakeOidc:
             def __init__(self, *, app_url: str) -> None: ...
 
-            async def complete(self, provider, flow, *, code, state, group_claim=None):  # noqa: ANN001, ANN202
+            async def complete(  # noqa: ANN202
+                self, provider, flow, *, code, state,  # noqa: ANN001
+                group_claim=None,  # noqa: ANN001
+                match_claim=None,  # noqa: ANN001
+            ):
                 return OidcProfile(subject="sub-1", email=email, name="Кто-то", groups=None)
 
         monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
@@ -317,6 +321,57 @@ class TestOidcRoutes:
         # не отзывает ничего.
         assert await session.get(UserSession, payload.session_id) is not None
 
+    async def test_the_stable_key_travels_from_the_provider_to_the_link(
+        self, session: AsyncSession, workspace, monkeypatch
+    ) -> None:
+        """Имя утверждения-ключа уходит в разбор ответа, значение — в связь.
+
+        Без этого провода настройка ключа у провайдера ничего бы не меняла:
+        сопоставление получало бы пустое значение и шло прежними поисками.
+        """
+        from sqlalchemy import select
+
+        from tessera_api.infrastructure.models import AuthAccount
+
+        provider = await _provider(
+            session, workspace, "oidc", oidc_client_id="c", match_claim_name="employeeNumber"
+        )
+        email = f"{uuid.uuid4().hex}@example.com"
+        seen: dict = {}
+
+        class FakeOidc:
+            def __init__(self, *, app_url: str) -> None: ...
+
+            async def complete(  # noqa: ANN202
+                self, provider, flow, *, code, state,  # noqa: ANN001
+                group_claim=None,  # noqa: ANN001
+                match_claim=None,  # noqa: ANN001
+            ):
+                seen["match_claim"] = match_claim
+                return OidcProfile(
+                    subject="sub-key", email=email, name=None, groups=None, match_value="ТН-7"
+                )
+
+        monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
+
+        flow = FlowState(provider.id, "st", "ver", "non", "uri", "/home")
+        async with _client(session, ThrottleDouble()) as client:
+            client.cookies.set(FLOW_COOKIE, FlowCodec(SECRET).sign(flow))
+            response = await client.get(
+                f"/api/sso/oidc/{provider.id}/callback", params={"code": "c", "state": "st"}
+            )
+
+        assert response.status_code == 302
+        assert seen["match_claim"] == "employeeNumber"
+        value = (
+            await session.execute(
+                select(AuthAccount.match_claim_value)
+                .where(AuthAccount.auth_provider_id == provider.id)
+                .where(AuthAccount.provider_user_id == "sub-key")
+            )
+        ).scalar_one()
+        assert value == "ТН-7"
+
     async def test_callback_forgets_the_flow_cookie(
         self, session: AsyncSession, workspace, monkeypatch
     ) -> None:
@@ -327,7 +382,11 @@ class TestOidcRoutes:
         class FakeOidc:
             def __init__(self, *, app_url: str) -> None: ...
 
-            async def complete(self, provider, flow, *, code, state, group_claim=None):  # noqa: ANN001, ANN202
+            async def complete(  # noqa: ANN202
+                self, provider, flow, *, code, state,  # noqa: ANN001
+                group_claim=None,  # noqa: ANN001
+                match_claim=None,  # noqa: ANN001
+            ):
                 return OidcProfile(subject="sub-2", email=email, name=None, groups=None)
 
         monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
@@ -379,7 +438,11 @@ class TestOidcRoutes:
         class FakeOidc:
             def __init__(self, *, app_url: str) -> None: ...
 
-            async def complete(self, provider, flow, *, code, state, group_claim=None):  # noqa: ANN001, ANN202
+            async def complete(  # noqa: ANN202
+                self, provider, flow, *, code, state,  # noqa: ANN001
+                group_claim=None,  # noqa: ANN001
+                match_claim=None,  # noqa: ANN001
+            ):
                 return OidcProfile(subject="sub-3", email=email, name=None, groups=None)
 
         monkeypatch.setattr("tessera_api.api.sso.OidcService", FakeOidc)
@@ -429,7 +492,11 @@ class TestSamlRoutes:
         class FakeSaml:
             def __init__(self, *, app_url: str, app_secret: str) -> None: ...
 
-            def handle_callback(self, provider, *, saml_response, relay_state, group_claim=None):  # noqa: ANN001, ANN202
+            def handle_callback(  # noqa: ANN202
+                self, provider, *, saml_response, relay_state,  # noqa: ANN001
+                group_claim=None,  # noqa: ANN001
+                match_claim=None,  # noqa: ANN001
+            ):
                 seen["response"] = saml_response
                 seen["relay"] = relay_state
                 return (

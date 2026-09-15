@@ -566,3 +566,294 @@ class TestUnlink:
             .all()
         )
         assert "user.sso_unlinked" in events
+
+
+class TestMergeDuplicate:
+    """«Это тот же человек»: связи дубля переходят к прежней записи."""
+
+    async def _provider_row(self, session: AsyncSession, workspace) -> AuthProvider:
+        provider_id = uuid.uuid4()
+        await session.execute(
+            insert(AuthProvider).values(
+                id=provider_id,
+                name="Каталог",
+                type="oidc",
+                workspace_id=workspace.id,
+                is_enabled=True,
+                allow_signup=True,
+                group_sync=False,
+            )
+        )
+        await session.flush()
+        return await session.get(AuthProvider, provider_id)
+
+    async def _duplicate(self, session, workspace, provider) -> User:  # noqa: ANN001
+        from tessera_api.services.sso import SsoIdentityService
+
+        return await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=f"новый-{uuid.uuid4().hex[:6]}",
+            email=f"dup-{uuid.uuid4().hex[:8]}@example.com",
+            name="Дубль",
+            workspace_id=workspace.id,
+        )
+
+    async def test_links_move_and_the_duplicate_is_switched_off(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        from tessera_api.services.sso import SsoIdentityService
+
+        provider = await self._provider_row(session, workspace)
+        target = await _person(session, workspace)
+        duplicate = await self._duplicate(session, workspace, provider)
+        link = (
+            await session.execute(select(AuthAccount).where(AuthAccount.user_id == duplicate.id))
+        ).scalar_one()
+        subject = link.provider_user_id
+
+        result = await _service(session).merge_duplicate(duplicate.id, target.id, owner, workspace)
+
+        assert result == {"success": True, "moved": 1}
+        await session.refresh(duplicate)
+        assert duplicate.deactivated_at is not None
+        # Следующий вход находит прежнюю запись уже по связи.
+        again = await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=subject,
+            email=f"whatever-{uuid.uuid4().hex[:6]}@example.com",
+            name="Дубль",
+            workspace_id=workspace.id,
+        )
+        assert again.id == target.id
+        logged = (
+            await session.execute(
+                select(AuditLog.event_metadata)
+                .where(AuditLog.resource_id == target.id)
+                .where(AuditLog.event == "user.sso_merged")
+            )
+        ).scalar_one()
+        assert logged["from"] == str(duplicate.id)
+
+    async def test_a_removed_old_link_comes_back_to_life(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Уникальность пары «человек, провайдер» не даёт завести вторую строку:
+        прежняя связь получает идентификатор дубля и оживает."""
+        provider = await self._provider_row(session, workspace)
+        target = await _person(session, workspace)
+        await session.execute(
+            insert(AuthAccount).values(
+                id=uuid.uuid4(),
+                user_id=target.id,
+                auth_provider_id=provider.id,
+                provider_user_id="совсем-старый",
+                workspace_id=workspace.id,
+                deleted_at=datetime.now(UTC),
+            )
+        )
+        duplicate = await self._duplicate(session, workspace, provider)
+        subject = (
+            await session.execute(
+                select(AuthAccount.provider_user_id).where(AuthAccount.user_id == duplicate.id)
+            )
+        ).scalar_one()
+
+        await _service(session).merge_duplicate(duplicate.id, target.id, owner, workspace)
+
+        alive = (
+            await session.execute(
+                select(AuthAccount)
+                .where(AuthAccount.user_id == target.id)
+                .where(AuthAccount.auth_provider_id == provider.id)
+            )
+        ).scalar_one()
+        await session.refresh(alive)
+        assert alive.deleted_at is None
+        assert alive.provider_user_id == subject
+
+    async def test_a_link_without_a_provider_just_moves(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Связь без провайдера уникальностью пары не ограничена: сравнение с
+        пустым провайдером нашло бы чужие такие же строки и уронило бы сведение."""
+        provider = await self._provider_row(session, workspace)
+        target = await _person(session, workspace)
+        duplicate = await self._duplicate(session, workspace, provider)
+        for owner_id, subject in ((duplicate.id, "у-дубля"), (target.id, "у-прежней")):
+            await session.execute(
+                insert(AuthAccount).values(
+                    id=uuid.uuid4(),
+                    user_id=owner_id,
+                    auth_provider_id=None,
+                    provider_user_id=subject,
+                    workspace_id=workspace.id,
+                )
+            )
+        await session.flush()
+
+        result = await _service(session).merge_duplicate(duplicate.id, target.id, owner, workspace)
+
+        assert result["moved"] == 2
+        kept = set(
+            (
+                await session.execute(
+                    select(AuthAccount.provider_user_id)
+                    .where(AuthAccount.user_id == target.id)
+                    .where(AuthAccount.auth_provider_id.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert kept == {"у-дубля", "у-прежней"}
+
+    async def test_the_old_key_survives_a_merge_without_a_key(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Живая прежняя связь получает идентификатор дубля, а ключ человека
+        не затирается пустым ключом дубля."""
+        provider = await self._provider_row(session, workspace)
+        target = await _person(session, workspace)
+        link_id = uuid.uuid4()
+        await session.execute(
+            insert(AuthAccount).values(
+                id=link_id,
+                user_id=target.id,
+                auth_provider_id=provider.id,
+                provider_user_id="прежний",
+                workspace_id=workspace.id,
+                match_claim_value="ТН-1",
+            )
+        )
+        duplicate = await self._duplicate(session, workspace, provider)
+        subject = (
+            await session.execute(
+                select(AuthAccount.provider_user_id).where(AuthAccount.user_id == duplicate.id)
+            )
+        ).scalar_one()
+
+        await _service(session).merge_duplicate(duplicate.id, target.id, owner, workspace)
+
+        link = await session.get(AuthAccount, link_id)
+        await session.refresh(link)
+        assert link.provider_user_id == subject
+        assert link.match_claim_value == "ТН-1"
+
+    async def test_refusals(self, session: AsyncSession, workspace, owner) -> None:
+        provider = await self._provider_row(session, workspace)
+        target = await _person(session, workspace)
+        duplicate = await self._duplicate(session, workspace, provider)
+        plain = await _person(session, workspace)
+        service = _service(session)
+
+        with pytest.raises(AppError) as same:
+            await service.merge_duplicate(duplicate.id, duplicate.id, owner, workspace)
+        assert same.value.code == "error.sso.merge_same_person"
+
+        with pytest.raises(AppError) as unlinked:
+            await service.merge_duplicate(plain.id, target.id, owner, workspace)
+        assert unlinked.value.code == "error.sso.user_has_no_links"
+
+        target.deactivated_at = datetime.now(UTC)
+        await session.flush()
+        with pytest.raises(AppError) as switched_off:
+            await service.merge_duplicate(duplicate.id, target.id, owner, workspace)
+        assert switched_off.value.code == "error.sso.merge_target_unavailable"
+
+    async def test_an_ordinary_member_may_not(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await self._provider_row(session, workspace)
+        member = await _person(session, workspace)
+        duplicate = await self._duplicate(session, workspace, provider)
+        with pytest.raises(AppError):
+            await _service(session).merge_duplicate(duplicate.id, owner.id, member, workspace)
+
+
+class TestMatchClaimField:
+    async def test_the_field_reaches_the_view(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        made = await _service(session).create(
+            owner,
+            workspace,
+            {
+                "name": "С ключом",
+                "type": "oidc",
+                "match_claim_name": "employeeNumber",
+                "oidc_issuer": "https://idp.example",
+                "oidc_client_id": "c",
+                "oidc_client_secret": "s",
+            },
+        )
+        assert made["matchClaimName"] == "employeeNumber"
+
+
+class TestClaimChange:
+    """Смена утверждения-ключа у провайдера.
+
+    Значения прежнего утверждения под новым ничего не значат, а совпав
+    случайно со значением нового у другого человека, перевесили бы его вход на
+    чужую запись.
+    """
+
+    OIDC = {
+        "name": "С ключом",
+        "type": "oidc",
+        "oidc_issuer": "https://idp.example",
+        "oidc_client_id": "c",
+        "oidc_client_secret": "s",
+    }
+
+    async def _linked(self, session, workspace, owner, claim: str | None):  # noqa: ANN202
+        made = await _service(session).create(
+            owner, workspace, {**self.OIDC, "match_claim_name": claim}
+        )
+        provider_id = uuid.UUID(str(made["id"]))
+        person = await _person(session, workspace)
+        link_id = uuid.uuid4()
+        await session.execute(
+            insert(AuthAccount).values(
+                id=link_id,
+                user_id=person.id,
+                auth_provider_id=provider_id,
+                provider_user_id="s",
+                workspace_id=workspace.id,
+                match_claim_value="1042",
+            )
+        )
+        await session.flush()
+        return provider_id, link_id
+
+    async def _value(self, session, link_id):  # noqa: ANN202
+        return (
+            await session.execute(
+                select(AuthAccount.match_claim_value).where(AuthAccount.id == link_id)
+            )
+        ).scalar_one()
+
+    async def test_changing_the_claim_clears_old_keys(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id, link_id = await self._linked(session, workspace, owner, "employeeNumber")
+        await _service(session).update(
+            provider_id, owner, workspace, {"match_claim_name": "employeeId"}
+        )
+        assert await self._value(session, link_id) is None
+
+    async def test_other_edits_keep_keys(self, session: AsyncSession, workspace, owner) -> None:
+        provider_id, link_id = await self._linked(session, workspace, owner, "employeeNumber")
+        await _service(session).update(provider_id, owner, workspace, {"name": "Переименован"})
+        await _service(session).update(
+            provider_id, owner, workspace, {"match_claim_name": " employeeNumber "}
+        )
+        assert await self._value(session, link_id) == "1042"
+
+    async def test_an_empty_claim_means_none(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider_id, _ = await self._linked(session, workspace, owner, "employeeNumber")
+        await _service(session).update(provider_id, owner, workspace, {"match_claim_name": "  "})
+        provider = await session.get(AuthProvider, provider_id)
+        await session.refresh(provider)
+        assert provider.match_claim_name is None

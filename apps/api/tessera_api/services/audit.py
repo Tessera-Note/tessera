@@ -77,6 +77,15 @@ class AuditEvent:
     SSO_PROVIDER_UPDATED = "sso.provider_updated"
     SSO_PROVIDER_DELETED = "sso.provider_deleted"
     USER_SSO_UNLINKED = "user.sso_unlinked"
+    #: Вход через провайдера завёл запись с именем уже действующего участника.
+    #: Не отказ: это может быть и тёзка. Решает администратор действием
+    #: «это тот же человек».
+    USER_SSO_POSSIBLE_DUPLICATE = "user.sso_possible_duplicate"
+    #: Связь перевешена на новый идентификатор по неизменному ключу человека:
+    #: у провайдера сменились и идентификатор, и почта.
+    USER_SSO_RELINKED = "user.sso_relinked"
+    #: Администратор свёл запись-дубль с прежней: «это тот же человек».
+    USER_SSO_MERGED = "user.sso_merged"
     PAGE_IMPORTED = "page.imported"
     PAGE_EXPORTED = "page.exported"
     SPACE_EXPORTED = "space.exported"

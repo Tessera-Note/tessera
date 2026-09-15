@@ -269,6 +269,36 @@ class TestComplete:
         assert profile.email == "человек@example.com"
         assert profile.name == "Человек"
 
+    async def test_the_match_claim_comes_from_userinfo_when_the_token_lacks_it(self) -> None:
+        """Часть провайдеров кладёт дополнительные утверждения только в сведения
+        о человеке: без запроса ключ не дошёл бы."""
+        provider = _provider()
+        holder: dict = {}
+        service = _service(_transport(nonce_holder=holder, userinfo={"employeeNumber": "ТН-9"}))
+        flow = await self._flow(service, provider, holder)
+
+        profile = await service.complete(
+            provider, flow, code="c", state=flow.state, match_claim="employeeNumber"
+        )
+        assert profile.match_value == "ТН-9"
+
+    async def test_a_failed_userinfo_does_not_block_sign_in(self) -> None:
+        """Ключ необязателен: без него сопоставление идёт прежними поисками."""
+        provider = _provider()
+        holder: dict = {}
+        service = _service(_transport(nonce_holder=holder))
+        flow = await self._flow(service, provider, holder)
+
+        async def refused(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202, ARG001
+            raise RuntimeError("сведения о человеке недоступны")
+
+        service._userinfo = refused  # noqa: SLF001 — подмена одного обращения
+        profile = await service.complete(
+            provider, flow, code="c", state=flow.state, match_claim="employeeNumber"
+        )
+        assert profile.match_value is None
+        assert profile.email == "человек@example.com"
+
     async def test_state_mismatch_is_refused(self) -> None:
         """Без сверки состояния чужой обратный вызов входил бы в чужую запись.
 

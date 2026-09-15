@@ -54,6 +54,8 @@ class LdapProfile:
     name: str | None
     groups: list[str] | None
     dn: str
+    # Значение неизменного ключа человека, если сопоставление по нему настроено.
+    match_value: str | None = None
 
 
 def attribute_map(provider: AuthProvider) -> dict[str, str]:
@@ -121,6 +123,25 @@ def stable_id(entry: dict[str, Any]) -> str | None:
     return None
 
 
+def match_value_of(entry: dict[str, Any], provider: AuthProvider) -> str | None:
+    """Значение неизменного ключа сопоставления из записи каталога.
+
+    Двоичное значение приводится к шестнадцатеричному виду тем же способом,
+    что у `stable_id`: ключом могут назначить и `objectGUID`, а в текстовую
+    колонку байты как есть не кладутся.
+    """
+    claim = (getattr(provider, "match_claim_name", None) or "").strip()
+    if not claim:
+        return None
+    value = _first(value_of(entry, claim))
+    if value is None:
+        return None
+    if isinstance(value, bytes | bytearray):
+        return binascii.hexlify(bytes(value)).decode() if value else None
+    text = str(value).strip()
+    return text or None
+
+
 def group_names(entry: dict[str, Any], *, sync_enabled: bool) -> list[str] | None:
     """Имена групп из состава.
 
@@ -151,6 +172,11 @@ def requested_attributes(provider: AuthProvider) -> list[str]:
     wanted = list(ID_ATTRIBUTES) + list(attribute_map(provider).values())
     if provider.group_sync:
         wanted.append(GROUP_ATTRIBUTE)
+    # Неизменный ключ сопоставления — тоже явно: иначе каталог его не отдаёт,
+    # и настройка ключа сохранялась бы и молча не работала.
+    claim = (getattr(provider, "match_claim_name", None) or "").strip()
+    if claim:
+        wanted.append(claim)
     # Порядок не важен, важна полнота и отсутствие повторов.
     return list(dict.fromkeys(wanted))
 
@@ -262,6 +288,7 @@ class LdapService:
             ),
             groups=group_names(attributes, sync_enabled=bool(provider.group_sync)),
             dn=dn,
+            match_value=match_value_of(attributes, provider),
         )
 
     def _search(self, provider: AuthProvider, username: str) -> dict | None:

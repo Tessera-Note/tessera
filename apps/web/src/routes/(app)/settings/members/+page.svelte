@@ -7,6 +7,7 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Notice from '$lib/components/ui/Notice.svelte';
   import Panel from '$lib/components/ui/Panel.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import { errorText } from '$lib/api/failure';
   import {
@@ -20,7 +21,7 @@
     setActive
   } from '$lib/features/workspace/services/members';
   import { resetMfaFor } from '$lib/features/mfa/services/mfa';
-  import { unlinkUser } from '$lib/features/sso/services/providers';
+  import { mergeDuplicate, unlinkUser } from '$lib/features/sso/services/providers';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
 
@@ -59,6 +60,36 @@
   //: будет руками, и пропадать сама она не должна.
   let link = $state<string | null>(null);
   let failure = $state<string | null>(null);
+
+  /**
+   * «Это тот же человек»: какую запись сводят и с какой.
+   *
+   * Смена и идентификатора, и почты у провайдера заводит вторую запись того же
+   * человека, и журнал отмечает её как возможный дубль. Решает администратор:
+   * связи дубля переходят к записи, которая остаётся, дубль отключается.
+   */
+  let merging = $state<string | null>(null);
+  let keep = $state('');
+  const keepOptions = $derived(
+    data.members
+      .filter((one) => one.id !== merging && !one.deactivatedAt)
+      .map((one) => ({ value: one.id, label: one.name ? `${one.name} (${one.email})` : one.email }))
+  );
+  const mergingMember = $derived(data.members.find((one) => one.id === merging) ?? null);
+
+  function beginMerge(id: string) {
+    merging = merging === id ? null : id;
+    keep = data.members.find((one) => one.id !== id && !one.deactivatedAt)?.id ?? '';
+  }
+
+  async function merge() {
+    const source = merging;
+    if (!source || !keep) return;
+    await act(source, async () => {
+      await mergeDuplicate(source, keep);
+      merging = null;
+    });
+  }
 
   async function act(key: string, action: () => Promise<unknown>) {
     busy = key;
@@ -205,6 +236,13 @@
                   disabled={busy === member.id}
                   onconfirm={() => act(member.id, () => unlinkUser(member.id))}
                 />
+                <Button
+                  variant="quiet"
+                  disabled={busy === member.id}
+                  onclick={() => beginMerge(member.id)}
+                >
+                  {t('Mark as duplicate…')}
+                </Button>
                 <Confirm
                   label={t('Delete')}
                   question={t('Delete member')}
@@ -218,6 +256,32 @@
       </tbody>
     </table>
   </div>
+
+  {#if mergingMember}
+    <Panel
+      title={t('Mark {{name}} as a duplicate', {
+        name: mergingMember.name ?? mergingMember.email
+      })}
+      hint={t(
+        'Sign-in links of this record move to the member you pick, and this record is deactivated. Use it when a provider change created a second record for the same person.'
+      )}
+    >
+      {#if keepOptions.length}
+        <Field label={t('Member to keep')}>
+          <Select bind:value={keep} options={keepOptions} label={t('Member to keep')} />
+        </Field>
+      {:else}
+        <!-- Сводить не с кем: пустой выбор без объяснения читается как поломка. -->
+        <p class="text-sm text-text-muted">{t('No other active members to keep.')}</p>
+      {/if}
+      <div class="mt-3 flex gap-2">
+        <Button disabled={!keep || busy === mergingMember.id} onclick={merge}>
+          {busy === mergingMember.id ? t('Loading...') : t('Merge and deactivate')}
+        </Button>
+        <Button variant="quiet" onclick={() => (merging = null)}>{t('Cancel')}</Button>
+      </div>
+    </Panel>
+  {/if}
 
   {#if link}
     <Panel title={t('Invite link')} hint={t('Anyone with this link can join this workspace.')}>

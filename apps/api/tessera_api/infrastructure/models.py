@@ -211,6 +211,10 @@ class AuthAccount(Base, SoftDeleteMixin):
     provider_user_id: Mapped[str] = mapped_column(String)
     auth_provider_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    # Значение неизменного признака человека у провайдера (`match_claim_name`
+    # провайдера). По нему вход находит человека, когда у провайдера сменились
+    # и идентификатор, и почта разом: оба прежних поиска тогда промахиваются.
+    match_claim_value: Mapped[str | None] = mapped_column(String)
 
 
 class AuditLog(Base, CreatedMixin):
@@ -287,6 +291,11 @@ class AuthProvider(Base, SoftDeleteMixin):
     allow_signup: Mapped[bool] = mapped_column(Boolean)
     group_sync: Mapped[bool] = mapped_column(Boolean)
     group_claim_name: Mapped[str | None] = mapped_column(String)
+    # Какое утверждение провайдера считать неизменным ключом человека
+    # (`employeeNumber` и подобные). Пусто — сопоставление только по
+    # идентификатору и почте. Утверждение обязано быть таким, которое человек
+    # у провайдера сам не правит: иначе по нему можно войти в чужую запись.
+    match_claim_name: Mapped[str | None] = mapped_column(String)
     oidc_issuer: Mapped[str | None] = mapped_column(String)
     oidc_client_id: Mapped[str | None] = mapped_column(String)
     oidc_client_secret: Mapped[str | None] = mapped_column(String)

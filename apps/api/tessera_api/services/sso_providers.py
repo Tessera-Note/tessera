@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ldap3.operation.search import parse_filter
 from sqlalchemy import insert, select, update
@@ -31,6 +31,9 @@ from tessera_api.domain.roles import is_workspace_admin
 from tessera_api.infrastructure.models import AuthAccount, AuthProvider, User, Workspace
 from tessera_api.infrastructure.secrets import encrypt_secret
 from tessera_api.services.audit import AuditEvent, AuditResource, AuditService
+
+if TYPE_CHECKING:
+    from tessera_api.services.realtime import RealtimeService
 
 #: Поля, обязательные для каждого типа провайдера.
 #:
@@ -61,6 +64,7 @@ EDITABLE = (
     "allow_signup",
     "group_sync",
     "group_claim_name",
+    "match_claim_name",
     "oidc_issuer",
     "oidc_client_id",
     "oidc_client_secret",
@@ -87,6 +91,7 @@ _OUT = {
     "allow_signup": "allowSignup",
     "group_sync": "groupSync",
     "group_claim_name": "groupClaimName",
+    "match_claim_name": "matchClaimName",
     "oidc_issuer": "oidcIssuer",
     "oidc_client_id": "oidcClientId",
     "saml_url": "samlUrl",
@@ -276,6 +281,7 @@ class SsoProviderService:
             "allow_signup": bool(fields.get("allow_signup", False)),
             "group_sync": bool(fields.get("group_sync", False)),
             "group_claim_name": fields.get("group_claim_name") or None,
+            "match_claim_name": fields.get("match_claim_name") or None,
         }
         for field in EDITABLE:
             if field not in row and field in fields:
@@ -323,6 +329,14 @@ class SsoProviderService:
                 continue
             patch[field] = given
 
+        if "match_claim_name" in patch:
+            # Пустая строка — «ключа нет», как при заведении.
+            patch["match_claim_name"] = str(patch["match_claim_name"]).strip() or None
+        claim_changed = (
+            "match_claim_name" in patch
+            and patch["match_claim_name"] != (existing.match_claim_name or None)
+        )
+
         if "name" in patch:
             name = str(patch["name"]).strip()
             if not name or len(name) > MAX_NAME:
@@ -348,6 +362,16 @@ class SsoProviderService:
             .where(AuthProvider.id == provider_id)
             .values(**self._encrypted(patch), updated_at=datetime.now(UTC))
         )
+        if claim_changed:
+            # Значения прежнего утверждения под новым ничего не значат, а совпав
+            # случайно со значением нового у другого человека, перевесили бы
+            # его вход на чужую запись. Снимаются все: при следующем входе по
+            # связи каждая получит значение нового утверждения.
+            await self._session.execute(
+                update(AuthAccount)
+                .where(AuthAccount.auth_provider_id == provider_id)
+                .values(match_claim_value=None)
+            )
         await self._audit.log(
             event=AuditEvent.SSO_PROVIDER_UPDATED,
             resource_type=AuditResource.SSO_PROVIDER,
@@ -402,6 +426,126 @@ class SsoProviderService:
             ip=ip,
         )
         await self._session.commit()
+
+    async def merge_duplicate(
+        self,
+        source_user_id: uuid.UUID,
+        target_user_id: uuid.UUID,
+        actor: User,
+        workspace: Workspace,
+        *,
+        ip: str | None = None,
+        realtime: RealtimeService | None = None,
+    ) -> dict[str, Any]:
+        """Свести запись-дубль с прежней: «это тот же человек».
+
+        Вход через провайдера, у которого сменились и идентификатор, и почта,
+        заводит вторую запись: отличить её от нового сотрудника данным нечем.
+        Журнал отмечает такую запись событием `user.sso_possible_duplicate`, а
+        решение остаётся за администратором.
+
+        Связи дубля с провайдерами переходят к прежней записи — следующий вход
+        находит её уже по связи, — а дубль отключается тем же путём, что и
+        ручное отключение: с отзывом сеансов и событием в журнале. Удаления
+        нет: сделанное под дублем остаётся с автором.
+
+        Прежняя связь той же записи с тем же провайдером, если была (живая или
+        снятая), получает идентификатор дубля и оживает: уникальность пары
+        «человек, провайдер» не даёт завести вторую строку.
+        """
+        from tessera_api.services.workspace import WorkspaceService
+
+        self._assert_can_manage(actor)
+        if source_user_id == target_user_id:
+            raise bad_request("error.sso.merge_same_person")
+
+        source = await self._session.get(User, source_user_id)
+        if (
+            source is None
+            or source.workspace_id != workspace.id
+            or source.deleted_at is not None
+        ):
+            raise bad_request("error.sso.user_not_found")
+
+        target = await self._session.get(User, target_user_id)
+        if (
+            target is None
+            or target.workspace_id != workspace.id
+            or target.deleted_at is not None
+            or target.deactivated_at is not None
+        ):
+            # Связи уходят к записи, которой пользоваться нельзя: вход после
+            # сведения упёрся бы в отключённого, и человек остался бы без входа.
+            raise bad_request("error.sso.merge_target_unavailable")
+
+        links = list(
+            (
+                await self._session.execute(
+                    select(AuthAccount).where(
+                        AuthAccount.user_id == source.id,
+                        AuthAccount.workspace_id == workspace.id,
+                        AuthAccount.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not links:
+            raise bad_request("error.sso.user_has_no_links")
+
+        now = datetime.now(UTC)
+        for link in links:
+            if link.auth_provider_id is None:
+                # Связь без провайдера уникальностью пары не ограничена: сравнение
+                # с пустым провайдером нашло бы чужие такие же строки. Она просто
+                # переходит к прежней записи.
+                await self._session.execute(
+                    update(AuthAccount).where(AuthAccount.id == link.id).values(user_id=target.id)
+                )
+                continue
+            previous = (
+                await self._session.execute(
+                    select(AuthAccount).where(
+                        AuthAccount.user_id == target.id,
+                        AuthAccount.auth_provider_id == link.auth_provider_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if previous is None:
+                await self._session.execute(
+                    update(AuthAccount).where(AuthAccount.id == link.id).values(user_id=target.id)
+                )
+                continue
+            await self._session.execute(
+                update(AuthAccount).where(AuthAccount.id == link.id).values(deleted_at=now)
+            )
+            revived: dict[str, Any] = {
+                "provider_user_id": link.provider_user_id,
+                "deleted_at": None,
+            }
+            if link.match_claim_value:
+                # Ключ дубля — свежий, он и остаётся. Без ключа у дубля прежний
+                # не затирается пустым: он принадлежит тому же человеку.
+                revived["match_claim_value"] = link.match_claim_value
+            await self._session.execute(
+                update(AuthAccount).where(AuthAccount.id == previous.id).values(**revived)
+            )
+
+        await self._audit.log(
+            event=AuditEvent.USER_SSO_MERGED,
+            resource_type=AuditResource.USER,
+            resource_id=target.id,
+            user_id=actor.id,
+            workspace_id=workspace.id,
+            ip=ip,
+            metadata={"from": str(source.id), "links": len(links)},
+        )
+        # Отключение фиксирует и перенос связей: одна транзакция на всё.
+        await WorkspaceService(self._session, realtime).set_active(
+            actor, source.id, False, workspace.id
+        )
+        return {"success": True, "moved": len(links)}
 
     async def unlink_user(
         self,

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -50,6 +51,8 @@ FLOW_COOKIE = "ssoFlow"
 SCOPES = "openid profile email"
 
 REQUEST_TIMEOUT = 10.0
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +81,10 @@ class OidcProfile:
     # Нужно входу через Google: непроверенная почта там означает, что владение
     # адресом не доказано, а по адресу связываются учётные записи.
     email_verified: bool | None = None
+    # Значение утверждения, которое провайдер назначил неизменным ключом
+    # человека (`match_claim_name`). Пусто — провайдер его не прислал или
+    # сопоставление по нему не настроено.
+    match_value: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,6 +313,7 @@ class OidcService:
         code: str,
         state: str,
         group_claim: str | None = None,
+        match_claim: str | None = None,
     ) -> OidcProfile:
         """Обменять код на сведения о человеке.
 
@@ -350,7 +358,11 @@ class OidcService:
         email = claims.get("email")
         name = claims.get("name") or claims.get("preferred_username")
         groups = self._groups_of(claims, group_claim)
+        from tessera_api.services.sso import extract_claim_value
 
+        match_value = extract_claim_value(claims, match_claim)
+
+        extra: dict | None = None
         if not email and discovery.userinfo_endpoint:
             # Часть провайдеров не кладёт почту в токен, её приходится
             # спрашивать отдельно. Без почты человека не завести и не найти.
@@ -358,6 +370,19 @@ class OidcService:
             email = extra.get("email")
             name = name or extra.get("name")
             groups = groups if groups is not None else self._groups_of(extra, group_claim)
+            match_value = match_value or extract_claim_value(extra, match_claim)
+
+        if match_claim and match_value is None and discovery.userinfo_endpoint and extra is None:
+            # Часть провайдеров кладёт дополнительные утверждения только в
+            # сведения о человеке, а не в токен: без запроса ключ не дошёл бы.
+            # Отказ здесь вход не роняет — без ключа сопоставление идёт
+            # прежними поисками.
+            try:
+                match_value = extract_claim_value(
+                    await self._userinfo(discovery, tokens.get("access_token")), match_claim
+                )
+            except Exception:  # noqa: BLE001 — ключ необязателен, вход важнее
+                logger.info("Сведения о человеке для ключа сопоставления не получены")
 
         if not email:
             raise unauthorized("error.sso.email_missing")
@@ -369,6 +394,7 @@ class OidcService:
             name=name,
             groups=groups,
             email_verified=bool(verified) if isinstance(verified, bool) else None,
+            match_value=match_value,
         )
 
     async def _verify_id_token(

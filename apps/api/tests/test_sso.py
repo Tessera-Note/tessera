@@ -13,11 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import AppError
 from tessera_api.infrastructure.models import (
+    AuditLog,
+    AuthAccount,
     AuthProvider,
     Group,
     GroupUser,
+    User,
 )
-from tessera_api.services.sso import SsoIdentityService, extract_group_names
+from tessera_api.services.sso import (
+    SsoIdentityService,
+    extract_claim_value,
+    extract_group_names,
+)
 from tests.conftest import needs_database
 
 
@@ -60,6 +67,29 @@ class TestExtractGroupNames:
         assert extract_group_names({"groups": ["", "   ", "Аудит"]}) == ["Аудит"]
 
 
+class TestExtractClaimValue:
+    """Значение неизменного ключа из профиля провайдера."""
+
+    def test_a_string_is_taken_as_is(self) -> None:
+        assert extract_claim_value({"employeeNumber": " 1042 "}, "employeeNumber") == "1042"
+
+    def test_a_list_gives_its_first_filled_value(self) -> None:
+        # SAML отдаёт атрибуты списками.
+        values = {"employeeNumber": ["", "  ", "1042"]}
+        assert extract_claim_value(values, "employeeNumber") == "1042"
+
+    def test_an_empty_value_is_no_key(self) -> None:
+        """Сопоставление по пустой строке свело бы в одну запись всех без атрибута."""
+        assert extract_claim_value({"employeeNumber": "  "}, "employeeNumber") is None
+        assert extract_claim_value({"employeeNumber": []}, "employeeNumber") is None
+
+    def test_nothing_is_taken_without_a_configured_claim(self) -> None:
+        assert extract_claim_value({"employeeNumber": "1042"}, None) is None
+        assert extract_claim_value({"employeeNumber": "1042"}, "  ") is None
+        assert extract_claim_value(None, "employeeNumber") is None
+        assert extract_claim_value({}, "employeeNumber") is None
+
+
 pytestmark = needs_database
 
 
@@ -74,6 +104,7 @@ async def _provider(session: AsyncSession, workspace, **flags) -> AuthProvider:
             is_enabled=flags.get("is_enabled", True),
             allow_signup=flags.get("allow_signup", True),
             group_sync=flags.get("group_sync", False),
+            match_claim_name=flags.get("match_claim_name"),
         )
     )
     await session.flush()
@@ -456,3 +487,264 @@ class TestGroupSync:
             )
         ).scalar_one_or_none()
         assert member is None, "человек попал в группу чужого провайдера"
+
+
+class TestStableKey:
+    """Смена идентификатора и почты у провайдера разом.
+
+    Оба прежних поиска — по связи и по почте — тогда промахиваются, и без
+    неизменного ключа заводилась вторая запись того же человека.
+    """
+
+    async def _first_login(self, session, workspace, provider, key: str | None):  # noqa: ANN202
+        email = f"key-{uuid.uuid4().hex[:8]}@example.com"
+        user = await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=f"старый-{uuid.uuid4().hex[:6]}",
+            email=email,
+            name="Сотрудник с ключом",
+            workspace_id=workspace.id,
+            match_value=key,
+        )
+        return user, email
+
+    async def test_the_same_key_finds_the_same_person(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace, match_claim_name="employeeNumber")
+        key = f"ТН-{uuid.uuid4().hex[:6]}"
+        first, _ = await self._first_login(session, workspace, provider, key)
+
+        again = await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject="новый-идентификатор",
+            email=f"new-{uuid.uuid4().hex[:8]}@example.com",
+            name="Сотрудник с ключом",
+            workspace_id=workspace.id,
+            match_value=key,
+        )
+
+        assert again.id == first.id
+        link = (
+            await session.execute(
+                select(AuthAccount)
+                .where(AuthAccount.user_id == first.id)
+                .where(AuthAccount.auth_provider_id == provider.id)
+            )
+        ).scalar_one()
+        assert link.provider_user_id == "новый-идентификатор"
+        event = (
+            await session.execute(
+                select(AuditLog.event)
+                .where(AuditLog.resource_id == first.id)
+                .where(AuditLog.event == "user.sso_relinked")
+            )
+        ).scalar_one_or_none()
+        assert event == "user.sso_relinked"
+
+    async def test_an_old_link_gets_the_key_on_login(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Связь, заведённая до настройки ключа, получает его при обычном входе."""
+        provider = await _provider(session, workspace, match_claim_name="employeeNumber")
+        first, email = await self._first_login(session, workspace, provider, None)
+        link = (
+            await session.execute(select(AuthAccount).where(AuthAccount.user_id == first.id))
+        ).scalar_one()
+
+        await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=link.provider_user_id,
+            email=email,
+            name="Сотрудник с ключом",
+            workspace_id=workspace.id,
+            match_value="ТН-дописанный",
+        )
+
+        await session.refresh(link)
+        assert link.match_claim_value == "ТН-дописанный"
+
+    async def test_two_links_with_one_key_are_refused(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Какая из двух записей этот человек, данные не говорят: выбор наугад
+        отдал бы чужую."""
+        provider = await _provider(session, workspace, match_claim_name="employeeNumber")
+        key = f"ТН-{uuid.uuid4().hex[:6]}"
+        # Через вход два одинаковых ключа не получить: второй вход с тем же
+        # ключом находит первую связь и перевешивает её. Такое бывает только в
+        # данных — ввоз, ручная правка, — поэтому связи заводятся напрямую.
+        for index in range(2):
+            person_id = uuid.uuid4()
+            await session.execute(
+                insert(User).values(
+                    id=person_id,
+                    name=f"Двойник {index}",
+                    email=f"twin-{uuid.uuid4().hex[:8]}@example.com",
+                    role="member",
+                    workspace_id=workspace.id,
+                )
+            )
+            await session.execute(
+                insert(AuthAccount).values(
+                    id=uuid.uuid4(),
+                    user_id=person_id,
+                    auth_provider_id=provider.id,
+                    provider_user_id=f"twin-{index}",
+                    workspace_id=workspace.id,
+                    match_claim_value=key,
+                )
+            )
+        await session.flush()
+
+        with pytest.raises(AppError) as failure:
+            await SsoIdentityService(session).resolve(
+                provider=provider,
+                subject="третий",
+                email=f"third-{uuid.uuid4().hex[:8]}@example.com",
+                name="Кто-то",
+                workspace_id=workspace.id,
+                match_value=key,
+            )
+        assert "identity_conflict" in str(failure.value.extra)
+
+
+class TestKeyCare:
+    """Ключ не дублируется при дописывании и не стирается при оживлении."""
+
+    async def test_a_taken_key_is_not_written_twice(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Два одинаковых ключа отключили бы сопоставление по нему для обоих."""
+        provider = await _provider(session, workspace, match_claim_name="employeeNumber")
+        identity = SsoIdentityService(session)
+        first = await identity.resolve(
+            provider=provider,
+            subject="первый",
+            email=f"first-{uuid.uuid4().hex[:8]}@example.com",
+            name="Первый",
+            workspace_id=workspace.id,
+            match_value="ТН-общий",
+        )
+        second_email = f"second-{uuid.uuid4().hex[:8]}@example.com"
+        second = await identity.resolve(
+            provider=provider,
+            subject="второй",
+            email=second_email,
+            name="Второй",
+            workspace_id=workspace.id,
+        )
+
+        again = await identity.resolve(
+            provider=provider,
+            subject="второй",
+            email=second_email,
+            name="Второй",
+            workspace_id=workspace.id,
+            match_value="ТН-общий",
+        )
+
+        assert again.id == second.id
+        keys = dict(
+            (
+                await session.execute(
+                    select(AuthAccount.user_id, AuthAccount.match_claim_value).where(
+                        AuthAccount.user_id.in_([first.id, second.id])
+                    )
+                )
+            ).all()
+        )
+        assert keys == {first.id: "ТН-общий", second.id: None}
+
+    async def test_reviving_a_link_keeps_the_key(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        from tessera_api.services.sso_providers import SsoProviderService
+
+        provider = await _provider(session, workspace, match_claim_name="employeeNumber")
+        identity = SsoIdentityService(session)
+        email = f"revive-{uuid.uuid4().hex[:8]}@example.com"
+        person = await identity.resolve(
+            provider=provider,
+            subject="прежний",
+            email=email,
+            name="Оживший",
+            workspace_id=workspace.id,
+            match_value="ТН-5",
+        )
+        await SsoProviderService(session, app_secret="s" * 32, app_url="http://x").unlink_user(
+            person.id, owner, workspace
+        )
+
+        await identity.resolve(
+            provider=provider,
+            subject="новый",
+            email=email,
+            name="Оживший",
+            workspace_id=workspace.id,
+        )
+
+        link = (
+            await session.execute(select(AuthAccount).where(AuthAccount.user_id == person.id))
+        ).scalar_one()
+        await session.refresh(link)
+        assert link.deleted_at is None
+        assert link.match_claim_value == "ТН-5"
+
+
+class TestPossibleDuplicate:
+    """Новая запись с именем действующего участника — не молча."""
+
+    async def _events(self, session, user_id):  # noqa: ANN202
+        return list(
+            (
+                await session.execute(
+                    select(AuditLog)
+                    .where(AuditLog.resource_id == user_id)
+                    .where(AuditLog.event == "user.sso_possible_duplicate")
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    async def test_a_namesake_is_written_to_the_log(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace)
+        name = f"Тёзка {uuid.uuid4().hex[:6]}"
+        first = await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=f"s-{uuid.uuid4().hex[:6]}",
+            email=f"a-{uuid.uuid4().hex[:8]}@example.com",
+            name=name,
+            workspace_id=workspace.id,
+        )
+
+        second = await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=f"s-{uuid.uuid4().hex[:6]}",
+            email=f"b-{uuid.uuid4().hex[:8]}@example.com",
+            name=f"  {name.upper()} ",
+            workspace_id=workspace.id,
+        )
+
+        # Запись всё равно заводится: это может быть и тёзка.
+        assert second.id != first.id
+        events = await self._events(session, second.id)
+        assert len(events) == 1
+        assert events[0].event_metadata["sameNameAs"] == [str(first.id)]
+        assert events[0].actor_type == "system"
+
+    async def test_a_different_name_is_not_a_duplicate(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        provider = await _provider(session, workspace)
+        made = await SsoIdentityService(session).resolve(
+            provider=provider,
+            subject=f"s-{uuid.uuid4().hex[:6]}",
+            email=f"c-{uuid.uuid4().hex[:8]}@example.com",
+            name=f"Единственный {uuid.uuid4().hex[:6]}",
+            workspace_id=workspace.id,
+        )
+        assert await self._events(session, made.id) == []

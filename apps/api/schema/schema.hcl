@@ -397,6 +397,10 @@ table "auth_accounts" {
     null = false
     type = uuid
   }
+  column "match_claim_value" {
+    null = true
+    type = character_varying
+  }
   column "created_at" {
     null    = false
     type    = timestamptz
@@ -434,6 +438,9 @@ table "auth_accounts" {
   }
   index "idx_auth_accounts_provider_user_id" {
     columns = [column.provider_user_id, column.auth_provider_id]
+  }
+  index "idx_auth_accounts_provider_match_claim" {
+    columns = [column.auth_provider_id, column.match_claim_value]
   }
   unique "auth_accounts_user_id_auth_provider_id_unique" {
     columns = [column.user_id, column.auth_provider_id]
@@ -556,6 +563,10 @@ table "auth_providers" {
     default = "{}"
   }
   column "group_claim_name" {
+    null = true
+    type = character_varying
+  }
+  column "match_claim_name" {
     null = true
     type = character_varying
   }

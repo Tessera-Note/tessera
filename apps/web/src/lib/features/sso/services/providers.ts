@@ -15,6 +15,11 @@ export type AuthProvider = {
   allowSignup: boolean;
   groupSync: boolean;
   groupClaimName: string | null;
+  /**
+   * Какое утверждение провайдера считать неизменным ключом человека. Пусто —
+   * сопоставление только по идентификатору и почте.
+   */
+  matchClaimName: string | null;
   oidcIssuer: string | null;
   oidcClientId: string | null;
   oidcClientSecretSet: boolean;
@@ -63,4 +68,20 @@ export function deleteProvider(providerId: string, fetcher?: typeof fetch) {
 /** Снять связи участника с провайдерами. Нужно, когда провайдер сменил его идентификатор. */
 export function unlinkUser(userId: string, fetcher?: typeof fetch) {
   return post<{ success: boolean; unlinked: number }>('/api/sso/unlink', { userId }, { fetcher });
+}
+
+/**
+ * «Это тот же человек»: связи записи-дубля с провайдерами переходят к прежней
+ * записи, дубль отключается.
+ *
+ * Нужно, когда у провайдера сменились и идентификатор, и почта разом, а
+ * неизменный ключ не настроен: вход тогда заводит вторую запись, и журнал
+ * отмечает её как возможный дубль.
+ */
+export function mergeDuplicate(userId: string, targetUserId: string, fetcher?: typeof fetch) {
+  return post<{ success: boolean; moved: number }>(
+    '/api/sso/merge',
+    { userId, targetUserId },
+    { fetcher }
+  );
 }

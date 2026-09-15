@@ -10,10 +10,11 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tessera_api.domain.errors import unauthorized
@@ -26,7 +27,10 @@ from tessera_api.infrastructure.models import (
     User,
     Workspace,
 )
+from tessera_api.services.audit import ActorType, AuditEvent, AuditResource, AuditService
 from tessera_api.services.auth import assert_domain_allowed
+
+logger = logging.getLogger(__name__)
 
 
 def extract_group_names(profile: dict | None, claim_name: str | None = None) -> list[str] | None:
@@ -56,6 +60,24 @@ def extract_group_names(profile: dict | None, claim_name: str | None = None) -> 
             text = text[3:].split(",", 1)[0].strip()
         names.append(text)
     return names
+
+
+def extract_claim_value(profile: dict | None, claim_name: str | None) -> str | None:
+    """Значение утверждения, которое провайдер назначил неизменным ключом.
+
+    Строка берётся как есть, у списка — первый непустой элемент: SAML отдаёт
+    атрибуты списками. Пустое значение означает «ключа нет»: сопоставление по
+    пустой строке свело бы в одну запись всех, у кого атрибут не заполнен.
+    """
+    if not profile or not claim_name or not claim_name.strip():
+        return None
+    raw = profile.get(claim_name.strip())
+    if isinstance(raw, list):
+        raw = next((one for one in raw if one is not None and str(one).strip()), None)
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    return value or None
 
 
 class SsoGroupSyncService:
@@ -151,8 +173,21 @@ class SsoIdentityService:
         name: str | None,
         workspace_id: uuid.UUID,
         group_names: list[str] | None = None,
+        match_value: str | None = None,
     ) -> User:
-        """Найти или завести человека по данным провайдера."""
+        """Найти или завести человека по данным провайдера.
+
+        Порядок поиска: связь по идентификатору, затем по неизменному ключу,
+        если провайдер его прислал (`match_claim_name` провайдера), затем по
+        почте. Ключ нужен ровно на случай, когда у провайдера сменились и
+        идентификатор, и почта разом: оба прежних поиска тогда промахиваются, и
+        без ключа заводилась бы вторая запись того же человека.
+
+        Если заводится новая запись с именем уже действующего участника, это
+        не отказ — это может быть тёзка, — но и не молчание: в журнал уходит
+        `user.sso_possible_duplicate`, и администратор решает действием «это
+        тот же человек».
+        """
         if not provider.is_enabled:
             raise unauthorized("error.sso.provider_disabled")
 
@@ -172,7 +207,36 @@ class SsoIdentityService:
             user = await self._session.get(User, linked.user_id)
             if user is None or user.deleted_at is not None:
                 raise unauthorized("error.sso.account_unavailable")
+            if match_value and linked.match_claim_value != match_value:
+                # Ключ дописывается к связи при обычном входе: связи, заведённые
+                # до настройки сопоставления, иначе не получили бы его никогда,
+                # и смена идентификатора и почты разом снова заводила бы дубль.
+                await self._backfill_key(linked, provider, match_value, workspace_id)
             return await self._with_groups(user, provider, workspace_id, group_names)
+
+        if match_value:
+            keyed = (
+                (
+                    await self._session.execute(
+                        select(AuthAccount)
+                        .where(AuthAccount.auth_provider_id == provider.id)
+                        .where(AuthAccount.match_claim_value == match_value)
+                        .where(AuthAccount.workspace_id == workspace_id)
+                        .where(AuthAccount.deleted_at.is_(None))
+                        .limit(2)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if len(keyed) > 1:
+                # Две связи с одним ключом: какая из них этот человек, данные не
+                # говорят, и выбор наугад отдал бы чужую запись.
+                raise unauthorized("error.sso.identity_conflict")
+            if keyed:
+                return await self._relink(
+                    keyed[0], provider, subject, workspace_id, group_names
+                )
 
         existing = (
             await self._session.execute(
@@ -201,7 +265,7 @@ class SsoIdentityService:
             if bound is not None:
                 raise unauthorized("error.sso.identity_conflict")
 
-            await self._link(existing.id, provider.id, subject, workspace_id)
+            await self._link(existing.id, provider.id, subject, workspace_id, match_value)
             return await self._with_groups(existing, provider, workspace_id, group_names)
 
         if not provider.allow_signup:
@@ -212,6 +276,8 @@ class SsoIdentityService:
         # списка сделало бы её пустой.
         workspace = await self._session.get(Workspace, workspace_id)
         assert_domain_allowed(email, workspace)
+
+        namesakes = await self._namesakes(name, workspace_id)
 
         user_id = uuid.uuid4()
         await self._session.execute(
@@ -226,7 +292,21 @@ class SsoIdentityService:
                 email_verified_at=datetime.now(UTC),
             )
         )
-        await self._link(user_id, provider.id, subject, workspace_id)
+        await self._link(user_id, provider.id, subject, workspace_id, match_value)
+
+        if namesakes:
+            await AuditService(self._session).log(
+                event=AuditEvent.USER_SSO_POSSIBLE_DUPLICATE,
+                resource_type=AuditResource.USER,
+                resource_id=user_id,
+                user_id=None,
+                workspace_id=workspace_id,
+                actor_type=ActorType.SYSTEM,
+                metadata={
+                    "providerId": str(provider.id),
+                    "sameNameAs": [str(one) for one in namesakes],
+                },
+            )
 
         default_group = (
             await self._session.execute(
@@ -244,12 +324,112 @@ class SsoIdentityService:
         created = await self._session.get(User, user_id)
         return await self._with_groups(created, provider, workspace_id, group_names)
 
+    async def _namesakes(self, name: str | None, workspace_id: uuid.UUID) -> list[uuid.UUID]:
+        """Действующие участники с тем же именем, что у заводимой записи.
+
+        Имя сравнивается без учёта регистра и крайних пробелов. Без имени
+        сравнивать нечего: запись тогда заводится по почте, а совпадение по
+        почте найдено бы раньше. Предел — десяток: перечень нужен журналу, а
+        не разбору всех тёзок пространства.
+        """
+        cleaned = (name or "").strip()
+        if not cleaned:
+            return []
+        return list(
+            (
+                await self._session.execute(
+                    select(User.id)
+                    .where(User.workspace_id == workspace_id)
+                    .where(User.deleted_at.is_(None))
+                    .where(User.deactivated_at.is_(None))
+                    .where(func.lower(func.trim(User.name)) == cleaned.lower())
+                    .limit(10)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    async def _backfill_key(
+        self,
+        linked: AuthAccount,
+        provider: AuthProvider,
+        match_value: str,
+        workspace_id: uuid.UUID,
+    ) -> None:
+        """Дописать ключ к связи, если он ни у кого больше не записан.
+
+        Тот же ключ уже у другой живой связи — запись создала бы два
+        одинаковых ключа, и сопоставление по нему перестало бы работать для
+        обоих (две связи с одним ключом — отказ). Поэтому не пишется, а
+        уходит в журнал сервера: разбирать это администратору.
+        """
+        taken = (
+            await self._session.execute(
+                select(AuthAccount.id)
+                .where(AuthAccount.auth_provider_id == provider.id)
+                .where(AuthAccount.match_claim_value == match_value)
+                .where(AuthAccount.workspace_id == workspace_id)
+                .where(AuthAccount.deleted_at.is_(None))
+                .where(AuthAccount.id != linked.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if taken is not None:
+            logger.warning(
+                "Ключ сопоставления провайдера %s уже записан у другой связи: "
+                "у связи %s не записан",
+                provider.id,
+                linked.id,
+            )
+            return
+        await self._session.execute(
+            update(AuthAccount)
+            .where(AuthAccount.id == linked.id)
+            .values(match_claim_value=match_value)
+        )
+
+    async def _relink(
+        self,
+        link: AuthAccount,
+        provider: AuthProvider,
+        subject: str,
+        workspace_id: uuid.UUID,
+        group_names: list[str] | None,
+    ) -> User:
+        """Перевесить связь на новый идентификатор по неизменному ключу.
+
+        Ключ совпал, идентификатор — нет: провайдер сменил идентификатор
+        человека. Ключ назначен администратором как неизменный и не правится
+        самим человеком, поэтому совпадение по нему доказывает, что это тот же
+        человек, — в отличие от совпадения по почте, которое может означать
+        адрес, переданный другому. Событие в журнале отдельное: смена
+        идентификатора у провайдера должна быть видна без разбора полей.
+        """
+        user = await self._session.get(User, link.user_id)
+        if user is None or user.deleted_at is not None:
+            raise unauthorized("error.sso.account_unavailable")
+        await self._session.execute(
+            update(AuthAccount).where(AuthAccount.id == link.id).values(provider_user_id=subject)
+        )
+        await AuditService(self._session).log(
+            event=AuditEvent.USER_SSO_RELINKED,
+            resource_type=AuditResource.USER,
+            resource_id=user.id,
+            user_id=None,
+            workspace_id=workspace_id,
+            actor_type=ActorType.SYSTEM,
+            metadata={"providerId": str(provider.id)},
+        )
+        return await self._with_groups(user, provider, workspace_id, group_names)
+
     async def _link(
         self,
         user_id: uuid.UUID,
         provider_id: uuid.UUID,
         subject: str,
         workspace_id: uuid.UUID,
+        match_value: str | None = None,
     ) -> None:
         """Завести связь человека с провайдером.
 
@@ -268,7 +448,14 @@ class SsoIdentityService:
                 .where(AuthAccount.user_id == user_id)
                 .where(AuthAccount.auth_provider_id == provider_id)
                 .where(AuthAccount.deleted_at.isnot(None))
-                .values(provider_user_id=subject, workspace_id=workspace_id, deleted_at=None)
+                .values(
+                    provider_user_id=subject,
+                    workspace_id=workspace_id,
+                    deleted_at=None,
+                    # Ключ без нового значения сохраняется: он принадлежит тому
+                    # же человеку, и пустое значение стёрло бы его.
+                    **({"match_claim_value": match_value} if match_value else {}),
+                )
                 .returning(AuthAccount.id)
             )
         ).scalar_one_or_none()
@@ -281,6 +468,7 @@ class SsoIdentityService:
                 auth_provider_id=provider_id,
                 provider_user_id=subject,
                 workspace_id=workspace_id,
+                match_claim_value=match_value,
             )
         )
 
