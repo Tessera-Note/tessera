@@ -18,6 +18,7 @@ import {
   closeCollab,
   createCollabServer,
   pageIdOf,
+  replicaFromEnv,
   sweepOnce,
   textOf,
 } from './collab.js';
@@ -43,7 +44,9 @@ function backend(answers) {
 
     if (!value || value.status >= 400) {
       response.writeHead(value?.status || 404, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ code: value?.code || 'not_found' }));
+      response.end(
+        JSON.stringify({ code: value?.code || 'not_found', ...(value?.params ? { params: value.params } : {}) }),
+      );
       return;
     }
     response.writeHead(200, { 'content-type': 'application/json' });
@@ -144,6 +147,10 @@ const AUTHORIZED = {
   '/api/internal/collab/rights': {
     body: { gone: false, users: { [USER.id]: { allowed: true, canEdit: true } } },
   },
+  // Отметка владения: одна реплика, документ всегда свой.
+  '/api/internal/collab/owner': { body: { owned: true, ttlMs: 30000, renewEveryMs: 10000 } },
+  '/api/internal/collab/owner/renew': { body: { lost: [], renewEveryMs: 10000 } },
+  '/api/internal/collab/owner/release': { body: { released: true } },
 };
 
 test('имя документа разбирается только в известном виде', () => {
@@ -530,4 +537,275 @@ test('секрет с кириллицей отвергается до обра�
   } finally {
     process.env.COLLAB_INTERNAL_TOKEN = before;
   }
+});
+
+/**
+ * Отметки владения, подменяющие приложение: общие для двух реплик.
+ *
+ * Правила Redis проверяются на стороне Python настоящим Redis. Здесь важно,
+ * что служба делает с ответами — пускает, отвергает, продлевает, снимает и
+ * бросает перехваченный документ.
+ */
+function ownerStore({ ttlMs = 30000, renewEveryMs = 10000, releases = true } = {}) {
+  const marks = new Map();
+  const released = [];
+  const alive = (name) => {
+    const mark = marks.get(name);
+    if (mark && mark.until > Date.now()) return mark;
+    marks.delete(name);
+    return null;
+  };
+  const take = (name, replica) => {
+    const mark = alive(name);
+    if (mark && mark.owner !== replica) return mark.owner;
+    marks.set(name, { owner: replica, until: Date.now() + ttlMs });
+    return null;
+  };
+  return {
+    marks,
+    released,
+    alive,
+    answers: {
+      '/api/internal/collab/owner': ({ documentName, replica }) => {
+        const other = take(documentName, replica);
+        return other
+          ? { status: 409, code: 'error.collaboration.document_owned_elsewhere', params: { owner: other } }
+          : { body: { owned: true, ttlMs, renewEveryMs } };
+      },
+      '/api/internal/collab/owner/renew': ({ documents, replica }) => ({
+        body: {
+          renewEveryMs,
+          lost: documents
+            .map((name) => ({ documentName: name, owner: take(name, replica) }))
+            .filter((one) => one.owner),
+        },
+      }),
+      '/api/internal/collab/owner/release': ({ documentName, replica }) => {
+        released.push({ documentName, replica });
+        // Упавшая реплика снять отметку не может: такой прогон снятие отключает.
+        if (releases && alive(documentName)?.owner === replica) marks.delete(documentName);
+        return { body: { released: true } };
+      },
+    },
+  };
+}
+
+/** Две реплики с общим приложением: у каждой свой порт и своё имя. */
+async function withReplicas(answers, run) {
+  const { server: fake, seen } = backend(answers);
+  const backendPort = await listen(fake);
+  process.env.API_URL = `http://127.0.0.1:${backendPort}`;
+  process.env.COLLAB_INTERNAL_TOKEN = 'test-internal-token';
+
+  const replicas = [];
+  for (const name of ['r1', 'r2']) {
+    const { hocuspocus } = createCollabServer({ replica: name });
+    const http = createServer((_, response) => response.end());
+    attachCollab(http, hocuspocus);
+    replicas.push({ name, hocuspocus, http, port: await listen(http) });
+  }
+  try {
+    await run({ replicas, seen });
+  } finally {
+    for (const one of replicas) {
+      await closeCollab(one.hocuspocus, { timeoutMs: 500 }).catch(() => {});
+      one.http.closeAllConnections?.();
+      await new Promise((resolve) => one.http.close(resolve));
+    }
+    fake.closeAllConnections?.();
+    await new Promise((resolve) => fake.close(resolve));
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Журнал службы без вывода: строки собираются для проверки. */
+function captureLog(t) {
+  const calls = t.mock.method(console, 'log', () => {});
+  return () => calls.mock.calls.map((call) => String(call.arguments[0]));
+}
+
+const DOCUMENT = `page.${PAGE_ID}`;
+
+test('имя реплики — явное из окружения, иначе имя узла', async () => {
+  const { hostname } = await import('node:os');
+  assert.equal(replicaFromEnv('replica-a'), 'replica-a');
+  assert.equal(replicaFromEnv('  '), hostname());
+  assert.equal(replicaFromEnv(''), hostname());
+});
+
+test('документ, открытый на одной реплике, другой не отдаётся', async (t) => {
+  const lines = captureLog(t);
+  const store = ownerStore();
+  await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first, second] }) => {
+    const held = await connect(first.port);
+    assert.equal(held.ok, true, 'первая реплика не открыла документ');
+
+    const refused = await connect(second.port);
+    assert.equal(refused.ok, false, 'вторая реплика открыла документ, занятый первой');
+    assert.equal(store.alive(DOCUMENT)?.owner, 'r1', 'отметка ушла от живой владеющей реплики');
+    close(refused);
+    close(held);
+  });
+  assert.ok(
+    lines().some((one) => one.includes(`${DOCUMENT}: документ открыт на реплике r1`)),
+    'в журнале не названа реплика-владелец',
+  );
+});
+
+test('после падения владеющей реплики документ открывается на другой по истечении срока', async () => {
+  // Упавшая реплика не продлевает и не снимает: срок короткий, продление
+  // реже прогона, снятие отключено.
+  const store = ownerStore({ ttlMs: 300, renewEveryMs: 60000, releases: false });
+  await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first, second] }) => {
+    const held = await connect(first.port);
+    assert.equal(held.ok, true);
+    close(held);
+
+    const early = await connect(second.port);
+    assert.equal(early.ok, false, 'документ отдан до истечения срока отметки');
+    close(early);
+
+    await sleep(400);
+
+    const later = await connect(second.port);
+    assert.equal(later.ok, true, 'по истечении срока документ так и не открылся');
+    assert.equal(store.alive(DOCUMENT)?.owner, 'r2');
+    close(later);
+  });
+});
+
+test('одна реплика: продление держит отметку, выгрузка её снимает', async () => {
+  const store = ownerStore({ ttlMs: 300, renewEveryMs: 100 });
+  await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first, second] }) => {
+    const held = await connect(first.port);
+    assert.equal(held.ok, true);
+
+    // Втрое дольше срока: без продления отметка давно истекла бы.
+    await sleep(900);
+    assert.equal(store.alive(DOCUMENT)?.owner, 'r1', 'продление не удержало отметку');
+    const other = await connect(second.port);
+    assert.equal(other.ok, false);
+    close(other);
+
+    close(held);
+    for (let step = 0; step < 40 && !store.released.some((one) => one.replica === 'r1'); step += 1) {
+      await sleep(50);
+    }
+    assert.ok(store.released.some((one) => one.replica === 'r1'), 'выгрузка не сняла отметку');
+    assert.equal(store.alive(DOCUMENT), null);
+
+    const again = await connect(first.port);
+    assert.equal(again.ok, true, 'та же реплика не открыла документ повторно');
+    close(again);
+  });
+});
+
+test('недоступное хранилище отметок — отказ со своей причиной в журнале', async (t) => {
+  const lines = captureLog(t);
+  const answers = {
+    ...AUTHORIZED,
+    '/api/internal/collab/owner': { status: 503, code: 'error.collaboration.owner_store_unavailable' },
+  };
+  await withChannel(answers, async ({ port }) => {
+    const result = await connect(port);
+    assert.equal(result.ok, false, 'без хранилища отметок соединение открылось');
+    close(result);
+  });
+  const written = lines();
+  assert.ok(written.some((one) => one.includes('хранилище отметок владения (Redis) недоступно')));
+  assert.ok(
+    !written.some((one) => one.includes('документ открыт на реплике')),
+    'недоступность записана как занятый документ',
+  );
+});
+
+test('перехваченная отметка закрывает соединения и не пишет состояние', async (t) => {
+  const lines = captureLog(t);
+  const store = ownerStore({ renewEveryMs: 100 });
+  await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first], seen }) => {
+    const held = await connect(first.port);
+    assert.equal(held.ok, true);
+
+    // Отметка ушла к другой реплике, пока эта ещё держит документ.
+    store.marks.set(DOCUMENT, { owner: 'r2', until: Date.now() + 30000 });
+    await sleep(400);
+
+    const document = first.hocuspocus.documents.get(DOCUMENT);
+    assert.equal(document?.getConnectionsCount() ?? 0, 0, 'соединения с перехваченным документом живы');
+    close(held);
+    await sleep(200);
+    assert.equal(
+      seen.some((one) => one.path === '/api/internal/collab/store'),
+      false,
+      'состояние перехваченного документа ушло в запись',
+    );
+  });
+  assert.ok(lines().some((one) => one.includes('отметку владения держит реплика r2')));
+});
+
+test('продление уходит порциями, и каждая часть списка продлевается', async () => {
+  const store = ownerStore({ renewEveryMs: 100 });
+  const second = 'page.44444444-4444-4444-8444-444444444444';
+  await withChannel(
+    { ...AUTHORIZED, ...store.answers },
+    async ({ port, seen }) => {
+      const first = await connect(port);
+      const other = await connect(port, { documentName: second });
+      assert.equal(first.ok && other.ok, true);
+
+      await sleep(350);
+
+      const renewals = seen.filter((one) => one.path === '/api/internal/collab/owner/renew');
+      assert.ok(renewals.length >= 2, 'продлений не было');
+      assert.ok(
+        renewals.every((one) => one.body.documents.length === 1),
+        'в одном запросе больше документов, чем задано порцией',
+      );
+      const renewed = new Set(renewals.flatMap((one) => one.body.documents));
+      assert.deepEqual([...renewed].sort(), [DOCUMENT, second].sort());
+      close(first);
+      close(other);
+    },
+    { replica: 'r1', renewBatch: 1 },
+  );
+});
+
+test('перехваченный документ, ещё не выгруженный, новых соединений не принимает', async (t) => {
+  const lines = captureLog(t);
+  const store = ownerStore({ renewEveryMs: 100 });
+  const starter = 'page.55555555-5555-4555-8555-555555555555';
+  await withChannel(
+    { ...AUTHORIZED, ...store.answers },
+    async ({ port, hocuspocus, seen }) => {
+      // Прямое соединение держит документ в памяти без сокета — так же, как
+      // выгрузка, которая ещё не закончилась.
+      const direct = await hocuspocus.openDirectConnection(DOCUMENT, {});
+      store.marks.set(DOCUMENT, { owner: 'r2', until: Date.now() + 30000 });
+
+      // Взятие другого документа заводит таймер продления, и продление видит
+      // перехват документа, который реплика ещё держит.
+      const running = await connect(port, { documentName: starter });
+      assert.equal(running.ok, true);
+      await sleep(300);
+      assert.ok(lines().some((one) => one.includes(`${DOCUMENT}: отметку владения держит реплика r2`)));
+
+      // Владелец отпустил документ, но устаревшая копия ещё в памяти этой реплики.
+      store.marks.delete(DOCUMENT);
+      const again = await connect(port);
+      assert.equal(again.ok, false, 'соединение продолжило устаревший документ');
+      assert.ok(lines().some((one) => one.includes(`${DOCUMENT}: документ ещё выгружается после перехвата`)));
+      close(again);
+
+      await direct.disconnect();
+      close(running);
+      await sleep(200);
+      assert.equal(
+        seen.some((one) => one.path === '/api/internal/collab/store' && one.body.pageId === PAGE_ID),
+        false,
+        'устаревшее состояние ушло в запись',
+      );
+    },
+    { replica: 'r1' },
+  );
 });

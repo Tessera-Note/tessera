@@ -2387,5 +2387,8 @@
   "Plain": "普通",
   "Expand row": "展开行",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "此页面当前未同步。其他人看不到您的更改。请重新加载页面以重新连接。",
-  "Reload page": "重新加载页面"
+  "Reload page": "重新加载页面",
+  "error.collaboration.document_owned_elsewhere": "该文档已在协作编辑服务的另一个实例上打开",
+  "error.collaboration.owner_store_unavailable": "文档归属标记存储不可用",
+  "error.collaboration.replica_missing": "协作编辑服务实例未表明自身身份"
 }

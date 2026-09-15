@@ -33,11 +33,13 @@ function settings() {
  * недоступная база это временный отказ, после которого клиент переподключается.
  */
 export class BackendError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, params) {
     super(message || code || `HTTP ${status}`);
     this.name = 'BackendError';
     this.status = status;
     this.code = code;
+    // Подробности отказа: для занятого документа — какая реплика его держит.
+    this.params = params || {};
   }
 }
 
@@ -93,7 +95,7 @@ async function call(path, payload) {
   }
 
   if (!response.ok) {
-    throw new BackendError(response.status, body?.code, body?.message);
+    throw new BackendError(response.status, body?.code, body?.message, body?.params);
   }
   return body;
 }
@@ -112,4 +114,20 @@ export function storeDocument(payload) {
 
 export function rights(documentName, userIds) {
   return call('/api/internal/collab/rights', { documentName, userIds });
+}
+
+/**
+ * Отметка владения документом. Решает приложение: срок жизни и период
+ * продления живут в его настройках, а Redis — на его стороне.
+ */
+export function claimDocument(documentName, replica) {
+  return call('/api/internal/collab/owner', { documentName, replica });
+}
+
+export function renewDocuments(documents, replica) {
+  return call('/api/internal/collab/owner/renew', { documents, replica });
+}
+
+export function releaseDocument(documentName, replica) {
+  return call('/api/internal/collab/owner/release', { documentName, replica });
 }

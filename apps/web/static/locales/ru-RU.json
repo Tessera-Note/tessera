@@ -2405,5 +2405,8 @@
   "Plain": "Просто число",
   "Expand row": "Раскрыть строку",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Страница не синхронизируется: ваши правки не доходят до других. Перезагрузите страницу, чтобы подключиться снова.",
-  "Reload page": "Перезагрузить страницу"
+  "Reload page": "Перезагрузить страницу",
+  "error.collaboration.document_owned_elsewhere": "Документ открыт на другом экземпляре службы совместного редактирования",
+  "error.collaboration.owner_store_unavailable": "Хранилище отметок владения документами недоступно",
+  "error.collaboration.replica_missing": "Экземпляр службы совместного редактирования не назвал себя"
 }

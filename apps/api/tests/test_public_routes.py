@@ -174,6 +174,12 @@ EXPECTED_PUBLIC = {
     "/api/internal/collab/document",
     "/api/internal/collab/store",
     "/api/internal/collab/rights",
+    # Отметка владения документом в Redis: взять, продлить, снять. Тот же
+    # общий секрет; решает она не о правах человека, а о том, какая реплика
+    # службы держит документ.
+    "/api/internal/collab/owner",
+    "/api/internal/collab/owner/renew",
+    "/api/internal/collab/owner/release",
 }
 
 

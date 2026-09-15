@@ -12,10 +12,19 @@
  */
 
 import { createRequire } from 'node:module';
+import { hostname } from 'node:os';
 
 import { WebSocketServer } from 'ws';
 
-import { authorize, loadDocument, rights, storeDocument } from './backend.js';
+import {
+  authorize,
+  claimDocument,
+  loadDocument,
+  releaseDocument,
+  renewDocuments,
+  rights,
+  storeDocument,
+} from './backend.js';
 import { tiptapExtensions } from './extensions.js';
 
 const require = createRequire(import.meta.url);
@@ -171,11 +180,146 @@ export function allowUnnamedFromEnv(value = process.env.COLLAB_ALLOW_UNNAMED_DOC
   return value === 'true' || value === '1';
 }
 
-export function createCollabServer({ allowUnnamed = allowUnnamedFromEnv() } = {}) {
+/**
+ * Имя реплики для отметки владения документом.
+ *
+ * По умолчанию имя узла: у контейнера это его идентификатор, и две реплики
+ * различаются без настройки. Явное имя нужно, когда реплики запускаются вне
+ * контейнеров на одном узле.
+ */
+export function replicaFromEnv(value = process.env.COLLAB_REPLICA_ID) {
+  return (typeof value === 'string' && value.trim()) || hostname();
+}
+
+/** Коды отказа отметки владения. Те же, что отдаёт приложение. */
+const OWNED_ELSEWHERE = 'error.collaboration.document_owned_elsewhere';
+const OWNER_STORE_UNAVAILABLE = 'error.collaboration.owner_store_unavailable';
+
+/**
+ * Сколько документов уходит в одном запросе продления. Открытых документов у
+ * реплики сколько угодно, а запрос к приложению обязан оставаться коротким;
+ * приложение продлевает присланный список целиком.
+ */
+const RENEW_BATCH = 500;
+
+export function createCollabServer({
+  allowUnnamed = allowUnnamedFromEnv(),
+  replica = replicaFromEnv(),
+  renewBatch = RENEW_BATCH,
+} = {}) {
   const contributors = new Contributors();
 
   if (allowUnnamed) {
     log('допуск подключений без имени документа в адресе включён: только при одной реплике');
+  }
+
+  /**
+   * Отметка владения документами этой реплики.
+   *
+   * Документ Yjs живёт в памяти одной реплики, и открытый сразу на двух он
+   * расходится молча. Отметку держит приложение в Redis: взять при
+   * подключении, продлевать, пока документ открыт, снять при выгрузке. Период
+   * продления приходит в ответе на взятие — срок и период живут в настройках
+   * приложения, второй их копии здесь нет.
+   */
+  const ownership = { renewEveryMs: null, timer: null, running: false };
+  /** Документы, отметку которых перехватила другая реплика: их не сохранять. */
+  const lost = new Set();
+
+  async function claim(documentName) {
+    if (lost.has(documentName) && hocuspocus.documents.has(documentName)) {
+      // Перехваченный документ ещё в памяти: соединения закрыты, выгрузка не
+      // закончилась. Взяв отметку сейчас, реплика продолжила бы с устаревшим
+      // состоянием и сохранила бы его поверх правок владельца. Клиент
+      // подключится снова, когда документ выгрузится.
+      log(`${documentName}: документ ещё выгружается после перехвата отметки, соединение отвергнуто`);
+      throw new Error('document is still unloading after ownership was lost');
+    }
+    let answer;
+    try {
+      answer = await claimDocument(documentName, replica);
+    } catch (error) {
+      if (error?.code === OWNED_ELSEWHERE) {
+        log(
+          `${documentName}: документ открыт на реплике ${error.params?.owner ?? 'неизвестной'}, соединение отвергнуто`,
+        );
+      } else if (error?.code === OWNER_STORE_UNAVAILABLE) {
+        log(`${documentName}: хранилище отметок владения (Redis) недоступно, соединение отвергнуто`);
+      } else {
+        log(
+          `${documentName}: отметка владения не взята (${error?.message || error}), соединение отвергнуто`,
+        );
+      }
+      throw error;
+    }
+    lost.delete(documentName);
+    startRenewal(Number(answer?.renewEveryMs) || null);
+  }
+
+  function startRenewal(everyMs) {
+    if (!everyMs) return;
+    if (ownership.timer && ownership.renewEveryMs === everyMs) return;
+    if (ownership.timer) clearInterval(ownership.timer);
+    ownership.renewEveryMs = everyMs;
+    ownership.timer = setInterval(renewOnce, everyMs);
+    ownership.timer.unref();
+  }
+
+  function stopRenewal() {
+    if (ownership.timer) clearInterval(ownership.timer);
+    ownership.timer = null;
+    ownership.renewEveryMs = null;
+  }
+
+  async function renewOnce() {
+    if (ownership.running) return;
+    const names = [...hocuspocus.documents.keys()];
+    if (names.length === 0) {
+      // Открытых документов нет — продлевать нечего; таймер заведёт следующее
+      // взятие.
+      stopRenewal();
+      return;
+    }
+    ownership.running = true;
+    try {
+      for (let start = 0; start < names.length; start += renewBatch) {
+        const answer = await renewDocuments(names.slice(start, start + renewBatch), replica);
+        for (const one of answer?.lost ?? []) {
+          dropLost(one.documentName, one.owner);
+        }
+      }
+    } catch (error) {
+      // Недоступность не повод рвать соединения: отметка живёт ещё срок, и
+      // следующий проход её продлит. Если за это время документ перейдёт к
+      // другой реплике, следующий ответ вернёт его списком потерянных.
+      log(`отметки владения не продлены: ${error?.message || error}`);
+    } finally {
+      ownership.running = false;
+    }
+  }
+
+  /**
+   * Отметку перехватила другая реплика: документ здесь больше не свой.
+   *
+   * Соединения закрываются, а сохранение пропускается: запись состояния,
+   * разошедшегося с репликой-владельцем, стёрла бы её правки. Клиент
+   * переподключается и попадает к владельцу либо получает отказ с просьбой
+   * перезагрузить страницу.
+   */
+  function dropLost(documentName, owner) {
+    const document = hocuspocus.documents.get(documentName);
+    if (!document) return;
+    lost.add(documentName);
+    log(
+      `${documentName}: отметку владения держит реплика ${owner}, соединения закрыты, сохранение пропущено`,
+    );
+    for (const connection of document.getConnections()) {
+      try {
+        connection.close();
+      } catch {
+        // Соединение могло закрыться само, это не ошибка.
+      }
+    }
   }
 
   /**
@@ -215,6 +359,9 @@ export function createCollabServer({ allowUnnamed = allowUnnamedFromEnv() } = {}
         throw new Error('document name mismatch');
       }
       const answer = await authorize(token, documentName);
+      // Отметка после прав: тот, кому доступа нет, документ за репликой не
+      // закрепляет.
+      await claim(documentName);
       if (!answer?.canEdit) {
         connectionConfig.readOnly = true;
       }
@@ -287,6 +434,13 @@ export function createCollabServer({ allowUnnamed = allowUnnamedFromEnv() } = {}
         return;
       }
 
+      if (lost.has(documentName)) {
+        // Отметку держит другая реплика: её состояние новее, и запись этого
+        // стёрла бы её правки. См. `dropLost`.
+        log(`${documentName}: сохранение пропущено, отметкой владеет другая реплика`);
+        return;
+      }
+
       const json = TiptapTransformer.fromYdoc(document, FIELD);
       const state = Buffer.from(Y.encodeStateAsUpdate(document)).toString('base64');
       const editors = contributors.consume(documentName);
@@ -329,6 +483,15 @@ export function createCollabServer({ allowUnnamed = allowUnnamedFromEnv() } = {}
       // Отметка о неразобранном снимается вместе с документом: при следующем
       // открытии тело читается заново, и оно могло измениться.
       unreadable.delete(documentName);
+      // Отметка владения снимается при выгрузке, чтобы документ не ждал
+      // истечения срока. Перехваченную снимать нечего: она чужая, и приложение
+      // чужую не снимет.
+      if (lost.delete(documentName)) return;
+      try {
+        await releaseDocument(documentName, replica);
+      } catch (error) {
+        log(`${documentName}: отметка владения не снята (${error?.message || error}), истечёт по сроку`);
+      }
     },
   });
 

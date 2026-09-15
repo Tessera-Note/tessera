@@ -50,7 +50,7 @@ infrastructure/ база, Redis, хранилище, почта, очереди,
 
 ## Внутренние маршруты совместного редактирования
 
-`api/collab.py`, путь `/api/internal/collab`, четыре обработчика: `authorize`, `document`, `store`, `rights`. Они открыты для guard, но защищены общим секретом `COLLAB_INTERNAL_TOKEN`. Решения о правах и запись документа принимает эта сторона, а не сосед на Node.
+`api/collab.py`, путь `/api/internal/collab`, семь обработчиков: `authorize`, `document`, `store`, `rights` и отметка владения документом `owner`, `owner/renew`, `owner/release` (`services/collab_owner.py`, Redis). Они открыты для guard, но защищены общим секретом `COLLAB_INTERNAL_TOKEN`; перечень открытых маршрутов сверяет `tests/test_public_routes.py`. Решения о правах, запись документа и отметку владения принимает эта сторона, а не сосед на Node.
 
 ## Фоновые задания
 

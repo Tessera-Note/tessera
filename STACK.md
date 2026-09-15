@@ -155,11 +155,11 @@
 | экспорт PDF | `GOTENBERG_URL`, `PDF_RENDER_BASE_URL`, `PDF_EXPORT_TIMEOUT` |
 | ИИ | `AI_DRIVER`, `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_COMPLETION_MODEL`, `AI_EMBEDDING_MODEL`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_API_URL` |
 | вход через провайдера | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| соседние службы | `HUB_INTERNAL_URL`, `HUB_URL`, `CONTENT_SERVICE_URL`, `COLLAB_INTERNAL_TOKEN` |
+| соседние службы | `HUB_INTERNAL_URL`, `HUB_URL`, `CONTENT_SERVICE_URL`, `COLLAB_INTERNAL_TOKEN`, `COLLAB_OWNER_TTL_MS`, `COLLAB_OWNER_RENEW_MS` |
 
 Экраны читают три значения: `API_INTERNAL_URL` (адрес приложения для отрисовки на сервере, только в `hooks.server.ts`, в браузер не попадает), `PUBLIC_API_URL` и `PUBLIC_DRAWIO_URL`.
 
-Сервис совместного редактирования читает `API_URL`, `COLLAB_INTERNAL_TOKEN`, `HOST`, `PORT`, `MAX_PDF_BODY` и четыре порога слияния: `COLLAB_DEBOUNCE_MS`, `COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`, `COLLAB_SWEEP_INTERVAL_MS`. `COLLAB_ALLOW_UNNAMED_DOCUMENT` (`true` или `1`, по умолчанию выключен) пускает подключения без имени документа в адресе — только на время раскатки при одной реплике, порядок в `docs/v2-migration/09-switchover.md`.
+Сервис совместного редактирования читает `API_URL`, `COLLAB_INTERNAL_TOKEN`, `HOST`, `PORT`, `MAX_PDF_BODY` и четыре порога слияния: `COLLAB_DEBOUNCE_MS`, `COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`, `COLLAB_SWEEP_INTERVAL_MS`. `COLLAB_ALLOW_UNNAMED_DOCUMENT` (`true` или `1`, по умолчанию выключен) пускает подключения без имени документа в адресе — только на время раскатки при одной реплике, порядок в `docs/v2-migration/09-switchover.md`. `COLLAB_REPLICA_ID` — имя реплики в отметке владения документом, по умолчанию имя узла.
 
 Только compose: `LOCAL_PORT`, `POSTGRES_PASSWORD`, `HUB_POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET`, `MINIO_REGION`, `SEARXNG_SECRET`, `PDF_ALLOW_LIST`.
 

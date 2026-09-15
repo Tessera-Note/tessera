@@ -2387,5 +2387,8 @@
   "Plain": "Semplice",
   "Expand row": "Apri la riga",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Questa pagina non si sta sincronizzando. Le modifiche non arrivano agli altri. Ricarica la pagina per riconnetterti.",
-  "Reload page": "Ricarica la pagina"
+  "Reload page": "Ricarica la pagina",
+  "error.collaboration.document_owned_elsewhere": "Il documento è aperto su un'altra istanza del servizio di collaborazione",
+  "error.collaboration.owner_store_unavailable": "L'archivio dei contrassegni di proprietà dei documenti non è disponibile",
+  "error.collaboration.replica_missing": "L'istanza del servizio di collaborazione non si è identificata"
 }

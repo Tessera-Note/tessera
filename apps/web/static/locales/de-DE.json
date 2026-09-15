@@ -2387,5 +2387,8 @@
   "Plain": "Einfach",
   "Expand row": "Zeile öffnen",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Diese Seite wird nicht synchronisiert. Ihre Änderungen erreichen andere nicht. Laden Sie die Seite neu, um die Verbindung wiederherzustellen.",
-  "Reload page": "Seite neu laden"
+  "Reload page": "Seite neu laden",
+  "error.collaboration.document_owned_elsewhere": "Das Dokument ist auf einer anderen Instanz des Dienstes für die gemeinsame Bearbeitung geöffnet",
+  "error.collaboration.owner_store_unavailable": "Der Speicher für Besitzmarkierungen von Dokumenten ist nicht erreichbar",
+  "error.collaboration.replica_missing": "Die Instanz des Dienstes für die gemeinsame Bearbeitung hat sich nicht identifiziert"
 }

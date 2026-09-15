@@ -2387,5 +2387,8 @@
   "Plain": "Gewoon",
   "Expand row": "Rij openen",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Deze pagina wordt niet gesynchroniseerd. Uw wijzigingen komen niet bij anderen aan. Laad de pagina opnieuw om weer verbinding te maken.",
-  "Reload page": "Pagina opnieuw laden"
+  "Reload page": "Pagina opnieuw laden",
+  "error.collaboration.document_owned_elsewhere": "Het document is geopend op een andere instantie van de samenwerkingsdienst",
+  "error.collaboration.owner_store_unavailable": "De opslag voor eigendomsmarkeringen van documenten is niet beschikbaar",
+  "error.collaboration.replica_missing": "De instantie van de samenwerkingsdienst heeft zich niet geïdentificeerd"
 }

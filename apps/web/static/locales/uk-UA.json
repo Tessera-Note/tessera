@@ -2405,5 +2405,8 @@
   "Plain": "Просто число",
   "Expand row": "Розгорнути рядок",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Сторінка не синхронізується: ваші зміни не доходять до інших. Перезавантажте сторінку, щоб підключитися знову.",
-  "Reload page": "Перезавантажити сторінку"
+  "Reload page": "Перезавантажити сторінку",
+  "error.collaboration.document_owned_elsewhere": "Документ відкрито на іншому екземплярі служби спільного редагування",
+  "error.collaboration.owner_store_unavailable": "Сховище позначок володіння документами недоступне",
+  "error.collaboration.replica_missing": "Екземпляр служби спільного редагування не назвав себе"
 }

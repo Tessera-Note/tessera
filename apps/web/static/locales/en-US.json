@@ -2387,5 +2387,8 @@
   "Plain": "Plain",
   "Expand row": "Expand row",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.",
-  "Reload page": "Reload page"
+  "Reload page": "Reload page",
+  "error.collaboration.document_owned_elsewhere": "This document is open on another instance of the collaboration service",
+  "error.collaboration.owner_store_unavailable": "The document ownership store is unavailable",
+  "error.collaboration.replica_missing": "The collaboration service instance did not identify itself"
 }

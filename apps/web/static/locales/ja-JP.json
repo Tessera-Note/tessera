@@ -2387,5 +2387,8 @@
   "Plain": "通常",
   "Expand row": "行を開く",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "このページは同期されていません。変更は他のユーザーに届いていません。再接続するにはページを再読み込みしてください。",
-  "Reload page": "ページを再読み込み"
+  "Reload page": "ページを再読み込み",
+  "error.collaboration.document_owned_elsewhere": "この文書は共同編集サービスの別のインスタンスで開かれています",
+  "error.collaboration.owner_store_unavailable": "文書の所有者情報の保存先を利用できません",
+  "error.collaboration.replica_missing": "共同編集サービスのインスタンスが識別情報を送信しませんでした"
 }

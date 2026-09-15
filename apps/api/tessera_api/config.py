@@ -92,6 +92,13 @@ class Settings:
     # Общий секрет для внутренних маршрутов совместного редактирования. Ими
     # пользуется только сосед на Node; пустое значение выключает их вовсе.
     collab_internal_token: str = ""
+    #: Отметка владения документом совместного редактирования в Redis: срок
+    #: жизни и период продления. Реплика, открывшая документ, продлевает
+    #: отметку, пока он открыт; упавшая перестаёт, и по истечении срока
+    #: документ свободен для другой. Продление обязано быть заметно чаще срока,
+    #: иначе отметка истекала бы у живой реплики.
+    collab_owner_ttl_ms: int = 30000
+    collab_owner_renew_ms: int = 10000
     # Адрес соседнего сервиса преобразования содержимого. Схема узлов
     # редактора живёт там, и второй её реализации быть не должно.
     content_service_url: str = "http://tessera-v2-collab:3001"
@@ -111,6 +118,15 @@ class Settings:
             # Та же проверка, что в v1: короткий ключ подписывает токены,
             # которые подделываются перебором, и молча этого не заметить.
             raise RuntimeError("APP_SECRET должен быть не короче 32 символов")
+
+        owner_ttl_ms = int(_env("COLLAB_OWNER_TTL_MS", "30000"))
+        owner_renew_ms = int(_env("COLLAB_OWNER_RENEW_MS", "10000"))
+        if not 0 < owner_renew_ms < owner_ttl_ms:
+            # Продление реже срока — и отметка истекает у живой реплики:
+            # документ становится доступен второй, пока первая его держит.
+            raise RuntimeError(
+                "COLLAB_OWNER_RENEW_MS обязан быть больше нуля и меньше COLLAB_OWNER_TTL_MS"
+            )
 
         return cls(
             database_url=_require("DATABASE_URL"),
@@ -154,6 +170,8 @@ class Settings:
             hub_url=_env("HUB_URL", "http://localhost:4000"),
             disable_telemetry=_env("DISABLE_TELEMETRY", "false").lower() == "true",
             collab_internal_token=_env("COLLAB_INTERNAL_TOKEN", ""),
+            collab_owner_ttl_ms=owner_ttl_ms,
+            collab_owner_renew_ms=owner_renew_ms,
             gotenberg_url=_env("GOTENBERG_URL", ""),
             pdf_render_base_url=_env("PDF_RENDER_BASE_URL", ""),
             pdf_export_timeout=float(_env("PDF_EXPORT_TIMEOUT", "120")),

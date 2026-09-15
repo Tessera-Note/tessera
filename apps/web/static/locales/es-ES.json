@@ -2387,5 +2387,8 @@
   "Plain": "Simple",
   "Expand row": "Abrir la fila",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Esta página no se está sincronizando. Sus cambios no llegan a otras personas. Vuelva a cargar la página para reconectarse.",
-  "Reload page": "Volver a cargar la página"
+  "Reload page": "Volver a cargar la página",
+  "error.collaboration.document_owned_elsewhere": "El documento está abierto en otra instancia del servicio de colaboración",
+  "error.collaboration.owner_store_unavailable": "El almacén de marcas de propiedad de documentos no está disponible",
+  "error.collaboration.replica_missing": "La instancia del servicio de colaboración no se identificó"
 }

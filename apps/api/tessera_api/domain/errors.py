@@ -16,6 +16,7 @@ from litestar.status_codes import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
+    HTTP_503_SERVICE_UNAVAILABLE,
 )
 
 ERROR_MESSAGES: dict[str, str] = {
@@ -132,6 +133,13 @@ ERROR_MESSAGES: dict[str, str] = {
     "error.collaboration.internal_disabled": "Collaboration is not configured in this deployment",
     "error.collaboration.internal_denied": "Internal access denied",
     "error.collaboration.document_invalid": "The document could not be read",
+    "error.collaboration.document_owned_elsewhere": (
+        "This document is open on another instance of the collaboration service"
+    ),
+    "error.collaboration.owner_store_unavailable": "The document ownership store is unavailable",
+    "error.collaboration.replica_missing": (
+        "The collaboration service instance did not identify itself"
+    ),
     "error.ai.tools_unsupported": "This AI provider cannot use tools",
     "error.ai.model_not_configured": "No model name is set for this AI provider",
     "error.ai.unknown_web_search_driver": "Unknown web search provider",
@@ -188,6 +196,10 @@ def not_found(code: str, params: dict | None = None) -> AppError:
 
 def conflict(code: str, params: dict | None = None) -> AppError:
     return AppError(code, HTTP_409_CONFLICT, params)
+
+
+def unavailable(code: str, params: dict | None = None) -> AppError:
+    return AppError(code, HTTP_503_SERVICE_UNAVAILABLE, params)
 
 
 def app_error_response(request: Request, exception: AppError) -> Response:

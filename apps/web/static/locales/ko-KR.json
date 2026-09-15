@@ -2387,5 +2387,8 @@
   "Plain": "일반",
   "Expand row": "행 펼치기",
   "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "이 페이지는 동기화되지 않고 있습니다. 변경 사항이 다른 사용자에게 전달되지 않습니다. 다시 연결하려면 페이지를 새로 고치세요.",
-  "Reload page": "페이지 새로 고침"
+  "Reload page": "페이지 새로 고침",
+  "error.collaboration.document_owned_elsewhere": "이 문서는 공동 편집 서비스의 다른 인스턴스에서 열려 있습니다",
+  "error.collaboration.owner_store_unavailable": "문서 소유 표시 저장소를 사용할 수 없습니다",
+  "error.collaboration.replica_missing": "공동 편집 서비스 인스턴스가 식별 정보를 보내지 않았습니다"
 }

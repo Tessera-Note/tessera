@@ -25,8 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tessera_api.api.guards import PUBLIC
 from tessera_api.config import Settings
 from tessera_api.domain.errors import bad_request, unauthorized
+from tessera_api.infrastructure.cache import Cache
 from tessera_api.infrastructure.queue import JobQueue
 from tessera_api.services.collab import CollabService, decode_ydoc, page_id_of
+from tessera_api.services.collab_owner import CollabOwnerService
 from tessera_api.services.digest import DigestService
 from tessera_api.services.notification_mail import NotificationMailer
 from tessera_api.services.realtime import RealtimeService
@@ -161,3 +163,53 @@ class CollabInternalController(Controller):
                 continue
 
         return await CollabService(db_session, tokens).sweep(page_id, users)
+
+    @post("/owner", opt={PUBLIC: True})
+    async def claim_owner(
+        self,
+        data: dict,
+        request: Request,
+        settings: NamedDependency[Settings],
+        cache: NamedDependency[Cache],
+    ) -> dict:
+        """Взять документ за репликой или подтвердить, что он уже её."""
+        _assert_internal(request, settings)
+        return await _owners(cache, settings).claim(
+            str(data.get("documentName") or ""), str(data.get("replica") or "")
+        )
+
+    @post("/owner/renew", opt={PUBLIC: True})
+    async def renew_owner(
+        self,
+        data: dict,
+        request: Request,
+        settings: NamedDependency[Settings],
+        cache: NamedDependency[Cache],
+    ) -> dict:
+        """Продлить отметки всех документов, открытых репликой."""
+        _assert_internal(request, settings)
+        raw = data.get("documents")
+        documents = [str(one) for one in raw if one] if isinstance(raw, list) else []
+        return await _owners(cache, settings).renew(documents, str(data.get("replica") or ""))
+
+    @post("/owner/release", opt={PUBLIC: True})
+    async def release_owner(
+        self,
+        data: dict,
+        request: Request,
+        settings: NamedDependency[Settings],
+        cache: NamedDependency[Cache],
+    ) -> dict:
+        """Снять отметку документа, выгруженного из памяти реплики."""
+        _assert_internal(request, settings)
+        return await _owners(cache, settings).release(
+            str(data.get("documentName") or ""), str(data.get("replica") or "")
+        )
+
+
+def _owners(cache: Cache, settings: Settings) -> CollabOwnerService:
+    return CollabOwnerService(
+        cache.client,
+        ttl_ms=settings.collab_owner_ttl_ms,
+        renew_every_ms=settings.collab_owner_renew_ms,
+    )
