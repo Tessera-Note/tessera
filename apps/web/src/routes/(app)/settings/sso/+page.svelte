@@ -245,7 +245,7 @@
         {/if}
 
         {#if form.type === 'oidc'}
-          <Field label={t('Issuer URL')}>
+          <Field label={t('Provider address (issuer)')}>
             <TextInput bind:value={form.oidcIssuer} placeholder="https://issuer.example.com" />
           </Field>
           <Field label={t('Client id')}>
