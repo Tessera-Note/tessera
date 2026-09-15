@@ -127,7 +127,7 @@ tessera/
     deployment-from-scratch.md, open-api.md, future-roadmap.md
   deploy/                       nginx, backup-db.sh, postgres-init, searxng
   scripts/                      вход на стенд, сверка образа, данные эмодзи,
-                                нагрузка на совместную правку
+                                нагрузка на совместную правку, вычитка словарей
   .claude/                      конфигурация Claude Code
 ```
 
@@ -183,6 +183,7 @@ Python 3.13 и uv для приложения, Node 22 и pnpm 10.18.3 для э
 | `pnpm --filter @tessera/web build` | шрифты Excalidraw затем сборка Vite |
 | `pnpm build` | расширения редактора затем экраны |
 | `node --test services/collab/src/*.test.js` | проверки сервиса совместного редактирования |
+| `node --test scripts/*.test.mjs` | проверки скриптов репозитория (вычитка словарей) |
 | `uv run pytest` в `services/hub` | проверки внутреннего сервиса |
 | `uv run alembic upgrade head` в `services/hub` | миграции базы `tessera_hub` |
 

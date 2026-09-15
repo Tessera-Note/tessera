@@ -51,6 +51,8 @@ src/lib/i18n/          словари, подстановка, формы чис
 
 Словари `static/locales/<locale>.json`, двенадцать языков. В компонент перевод приходит из стора: `import { locale } from '$lib/stores/i18n.svelte'`, затем `const t = $derived(locale.t)`. Подробности в `.claude/skills/i18n/SKILL.md`.
 
+Вычитка словарей носителями — `scripts/locale-review.mjs`. Выгрузка таблицей отдаёт только строки, изменённые с прошлой вычитки. Внесение сверяет подстановки с источником и при расхождении ничего не пишет. Отметка «до какого коммита прочитано» — `docs/i18n-review-marks.json`. Crowdin выключен намеренно, причина в `docs/future-roadmap.md`.
+
 ## Статика
 
 `static/` копируется в сборку целиком. Шрифты Excalidraw кладёт туда шаг сборки (`apps/web/scripts/copy-excalidraw-assets.mjs`): экземпляр раздаёт их сам, потому что выгруженный SVG ссылается на `/excalidraw-assets/`, а выход в интернет закрыт.
