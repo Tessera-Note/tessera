@@ -7,7 +7,7 @@
  * чужом языке.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/i18n', () => ({
   normalizeLocale: (value: string | null | undefined) => value ?? 'en-US',
@@ -24,6 +24,12 @@ function run(data: unknown, search = '') {
   });
 }
 
+// У Node 22 есть свой `navigator` с языком системы: без подмены проверка
+// зависела бы от машины, на которой идёт.
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('язык слоя', () => {
   it('у вошедшего берётся его язык', async () => {
     const result = await run({ session: { user: { locale: 'ru-RU' } } }, '?locale=uk-UA');
@@ -37,6 +43,13 @@ describe('язык слоя', () => {
   });
 
   it('без того и другого остаётся язык браузера', async () => {
+    vi.stubGlobal('navigator', { language: 'de-DE' });
+    const result = await run(null);
+    expect(result.locale).toBe('de-DE');
+  });
+
+  it('на сервере, где браузера нет, — язык по умолчанию', async () => {
+    vi.stubGlobal('navigator', undefined);
     const result = await run(null);
     expect(result.locale).toBe('en-US');
   });
