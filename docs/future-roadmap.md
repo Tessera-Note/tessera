@@ -181,6 +181,70 @@ apply` в шаге `tessera-v2-schema-tables` на каждом подъёме �
 словарным ревьюером до коммита. Формы по числам сюда не входят — они в пункте
 выше.
 
+## Строки и коды отказов в словарях, которые вторая версия не использует
+
+Проверено 15 сентября 2026 по коду, не по словарю. Поиск шёл по всему
+`apps` (приложение с шаблонами писем, экраны), `services/collab`,
+`services/hub`, `packages` и `scripts`, литералом и по сборке кода из частей
+(`f"error.{…}"`, `` `error.${…}` ``, `"error." +`) — сборки нет ни одной.
+Клиент первой версии ходит в свои словари (`temp/v1/apps/client/public/locales`),
+поэтому из словарей второй версии ему ничего не нужно. Удаление — отдельным
+решением; пока ничего не удалено.
+
+**Пять строк** — нигде во второй версии, ни на экранах, ни в приложении, ни в
+письмах. Все пять — строки экранов первой версии, перенесённые со словарём:
+
+| Строка | Где в первой версии |
+|---|---|
+| `Identity provider` | `group-directory-panel.tsx` |
+| `SAML Idp Certificate is required` | `sso-saml-form.tsx` |
+| `Delete SSO provider` | `sso-provider-list.tsx` |
+| `Sign-in through the identity provider did not complete…` | `login-form.tsx` |
+| `This unlinks this member from the identity provider…` | `members-action-menu.tsx` |
+
+**Двадцать шесть кодов** `error.sso`, `error.auth`, `error.scim` из 79 в словаре
+вторая версия не отдаёт. Все двадцать шесть заведены в первой версии
+(`common/errors/app-error.ts`) и отдаются её сервером. Где у второй есть свой
+код о том же, он назван; без названия — такого отказа у второй нет:
+
+| Код | Где отдаёт первая | Свой код второй |
+|---|---|---|
+| `error.auth.an_account_with_this_email_already` | `signup.service.ts` | — |
+| `error.auth.email_not_verified` | `auth.util.ts` | — |
+| `error.auth.invalid_jwt_token_token_type_does` | `token.service.ts` | `error.auth.invalid_or_expired_token` |
+| `error.auth.workspace_does_not_match` | `jwt.strategy.ts` | — |
+| `error.auth.workspace_setup_already_completed` | `setup.guard.ts` | `error.workspace.setup_already_done` |
+| `error.scim.displayname_is_required` | `scim-group.service.ts` | `scim.group_name_missing` (код SCIM, не словаря) |
+| `error.scim.invalid_scim_token` | `scim-auth.guard.ts` | `scim.token_invalid` |
+| `error.scim.missing_or_malformed_authorization_header` | `scim-auth.guard.ts` | `scim.token_invalid` |
+| `error.scim.scim_provisioning_is_disabled` | `scim-auth.guard.ts` | — |
+| `error.scim.token_limit` | `scim-token.service.ts` | — |
+| `error.scim.username_must_be_a_valid_email` | `scim-user.service.ts` | `scim.user_name_missing` |
+| `error.scim.workspace_could_not_be_determined` | `scim-auth.guard.ts` | `scim.workspace_missing` |
+| `error.sso.client_secret_missing` | `oidc.service.ts` | `error.sso.client_not_configured` |
+| `error.sso.credentials_invalid` | `ldap.service.ts` | `error.sso.invalid_credentials` |
+| `error.sso.directory_ambiguous` | `ldap.service.ts` | — |
+| `error.sso.directory_no_email` | `ldap.service.ts` | `error.sso.email_missing` |
+| `error.sso.directory_no_stable_id` | `ldap.service.ts` | `error.sso.ldap_stable_id_missing` |
+| `error.sso.directory_unavailable` | `ldap.service.ts` | — |
+| `error.sso.email_not_verified` | `google.service.ts` | — |
+| `error.sso.google_not_configured` | `google.service.ts` | — |
+| `error.sso.google_unavailable` | `google.service.ts` | — |
+| `error.sso.issuer_invalid` | `oidc.service.ts` | — |
+| `error.sso.issuer_not_https` | `oidc.service.ts` | `error.sso.issuer_must_use_https` |
+| `error.sso.provider_ambiguous` | `sso-identity.service.ts` | — |
+| `error.sso.provider_unavailable` | `sso-identity.service.ts` | — |
+| `error.sso.provider_unreachable` | `oidc.service.ts` | — |
+
+Соответствие «свой код второй» установлено по имени и тексту, поведение двух
+отказов не сличалось. Для решения об удалении это достаточно: вторая версия
+ни одного из двадцати шести не отдаёт.
+
+Решить надо одно: удалять ли их из словарей второй версии. Против удаления
+ничего, кроме того, что `error-codes.test.ts` проверяет только одну сторону —
+что каждый код приложения есть в словаре, — и обратную сторону (лишний ключ)
+не ловит; без такой проверки лишние ключи будут копиться снова.
+
 ## Кеш прав страницы: пересмотреть, когда таблицы наполнятся
 
 Вопрос закрыт замером, а не рассуждением: `canUserEditPage` выполнялся за
