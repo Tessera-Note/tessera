@@ -13,6 +13,7 @@ import test from 'node:test';
 import { createRequire } from 'node:module';
 
 import {
+  allowUnnamedFromEnv,
   attachCollab,
   closeCollab,
   createCollabServer,
@@ -57,13 +58,13 @@ async function listen(server) {
 }
 
 /** Поднять пару «серверная половина и канал» и выполнить проверку на них. */
-async function withChannel(answers, run) {
+async function withChannel(answers, run, options = {}) {
   const { server: fake, seen } = backend(answers);
   const backendPort = await listen(fake);
 
   process.env.API_URL = `http://127.0.0.1:${backendPort}`;
   process.env.COLLAB_INTERNAL_TOKEN = 'test-internal-token';
-  const { hocuspocus } = createCollabServer();
+  const { hocuspocus } = createCollabServer(options);
 
   const http = createServer((_, response) => response.end());
   attachCollab(http, hocuspocus);
@@ -206,6 +207,82 @@ test('без имени в адресе соединение не открыва
     assert.equal(result.ok, false, 'соединение открылось без имени в адресе');
     close(result);
   });
+});
+
+test('флаг раскатки пускает подключение без имени и пишет его в журнал', async (t) => {
+  // Вкладки, открытые до обновления, подключаются по старому адресу. При одной
+  // реплике их можно пустить, но каждое такое подключение обязано остаться в
+  // журнале: по нему видно, что старые вкладки ещё живы.
+  const logged = t.mock.method(console, 'log', () => {});
+  await withChannel(
+    AUTHORIZED,
+    async ({ port }) => {
+      const result = await connect(port, { address: `ws://127.0.0.1:${port}/collab` });
+      assert.equal(result.ok, true, 'с флагом соединение без имени не открылось');
+      close(result);
+    },
+    { allowUnnamed: true },
+  );
+
+  const lines = logged.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(
+    lines.some((one) => one.includes('без имени документа в адресе включён')),
+    'включённый допуск не объявлен при запуске',
+  );
+  const admitted = lines.find((one) => one.includes('без имени в адресе допущено'));
+  assert.ok(admitted, 'допущенное подключение не записано в журнал');
+  assert.ok(admitted.includes(`page.${PAGE_ID}`), 'в записи нет документа');
+  assert.match(admitted, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'в записи нет времени');
+});
+
+test('с флагом раскатки расхождение имён по-прежнему отказ', async () => {
+  await withChannel(
+    AUTHORIZED,
+    async ({ port, seen }) => {
+      const other = 'page.33333333-3333-4333-8333-333333333333';
+      const result = await connect(port, {
+        address: `ws://127.0.0.1:${port}/collab?documentName=${encodeURIComponent(other)}`,
+      });
+      assert.equal(result.ok, false, 'соединение открылось с чужим именем в адресе');
+      close(result);
+      assert.equal(
+        seen.some((one) => one.path === '/api/internal/collab/authorize'),
+        false,
+        'права спрошены, хотя имя в адресе не совпало',
+      );
+    },
+    { allowUnnamed: true },
+  );
+});
+
+test('с флагом раскатки пустое имя в адресе — тоже расхождение', async () => {
+  // Довод есть, но пустой: это не старая вкладка, а сломанный адрес, и прокси
+  // закрепил бы его по пустому ключу.
+  await withChannel(
+    AUTHORIZED,
+    async ({ port }) => {
+      const result = await connect(port, { address: `ws://127.0.0.1:${port}/collab?documentName=` });
+      assert.equal(result.ok, false, 'соединение открылось с пустым именем в адресе');
+      close(result);
+    },
+    { allowUnnamed: true },
+  );
+});
+
+test('флаг раскатки включается только явным значением', () => {
+  for (const value of ['', 'false', '0', 'yes', 'TRUE ']) {
+    assert.equal(allowUnnamedFromEnv(value), false, `значение «${value}» включило допуск`);
+  }
+  assert.equal(allowUnnamedFromEnv('true'), true);
+  assert.equal(allowUnnamedFromEnv('1'), true);
+
+  const saved = process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT;
+  delete process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT;
+  try {
+    assert.equal(allowUnnamedFromEnv(), false, 'без переменной допуск включён');
+  } finally {
+    if (saved !== undefined) process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT = saved;
+  }
 });
 
 test('общий секрет уходит своим заголовком', async () => {

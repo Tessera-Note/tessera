@@ -157,8 +157,26 @@ function applyReadOnly(connection, readOnly, documentName) {
   log(`${documentName}: соединение переведено в режим ${readOnly ? 'чтения' : 'правки'}`);
 }
 
-export function createCollabServer() {
+/**
+ * Допуск подключений без имени документа в адресе.
+ *
+ * Только на время раскатки при одной реплике: вкладки, открытые до
+ * обновления, подключаются по старому адресу, без довода, и без допуска
+ * перестают синхронизироваться до перезагрузки. При двух репликах допуск
+ * опасен — такое соединение прокси кладёт не на ту реплику, где живёт
+ * документ. Поэтому по умолчанию выключен, а каждое допущенное подключение
+ * пишется в журнал.
+ */
+export function allowUnnamedFromEnv(value = process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT) {
+  return value === 'true' || value === '1';
+}
+
+export function createCollabServer({ allowUnnamed = allowUnnamedFromEnv() } = {}) {
   const contributors = new Contributors();
+
+  if (allowUnnamed) {
+    log('допуск подключений без имени документа в адресе включён: только при одной реплике');
+  }
 
   /**
    * Документы, которые не удалось разобрать, и причина по каждому.
@@ -184,8 +202,15 @@ export function createCollabServer() {
       // сообщений он не разбирает, — а документ открывается по сообщению.
       // Разойдясь, они привели бы соединение на реплику, где документ не
       // живёт, и правки двух реплик по одному документу не сошлись бы молча.
-      // Поэтому расхождение, как и отсутствие довода, это отказ.
-      if (requestParameters?.get('documentName') !== documentName) {
+      // Поэтому расхождение, как и отсутствие довода, это отказ. Отсутствие
+      // довода пропускается только допуском раскатки (`allowUnnamedFromEnv`),
+      // и каждое такое подключение остаётся в журнале.
+      const named = requestParameters?.get('documentName') ?? null;
+      if (named === null && allowUnnamed) {
+        log(
+          `${documentName}: подключение без имени в адресе допущено флагом раскатки, ${new Date().toISOString()}`,
+        );
+      } else if (named !== documentName) {
         log(`${documentName}: имя в адресе подключения не совпало с именем документа`);
         throw new Error('document name mismatch');
       }
