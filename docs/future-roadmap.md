@@ -35,7 +35,7 @@ RFC 7644, разбирает его программа, а собственны�
 или изменившиеся с прошлой вычитки. Внесение сверяет подстановки с английским
 источником и при расхождении не пишет ничего. Отметка «до какого коммита
 прочитано» хранится в `docs/i18n-review-marks.json` и пока пуста: первая
-вычитка каждого языка — полная, 2385 строк (у ru и uk — 2403, с формами числа).
+вычитка каждого языка — полная, 1209 строк (у ru и uk — 1217, с формами числа).
 
 Осталось сделать саму вычитку: найти носителя для каждого языка, выгрузить,
 внести, поставить отметку.
@@ -115,7 +115,7 @@ apply` в шаге `tessera-v2-schema-tables` на каждом подъёме �
 ## Строки со счётчиком без форм по числам
 
 В русском и украинском слово после числа меняет форму (одна вкладка, две
-вкладки, пять вкладок), а пять строк словаря со счётчиком форм не имеют —
+вкладки, пять вкладок), а две строки словаря со счётчиком форм не имеют —
 написаны оборотом «Вкладок: {{count}}», который обходит согласование. Обход
 держится на совпадении с соседними строками, а не на правиле языка.
 
@@ -123,21 +123,12 @@ apply` в шаге `tessera-v2-schema-tables` на каждом подъёме �
 
 - `Tabs: {{count}}` — перечень присутствующих (`PagePresence.svelte`);
 - `Processed {{count}} files` — разбор вложений (настройки рабочего
-  пространства);
-- `{{count}} results found` — поиск.
-
-Две строки несут число меткой в скобках — `Incoming links ({{count}})`,
-`Outgoing links ({{count}})`: согласования слова с числом там нет, но решение
-принимается вместе с остальными, а не отдельно.
+  пространства).
 
 Чинится формами `_one`, `_few`, `_many`, `_other` у ru и uk и `_one`, `_other`
 у остальных языков, по правилам `.claude/skills/i18n/SKILL.md`; разбор форм в
 `lib/i18n/index.ts` уже есть (`pluralForm`), и проверка словарей требует у ru
 и uk полный набор форм, как только ключ заведён с суффиксом.
-
-Сюда же относится неверная форма в uk `Sign-in provider link removed_other`
-(«зв'язка» вместо «зв'язку»): форма `_other` у дробных чисел требует
-родительного падежа единственного числа.
 
 ## Несогласованности словарей вне термина поставщика входа
 
@@ -149,8 +140,7 @@ apply` в шаге `tessera-v2-schema-tables` на каждом подъёме �
   failed…`, `Sign in with {{provider}}`, `Login`; サインイン в `Sign In`,
   `error.sso.not_confirmed`, `error.auth.session_expired` и в самом термине
   サインインプロバイダー;
-- **ko** — `error.sso.google_unavailable`: `Google가` вместо `Google이`
-  (구글 кончается на согласный); «member» переведён то 구성원, то 멤버;
+- **ko** — «member» переведён то 구성원, то 멤버;
 - **es** — обращение: на «ты» `Inténtalo de nuevo o entra con contraseña`,
   `Introduce un nombre descriptivo del token`, `Tu contraseña`, остальное на
   usted;
@@ -170,80 +160,31 @@ apply` в шаге `tessera-v2-schema-tables` на каждом подъёме �
   подготовка SCIM без одного термина (`Надання SCIM`, `Синхронізацію SCIM
   вимкнено`, калька `надавайте користувачів`); та же строка про обязательный
   SSO, что в ru;
-- **issuer во всех языках** — метка `Issuer URL`, `error.sso.issuer_invalid`
-  и `error.sso.issuer_not_https` переводят issuer как «издатель» (emisor,
-  Aussteller…), а `error.sso.issuer_must_use_https` и
-  `error.sso.issuer_not_configured` — как «поставщик»: два кода про одно поле
-  говорят разными словами. В ru и uk метка поля — «Адрес поставщика (issuer)».
+- **issuer во всех языках** — метка поля `Issuer URL` переводит issuer как
+  «издатель» (ko 발급자, emisor, Aussteller…), а коды про то же поле
+  `error.sso.issuer_must_use_https` и `error.sso.issuer_not_configured` — как
+  «поставщик». В ru и uk метка уже «Адрес поставщика (issuer)».
   Расхождение идёт от английского источника, поэтому решается сначала там.
 
 Чинится по языку за раз, с выбором одного варианта для каждого разнобоя и
 словарным ревьюером до коммита. Формы по числам сюда не входят — они в пункте
 выше.
 
-## Строки и коды отказов в словарях, которые вторая версия не использует
+## Лишние ключи словаря проверки не ловят
 
-Проверено 15 сентября 2026 по коду, не по словарю. Поиск шёл по всему
-`apps` (приложение с шаблонами писем, экраны), `services/collab`,
-`services/hub`, `packages` и `scripts`, литералом и по сборке кода из частей
-(`f"error.{…}"`, `` `error.${…}` ``, `"error." +`) — сборки нет ни одной.
-Клиент первой версии ходит в свои словари (`temp/v1/apps/client/public/locales`),
-поэтому из словарей второй версии ему ничего не нужно. Удаление — отдельным
-решением; пока ничего не удалено.
+15 сентября 2026 из словарей удалены 1183 ключа, которых вторая версия не
+использует нигде — ни экраны, ни приложение с письмами, ни служба
+редактирования, ни пакеты: строки экранов и коды отказов первой версии,
+перенесённые со словарём. Копились они потому, что проверки сверяют словарь с
+кодом только в одну сторону: `dictionaries.test.ts` и `error-codes.test.ts`
+требуют, чтобы каждый ключ и код из кода был в словаре, а ключ словаря, не
+нужный коду, не ловят.
 
-**Пять строк** — нигде во второй версии, ни на экранах, ни в приложении, ни в
-письмах. Все пять — строки экранов первой версии, перенесённые со словарём:
-
-| Строка | Где в первой версии |
-|---|---|
-| `Identity provider` | `group-directory-panel.tsx` |
-| `SAML Idp Certificate is required` | `sso-saml-form.tsx` |
-| `Delete SSO provider` | `sso-provider-list.tsx` |
-| `Sign-in through the identity provider did not complete…` | `login-form.tsx` |
-| `This unlinks this member from the identity provider…` | `members-action-menu.tsx` |
-
-**Двадцать шесть кодов** `error.sso`, `error.auth`, `error.scim` из 79 в словаре
-вторая версия не отдаёт. Все двадцать шесть заведены в первой версии
-(`common/errors/app-error.ts`) и отдаются её сервером. Где у второй есть свой
-код о том же, он назван; без названия — такого отказа у второй нет:
-
-| Код | Где отдаёт первая | Свой код второй |
-|---|---|---|
-| `error.auth.an_account_with_this_email_already` | `signup.service.ts` | — |
-| `error.auth.email_not_verified` | `auth.util.ts` | — |
-| `error.auth.invalid_jwt_token_token_type_does` | `token.service.ts` | `error.auth.invalid_or_expired_token` |
-| `error.auth.workspace_does_not_match` | `jwt.strategy.ts` | — |
-| `error.auth.workspace_setup_already_completed` | `setup.guard.ts` | `error.workspace.setup_already_done` |
-| `error.scim.displayname_is_required` | `scim-group.service.ts` | `scim.group_name_missing` (код SCIM, не словаря) |
-| `error.scim.invalid_scim_token` | `scim-auth.guard.ts` | `scim.token_invalid` |
-| `error.scim.missing_or_malformed_authorization_header` | `scim-auth.guard.ts` | `scim.token_invalid` |
-| `error.scim.scim_provisioning_is_disabled` | `scim-auth.guard.ts` | — |
-| `error.scim.token_limit` | `scim-token.service.ts` | — |
-| `error.scim.username_must_be_a_valid_email` | `scim-user.service.ts` | `scim.user_name_missing` |
-| `error.scim.workspace_could_not_be_determined` | `scim-auth.guard.ts` | `scim.workspace_missing` |
-| `error.sso.client_secret_missing` | `oidc.service.ts` | `error.sso.client_not_configured` |
-| `error.sso.credentials_invalid` | `ldap.service.ts` | `error.sso.invalid_credentials` |
-| `error.sso.directory_ambiguous` | `ldap.service.ts` | — |
-| `error.sso.directory_no_email` | `ldap.service.ts` | `error.sso.email_missing` |
-| `error.sso.directory_no_stable_id` | `ldap.service.ts` | `error.sso.ldap_stable_id_missing` |
-| `error.sso.directory_unavailable` | `ldap.service.ts` | — |
-| `error.sso.email_not_verified` | `google.service.ts` | — |
-| `error.sso.google_not_configured` | `google.service.ts` | — |
-| `error.sso.google_unavailable` | `google.service.ts` | — |
-| `error.sso.issuer_invalid` | `oidc.service.ts` | — |
-| `error.sso.issuer_not_https` | `oidc.service.ts` | `error.sso.issuer_must_use_https` |
-| `error.sso.provider_ambiguous` | `sso-identity.service.ts` | — |
-| `error.sso.provider_unavailable` | `sso-identity.service.ts` | — |
-| `error.sso.provider_unreachable` | `oidc.service.ts` | — |
-
-Соответствие «свой код второй» установлено по имени и тексту, поведение двух
-отказов не сличалось. Для решения об удалении это достаточно: вторая версия
-ни одного из двадцати шести не отдаёт.
-
-Решить надо одно: удалять ли их из словарей второй версии. Против удаления
-ничего, кроме того, что `error-codes.test.ts` проверяет только одну сторону —
-что каждый код приложения есть в словаре, — и обратную сторону (лишний ключ)
-не ловит; без такой проверки лишние ключи будут копиться снова.
+Чинится обратной проверкой в `dictionaries.test.ts`: каждый ключ `en-US`
+(для форм числа — его основа) встречается в коде `apps/web`, `apps/api`,
+`services` или `packages`. Ключи, собираемые на лету, должны при этом
+оставаться строками в описях — сейчас так и есть: шаблонной сборки ключа в
+`t()` нет ни одной.
 
 ## Кеш прав страницы: пересмотреть, когда таблицы наполнятся
 
