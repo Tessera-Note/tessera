@@ -152,3 +152,144 @@ pg_get_functiondef, pg_get_triggerdef по списку собственных �
 На время перехода обе версии смотрят в одну базу. Отсюда ограничение:
 **в переходный период схема меняется только совместимо**. Добавление колонки
 допустимо, удаление и переименование — нет, пока v1 в работе.
+
+## Ручные правки общей базы
+
+Шагов наката схемы в боевом составе нет (см. выше), поэтому всё, что добавлено
+в `schema.hcl` и `after-atlas.sql` после снимка, на общую базу переносится
+руками — по этому списку. На стенде те же правки применяются сами, шагами
+состава.
+
+Выполняет администратор базы боевого сервера — тот же, кто ведёт переключение
+по `09-switchover.md`. Перед первым шагом — резервная копия
+(`deploy/backup-db.sh`). Команды идут в `psql` под владельцем таблиц **по одной
+и вне `BEGIN`**, если шаг не говорит иначе: `CREATE INDEX CONCURRENTLY` внутри
+транзакции не выполняется.
+
+У каждого шага указано, когда он нужен. Шаг с пометкой **до подъёма образа**
+выполняется раньше, чем поднимется вторая версия, которой он нужен: без него она
+отвечает пятисотыми. Остальные можно делать позже, в окне.
+
+Правка схемы, которую нужно перенести на общую базу, в том же коммите
+добавляет сюда свой шаг.
+
+Шаги прогнаны на базе в исходном состоянии боевой — те же ограничения и индексы,
+что заводят миграции первой версии, PostgreSQL 18 из образа базы стенда:
+каждый доходит до конца, проверка после него даёт ожидаемое.
+
+### 1. Сортировка `C` у колонок порядка
+
+**Когда:** в окне, не в час пик. До подъёма образа не обязателен: без него
+порядок строк остаётся тем же, что в первой версии, с тем же дефектом (раздел
+«Сортировка колонок порядка применяется к общей базе» в `09-switchover.md`).
+
+Перезапись колонки берёт исключительную блокировку таблицы и перестраивает её
+индексы. Таблица с уже нужной сортировкой пропускается, повтор ничего не меняет.
+
+```sql
+DO $$
+DECLARE
+    target text;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['pages', 'base_rows', 'base_properties', 'base_views']
+    LOOP
+        IF (
+            SELECT co.collname
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_collation co ON co.oid = a.attcollation
+            WHERE n.nspname = 'public' AND c.relname = target AND a.attname = 'position'
+        ) IS DISTINCT FROM 'C' THEN
+            EXECUTE format(
+                'ALTER TABLE public.%I ALTER COLUMN "position" TYPE character varying COLLATE "C"',
+                target
+            );
+        END IF;
+    END LOOP;
+END $$;
+```
+
+Проверка — запрос из того же раздела `09-switchover.md`: `C` у всех четырёх.
+Четыре индекса по ключу порядка перестраиваются сами. Первая версия заводит их с
+явным `COLLATE "C"`; после шага их сортировка совпадает с сортировкой колонки, и
+`pg_indexes` показывает их уже без `COLLATE` — это то же самое.
+
+### 2. Короткое имя удалённого пространства освобождается
+
+**Когда:** в любое время. До подъёма образа не обязателен: без него имя
+удалённого пространства остаётся занятым, и вторая версия на попытку его занять
+отвечает обычным отказом «имя занято», а не пятисотым.
+
+Два правила уникальности у `spaces` ограничиваются живыми строками. Новые
+индексы строятся рядом под временными именами, без блокировки записи, затем
+одной короткой транзакцией встают на место старых. Прежние имена сохраняются
+намеренно: фильтр отказов первой версии (`unique-violation.filter.ts`) узнаёт
+занятое имя по `spaces_slug_workspace_id_unique`, и после подмены отказ
+приходит под тем же именем.
+
+Шаг не повторяется. Сначала проверка:
+
+```sql
+SELECT indexname, indexdef LIKE '%WHERE (deleted_at IS NULL)' AS done
+FROM pg_indexes
+WHERE schemaname = 'public' AND tablename = 'spaces'
+  AND indexname IN ('spaces_slug_workspace_id_unique', 'idx_spaces_slug_lower_workspace');
+```
+
+Обе строки `t` — шаг уже выполнен, дальше не идти. Обе `f` — выполнять:
+
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY spaces_slug_workspace_id_unique_live
+    ON spaces (slug, workspace_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX CONCURRENTLY idx_spaces_slug_lower_workspace_live
+    ON spaces (lower((slug)::text), workspace_id) WHERE deleted_at IS NULL;
+```
+
+Построение без блокировки при сбое оставляет индекс недействительным. Перед
+подменой оба обязаны быть `t`:
+
+```sql
+SELECT c.relname, i.indisvalid
+FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+WHERE c.relname IN ('spaces_slug_workspace_id_unique_live', 'idx_spaces_slug_lower_workspace_live');
+```
+
+`f` — удалить такой индекс (`DROP INDEX CONCURRENTLY` с его именем) и построить
+заново. Затем подмена, одной транзакцией:
+
+```sql
+BEGIN;
+ALTER TABLE spaces DROP CONSTRAINT spaces_slug_workspace_id_unique;
+DROP INDEX idx_spaces_slug_lower_workspace;
+ALTER INDEX spaces_slug_workspace_id_unique_live RENAME TO spaces_slug_workspace_id_unique;
+ALTER INDEX idx_spaces_slug_lower_workspace_live RENAME TO idx_spaces_slug_lower_workspace;
+COMMIT;
+```
+
+После — та же первая проверка, обе строки `t`.
+
+**Перед откатом на первую версию.** Первая версия ищет пространство по
+короткому имени без признака удаления и берёт первую попавшуюся строку
+(`space.repo.ts`, `findById` и `findBySlug`). Если после этого шага имя
+удалённого пространства заняли заново, строк с этим именем две, и какую из них
+откроет первая версия, не определено. Проверить до отката:
+
+```sql
+SELECT workspace_id, lower(slug), count(*)
+FROM spaces GROUP BY 1, 2 HAVING count(*) > 1;
+```
+
+Пусто — в этой части откат безопасен. Непусто — дописать к короткому имени
+удалённой строки хвост, после чего по имени находится только живая:
+
+```sql
+UPDATE spaces AS gone SET slug = gone.slug || '-' || left(gone.id::text, 8)
+WHERE gone.deleted_at IS NOT NULL
+  AND EXISTS (
+      SELECT 1 FROM spaces AS alive
+      WHERE alive.deleted_at IS NULL
+        AND alive.workspace_id = gone.workspace_id
+        AND lower(alive.slug) = lower(gone.slug)
+  );
+```
