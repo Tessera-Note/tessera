@@ -251,6 +251,29 @@ class SsoIdentityService:
         subject: str,
         workspace_id: uuid.UUID,
     ) -> None:
+        """Завести связь человека с провайдером.
+
+        Связь, снятая раньше администратором, оживляется, а не заводится
+        второй строкой. Снятие мягкое — с каким провайдером был связан
+        человек, ценно при разборе, — а уникальность пары «человек, провайдер»
+        в базе от пометки не зависит. Вставка падала на ней, и вход после
+        снятия, ради которого снятие и существует, отказывал.
+
+        Оживляется только снятая: живая связь этой пары сюда не доходит —
+        вызывающий проверяет её раньше и отвечает отказом.
+        """
+        revived = (
+            await self._session.execute(
+                update(AuthAccount)
+                .where(AuthAccount.user_id == user_id)
+                .where(AuthAccount.auth_provider_id == provider_id)
+                .where(AuthAccount.deleted_at.isnot(None))
+                .values(provider_user_id=subject, workspace_id=workspace_id, deleted_at=None)
+                .returning(AuthAccount.id)
+            )
+        ).scalar_one_or_none()
+        if revived is not None:
+            return
         await self._session.execute(
             insert(AuthAccount).values(
                 id=uuid.uuid4(),

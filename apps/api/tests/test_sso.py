@@ -216,6 +216,46 @@ class TestResolve:
         assert "identity_conflict" in str(failure.value.extra)
 
 
+class TestRelinkAfterUnlink:
+    """Снятая администратором связь заводится заново при следующем входе.
+
+    Ради этого снятие и существует: провайдер сменил идентификатор человека,
+    вход по почте упирается в прежнюю связь, администратор её снимает — и
+    следующий вход обязан пройти. Связь снимается мягко, а уникальность пары
+    «человек, провайдер» в базе от пометки не зависит.
+    """
+
+    async def test_the_next_login_links_again(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        from tessera_api.services.sso_providers import SsoProviderService
+
+        provider = await _provider(session, workspace)
+        email = f"relink-{uuid.uuid4().hex[:8]}@example.com"
+        identity = SsoIdentityService(session)
+
+        first = await identity.resolve(
+            provider=provider,
+            subject="прежний-идентификатор",
+            email=email,
+            name="Сменивший идентификатор",
+            workspace_id=workspace.id,
+        )
+        await SsoProviderService(session, app_secret="s" * 32, app_url="http://x").unlink_user(
+            first.id, owner, workspace
+        )
+
+        again = await identity.resolve(
+            provider=provider,
+            subject="новый-идентификатор",
+            email=email,
+            name="Сменивший идентификатор",
+            workspace_id=workspace.id,
+        )
+
+        assert again.id == first.id
+
+
 class TestGroupSync:
     async def _bound_group(self, session: AsyncSession, provider, workspace, key: str) -> Group:
         group_id = uuid.uuid4()
