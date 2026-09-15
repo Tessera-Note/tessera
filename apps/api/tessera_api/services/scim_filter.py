@@ -33,7 +33,15 @@ GROUP_ATTRIBUTES = {
 
 
 class UnsupportedFilter(ValueError):
-    """Фильтр, который мы не берёмся исполнить."""
+    """Фильтр, который мы не берёмся исполнить.
+
+    Несёт постоянный код причины тем же способом, что `ScimError`: код в
+    квадратных скобках в начале текста, который уходит провайдеру в `detail`.
+    """
+
+    def __init__(self, detail: str, *, code: str) -> None:
+        self.code = code
+        super().__init__(f"[{code}] {detail}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,13 +63,17 @@ def _parse(filter_text: str | None, attributes: dict[str, str]) -> ParsedFilter:
     match = EQUALITY.match(filter_text.strip())
     if match is None:
         raise UnsupportedFilter(
-            f'фильтр не поддерживается: {filter_text}. Поддержано только \'attribute eq "value"\''
+            f'фильтр не поддерживается: {filter_text}. Поддержано только \'attribute eq "value"\'',
+            code="scim.filter_unsupported",
         )
 
     attribute = match.group(1).lower()
     field = attributes.get(attribute)
     if field is None:
-        raise UnsupportedFilter(f"признак не поддерживается: {match.group(1)}")
+        raise UnsupportedFilter(
+            f"признак не поддерживается: {match.group(1)}",
+            code="scim.filter_attribute_unsupported",
+        )
 
     return ParsedFilter(field=field, value=match.group(2))
 

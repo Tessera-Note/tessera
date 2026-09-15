@@ -125,11 +125,13 @@ class ScimGroupService:
         try:
             key = uuid.UUID(group_id)
         except ValueError as error:
-            raise ScimError(404, "Группа не найдена") from error
+            raise ScimError(
+                404, f"Группа {group_id} не найдена", code="scim.group_not_found"
+            ) from error
 
         found = await self._session.get(Group, key)
         if found is None or found.deleted_at is not None or found.workspace_id != workspace.id:
-            raise ScimError(404, "Группа не найдена")
+            raise ScimError(404, f"Группа {group_id} не найдена", code="scim.group_not_found")
         return found
 
     async def _by_name(self, workspace: Workspace, name: str) -> Group | None:
@@ -180,16 +182,31 @@ class ScimGroupService:
         # имени её допускает: без отдельной проверки группа осталась бы без
         # имени.
         if not name or not name.strip():
-            raise ScimError(400, "displayName обязателен", SCIM_INVALID_VALUE)
+            raise ScimError(
+                400,
+                "Поле displayName обязательно и не может быть пустым",
+                SCIM_INVALID_VALUE,
+                code="scim.group_name_missing",
+            )
         return name.strip()
 
     async def create(self, workspace: Workspace, data: ScimGroupData) -> Group:
         name = self._check_name(data.display_name)
 
         if await self._by_name(workspace, name) is not None:
-            raise ScimError(409, "Группа с таким именем уже есть", SCIM_UNIQUENESS)
+            raise ScimError(
+                409,
+                f'Группа с displayName "{name}" уже есть',
+                SCIM_UNIQUENESS,
+                code="scim.group_name_taken",
+            )
         if data.external_id and await self._by_external_id(workspace, data.external_id):
-            raise ScimError(409, "externalId уже используется", SCIM_UNIQUENESS)
+            raise ScimError(
+                409,
+                f'externalId "{data.external_id}" уже занят другой группой',
+                SCIM_UNIQUENESS,
+                code="scim.group_external_id_taken",
+            )
 
         group_id = uuid.uuid4()
         await self._session.execute(
@@ -237,13 +254,23 @@ class ScimGroupService:
             if name != group.name:
                 occupied = await self._by_name(workspace, name)
                 if occupied is not None and occupied.id != group.id:
-                    raise ScimError(409, "Имя занято", SCIM_UNIQUENESS)
+                    raise ScimError(
+                        409,
+                        f'Группа с displayName "{name}" уже есть',
+                        SCIM_UNIQUENESS,
+                        code="scim.group_name_taken",
+                    )
                 values["name"] = name
 
         if data.external_id is not None:
             duplicate = await self._by_external_id(workspace, data.external_id)
             if duplicate is not None and duplicate.id != group.id:
-                raise ScimError(409, "externalId уже используется", SCIM_UNIQUENESS)
+                raise ScimError(
+                409,
+                f'externalId "{data.external_id}" уже занят другой группой',
+                SCIM_UNIQUENESS,
+                code="scim.group_external_id_taken",
+            )
             values["scim_external_id"] = data.external_id
             values["directory_key"] = data.external_id
         # Отсутствующий externalId сохраняется по той же причине, что у
@@ -299,7 +326,12 @@ class ScimGroupService:
         """
         group = await self.get(workspace, group_id)
         if group.is_default:
-            raise ScimError(400, "Группа по умолчанию не удаляется", SCIM_INVALID_VALUE)
+            raise ScimError(
+                400,
+                f'Группа "{group.name}" — группа по умолчанию, она не удаляется',
+                SCIM_INVALID_VALUE,
+                code="scim.group_default_not_deletable",
+            )
 
         await self._session.execute(delete(Group).where(Group.id == group.id))
         await self._session.commit()

@@ -66,7 +66,13 @@ def _scim(body: dict, status: int = 200) -> Response:
     return Response(content=body, status_code=status, media_type=CONTENT_TYPE)
 
 
-def _error(status: int, detail: str, scim_type: str | None = None) -> Response:
+def _error(
+    status: int, detail: str, scim_type: str | None = None, *, code: str | None = None
+) -> Response:
+    # Отказ, собранный здесь, а не службой, несёт код тем же способом, что и
+    # `ScimError`: в квадратных скобках в начале `detail`.
+    if code:
+        detail = f"[{code}] {detail}"
     body: dict[str, Any] = {"schemas": [SCHEMA_ERROR], "status": str(status), "detail": detail}
     if scim_type:
         body["scimType"] = scim_type
@@ -93,13 +99,13 @@ async def _authenticate(session: AsyncSession, request: Request) -> Workspace:
     """
     workspace = await WorkspaceRepo(session).first()
     if workspace is None:
-        raise ScimError(401, "Рабочее пространство не определено")
+        raise ScimError(401, "Рабочее пространство не определено", code="scim.workspace_missing")
 
     found = await ScimTokenService(session).authenticate(
         workspace, request.headers.get("authorization")
     )
     if found is None:
-        raise ScimError(401, "Недействительный токен SCIM")
+        raise ScimError(401, "Токен SCIM недействителен или отозван", code="scim.token_invalid")
     return workspace
 
 
@@ -249,7 +255,7 @@ class ScimController(Controller):
         if found is None:
             # Отказ в терминах протокола, а не общий: провайдер разбирает своё
             # тело ответа и по нему решает, повторять запрос или нет.
-            return _error(404, "схема не найдена")
+            return _error(404, f"схема {schema_id} не найдена", code="scim.schema_not_found")
         return _scim(found)
 
     @get("/Users")

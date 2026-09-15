@@ -42,12 +42,24 @@ class ScimError(Exception):
     У протокола свой формат ответа и свой словарь причин. Обычные отказы
     приложения провайдер не разбирает: он ждёт `scimType` и по нему решает,
     повторять запрос или считать запись проблемной.
+
+    `code` — постоянный машиночитаемый код причины вида `scim.<предмет>_<что>`.
+    Он ставится в начало `detail` в квадратных скобках: `detail` — то, что
+    показывает администратору интерфейс провайдера, и код виден там же, где
+    текст, а форма ответа по RFC 7644 не меняется. Код не зависит от текста и
+    при переформулировке не меняется; перечень с разъяснениями —
+    `docs/scim-errors.md`. Текст на языке экземпляра, и потому называет поле и
+    значение, на котором споткнулась синхронизация: код говорит, что
+    случилось, текст — с какой записью.
     """
 
-    def __init__(self, status: int, detail: str, scim_type: str | None = None) -> None:
+    def __init__(
+        self, status: int, detail: str, scim_type: str | None = None, *, code: str
+    ) -> None:
         super().__init__(detail)
         self.status = status
-        self.detail = detail
+        self.code = code
+        self.detail = f"[{code}] {detail}"
         self.scim_type = scim_type
 
 
@@ -146,11 +158,13 @@ class ScimUserService:
         try:
             key = uuid.UUID(user_id)
         except ValueError as error:
-            raise ScimError(404, "Пользователь не найден") from error
+            raise ScimError(
+                404, f"Пользователь {user_id} не найден", code="scim.user_not_found"
+            ) from error
 
         found = await self._session.get(User, key)
         if found is None or found.deleted_at is not None or found.workspace_id != workspace.id:
-            raise ScimError(404, "Пользователь не найден")
+            raise ScimError(404, f"Пользователь {user_id} не найден", code="scim.user_not_found")
         return found
 
     async def _by_external_id(self, workspace: Workspace, external_id: str) -> User | None:
@@ -187,20 +201,32 @@ class ScimUserService:
         """
         email = data.resolved_email
         if not email:
-            raise ScimError(400, "userName обязателен", SCIM_INVALID_VALUE)
+            raise ScimError(
+                400,
+                "Поле userName обязательно и не может быть пустым",
+                SCIM_INVALID_VALUE,
+                code="scim.user_name_missing",
+            )
 
         if data.external_id:
             duplicate = await self._by_external_id(workspace, data.external_id)
             if duplicate is not None:
-                raise ScimError(409, "externalId уже используется", SCIM_UNIQUENESS)
+                raise ScimError(
+                    409,
+                    f'externalId "{data.external_id}" уже занят другой записью',
+                    SCIM_UNIQUENESS,
+                    code="scim.user_external_id_taken",
+                )
 
         existing = await self._by_email(workspace, email)
         if existing is not None:
             if existing.scim_external_id and existing.scim_external_id != data.external_id:
                 raise ScimError(
                     409,
-                    "Адрес занят записью с другим externalId",
+                    f'Адрес {email} занят записью с другим externalId '
+                    f'("{existing.scim_external_id}")',
                     SCIM_UNIQUENESS,
+                    code="scim.user_email_bound_to_other_external_id",
                 )
             # Присвоение идёт тем же путём, что замена: иначе переход
             # отключённого к работе не попал бы в журнал событием активации, а
@@ -271,13 +297,23 @@ class ScimUserService:
         if email and email != person.email:
             occupied = await self._by_email(workspace, email)
             if occupied is not None and occupied.id != person.id:
-                raise ScimError(409, "Адрес занят", SCIM_UNIQUENESS)
+                raise ScimError(
+                    409,
+                    f"Адрес {email} уже занят другой записью",
+                    SCIM_UNIQUENESS,
+                    code="scim.user_email_taken",
+                )
             values["email"] = email
 
         if data.external_id is not None:
             duplicate = await self._by_external_id(workspace, data.external_id)
             if duplicate is not None and duplicate.id != person.id:
-                raise ScimError(409, "externalId уже используется", SCIM_UNIQUENESS)
+                raise ScimError(
+                    409,
+                    f'externalId "{data.external_id}" уже занят другой записью',
+                    SCIM_UNIQUENESS,
+                    code="scim.user_external_id_taken",
+                )
             values["scim_external_id"] = data.external_id
         # При замене отсутствующий externalId сохраняется, а не очищается.
         # Обоснование в описании модуля.
@@ -335,7 +371,13 @@ class ScimUserService:
             # Не `uniqueness`: совпадения здесь нет, изменение несовместимо с
             # нынешним состоянием. По таблице 9 RFC 7644 этому соответствует
             # `mutability` с кодом 400 — тем же, каким отвечает ручной путь.
-            raise ScimError(400, "Владелец должен остаться хотя бы один", SCIM_MUTABILITY)
+            raise ScimError(
+                400,
+                f"{person.email} — последний владелец рабочего пространства: "
+                "active=false оставило бы его без владельца",
+                SCIM_MUTABILITY,
+                code="scim.user_last_owner",
+            )
 
     async def deactivate(self, workspace: Workspace, user_id: str) -> None:
         """Отключить запись. Это и есть `DELETE` протокола.
