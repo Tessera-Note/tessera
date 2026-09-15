@@ -34,6 +34,45 @@ const ICU_SYNTAX = /\{\s*\w+\s*,\s*(plural|select|selectordinal)\s*,/;
 const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 
 /**
+ * Код, который выводит тексты или отдаёт коды отказов: экраны, приложение с
+ * письмами, служба редактирования, внутренний сервис, расширения редактора.
+ * Проверки и документация сюда не входят — ключ, нужный только им, человеку не
+ * нужен.
+ */
+const REPO_DIR = join(HERE, '..', '..', '..', '..', '..');
+const USAGE_ROOTS = [
+  'apps/web/src',
+  'apps/api/tessera_api',
+  'services/collab/src',
+  'services/hub',
+  'packages/editor-ext/src'
+];
+const USAGE_FILE = /\.(ts|tsx|svelte|js|mjs|py|html|jinja|j2|txt)$/;
+const SKIPPED_DIRS = new Set([
+  'node_modules',
+  '__pycache__',
+  '.venv',
+  'dist',
+  'build',
+  '.svelte-kit',
+  'tests'
+]);
+
+function usageFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!SKIPPED_DIRS.has(entry.name)) found.push(...usageFiles(join(dir, entry.name)));
+      continue;
+    }
+    const name = entry.name;
+    if (!USAGE_FILE.test(name) || name.includes('.test.') || name.startsWith('test_')) continue;
+    found.push(join(dir, name));
+  }
+  return found;
+}
+
+/**
  * Строка без подстановок: `{{name}}` вырезается перед проверкой скобок.
  *
  * Иначе любая законная подстановка выглядит как обрывок разметки.
@@ -270,6 +309,32 @@ describe('состав словарей', () => {
       count += [...readFileSync(file, 'utf8').matchAll(call)].length;
     }
     expect(count).toBeGreaterThan(5);
+  });
+
+  it('каждый ключ источника нужен коду', () => {
+    // Обратная сторона правила «каждый ключ из кода заведён в источнике».
+    // Ключ, которого код не выводит, копится молча: так в словарях второй
+    // версии оказалось больше тысячи строк первой. Ключ ищется строкой во всём
+    // коде, который выводит тексты или отдаёт коды отказов, для форм числа —
+    // по основе. Строка находится и там, где ключ передаётся через опись или
+    // приходит кодом отказа с сервера: и то и другое в коде записано строкой.
+    const corpus = USAGE_ROOTS.flatMap((root) => usageFiles(join(REPO_DIR, root)))
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n');
+    const stems = [...new Set(Object.keys(source).map((key) => key.replace(PLURAL_SUFFIX, '')))];
+    const unused = stems.filter((stem) => !corpus.includes(stem));
+    expect(unused.sort()).toEqual([]);
+  });
+
+  it('обратная сверка видит код приложения и экранов', () => {
+    // Опора предыдущей: пустой свод кода нашёл бы каждый ключ «лишним», а свод
+    // без приложения — все коды отказов. Проверяется, что в своде есть и то и
+    // другое.
+    const corpus = USAGE_ROOTS.flatMap((root) => usageFiles(join(REPO_DIR, root)))
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n');
+    expect(corpus).toContain("t('Tabs: {{count}}'");
+    expect(corpus).toContain('error.page.page_not_found');
   });
 });
 
