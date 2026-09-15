@@ -25,7 +25,7 @@
 
 - Runtime configuration comes from the environment; the stand reads `apps/api/.env`, and `APP_SECRET`, `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD` and `COLLAB_INTERNAL_TOKEN` are mandatory. The compose header documents each one.
 - The database schema is declarative: `apps/api/schema/schema.hcl` applied by Atlas, not migration files in code. `baseline.sql` and `after-atlas.sql` are snapshots and are not hand-edited.
-- Part of the application test suite runs against a real database and is skipped without `DATABASE_URL`. A green run without that variable does not mean everything was checked — the skip shows in the output.
+- Part of the application test suite runs against a real database and is skipped without `DATABASE_URL`; another part runs against a real Redis and is skipped without `REDIS_URL`. A green run without either variable does not mean everything was checked — the skip shows in the output. A full run sets both and ends with zero skips.
 
 ## Focused Verification
 
