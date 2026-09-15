@@ -363,10 +363,42 @@ describe('формы числа', () => {
     expect(pluralForm('ru-RU', 21)).toBe('one');
     expect(pluralForm('ru-RU', 22)).toBe('few');
   });
+
+  it('дробное число в славянских языках идёт в свою форму', () => {
+    // «1,5 дня», а не «1,5 дней»: срок корзины принимает дробь.
+    expect(pluralForm('ru-RU', 1.5)).toBe('other');
+    expect(pluralForm('uk-UA', 2.5)).toBe('other');
+    expect(pluralForm('ru-RU', 0)).toBe('many');
+  });
+
+  it('ноль во французском и португальском — единственное число', () => {
+    expect(pluralForm('fr-FR', 0)).toBe('one');
+    expect(pluralForm('pt-BR', 0)).toBe('one');
+    expect(pluralForm('en-US', 0)).toBe('other');
+    expect(pluralForm('de-DE', 0)).toBe('other');
+  });
+
+  it('категории вне двух форм идут в остальное', () => {
+    // Французский знает `many` для миллионов, японский не знает `one` вовсе;
+    // словарь держит у них только `_one` и `_other`.
+    expect(pluralForm('fr-FR', 1_000_000)).toBe('other');
+    expect(pluralForm('ja-JP', 1)).toBe('other');
+    expect(pluralForm('en-US', 1.5)).toBe('other');
+  });
 });
 
 describe('перевод', () => {
   const russian = readLocale('ru-RU');
+
+  it('срок корзины с дробным числом согласован', () => {
+    const key = 'Pages in trash will be permanently deleted after {{count}} days.';
+    expect(translate(russian, 'ru-RU', key, { count: 1.5 })).toBe(
+      'Страницы в корзине будут окончательно удалены через 1.5 дня.'
+    );
+    expect(translate(russian, 'ru-RU', key, { count: 5 })).toBe(
+      'Страницы в корзине будут окончательно удалены через 5 дней.'
+    );
+  });
 
   it('неизвестный ключ отдаётся как есть', () => {
     // Ключ и есть английская фраза: незаведённый показывается по-английски, а

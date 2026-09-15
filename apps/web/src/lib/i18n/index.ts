@@ -42,7 +42,7 @@ export const LOCALE_CODES = Object.keys(LOCALE_NAMES);
 
 const loaded = new Map<string, Dictionary>();
 
-/** Языки со славянскими формами числа: у них три формы вместо двух. */
+/** Языки со славянскими формами числа: у них четыре формы вместо двух. */
 const SLAVIC = new Set(['ru-RU', 'uk-UA']);
 
 export type Values = Record<string, string | number>;
@@ -50,20 +50,22 @@ export type Values = Record<string, string | number>;
 /**
  * Форма числа для языка.
  *
- * Английские правила простые: один и остальное. Славянские — три формы, и
- * различие не косметическое: «1 страница», «2 страницы», «5 страниц».
+ * Английские правила простые: один и остальное. Славянские — три формы для
+ * целых и четвёртая для дробных, и различие не косметическое: «1 страница»,
+ * «2 страницы», «5 страниц», «1,5 страницы».
  */
 export function pluralForm(locale: string, count: number): 'one' | 'few' | 'many' | 'other' {
-  if (!SLAVIC.has(locale)) {
-    return count === 1 ? 'one' : 'other';
+  // Правила языка, а не самодельная арифметика: у дробного числа в русском и
+  // украинском своя форма («1,5 дня»), а во французском и португальском ноль
+  // стоит в единственном числе. Самодельный расчёт отдавал «через 1,5 дней» и
+  // «0 fichiers traités».
+  const category = new Intl.PluralRules(locale).select(count);
+  if (SLAVIC.has(locale)) {
+    return category === 'one' || category === 'few' || category === 'many' ? category : 'other';
   }
-
-  const mod10 = Math.abs(count) % 10;
-  const mod100 = Math.abs(count) % 100;
-
-  if (mod10 === 1 && mod100 !== 11) return 'one';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'few';
-  return 'many';
+  // У остальных языков словарь держит две формы. Дробные и большие числа, у
+  // которых язык знает свою категорию (`many` во французском), идут в `other`.
+  return category === 'one' ? 'one' : 'other';
 }
 
 /** Подставить значения вида `{{name}}`. Неизвестное имя остаётся видимым. */
