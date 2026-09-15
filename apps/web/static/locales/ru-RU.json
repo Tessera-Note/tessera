@@ -2403,5 +2403,7 @@
   "Mark as verified right away": "Подтвердить сразу",
   "Narrow page": "Узкий лист",
   "Plain": "Просто число",
-  "Expand row": "Раскрыть строку"
+  "Expand row": "Раскрыть строку",
+  "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Страница не синхронизируется: ваши правки не доходят до других. Перезагрузите страницу, чтобы подключиться снова.",
+  "Reload page": "Перезагрузить страницу"
 }

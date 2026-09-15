@@ -2385,5 +2385,7 @@
   "Mark as verified right away": "すぐに確認済みにする",
   "Narrow page": "幅を狭める",
   "Plain": "通常",
-  "Expand row": "行を開く"
+  "Expand row": "行を開く",
+  "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "このページは同期されていません。変更は他のユーザーに届いていません。再接続するにはページを再読み込みしてください。",
+  "Reload page": "ページを再読み込み"
 }

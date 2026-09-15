@@ -2385,5 +2385,7 @@
   "Mark as verified right away": "Sofort als geprüft markieren",
   "Narrow page": "Schmale Seite",
   "Plain": "Einfach",
-  "Expand row": "Zeile öffnen"
+  "Expand row": "Zeile öffnen",
+  "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Diese Seite wird nicht synchronisiert. Ihre Änderungen erreichen andere nicht. Laden Sie die Seite neu, um die Verbindung wiederherzustellen.",
+  "Reload page": "Seite neu laden"
 }

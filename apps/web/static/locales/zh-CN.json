@@ -2385,5 +2385,7 @@
   "Mark as verified right away": "立即标记为已校验",
   "Narrow page": "窄页",
   "Plain": "普通",
-  "Expand row": "展开行"
+  "Expand row": "展开行",
+  "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "此页面当前未同步。其他人看不到您的更改。请重新加载页面以重新连接。",
+  "Reload page": "重新加载页面"
 }

@@ -2403,5 +2403,7 @@
   "Mark as verified right away": "Підтвердити одразу",
   "Narrow page": "Вузький аркуш",
   "Plain": "Просто число",
-  "Expand row": "Розгорнути рядок"
+  "Expand row": "Розгорнути рядок",
+  "This page is not syncing. Your changes are not reaching other people. Reload the page to reconnect.": "Сторінка не синхронізується: ваші зміни не доходять до інших. Перезавантажте сторінку, щоб підключитися знову.",
+  "Reload page": "Перезавантажити сторінку"
 }

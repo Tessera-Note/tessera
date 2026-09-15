@@ -41,6 +41,7 @@
   import AskAi from './menus/AskAi.svelte';
   import BubbleMenu from './menus/BubbleMenu.svelte';
   import CommentBox from './menus/CommentBox.svelte';
+  import ConnectionRefused from './ConnectionRefused.svelte';
   import DocumentView from './DocumentView.svelte';
   import DragHandle from './menus/DragHandle.svelte';
   import EmptyStart from './EmptyStart.svelte';
@@ -137,6 +138,13 @@
    * и вместо пустого листа показывается её текст и причина.
    */
   let unreadable = $state<string | null>(null);
+  /**
+   * Служба редактирования отказала в подключении.
+   *
+   * Сокет при отказе открыт, и состояние канала выглядит рабочим, а правки
+   * никуда не уходят. Снимается, если канал позже всё же прошёл проверку.
+   */
+  let refused = $state(false);
 
   /** Редактор, когда он собран. До этого панель показывать нечего. */
   let ready = $state<TiptapEditor | null>(null);
@@ -348,6 +356,19 @@
             if (message?.type === ACCESS_CHANGED) {
               setEditable?.(editable && message.canEdit !== false);
             }
+          },
+          /**
+           * Отказ службы в подключении: имя документа в адресе не сошлось с
+           * именем в протоколе (вкладка открыта до обновления) или права не
+           * подтвердились. Сообщение держится состоянием, а не всплывающим
+           * окном: исчезнувшее окно оставило бы вкладку мнимо рабочей.
+           * Снимается, только если канал позже прошёл проверку.
+           */
+          onAuthenticationFailed: () => {
+            refused = true;
+          },
+          onAuthenticated: () => {
+            refused = false;
           }
         });
         provider = connection;
@@ -489,6 +510,7 @@
       status = 'connecting';
       failure = null;
       unreadable = null;
+      refused = false;
     };
   });
 
@@ -689,6 +711,8 @@
 
   {#if failure}
     <p class="mb-2 text-sm text-danger" role="alert">{failure}</p>
+  {:else if refused}
+    <ConnectionRefused />
   {:else if unreadable}
     <!--
       Тело содержит узел, которого нет в схеме этой версии. Пустой лист вместо
