@@ -367,6 +367,50 @@ class TestMembers:
         )
         assert again == 0
 
+    async def test_a_removed_person_can_be_added_again(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        """Снятие мягкое, а уникальность пары «пространство — человек» на отметку
+        не смотрит: второе добавление не может завести новую строку рядом со
+        снятой и обязано вернуть прежнюю."""
+        space = await _own_space(session, workspace, owner)
+        person = await _person(session, workspace)
+        service = SpaceService(session)
+        await service.add_members(
+            owner, space.id, workspace.id, role=SpaceRole.READER, user_ids=[person.id]
+        )
+        await service.remove_member(owner, space.id, workspace.id, user_id=person.id)
+
+        again = await service.add_members(
+            owner, space.id, workspace.id, role=SpaceRole.WRITER, user_ids=[person.id]
+        )
+
+        assert again == 1
+        rows = await service.members(space.id, workspace.id, owner.id)
+        mine = [one for one in rows if one.get("userId") == person.id]
+        assert [one["role"] for one in mine] == [SpaceRole.WRITER]
+
+    async def test_a_removed_group_can_be_added_again(
+        self, session: AsyncSession, workspace, owner
+    ) -> None:
+        space = await _own_space(session, workspace, owner)
+        person = await _person(session, workspace)
+        group = await _group(session, workspace, person.id)
+        service = SpaceService(session)
+        await service.add_members(
+            owner, space.id, workspace.id, role=SpaceRole.READER, group_ids=[group.id]
+        )
+        await service.remove_member(owner, space.id, workspace.id, group_id=group.id)
+
+        again = await service.add_members(
+            owner, space.id, workspace.id, role=SpaceRole.WRITER, group_ids=[group.id]
+        )
+
+        assert again == 1
+        rows = await service.members(space.id, workspace.id, owner.id)
+        ours = [one for one in rows if one.get("groupId") == group.id]
+        assert [one["role"] for one in ours] == [SpaceRole.WRITER]
+
     async def test_a_stranger_from_another_workspace_is_dropped(
         self, session: AsyncSession, workspace, owner
     ) -> None:

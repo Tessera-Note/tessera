@@ -519,32 +519,30 @@ class SpaceService:
             ).scalars()
         )
 
+        # Снятие мягкое, а уникальность пар «пространство — человек» и
+        # «пространство — группа» на отметку не смотрит: вернуть снятого можно
+        # только оживив его прежнюю строку, новая упёрлась бы в ограничение.
+        removed = {
+            (row.user_id, row.group_id): row.id
+            for row in (
+                await self._session.execute(
+                    select(SpaceMember.id, SpaceMember.user_id, SpaceMember.group_id)
+                    .where(SpaceMember.space_id == space.id)
+                    .where(SpaceMember.deleted_at.isnot(None))
+                )
+            ).all()
+        }
+
         added = 0
         for one in users:
             if one in existing_users:
                 continue
-            await self._session.execute(
-                insert(SpaceMember).values(
-                    id=uuid.uuid4(),
-                    user_id=one,
-                    space_id=space.id,
-                    role=role,
-                    added_by_id=actor.id,
-                )
-            )
+            await self._put_member(space.id, removed.get((one, None)), role, actor.id, user_id=one)
             added += 1
         for one in groups:
             if one in existing_groups:
                 continue
-            await self._session.execute(
-                insert(SpaceMember).values(
-                    id=uuid.uuid4(),
-                    group_id=one,
-                    space_id=space.id,
-                    role=role,
-                    added_by_id=actor.id,
-                )
-            )
+            await self._put_member(space.id, removed.get((None, one)), role, actor.id, group_id=one)
             added += 1
 
         if added:
@@ -719,6 +717,35 @@ class SpaceService:
         if not include_removed:
             stmt = stmt.where(SpaceMember.deleted_at.is_(None))
         return [one for one in (await self._session.execute(stmt)).scalars() if one]
+
+    async def _put_member(
+        self,
+        space_id: uuid.UUID,
+        removed_id: uuid.UUID | None,
+        role: str,
+        added_by_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID | None = None,
+        group_id: uuid.UUID | None = None,
+    ) -> None:
+        """Завести членство либо вернуть снятое его прежней строкой."""
+        if removed_id is not None:
+            await self._session.execute(
+                update(SpaceMember)
+                .where(SpaceMember.id == removed_id)
+                .values(deleted_at=None, role=role, added_by_id=added_by_id)
+            )
+            return
+        await self._session.execute(
+            insert(SpaceMember).values(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                group_id=group_id,
+                space_id=space_id,
+                role=role,
+                added_by_id=added_by_id,
+            )
+        )
 
     async def _forget_without_access(self, space_id: uuid.UUID, user_ids: list[uuid.UUID]) -> None:
         """Снять подписки и избранное у тех, кто потерял доступ.
