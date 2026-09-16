@@ -697,8 +697,9 @@ table "base_properties" {
     type = character_varying
   }
   column "position" {
-    null = false
-    type = character_varying
+    null    = false
+    type    = character_varying
+    collate = "C"
   }
   column "type_options" {
     null = true
@@ -781,8 +782,9 @@ table "base_rows" {
     default = "{}"
   }
   column "position" {
-    null = false
-    type = character_varying
+    null    = false
+    type    = character_varying
+    collate = "C"
   }
   column "creator_id" {
     null = true
@@ -882,8 +884,9 @@ table "base_views" {
     default = "table"
   }
   column "position" {
-    null = false
-    type = character_varying
+    null    = false
+    type    = character_varying
+    collate = "C"
   }
   column "config" {
     null    = false
@@ -2499,8 +2502,9 @@ table "pages" {
     type = character_varying
   }
   column "position" {
-    null = true
-    type = character_varying
+    null    = true
+    type    = character_varying
+    collate = "C"
   }
   column "content" {
     null = true
