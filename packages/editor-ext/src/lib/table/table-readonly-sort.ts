@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { getTableSortLabels } from './table-sort-labels';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -140,6 +141,10 @@ function updateChevrons(table: HTMLTableElement): void {
   if (!firstRow) return;
 
   const state = sortStates.get(table) ?? null;
+  // Подписи приходят из приложения: пакет про словари не знает, а эти тексты
+  // читает человек. Английские значения по умолчанию остаются, если приложение
+  // их не поставило.
+  const labels = getTableSortLabels();
   let col = 0;
   for (let i = 0; i < firstRow.cells.length; i++) {
     const cell = firstRow.cells[i];
@@ -151,10 +156,10 @@ function updateChevrons(table: HTMLTableElement): void {
     let label: string;
     if (state && state.col === col) {
       chevron.setAttribute('data-sort', state.direction);
-      label = state.direction === 'asc' ? 'Sort descending' : 'Clear sort';
+      label = state.direction === 'asc' ? labels.descending : labels.clear;
     } else {
       chevron.removeAttribute('data-sort');
-      label = 'Sort ascending';
+      label = labels.ascending;
     }
     chevron.setAttribute('data-tooltip', label);
     chevron.setAttribute('aria-label', label);

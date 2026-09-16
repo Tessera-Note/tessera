@@ -5,7 +5,7 @@
  * страницу, и второй его загрузчик означал бы второй мегабайт в памяти.
  */
 
-import { setMediaErrorLabels } from '@tessera/editor-ext';
+import { setMediaErrorLabels, setTableSortLabels } from '@tessera/editor-ext';
 import { FALLBACK_LOCALE, loadDictionary, normalizeLocale, translator } from '$lib/i18n';
 import type { Dictionary } from '$lib/i18n';
 
@@ -31,24 +31,30 @@ class LocaleStore {
       // перенос слов читают русский текст английскими правилами.
       document.documentElement.lang = wanted;
     }
-    this.#publishMediaErrors(dictionary, wanted);
+    this.#publishEditorLabels(dictionary, wanted);
   }
 
   /**
-   * Отдать общему пакету подписи отказов при загрузке файла.
+   * Отдать общему пакету его пользовательские подписи.
    *
-   * Пакет общий с v1, словаря он не знает и держит подписи в своей
-   * переменной. Без этой передачи отказ «файл не открылся» всегда
-   * показывается по-английски, на каком бы языке ни была вики.
+   * Пакет общий с v1, словаря он не знает и держит подписи в своих
+   * переменных. Без этой передачи отказ «файл не открылся» и подсказки стрелок
+   * сортировки всегда показываются по-английски, на каком бы языке ни была
+   * вики.
    *
    * Словарь и язык приходят доводами, а не берутся из полей: см. `apply`.
    */
-  #publishMediaErrors(dictionary: Dictionary, locale: string) {
+  #publishEditorLabels(dictionary: Dictionary, locale: string) {
     const t = translator(dictionary, locale);
     setMediaErrorLabels({
       missing: t('This file no longer exists. It may have been deleted.'),
       forbidden: t("You don't have access to this file."),
       failed: t('Failed to load this file.')
+    });
+    setTableSortLabels({
+      ascending: t('Sort ascending'),
+      descending: t('Sort descending'),
+      clear: t('Clear sort')
     });
   }
 

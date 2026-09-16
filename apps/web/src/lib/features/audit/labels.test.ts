@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { AUDIT_EVENT_LABELS, eventLabel } from './labels';
+import { AUDIT_EVENT_LABELS, AUDIT_RESOURCE_LABELS, eventLabel, resourceLabel } from './labels';
 
 describe('eventLabel', () => {
   it('известный код становится названием', () => {
@@ -67,5 +67,44 @@ describe('eventLabel', () => {
     ];
 
     expect(known.filter((one) => !(one in AUDIT_EVENT_LABELS))).toEqual([]);
+  });
+});
+
+describe('resourceLabel', () => {
+  it('известный вид ресурса становится названием', () => {
+    expect(resourceLabel('sso_provider')).toBe('Sign-in provider');
+    expect(resourceLabel('api_key')).toBe('API key');
+  });
+
+  it('неизвестный вид показывается кодом', () => {
+    // Перечень видов пополняется, и пустая строка скрыла бы, к чему относится
+    // запись журнала.
+    expect(resourceLabel('something_new')).toBe('something_new');
+    expect(resourceLabel('')).toBe('');
+  });
+
+  it('подписи заведены на все виды ресурса приложения', () => {
+    // Перечень взят из `AuditResource` приложения
+    // (`apps/api/tessera_api/services/audit.py`). Расхождение означает вид,
+    // который человек увидит кодом.
+    const known = [
+      'user',
+      'workspace',
+      'space',
+      'group',
+      'page',
+      'api_key',
+      'mfa',
+      'workspace_invitation',
+      'sso_provider',
+      'scim_token'
+    ];
+    const missing = known.filter((one) => !(one in AUDIT_RESOURCE_LABELS));
+    expect(missing).toEqual([]);
+  });
+
+  it('лишних подписей нет', () => {
+    // Подпись без вида означает мёртвую строку в двенадцати словарях.
+    expect(Object.keys(AUDIT_RESOURCE_LABELS).length).toBe(10);
   });
 });

@@ -24,13 +24,13 @@
     'AI Integration (Chat, Search & Assistant)',
     'MCP Support',
     'SSO (SAML, OIDC, LDAP)',
-    'SCIM Provisioning',
-    'Multi-factor Authentication (2FA)',
+    'SCIM provisioning',
+    'Two-factor authentication',
     'Page-level Permissions',
     'Page Verification & Approval Workflow',
-    'Audit Logs',
+    'Audit log',
     'Enterprise Controls',
-    'API Keys',
+    'API keys',
     'Full-text Search in Attachments (PDF, DOCX)',
     'Resolve Comments',
     'Confluence Import',
@@ -48,7 +48,9 @@
 
   <div class="mb-4 grid gap-4 sm:grid-cols-2">
     <div class="card-soft rounded-md border border-border bg-surface-raised p-5">
-      <p class="text-xs font-bold uppercase tracking-wide text-text-muted">Workspace ID</p>
+      <p class="text-xs font-bold uppercase tracking-wide text-text-muted">
+        {t('Workspace ID')}
+      </p>
       <!-- Идентификатор показывают затем, чтобы его переслали в поддержку:
            без кнопки его выделяют мышью по знакам. -->
       <div class="mt-1 flex items-start gap-2">
@@ -86,7 +88,7 @@
       {#each features as feature (feature)}
         <li class="flex gap-2">
           <span aria-hidden="true" class="text-accent">✓</span>
-          {feature}
+          {t(feature)}
         </li>
       {/each}
     </ul>

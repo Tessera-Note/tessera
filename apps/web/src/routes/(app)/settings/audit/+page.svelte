@@ -12,7 +12,7 @@
     setAuditRetention,
     type AuditRecord
   } from '$lib/features/audit/services/audit';
-  import { eventLabel } from '$lib/features/audit/labels';
+  import { eventLabel, resourceLabel } from '$lib/features/audit/labels';
   import { locale } from '$lib/stores/i18n.svelte';
   import type { PageData } from './$types';
   import type { LayoutData } from '../../$types';
@@ -183,7 +183,9 @@
                 t(row.actorType === 'system' ? 'System' : 'Unknown')}
             </td>
             <td class="p-3">{t(eventLabel(row.event))}</td>
-            <td class="p-3 text-text-muted">{row.resourceType ?? ''}</td>
+            <td class="p-3 text-text-muted">
+              {row.resourceType ? t(resourceLabel(row.resourceType)) : ''}
+            </td>
             <td class="p-3 text-right">
               {#if details}
                 <!-- Раскрытие, как в v1: изменённые поля и подробности лежат в

@@ -6,6 +6,7 @@ export * from "./dnd";
 export * from "./table-view";
 export * from "./header-pin";
 export * from "./table-readonly-sort";
+export * from "./table-sort-labels";
 export { moveColumn } from "./utils/move-column";
 export type { MoveColumnParams } from "./utils/move-column";
 export { moveRow } from "./utils/move-row";

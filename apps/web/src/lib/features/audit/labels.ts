@@ -67,3 +67,31 @@ export const AUDIT_EVENT_LABELS: Record<string, string> = {
 export function eventLabel(event: string): string {
   return AUDIT_EVENT_LABELS[event] ?? event;
 }
+
+/**
+ * Названия видов ресурса.
+ *
+ * Столбец показывал код — `sso_provider`, `api_key`, `workspace_invitation`, —
+ * рядом с переведённой подписью события. Перечень видов закрытый и задан
+ * приложением: `AuditResource` в `apps/api/tessera_api/services/audit.py`.
+ *
+ * Неизвестный код отдаётся как есть, по тому же правилу, что и события:
+ * перечень пополняется, а пустая строка скрыла бы, к чему относится запись.
+ */
+export const AUDIT_RESOURCE_LABELS: Record<string, string> = {
+  user: 'Member',
+  workspace: 'Workspace',
+  space: 'Space',
+  group: 'Group',
+  page: 'Page',
+  api_key: 'API key',
+  mfa: 'Two-factor authentication',
+  workspace_invitation: 'Invitation',
+  sso_provider: 'Sign-in provider',
+  scim_token: 'SCIM token'
+};
+
+/** Подпись вида ресурса. Неизвестный код показывается кодом. */
+export function resourceLabel(resource: string): string {
+  return AUDIT_RESOURCE_LABELS[resource] ?? resource;
+}
