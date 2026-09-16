@@ -52,9 +52,12 @@
       ссылкой: смотреть по бумаге всё равно нечего, а адрес переносит читателя
       туда, где ролик есть.
     -->
-    <p data-component="EmbedPrint" class="text-sm">
-      {t('Embedded video')}: <a class="underline" href={player}>{player}</a>
-    </p>
+    <!--
+      Название и адрес отдельными строками, без разделителя: двоеточие в ja и
+      zh полноширинное, а в разметке оно стояло бы одним знаком на все языки.
+    -->
+    <p data-component="EmbedPrint" class="text-sm">{t('Embedded video')}</p>
+    <p class="text-sm"><a class="underline" href={player}>{player}</a></p>
   {:else if player}
     <!--
       Права окна ограничены списком: встроенная страница чужая, и давать ей всё
