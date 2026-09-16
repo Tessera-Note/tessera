@@ -14,10 +14,10 @@
 запрещена правилами проекта, а нужного здесь ровно столько, сколько даёт разбор
 XML из стандартной библиотеки.
 
-Картинки не переносятся. В ODT они лежат в `Pictures/` и связаны через
-`draw:image`, но ввоз одиночного файла кладёт вложения только для Word: там их
-отдаёт разборщик, а здесь пришлось бы завести второй такой же путь. Записано в
-`docs/future-roadmap.md`.
+Картинки переносятся так же, как у Word: разборщик отдаёт их перечнем вместе с
+разметкой, а вкладывает в страницу общий путь ввоза — страницы в миг разбора
+ещё нет. В ODT картинки лежат в том же ZIP, в `Pictures/`, и связаны через
+`draw:image` с адресом в `xlink:href`.
 """
 
 from __future__ import annotations
@@ -25,8 +25,11 @@ from __future__ import annotations
 import html as html_escape
 import io
 import logging
+import os
 import xml.etree.ElementTree as ET
 import zipfile
+
+from tessera_api.services.docx_import import PLACEHOLDER, EmbeddedImage
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +37,19 @@ logger = logging.getLogger(__name__)
 #: а он разворачивает имена тегов.
 TEXT = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
 TABLE = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
+DRAW = "{urn:oasis:names:tc:opendocument:xmlns:drawing:1.0}"
+XLINK = "{http://www.w3.org/1999/xlink}"
 
 #: Глубина заголовков. Шестой уровень последний и в разметке, и в редакторе.
 MAX_HEADING = 6
+
+#: Расширения картинок, которые переносятся. Тот же перечень, что у Word, но по
+#: расширению: в ODT тип содержимого у вложенного файла не записан, есть только
+#: его имя в архиве.
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".svg"}
+
+#: Верхняя граница картинки, как у Word: документ читается в память целиком.
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
 
 def _text_of(node: ET.Element) -> str:
@@ -111,21 +124,60 @@ def _list(node: ET.Element) -> str:
     return f"<{tag}>{''.join(items)}</{tag}>"
 
 
-def odt_to_html(raw: bytes) -> str:
-    """Разобрать ODT в HTML.
+def _images_of(node: ET.Element, archive: zipfile.ZipFile, images: list[EmbeddedImage]) -> str:
+    """Картинки узла заготовками ссылок.
 
-    Пустая строка означает «не разобрано»: битый или защищённый файл выглядит
+    Непереносимая картинка пропускается, а не отменяет ввоз: одна испорченная
+    вставка не должна стоить человеку всего документа. Так же у Word.
+    """
+    pieces: list[str] = []
+    for image in node.iter(f"{DRAW}image"):
+        href = image.get(f"{XLINK}href") or ""
+        if not href or href.startswith(("http://", "https://")):
+            # Связанная снаружи картинка в архиве не лежит, переносить нечего.
+            continue
+        suffix = os.path.splitext(href)[1].lower()
+        if suffix not in IMAGE_SUFFIXES:
+            continue
+        try:
+            data = archive.read(href.lstrip("/"))
+        except Exception:  # noqa: BLE001 — испорченная связь не отменяет документ
+            logger.debug("Картинка ODT не прочитана: %s", href, exc_info=True)
+            continue
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            continue
+        index = len(images)
+        images.append(EmbeddedImage(index=index, file_name=f"image-{index}{suffix}", data=data))
+        pieces.append(f'<img src="{PLACEHOLDER}{index}">')
+    return "".join(pieces)
+
+
+def odt_to_html(raw: bytes) -> tuple[str, list[EmbeddedImage]]:
+    """Разобрать ODT в HTML и отдать встроенные картинки перечнем.
+
+    Пустая разметка означает «не разобрано»: битый или защищённый файл выглядит
     так же, как пустой документ, и различать их вызывающему нечем — он и
     отвечает отказом.
+
+    Картинки отдаются отдельно, а не кладутся сразу: вкладываются они в
+    страницу, а страницы в этот миг ещё нет. В разметке на их месте стоят
+    заготовки, настоящие адреса подставляет общий путь ввоза — тот же, что у
+    Word.
     """
+    images: list[EmbeddedImage] = []
     try:
+        # Архив держится открытым на весь разбор: картинки лежат в нём же, и
+        # второе чтение файла стоило бы распаковки заново.
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-            content = archive.read("content.xml")
-        root = ET.fromstring(content)
+            root = ET.fromstring(archive.read("content.xml"))
+            return _body_to_html(root, archive, images), images
     except Exception:  # noqa: BLE001 — битый файл это обычный исход ввоза
         logger.debug("ODT не разобран", exc_info=True)
-        return ""
+        return "", []
 
+
+def _body_to_html(root: ET.Element, archive: zipfile.ZipFile, images: list[EmbeddedImage]) -> str:
+    """Тело документа в разметку."""
     body = root.find("{urn:oasis:names:tc:opendocument:xmlns:office:1.0}body")
     text = (
         body.find("{urn:oasis:names:tc:opendocument:xmlns:office:1.0}text")
@@ -145,10 +197,19 @@ def odt_to_html(raw: bytes) -> str:
             if content:
                 level = _heading_level(node)
                 pieces.append(f"<h{level}>{html_escape.escape(content)}</h{level}>")
+            pieces.append(_images_of(node, archive, images))
         elif node.tag == f"{TEXT}p":
             content = _text_of(node)
             if content:
                 pieces.append(f"<p>{html_escape.escape(content)}</p>")
+            # Картинка абзаца выносится отдельным узлом: в разметке редактора
+            # она блок, а не часть абзаца. Подпись под картинкой остаётся своим
+            # абзацем — так её и пишут редакторы OpenDocument.
+            pieces.append(_images_of(node, archive, images))
+        elif node.tag == f"{DRAW}frame":
+            # Рамка прямо в теле, без абзаца: так вставляют картинку в позиции
+            # «как символ» многие редакторы.
+            pieces.append(_images_of(node, archive, images))
         elif node.tag in (f"{TEXT}list", f"{TEXT}ordered-list"):
             pieces.append(_list(node))
         elif node.tag == f"{TABLE}table":

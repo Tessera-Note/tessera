@@ -485,9 +485,7 @@ class ImportService:
         title, content, _ = await self._parsed(file_name, data)
         return title, content
 
-    async def _parsed(
-        self, file_name: str, data: bytes
-    ) -> tuple[str, dict, list[EmbeddedImage]]:
+    async def _parsed(self, file_name: str, data: bytes) -> tuple[str, dict, list[EmbeddedImage]]:
         """То же, но со встроенными картинками документа Word.
 
         Картинки отдаются отдельно, а не кладутся сразу: вкладываются они в
@@ -550,14 +548,14 @@ class ImportService:
             # редактора собирает общий путь ввоза HTML. Плоский текст здесь
             # приезжал одним абзацем — разметка считает одиночный перевод
             # строки мягким переносом, — и терял заголовки и списки.
-            html = odt_to_html(data)
+            html, images = odt_to_html(data)
             if not html.strip():
                 raise bad_request("error.import.no_text")
             title = title_from_html(html, file_name)
             return (
                 title,
                 drop_title_heading(await self._content.html_to_json(html), title),
-                [],
+                images,
             )
 
         # PDF разбирает сервис преобразования: заголовки и списки — свойство
@@ -654,9 +652,7 @@ class ImportService:
             parent_page_id=parent_page_id,
         )
         await self._session.execute(
-            update(Page)
-            .where(Page.id == page.id)
-            .values(is_base=True, base_schema_version=1)
+            update(Page).where(Page.id == page.id).values(is_base=True, base_schema_version=1)
         )
 
         ids: list[str] = []
@@ -864,9 +860,7 @@ class ImportService:
             )
 
         listing = _listing(raw)
-        entries = [
-            one for one in raw if extension_of(one.path) in SINGLE_FILE_EXTENSIONS
-        ]
+        entries = [one for one in raw if extension_of(one.path) in SINGLE_FILE_EXTENSIONS]
         if not entries:
             raise bad_request("error.import.nothing_to_import")
 
@@ -1056,9 +1050,7 @@ class ImportService:
             if label_id is None:
                 label_id = uuid.uuid4()
                 await self._session.execute(
-                    insert(Label).values(
-                        id=label_id, name=name, workspace_id=task.workspace_id
-                    )
+                    insert(Label).values(id=label_id, name=name, workspace_id=task.workspace_id)
                 )
 
             already = (
@@ -1070,9 +1062,7 @@ class ImportService:
             ).scalar_one_or_none()
             if already is None:
                 await self._session.execute(
-                    insert(PageLabel).values(
-                        id=uuid.uuid4(), page_id=page.id, label_id=label_id
-                    )
+                    insert(PageLabel).values(id=uuid.uuid4(), page_id=page.id, label_id=label_id)
                 )
         await self._session.commit()
 
@@ -1253,9 +1243,7 @@ class ImportService:
         if not made:
             return
 
-        space_slug = await self._session.scalar(
-            select(Space.slug).where(Space.id == task.space_id)
-        )
+        space_slug = await self._session.scalar(select(Space.slug).where(Space.id == task.space_id))
         by_path = {path: page for path, page in made}
         attachments = (
             AttachmentService(self._session, self._storage, self._queue)
@@ -1437,11 +1425,7 @@ class ImportService:
 
         # Заголовок: из оглавления, из самой страницы, из имени файла. Первый
         # знает человек, второй — Confluence, третий — файловая система.
-        name = (
-            title.strip()
-            or found.title
-            or title_from_file_name(posixpath.basename(entry.path))
-        )
+        name = title.strip() or found.title or title_from_file_name(posixpath.basename(entry.path))
 
         # Страница заводится до разбора содержимого: вложение принадлежит
         # странице, и загрузить его раньше, чем она есть, некуда.
@@ -1545,9 +1529,7 @@ def _listing(entries: list[ArchiveEntry]) -> Listing:
     снимается по месту самого оглавления, иначе своя же выгрузка перестаёт
     узнаваться от одного лишнего каталога.
     """
-    found = next(
-        (one for one in entries if posixpath.basename(one.path) == METADATA_NAME), None
-    )
+    found = next((one for one in entries if posixpath.basename(one.path) == METADATA_NAME), None)
     if found is None:
         return Listing(known={}, order={})
 
