@@ -311,6 +311,30 @@ describe('состав словарей', () => {
     expect(count).toBeGreaterThan(5);
   });
 
+  /**
+   * Нужен ли ключ коду из свода `corpus`.
+   *
+   * Ключ ищется целой строкой в кавычках, а не куском: кусок находил «Print» в
+   * `IconPrinter` и «Action» в `BlockActions`, и лишний ключ проходил. Ключ-слово
+   * со строчной буквы (`member`, `days`) совпадает со значениями в коде — ролью,
+   * единицей срока, — поэтому засчитывается только в вызове перевода. Коды с
+   * точкой (`error.*`) приходят с сервера строкой и под это правило не попадают.
+   */
+  /** Хвост кода перед ключом, когда ключ стоит доводом перевода. */
+  const CALL_BEFORE = /\b(?:t|translate)\(\s*$/;
+
+  const usedKey = (corpus: string, key: string) => {
+    const word = /^[a-z]/.test(key) && !key.includes('.');
+    for (const mark of ["'", '"', '`']) {
+      // Ключ с кавычкой внутри записан в коде с обратной косой: `'Don\'t'`.
+      const literal = mark + key.split(mark).join(`\\${mark}`) + mark;
+      for (let at = corpus.indexOf(literal); at !== -1; at = corpus.indexOf(literal, at + 1)) {
+        if (!word || CALL_BEFORE.test(corpus.slice(Math.max(0, at - 40), at))) return true;
+      }
+    }
+    return false;
+  };
+
   it('каждый ключ источника нужен коду', () => {
     // Обратная сторона правила «каждый ключ из кода заведён в источнике».
     // Ключ, которого код не выводит, копится молча: так в словарях второй
@@ -322,8 +346,32 @@ describe('состав словарей', () => {
       .map((file) => readFileSync(file, 'utf8'))
       .join('\n');
     const stems = [...new Set(Object.keys(source).map((key) => key.replace(PLURAL_SUFFIX, '')))];
-    const unused = stems.filter((stem) => !corpus.includes(stem));
+    const unused = stems.filter((stem) => !usedKey(corpus, stem));
     expect(unused.sort()).toEqual([]);
+  });
+
+  it('обратная сверка не засчитывает кусок чужой строки', () => {
+    expect(usedKey('<IconPrinter />', 'Print')).toBe(false);
+    expect(usedKey("t('Print PDF')", 'Print')).toBe(false);
+    expect(usedKey("t('Print')", 'Print')).toBe(true);
+    expect(usedKey("label: 'Print'", 'Print')).toBe(true);
+    expect(usedKey('"error.page.page_not_found"', 'error.page.page_not_found')).toBe(true);
+  });
+
+  it('ключ-слово засчитывается только в вызове перевода', () => {
+    expect(usedKey("role === 'member'", 'member')).toBe(false);
+    expect(usedKey("t('member')", 'member')).toBe(true);
+    expect(usedKey("{t(\n  'not searchable'\n)}", 'not searchable')).toBe(true);
+    // Редактор переводит подписи своих блоков вторым именем того же вызова.
+    expect(usedKey("needs.translate('days')", 'days')).toBe(true);
+    // Ключ с точкой — не слово, хоть и со строчной: пример адреса в подсказке.
+    expect(usedKey("placeholder: 'e.g Sales'", 'e.g Sales')).toBe(true);
+  });
+
+  it('кавычка внутри ключа не прячет его от сверки', () => {
+    // В коде такой ключ записан с обратной косой, а в словаре — без неё.
+    expect(usedKey("t('Don\\'t show again')", "Don't show again")).toBe(true);
+    expect(usedKey('t("Don\'t show again")', "Don't show again")).toBe(true);
   });
 
   it('обратная сверка видит код приложения и экранов', () => {
