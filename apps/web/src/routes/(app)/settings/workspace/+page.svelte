@@ -19,6 +19,7 @@
   import {
     DEFAULT_TRASH_RETENTION_DAYS,
     rehostImages,
+    trashRetentionInput,
     trashRetentionShown,
     updateWorkspace,
     type WorkspacePatch
@@ -348,7 +349,15 @@
           count: trashRetentionShown(retention)
         })}
       >
-        <TextInput bind:value={retention} placeholder={String(DEFAULT_TRASH_RETENTION_DAYS)} />
+        <!--
+          Связка с проверкой: срок целый, и дробь до сервера доходить не должна
+          — он отвечает отказом, которого человек не ждёт. Негодный ввод не
+          принимается, в поле остаётся прежнее значение.
+        -->
+        <TextInput
+          bind:value={() => retention, (next) => (retention = trashRetentionInput(next, retention))}
+          placeholder={String(DEFAULT_TRASH_RETENTION_DAYS)}
+        />
       </Field>
       <Button type="submit" disabled={busy === 'retention'}>
         {busy === 'retention' ? t('Loading...') : t('Save')}

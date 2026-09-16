@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TRASH_RETENTION_DAYS, trashRetentionShown } from './settings';
+import { DEFAULT_TRASH_RETENTION_DAYS, trashRetentionInput, trashRetentionShown } from './settings';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAINTENANCE = join(
@@ -41,5 +41,22 @@ describe('срок корзины', () => {
     // Сохранить его сервер не даст, а подсказка не должна обещать ноль дней.
     expect(trashRetentionShown('0')).toBe(DEFAULT_TRASH_RETENTION_DAYS);
     expect(trashRetentionShown('abc')).toBe(DEFAULT_TRASH_RETENTION_DAYS);
+  });
+
+  it('поле принимает только целое', () => {
+    expect(trashRetentionInput('7', '')).toBe('7');
+    expect(trashRetentionInput('30', '3')).toBe('30');
+  });
+
+  it('дробь и буквы не принимаются, остаётся прежнее значение', () => {
+    // Не «1.5» → «15»: выброшенная точка дала бы число, которого не набирали.
+    expect(trashRetentionInput('1.5', '1')).toBe('1');
+    expect(trashRetentionInput('1,5', '1')).toBe('1');
+    expect(trashRetentionInput('abc', '30')).toBe('30');
+    expect(trashRetentionInput('-1', '30')).toBe('30');
+  });
+
+  it('поле можно очистить: пусто — это срок по умолчанию', () => {
+    expect(trashRetentionInput('', '30')).toBe('');
   });
 });

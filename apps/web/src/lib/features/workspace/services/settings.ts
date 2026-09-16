@@ -50,6 +50,20 @@ export function trashRetentionShown(value: string): number {
   return value.trim() !== '' && days > 0 ? days : DEFAULT_TRASH_RETENTION_DAYS;
 }
 
+/**
+ * Что остаётся в поле срока от набранного.
+ *
+ * Срок целый: `trashRetentionDays` в DTO объявлен целым, и дробь сервер
+ * отвергает отказом, которого человек не ждёт — подсказка при этом честно
+ * читает «через 1,5 дня». Негодный ввод не принимается, а прежнее значение
+ * остаётся: выбрасывать из «1.5» точку нельзя, получилось бы «15» — другое
+ * число, которого никто не набирал. Пустое поле допустимо, это срок по
+ * умолчанию.
+ */
+export function trashRetentionInput(next: string, previous: string): string {
+  return /^\d*$/.test(next) ? next : previous;
+}
+
 export function workspaceSettings(fetcher?: typeof fetch, headers?: Record<string, string>) {
   return get<WorkspaceSettings>('/api/workspace/settings', { fetcher, headers });
 }
