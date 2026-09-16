@@ -17,7 +17,9 @@
     uploadImage
   } from '$lib/features/page/services/images';
   import {
+    DEFAULT_TRASH_RETENTION_DAYS,
     rehostImages,
+    trashRetentionShown,
     updateWorkspace,
     type WorkspacePatch
   } from '$lib/features/workspace/services/settings';
@@ -343,10 +345,10 @@
       <Field
         label={t('Days')}
         hint={t('Pages in trash will be permanently deleted after {{count}} days.', {
-          count: Number(retention) || 0
+          count: trashRetentionShown(retention)
         })}
       >
-        <TextInput bind:value={retention} />
+        <TextInput bind:value={retention} placeholder={String(DEFAULT_TRASH_RETENTION_DAYS)} />
       </Field>
       <Button type="submit" disabled={busy === 'retention'}>
         {busy === 'retention' ? t('Loading...') : t('Save')}

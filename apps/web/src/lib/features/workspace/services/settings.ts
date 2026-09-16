@@ -32,6 +32,24 @@ export type WorkspacePatch = Partial<
   Omit<WorkspaceSettings, 'id' | 'hostname'> & { trashRetentionDays: number }
 >;
 
+/**
+ * Срок корзины, пока своего не задано. Столько ждёт очистка
+ * (`DEFAULT_TRASH_RETENTION_DAYS` в `apps/api/tessera_api/services/maintenance.py`),
+ * совпадение стережёт проверка.
+ */
+export const DEFAULT_TRASH_RETENTION_DAYS = 30;
+
+/**
+ * Срок, который показывается в подсказке к полю.
+ *
+ * Пустое поле — это срок по умолчанию, а не ноль: без этого подсказка обещала
+ * удалить страницы «через 0 дней», хотя очистка ждёт тридцать.
+ */
+export function trashRetentionShown(value: string): number {
+  const days = Number(value);
+  return value.trim() !== '' && days > 0 ? days : DEFAULT_TRASH_RETENTION_DAYS;
+}
+
 export function workspaceSettings(fetcher?: typeof fetch, headers?: Record<string, string>) {
   return get<WorkspaceSettings>('/api/workspace/settings', { fetcher, headers });
 }
