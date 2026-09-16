@@ -19,7 +19,7 @@ from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tessera_api.infrastructure.models import Comment, Share, SpaceMember
+from tessera_api.infrastructure.models import Comment, Page, Share, SpaceMember
 from tests.conftest import needs_database
 
 GUARD = Path(__file__).resolve().parents[3] / "deploy" / "rollback-check.sql"
@@ -77,6 +77,39 @@ async def _remove_space_members(session: AsyncSession, *, space_id: uuid.UUID) -
     return found.scalar_one()
 
 
+async def _delete_comment(
+    session: AsyncSession,
+    *,
+    space_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    creator_id: uuid.UUID,
+) -> None:
+    """Удалить комментарий отметкой. Страница заводится здесь же: комментарий
+    ссылается на неё внешним ключом, а фикстуры страницы нет."""
+    page_id = uuid.uuid4()
+    await session.execute(
+        insert(Page).values(
+            id=page_id,
+            slug_id=uuid.uuid4().hex[:10],
+            title="Страница с комментарием",
+            creator_id=creator_id,
+            space_id=space_id,
+            workspace_id=workspace_id,
+        )
+    )
+    await session.flush()
+    await session.execute(
+        insert(Comment).values(
+            id=uuid.uuid4(),
+            page_id=page_id,
+            creator_id=creator_id,
+            space_id=space_id,
+            workspace_id=workspace_id,
+            deleted_at=datetime.now(UTC),
+        )
+    )
+
+
 @needs_database
 async def test_guard_passes_when_no_marks_left(session: AsyncSession) -> None:
     await _clear_marks(session)
@@ -103,15 +136,35 @@ async def test_removed_space_member_stops_the_rollback(session: AsyncSession, sp
 
 
 @needs_database
-async def test_guard_names_every_table_at_once(session: AsyncSession, workspace, space) -> None:
+async def test_deleted_comment_stops_the_rollback(
+    session: AsyncSession, workspace, space, owner
+) -> None:
+    """Комментарий доступа не открывает, но возвращается на страницу, и заслон
+    останавливает откат и на нём."""
+    await _clear_marks(session)
+    await _delete_comment(
+        session, space_id=space.id, workspace_id=workspace.id, creator_id=owner.id
+    )
+    with pytest.raises(DBAPIError) as failure:
+        await _run_guard(session)
+    assert "comments: 1" in str(failure.value)
+
+
+@needs_database
+async def test_guard_names_every_table_at_once(
+    session: AsyncSession, workspace, space, owner
+) -> None:
     """Отказ называет все три числа, а не первое непустое: человек должен
     увидеть весь объём недоделанного, а не возвращаться к заслону трижды."""
     await _clear_marks(session)
     await _revoke_share(session, space_id=space.id, workspace_id=workspace.id)
+    await _delete_comment(
+        session, space_id=space.id, workspace_id=workspace.id, creator_id=owner.id
+    )
     removed = await _remove_space_members(session, space_id=space.id)
     with pytest.raises(DBAPIError) as failure:
         await _run_guard(session)
     message = str(failure.value)
     assert "shares: 1" in message
     assert f"space_members: {removed}" in message
-    assert "comments: 0" in message
+    assert "comments: 1" in message
