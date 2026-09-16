@@ -7,6 +7,7 @@
  */
 
 import { flushSync, mount, unmount } from 'svelte';
+import { printSheet } from '$lib/stores/print.svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { default: EmbedView } = await import('./EmbedView.svelte');
@@ -31,6 +32,7 @@ afterEach(() => {
   host?.remove();
   component = null;
   host = null;
+  printSheet.active = false;
 });
 
 describe('встроенный ролик', () => {
@@ -86,5 +88,18 @@ describe('встроенный ролик', () => {
     show({ src: '', provider: 'youtube' }, false);
 
     expect(host?.querySelector('input')).toBeNull();
+  });
+
+  it('на листе печати вместо окна стоят название и адрес', () => {
+    // Окно чужого сайта в печати не загружается, и на листе оставалась пустая
+    // рамка в половину страницы. Читать по бумаге нечего, а адрес переносит
+    // читателя туда, где ролик есть.
+    printSheet.active = true;
+    show({ src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', provider: 'youtube' });
+
+    expect(host?.querySelector('iframe')).toBeNull();
+    const link = host?.querySelector('a');
+    expect(link?.getAttribute('href')).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+    expect(host?.textContent).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
   });
 });

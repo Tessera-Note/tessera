@@ -10,6 +10,7 @@
    * и без поля заполнить его нечем.
    */
   import { locale } from '$lib/stores/i18n.svelte';
+  import { printSheet } from '$lib/stores/print.svelte';
   import { getEmbedUrlAndProvider, sanitizeUrl } from '@tessera/editor-ext';
 
   type Props = {
@@ -43,7 +44,18 @@
 </script>
 
 <div data-component="EmbedView" class="my-3" data-provider={provider}>
-  {#if player}
+  {#if player && printSheet.active}
+    <!--
+      Лист печати. Окно чужого сайта в печати не загружается — ни на закрытом
+      контуре, ни через список разрешённых адресов Gotenberg, — и на листе
+      оставалась пустая рамка в половину страницы. Вместо неё название и адрес
+      ссылкой: смотреть по бумаге всё равно нечего, а адрес переносит читателя
+      туда, где ролик есть.
+    -->
+    <p data-component="EmbedPrint" class="text-sm">
+      {t('Embedded video')}: <a class="underline" href={player}>{player}</a>
+    </p>
+  {:else if player}
     <!--
       Права окна ограничены списком: встроенная страница чужая, и давать ей всё
       подряд незачем. Полноэкранный показ оставлен — ради него ролик и

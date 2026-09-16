@@ -2,12 +2,28 @@
   import PageBody from '$lib/components/page/PageBody.svelte';
   import { headings } from '$lib/features/page/document';
   import { locale } from '$lib/stores/i18n.svelte';
+  import { printSheet } from '$lib/stores/print.svelte';
   import type { PageData } from './$types';
 
   type Props = { data: PageData };
   const { data }: Props = $props();
 
   const t = $derived(locale.t);
+
+  /**
+   * Признак листа печати для узлов документа.
+   *
+   * Ролик на экране рисуется окном чужого сайта, а в печати оно не загружается
+   * и оставляет пустой прямоугольник. По этому признаку узел показывает
+   * название и адрес ссылкой. Снимается при уходе: тот же процесс отрисовывает
+   * и обычные экраны.
+   */
+  $effect(() => {
+    printSheet.active = true;
+    return () => {
+      printSheet.active = false;
+    };
+  });
 
   /**
    * Состав документа.
