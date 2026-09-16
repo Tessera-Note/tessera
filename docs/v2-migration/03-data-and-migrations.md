@@ -333,3 +333,16 @@ WHERE c.relname = 'idx_auth_accounts_provider_match_claim';
 `f` — удалить его (`DROP INDEX CONCURRENTLY idx_auth_accounts_provider_match_claim`)
 и выполнить последнюю команду заново: недействительный индекс `IF NOT EXISTS`
 не перестраивает, а пропускает.
+
+**Заслон.** Шаг обязателен до подъёма образа, поэтому проверяется машиной, а не
+пометкой в документе: `deploy/preflight-check.sql` смотрит обе колонки и
+действительность индекса и отказывает, пока чего-то нет, перечисляя всё
+недостающее сразу.
+
+```
+psql -h ХОСТ -U tessera -d tessera -v ON_ERROR_STOP=1 -f deploy/preflight-check.sql
+```
+
+Флаг `ON_ERROR_STOP=1` обязателен: без него psql сообщает об отказе, но
+возвращает нулевой выход. Заслон стоит и в порядке подъёма
+(`09-switchover.md`), нулевой выход — условие подъёма образа.
