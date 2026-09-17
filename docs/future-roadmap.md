@@ -1,130 +1,123 @@
-# Отложенные доработки
+# Deferred work
 
-Единственный документ для отложенных задач — и функциональных, и
-инфраструктурных. Здесь только то, что ещё предстоит сделать: реализованный
-пункт из документа удаляется в той же сессии, в которой закрыт.
+The only document for deferred tasks, both functional and infrastructural. It
+holds only what is still ahead: an item that gets implemented is removed from
+the document in the same session in which it is closed.
 
-Состояние сверено с кодом 14 сентября 2026.
+State verified against the code on 17 September 2026.
 
-Записи о закрытом и разбор первой версии убраны отсюда: они остаются в истории
-репозитория (`git log -- docs/future-roadmap.md`). Первая версия живёт
-ретро-веткой `v1` и тегом `v1-final`, новых правок там не будет, и её
-недоработки в этот перечень не входят.
+Records of closed work stay in the repository history
+(`git log -- docs/future-roadmap.md`).
 
-## Словари не вычитаны носителями языка
+## The dictionaries have not been proofread by native speakers
 
-Переводы всех двенадцати словарей сделаны в работе и носителями языка не
-вычитаны — это надо знать, принимая результат.
+All twelve dictionaries were translated as part of the work and have not been
+proofread by native speakers — worth knowing when accepting the result.
 
-Инструмент для вычитки есть — `scripts/locale-review.mjs`, порядок работы в
-его шапке. Выгрузка таблицей отдаёт вычитывающему только строки, появившиеся
-или изменившиеся с прошлой вычитки. Внесение сверяет подстановки с английским
-источником и при расхождении не пишет ничего. Отметка «до какого коммита
-прочитано» хранится в `docs/i18n-review-marks.json` и пока пуста: первая
-вычитка каждого языка — полная, 1130 строк (у ru и uk — 1142, с формами числа).
+The tooling is there: `scripts/locale-review.mjs`, with the procedure in its
+header. The table export gives a proofreader only the strings that appeared or
+changed since the last pass. The import compares substitutions against the
+English source and writes nothing when they diverge. The "read up to this
+commit" mark is kept in `docs/i18n-review-marks.json` and is still empty: the
+first pass for every language is a full one, 1130 strings (1142 for ru and uk,
+with the plural forms).
 
-Осталось сделать саму вычитку: найти носителя для каждого языка, выгрузить,
-внести, поставить отметку.
+What is left is the proofreading itself: find a native speaker for each
+language, export, import, set the mark.
 
-Crowdin выключен намеренно (6 сентября 2026) и включаться не будет, пока нет
-переводчиков со стороны. Нынешних переводов в нём нет, и первая же выгрузка
-из него молча вернула бы двенадцать языков к английскому. Порядок включения,
-если решение изменится, записан в самом `crowdin.yml`.
+Crowdin is off deliberately (6 September 2026) and will stay off until there are
+outside translators. It holds none of the current translations, and the very
+first pull from it would silently return twelve languages to English. How to
+turn it on, if that decision changes, is written in `crowdin.yml` itself.
 
-## Удалённое во второй версии возвращается при откате
+## Soft-deleted rows come back if the deployment is rolled back
 
-Вторая версия удаляет мягко: строка остаётся с отметкой `deleted_at` — ради
-разбора происшествий. Первая часть таблиц читает без учёта отметки, и после
-отката на неё возвращаются четыре вида строк:
+Rows are deleted softly: the row stays with a `deleted_at` mark, for the sake of
+incident analysis. An older deployment that reads some of those tables without
+the mark brings four kinds of row back:
 
-- **пространства** (`SpaceService.delete`) — первая выбирает их без отметки
-  (`getSpacesInWorkspace`, `getUserSpaceIdsQuery`, `findById`, `findBySlug` в
-  `temp/v1/apps/server/src/database/repos/space/`), и удалённое пространство
-  снова видно всем бывшим участникам — пустым, со страницами в корзине;
-- **публичные ссылки** (`ShareService.revoke`) — первая находит ссылку по ключу
-  и по странице без отметки (`share.repo.ts`), отозванная снова открывает
-  страницу;
-- **участники пространств** (`SpaceService.remove_member`) — первая выдаёт роли
-  без отметки (`getUserSpaceRoles` в `space-member.repo.ts`), снятый снова
-  получает доступ;
-- **комментарии** (`CommentService.delete`) — первая их по отметке не
-  фильтрует вовсе (`comment.repo.ts`).
+- **spaces** (`SpaceService.delete`) — selected without the mark
+  (`getSpacesInWorkspace`, `getUserSpaceIdsQuery`, `findById`, `findBySlug` in
+  the space repositories), so a deleted space is visible again to everyone who
+  was a member — empty, with its pages in the trash;
+- **public links** (`ShareService.revoke`) — found by key and by page without the
+  mark (`share.repo.ts`), so a revoked link opens the page again;
+- **space members** (`SpaceService.remove_member`) — roles are returned without
+  the mark (`getUserSpaceRoles` in `space-member.repo.ts`), so a removed member
+  gets access again;
+- **comments** (`CommentService.delete`) — not filtered by the mark at all
+  (`comment.repo.ts`).
 
-Остальные семнадцать таблиц с отметкой сверены поимённо: из них при откате не
-возвращается ничего.
+The remaining seventeen tables with the mark were checked one by one: nothing
+comes back from them.
 
-Сейчас это закрыто порядком и заслоном `deploy/rollback-check.sql`: ссылки,
-участники и комментарии удаляются SQL до возврата прокси, пространства
-снимаются списком и удаляются средствами первой версии сразу после. Причину в
-первой версии не устранить: новых правок там не будет. Отказ второй от
-мягкого удаления убрал бы разбор происшествий, ради которого оно мягкое. Пункт
-снимается, когда первая версия перестаёт быть путём отката; до тех пор
-порядок из 09 обязателен при каждом откате.
+This is closed by procedure and by the guard `deploy/rollback-check.sql`: links,
+members and comments are deleted with SQL before the proxy configuration is
+returned, and spaces are listed and then deleted through the older deployment
+right after. Giving up soft deletion would remove the incident analysis it
+exists for. The item is closed once an older deployment is no longer a rollback
+path; until then the guard is mandatory on every rollback.
 
-## Дробный срок корзины принимается полем и отвергается сервером
+## A fractional trash retention is accepted by the field and refused by the server
 
-**Некритично, дёшево: поле принимает только целое — одна строка.**
+**Not critical, cheap: the field takes whole numbers only — one line.**
 
-Поле срока в настройках рабочего пространства — обычный ввод текста, и
-подсказка честно считает дробь: «через 1.5 дня». Сохранить её нельзя:
-`trashRetentionDays` в DTO объявлен целым
-(`apps/api/tessera_api/api/workspace.py:79`), и сервер отвечает отказом.
-Человек видит осмысленную подсказку и непонятный отказ на сохранении.
+The retention field in the workspace settings is an ordinary text input, and the
+hint honestly renders a fraction: "after 1.5 days". It cannot be saved:
+`trashRetentionDays` in the DTO is declared as an integer
+(`apps/api/tessera_api/api/workspace.py:79`), and the server refuses. A person
+sees a sensible hint and an incomprehensible refusal on save.
 
-Чинится на стороне экрана: поле принимает только целое, дробь не доходит до
-сервера. Подсказку менять не надо, она читает то, что в поле.
+Fixed on the screen side: the field takes whole numbers only, and a fraction
+never reaches the server. The hint needs no change, it reads whatever is in the
+field.
 
-## `base_views` упорядочивается без индекса по ключу порядка
+## `base_views` is ordered without an index on the order key
 
-**Некритично: объём на страницу мал.**
+**Not critical: the volume per page is small.**
 
-`apps/api/tessera_api/services/bases.py:1088` сортирует виды базы по `position`,
-а индекс у таблицы один — `idx_base_views_page_id` по `page_id`. Это
-единственная из четырёх таблиц с ключом порядка без индекса по нему:
-у `pages`, `base_rows` и `base_properties` такие индексы есть в
-`after-atlas.sql`. Замечено ревьюером схемы 16 сентября 2026.
+`apps/api/tessera_api/services/bases.py:1088` sorts base views by `position`,
+and the table has one index — `idx_base_views_page_id` on `page_id`. It is the
+only one of the four tables with an order key that has no index on it: `pages`,
+`base_rows` and `base_properties` have theirs in `after-atlas.sql`. Noticed by
+the schema reviewer on 16 September 2026.
 
-Пересматривать, когда у базы появятся десятки видов на страницу. Сейчас их
-единицы, и сортировка идёт по нескольким строкам.
+Revisit when a base gets dozens of views per page. Right now there are a few,
+and the sort runs over a handful of rows.
 
-## Кеш прав страницы: пересмотреть, когда таблицы наполнятся
+## Page permission cache: revisit when the tables fill up
 
-Вопрос закрыт замером, а не рассуждением: `canUserEditPage` выполнялся за
-0,154 мс при пустых `page_access` и `page_permissions`. Кеш защищал бы запрос
-дешевле собственного обращения к Redis и покупал бы окно, в котором снятое
-право продолжает действовать.
+The question was closed by measurement, not by argument: `canUserEditPage` ran
+in 0.154 ms with `page_access` and `page_permissions` empty. A cache would
+protect the query for less than its own Redis round trip, and it would buy a
+window in which a revoked permission still works.
 
-Условия изменились наполовину: маршруты правки прав появились, значит таблицы
-перестанут быть пустыми. Пересматривать, когда в них накопятся реальные объёмы,
-и замерять заново на настоящей глубине дерева, а не переносить прежнюю оценку.
+Half of the conditions have changed: the permission editing routes exist now, so
+the tables will stop being empty. Revisit when real volumes accumulate there,
+and measure again at the real tree depth instead of carrying the old estimate
+over.
 
-Схема на случай, если ответ изменится: метка поколения, ключ вида
-`perm:can-edit:g<метка>:<userId>:<pageId>`, любое изменение прав меняет метку.
-Метка глобальная, а не на пространство: правки прав редки, а глобальную
-невозможно забыть сбросить.
+The scheme, if the answer changes: a generation mark, a key of the form
+`perm:can-edit:g<mark>:<userId>:<pageId>`, and any permission change moves the
+mark. The mark is global rather than per space: permission edits are rare, and a
+global mark cannot be forgotten.
 
-## Мелкое
+## Observations, not defects
 
-- **`cross-env` в корневом манифесте не используется.** Объявлен в
-  `package.json`, не встречается больше нигде. Проверять удаление надо сборкой,
-  а не поиском по исходникам: `clsx` выглядел так же и оказался нужен самому
-  Svelte.
+**The `SEARXNG_SECRET` variable in compose has no effect.** The SearXNG image
+substitutes it by editing `/etc/searxng/settings.yml` at startup, and that file
+is mounted read-only, so the substitution does not go through and the literal
+from `deploy/searxng/settings.yml` stays. Acceptable while the service is not
+published: the key signs the form state of SearXNG's own interface, which the
+application does not use. If the service is ever published, the key has to move
+to a writable volume, and the line in compose has to be either used or removed.
 
-## Наблюдения, не дефекты
+**The presence list keeps a tab that left until the awareness timeout expires.**
+Visible after a page reload: the previous tab stays in the list as a separate
+entry for a few seconds. It clears itself, and it can only be fixed on the
+library side.
 
-**Переменная `SEARXNG_SECRET` в compose ни на что не влияет.** Образ SearXNG
-подставляет её правкой `/etc/searxng/settings.yml` на старте, а файл смонтирован
-только на чтение, поэтому подстановка не проходит и остаётся литерал из
-`deploy/searxng/settings.yml`. Приемлемо, пока сервис не публикуется наружу:
-ключ подписывает состояние форм собственного интерфейса SearXNG, которым
-приложение не пользуется. Если сервис откроют наружу, ключ надо выносить в том
-с правом записи, а строку из compose либо задействовать, либо убрать.
+## What does not belong in this document
 
-**Перечень присутствующих держит ушедшую вкладку до истечения срока awareness.**
-Видно после перезагрузки страницы: прежняя вкладка ещё несколько секунд стоит в
-перечне отдельной записью. Проходит само, лечится только на стороне библиотеки.
-
-## Что не входит в этот документ
-
-Задачи текущей сессии ведутся средствами задач, а не здесь. Сюда попадает только
-то, что отложено осознанно и требует отдельного решения.
+Tasks of the current session are tracked by task tooling, not here. Only what is
+deferred deliberately and needs a separate decision goes in.

@@ -1,58 +1,56 @@
-# Внешнее API
+# External API
 
-Маршруты приложения доступны по личному ключу API. Ключ приходит заголовком
-`Authorization: Bearer <ключ>` и наследует права того человека, который его
-создал: проверка доступа к странице идёт тем же путём, что и для обращения из
-браузера.
+The application routes are available with a personal API key. The key arrives in
+the `Authorization: Bearer <key>` header and inherits the permissions of the
+person who created it: the page access check goes the same way as it does for a
+request from the browser.
 
-Тем же заголовком приходит и обычный токен входа. Различить их по внешнему виду
-нечем — вид записан внутри подписанной части, — поэтому `api/guards.py` сначала
-пробует прочитать токен, а затем ключ.
+The same header also carries an ordinary sign-in token. There is no way to tell
+them apart by looking — the kind is recorded inside the signed part — so
+`api/guards.py` first tries to read a token and then a key.
 
-## Формат
+## Format
 
-Ответ отдаётся как есть, без обёртки. Первая версия заворачивала JSON в
-`{ data, success, status }`; здесь этого нет, и клиент, написанный под ту форму,
-работать не будет.
+The response is returned as it is, without a wrapper. A failure arrives as
+`{code, message, params}`, where `code` is a stable key such as
+`error.auth.session_expired`. What a person should see is the translation of the
+code, not `message`: `message` is English and meant for a developer.
 
-Отказ приходит объектом `{code, message, params}`, где `code` это устойчивый
-ключ вроде `error.auth.session_expired`. Показывать человеку надо перевод по
-коду, а не `message`: `message` английский и предназначен разработчику.
+Actions are `POST` requests with a body rather than REST by method. Uploading and
+serving files return their natural response, not JSON.
 
-Действия оформлены как `POST` с телом, а не как REST по методам. Загрузка и
-отдача файлов возвращают свой природный ответ, а не JSON.
+Lists are paginated: the cursor is a composite key, and the end of a list is
+shown by an empty `nextCursor`, not by a short page. Permission filtering drops
+rows after the query, so a page is sometimes shorter than the one requested.
 
-Перечни постраничные: курсор по составному ключу, конец перечня показывает
-пустой `nextCursor`, а не короткая страница. Отбор по правам выбрасывает строки
-уже после выборки, поэтому страница бывает короче запрошенной.
+## Managing keys
 
-## Управление ключами
+`/api/api-keys`: list, create, rename, revoke. A key is stored as a hash and
+returned in full exactly once, when it is created.
 
-`/api/api-keys`: список, создание, переименование, отзыв. Ключ хранится хешем и
-целиком отдаётся один раз, при создании.
+## What is available
 
-## Что доступно
-
-| Область | Путь |
+| Area | Path |
 |---|---|
-| пространства, страницы, дерево, корзина, история | `/api/spaces`, `/api/pages` |
-| комментарии, метки, избранное | `/api/comments`, `/api/labels`, `/api/favorites` |
-| вложения и файлы | `/api/attachments`, `/api/files` |
-| поиск и публичные ссылки | `/api/search`, `/api/share` |
-| рабочее пространство, участники, группы, приглашения | `/api/workspace`, `/api/groups` |
-| шаблоны и bases | `/api/templates`, `/api/bases` |
-| ввоз и вывоз | `/api/file-tasks`, обработчики вывоза в `api/exports.py` |
-| помощник | `/api/ai` |
+| spaces, pages, tree, trash, history | `/api/spaces`, `/api/pages` |
+| comments, labels, favourites | `/api/comments`, `/api/labels`, `/api/favorites` |
+| attachments and files | `/api/attachments`, `/api/files` |
+| search and public links | `/api/search`, `/api/share` |
+| workspace, members, groups, invitations | `/api/workspace`, `/api/groups` |
+| templates and bases | `/api/templates`, `/api/bases` |
+| import and export | `/api/file-tasks`, export handlers in `api/exports.py` |
+| assistant | `/api/ai` |
 
-Полный перечень собирается из контроллеров в `apps/api/tessera_api/api`.
+The full list is assembled from the controllers in
+`apps/api/tessera_api/api`.
 
-## Ограничение частоты
+## Rate limiting
 
-Глобального предела нет. Отдельные пределы стоят на входе, MFA, `/ai`, `/mcp`,
-вывозе и отрисовке PDF. Обращение по ключу считается тем же счётчиком, что и
-обращение человека.
+There is no global limit. Separate limits sit on sign-in, MFA, `/ai`, `/mcp`,
+export and PDF rendering. A request with a key is counted by the same counter as
+a request from a person.
 
 ## MCP
 
-Тот же ключ работает и для MCP по пути `/mcp` — это отдельный протокол поверх
-JSON-RPC, 63 инструмента. Подробности в `docs/ai-context/mcp.md`.
+The same key works for MCP at `/mcp` — a separate protocol over JSON-RPC.
+Details are in `docs/ai-context/mcp.md`.

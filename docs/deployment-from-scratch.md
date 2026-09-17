@@ -1,161 +1,174 @@
-# Развёртывание с нуля на чистой системе
+# Deployment from scratch on a clean system
 
-Критерий: человек взял репозиторий, поднял по инструкции и получил рабочий
-продукт, ни о чём не догадываясь.
+The bar: someone takes the repository, follows the instructions and ends up with
+a working product without having to guess anything.
 
-## Порядок первого запуска
+## First run
 
-Требуется Linux и Docker с плагином compose. Больше ничего: Python, Node и pnpm
-нужны только для разработки, образы собираются внутри Docker.
+You need Linux and Docker with the compose plugin. Nothing else: Python, Node and
+pnpm are only needed for development, and the images are built inside Docker.
 
-1. Забрать репозиторий и перейти в его каталог:
+1. Clone the repository and enter its directory:
 
    ```
-   git clone git@github.com:Tessera-Note/tessera.git
+   git clone https://github.com/Tessera-Note/tessera.git
    cd tessera
    ```
 
-   **Репозиторий закрытый.** Нужен доступ к организации `Tessera-Note` и
-   настроенный ключ SSH. Без доступа `git clone` завершится отказом
-   аутентификации, и это не проблема установки.
+2. Create `apps/api/.env` and set the four mandatory values:
 
-2. Завести `apps/api/.env` и внести четыре обязательных значения:
+   - **`APP_SECRET`** — at least 32 characters, `openssl rand -hex 32`. The
+     application checks the length at startup and refuses to run
+   - **`POSTGRES_PASSWORD`** — any non-empty value. The same password sets up the
+     internal service database unless `HUB_POSTGRES_PASSWORD` is given.
+     **Do not edit `DATABASE_URL`**: the compose set builds it from this password
+     and the service name
+   - **`MINIO_ROOT_PASSWORD`** — any non-empty value, the password of the
+     attachment storage
+   - **`COLLAB_INTERNAL_TOKEN`** — the shared secret of the internal
+     collaboration routes, `openssl rand -hex 24`. Latin letters and digits only:
+     the value travels in an HTTP header
 
-   - **`APP_SECRET`** — не короче 32 знаков, `openssl rand -hex 32`.
-     Приложение проверяет длину на старте и отказывается запускаться
-   - **`POSTGRES_PASSWORD`** — любой непустой. Тем же паролем настраивается
-     база внутреннего сервиса, если не задан `HUB_POSTGRES_PASSWORD`.
-     **`DATABASE_URL` править не надо**: состав собирает её сам из этого пароля
-     и имени службы
-   - **`MINIO_ROOT_PASSWORD`** — любой непустой, пароль хранилища вложений
-   - **`COLLAB_INTERNAL_TOKEN`** — общий секрет внутренних маршрутов
-     совместного редактирования, `openssl rand -hex 24`. Только латиница и
-     цифры: значение уходит заголовком HTTP
+   Every variable is explained in the header of
+   `apps/api/docker-compose.v2.yml`. A fifth one is optional — `LOCAL_PORT`, the
+   port the wiki is served on; the default is 8080.
 
-   Смысл каждой переменной описан в шапке `apps/api/docker-compose.v2.yml`.
-   Пятая, необязательная — `LOCAL_PORT`, порт, на котором открывается вика;
-   умолчание 8080.
-
-3. Поднять состав:
+3. Bring the set up:
 
    ```
    docker compose -f apps/api/docker-compose.v2.yml up -d --build
    ```
 
-Первый запуск занимает минуты: собираются три образа, поднимаются PostgreSQL,
-Redis, MinIO, Gotenberg, drawio, SearXNG и внутренний сервис версий.
+The first run takes a few minutes: three images are built, and PostgreSQL,
+Redis, MinIO, Gotenberg, drawio, SearXNG and the internal version service come
+up.
 
-**Схему накатывают три разовых шага состава**, и порядок между ними обязателен:
-расширения и функции, затем таблицы через Atlas, затем триггеры и индексы с
-сортировкой. Отдельного шага от человека не требуется, но эти шаги есть только
-в стенде: в боевом составе их нет намеренно, потому что применение схемы через
-Atlas объявительно и привело бы общую с прежним экземпляром базу к своему
-описанию.
+**The schema is applied by three one-shot steps of the set**, and the order
+between them is mandatory: extensions and functions, then the tables through
+Atlas, then the triggers and the collated indexes. No separate step is needed
+from you, but those steps exist only in the stand set: the server set leaves
+them out deliberately, because applying the schema through Atlas is declarative
+and would bring an existing external database to its own description.
 
-Готовность проверяется запросом `GET /api/health` через прокси:
+Readiness is checked with `GET /api/health` through the proxy:
 
 ```
 curl -sS --max-time 5 http://localhost:8080/api/health
 ```
 
-Ответ с разделами про базу и Redis означает, что подключения есть и схема
-применена.
+A response with sections about the database and Redis means the connections are
+there and the schema is applied.
 
-## Первая учётная запись
+## The first account
 
-Заводится через интерфейс, не записью в базу. Открыть `http://localhost:8080` —
-пустой экземпляр отдаёт экран настройки, который создаёт рабочее пространство и
-первого владельца. Маршрут работает, только пока рабочего пространства нет;
-второй раз этот путь не срабатывает, дальнейшие люди добавляются приглашением.
+It is created through the interface, not by writing to the database. Open
+`http://localhost:8080` — an empty instance serves a setup screen that creates
+the workspace and the first owner. The route works only while there is no
+workspace; it does not fire a second time, and further people are added by
+invitation.
 
-Настройка пишет семь связанных записей, и порядок между ними держат внешние
-ключи базы.
+Setup writes seven related rows, and the order between them is held by the
+database foreign keys.
 
-## Службы состава
+## Services in the set
 
-### Обязательные
+### Mandatory
 
-| Служба | Зачем | Что будет без неё |
+| Service | What for | What happens without it |
 |---|---|---|
-| `tessera-v2-db` (PostgreSQL 18 + pgvector) | всё | приложение не стартует |
-| `tessera-v2-redis` | сеансы, очереди, события | приложение не стартует |
-| `tessera-v2-proxy` | один адрес на три процесса | кука входа становится сторонней, вход не держится |
+| `tessera-v2-db` (PostgreSQL 18 + pgvector) | everything | the application does not start |
+| `tessera-v2-redis` | sessions, queues, events | the application does not start |
+| `tessera-v2-proxy` | one address for three processes | the sign-in cookie becomes third-party and sign-in does not hold |
 
-Прокси обязателен и на своей машине: за одним адресом стоят три процесса, и без
-него браузер ходил бы на три разных происхождения.
+The proxy is mandatory even on a local machine: three processes sit behind one
+address, and without it the browser would talk to three different origins.
 
-### Поднимаются составом, но приложение стартует и без них
+### Started by the set, but the application runs without them
 
-| Служба | Зачем | Что теряется |
+| Service | What for | What is lost |
 |---|---|---|
-| `tessera-v2-minio` | вложения | загрузка и отдача файлов |
-| `tessera-v2-gotenberg` | отрисовка PDF | выгрузка в PDF |
-| `tessera-v2-drawio` | диаграммы | редактор диаграмм |
-| `tessera-v2-searxng` | поиск в сети для помощника | ответы на вопросы о текущем |
-| `tessera-v2-hub` | версии, телеметрия, документация, лицензия | соответствующие экраны |
-| `tessera-v2-worker` | фоновые задания | письма, история, индексация, уведомления |
+| `tessera-v2-minio` | attachments | uploading and serving files |
+| `tessera-v2-gotenberg` | PDF rendering | export to PDF |
+| `tessera-v2-drawio` | diagrams | the diagram editor |
+| `tessera-v2-searxng` | web search for the assistant | answers about current events |
+| `tessera-v2-hub` | versions, telemetry, documentation, license | the corresponding screens |
+| `tessera-v2-worker` | background jobs | mail, history, indexing, notifications |
 
-**Обработчик заданий пересобирается вместе с приложением.** У них общий образ, и
-всё, что делается заданием — отрисовка PDF, ввоз, вывоз, — идёт его кодом.
-Пересборка одного приложения оставляет прежний обработчик, и правка выглядит
-не подействовавшей.
+**The job worker is rebuilt together with the application.** They share an
+image, and everything a job does — PDF rendering, import, export — runs its
+code. Rebuilding the application alone leaves the previous worker in place, and
+the change looks as if it had no effect.
 
-### Внешние по отношению к развёртыванию
+### External to the deployment
 
-Ровно две, обе необязательные:
+Exactly two, both optional:
 
-- **провайдер модели ИИ** (OpenRouter или совместимый). Без него работает всё,
-  кроме помощника. Ключ задаётся через интерфейс и хранится в базе шифрованным
-- **SMTP** для писем настоящим адресатам. По умолчанию почта пишется в журнал
-  (`MAIL_DRIVER=log`), и приглашения с уведомлениями наружу не уходят
+- **an AI model provider** (OpenRouter or a compatible one). Without it
+  everything works except the assistant. The key is set through the interface
+  and stored encrypted in the database
+- **SMTP** for mail to real recipients. By default mail is written to the log
+  (`MAIL_DRIVER=log`), and invitations and notifications do not leave the
+  instance
 
-## Ограничения, которые надо знать до развёртывания
+## Constraints to know before deploying
 
-### Имена служб зашиты во внутренних адресах
+### Service names are baked into internal addresses
 
-`API_INTERNAL_URL`, `PDF_RENDER_BASE_URL` и `--chromium-allow-list` у Gotenberg
-содержат имена служб буквально. **Переименование службы ломает отрисовку PDF и
-серверные загрузчики экранов**, и ломает молча: выгрузка выглядит запущенной, а
-браузер не может достучаться до приложения.
+`API_INTERNAL_URL`, `PDF_RENDER_BASE_URL` and Gotenberg's
+`--chromium-allow-list` contain service names literally. **Renaming a service
+breaks PDF rendering and the server loaders of the screens**, and it breaks
+silently: the export looks started, and the browser cannot reach the
+application.
 
-### Приложение должно быть доступно только через обратный прокси
+### The application must be reachable only through the reverse proxy
 
-Адрес клиента берётся из `X-Forwarded-For` с одним доверенным переходом
-(`TRUST_PROXY_HOPS`). Это верно, пока к приложению нельзя подключиться в обход
-прокси: доверенным считается ближайший узел, и если им оказывается сам клиент,
-присланный им заголовок снова принимается за адрес.
+The client address is taken from `X-Forwarded-For` with one trusted hop
+(`TRUST_PROXY_HOPS`). That holds as long as the application cannot be reached
+around the proxy: the nearest node counts as trusted, and if that turns out to
+be the client itself, the header it sends is taken for the address again.
 
-По этому адресу считаются пороги частоты и пишется адрес в журнал аудита.
-Выставленный наружу порт приложения означает и обход пределов подстановкой
-заголовка, и недостоверный адрес в журнале.
+Rate limits are counted per that address, and that address is written to the
+audit log. Publishing the application port means both bypassing the limits with
+a header and an untrustworthy address in the log.
 
-### Префикс проекта в именах обязателен
+### The project prefix in names is mandatory
 
-На машине с несколькими проектами имена служб и `container_name` обязаны нести
-префикс `tessera-v2-`. Голое имя `postgres` или `redis` означает, что второй
-проект не поднимется, а `docker compose down` снесёт чужой контейнер.
+On a machine with several projects, service names and `container_name` must
+carry the `tessera-v2-` prefix. A bare `postgres` or `redis` means the second
+project will not come up, and `docker compose down` will take down a foreign
+container.
 
-Имя самого состава задано явно (`name: tessera-v2`). По умолчанию оно бралось бы
-из имени каталога, то есть `api`, и под этим именем шли бы префиксы томов и
-метка, по которой на общей машине отличают своё от чужого при уборке образов.
+The name of the set itself is given explicitly (`name: tessera-v2`). By default
+it would come from the directory name, that is `api`, and volume prefixes and
+the label that tells your containers from foreign ones during image cleanup
+would carry that name.
 
-### `SEARXNG_SECRET` ни на что не влияет
+### `SEARXNG_SECRET` has no effect
 
-Образ SearXNG подставляет её правкой своего файла настроек на старте, а файл
-смонтирован только на чтение, поэтому подстановка не проходит и остаётся литерал
-из `deploy/searxng/settings.yml`. Приемлемо, пока служба не публикуется наружу:
-ключ подписывает состояние форм собственного интерфейса SearXNG, которым
-приложение не пользуется.
+The SearXNG image substitutes it by editing its own settings file at startup,
+and that file is mounted read-only, so the substitution does not go through and
+the literal from `deploy/searxng/settings.yml` stays. Acceptable while the
+service is not published: the key signs the form state of SearXNG's own
+interface, which the application does not use.
 
-### Уборка после сборки образа обязательна
+### Cleaning up after an image build is mandatory
 
-Каждая пересборка оставляет предыдущий образ без тега. За сутки работы это
-десятки гигабайт, и сборка падает с «нет места на устройстве» посреди работы.
-Порядок уборки в `CLAUDE.md`, раздел «Уборка после сборки».
+Every rebuild leaves the previous image untagged. Over a day of work that is
+tens of gigabytes, and a build fails with "no space left on device" in the
+middle of the work. The cleanup procedure is in `CLAUDE.md`, section "Cleaning
+up after a build".
 
-## Боевой состав
+## The server set
 
-`apps/api/docker-compose.v2.server.yml`: те же процессы приложения, но база,
-Redis и хранилище общие с прежним экземпляром. Шагов раскатки схемы там нет
-намеренно — переход построен на том, что данным переезжать некуда.
+`apps/api/docker-compose.v2.server.yml`: the same application processes, but the
+database, Redis and object storage are external and already exist. The schema
+steps are left out there deliberately — that set does not own the schema.
 
+Two guards live next to it, both meant to be run with
+`psql -v ON_ERROR_STOP=1`, which is what turns a refusal into a non-zero exit
+code:
+
+- `deploy/preflight-check.sql` — refuses to let an image come up while a
+  mandatory manual change is missing from the shared database
+- `deploy/rollback-check.sql` — refuses to let a proxy configuration be rolled
+  back while rows deleted softly are still in place

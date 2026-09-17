@@ -1,128 +1,163 @@
 # PROJECT_GUIDELINES
 
-## Назначение файла
+## What this file is for
 
-Этот файл - универсальный набор соглашений по разработке, применимых к любому проекту (бекенд, фронтенд, админка, мобильное приложение, смарт-контракты, библиотеки).
+A general set of development conventions that applies to any project (backend,
+frontend, admin panel, mobile application, smart contracts, libraries).
 
-## Инструкция для Claude Code
+## Instruction for Claude Code
 
-При обнаружении этого файла в корне проекта выполнить следующие шаги.
+When this file is found in the project root, take the following steps.
 
-1. Прочитать содержимое полностью
-2. Открыть существующий `CLAUDE.md` проекта. Если его нет, создать
-3. Интегрировать разделы этого файла в `CLAUDE.md` с учётом специфики проекта
-   - Универсальные принципы (общение, стиль, методология, архитектурные ограничения, поддержание актуальности) переносить почти дословно
-   - Шаблонные разделы со скелетами (Project Overview, Project Structure, Build & Verification Commands, Testing, Dependencies, версии, форматирование, именование) заполнять конкретными данными из проекта, обнаруженными при анализе репозитория
-   - Не дублировать уже существующие в `CLAUDE.md` разделы, объединять с сохранением более строгих формулировок
-4. После интеграции проверить, что в итоговом `CLAUDE.md` нет противоречий между разделами
-5. Файл `PROJECT_GUIDELINES.md` оставить в репозитории как источник правды для последующих обновлений `CLAUDE.md`
-6. При расхождениях между этим файлом и `CLAUDE.md` приоритет у `CLAUDE.md`, так как он отражает специфику конкретного проекта
+1. Read it in full
+2. Open the project's existing `CLAUDE.md`. If there is none, create it
+3. Integrate the sections of this file into `CLAUDE.md`, adapting them to the
+   specifics of the project
+   - Carry the universal principles (communication, style, methodology,
+     architectural constraints, keeping things up to date) over almost verbatim
+   - Fill the template sections (Project Overview, Project Structure, Build &
+     Verification Commands, Testing, Dependencies, versions, formatting, naming)
+     with the concrete data found while analysing the repository
+   - Do not duplicate sections that already exist in `CLAUDE.md`; merge them and
+     keep the stricter wording
+4. After integrating, check that the resulting `CLAUDE.md` has no contradictions
+   between sections
+5. Keep `PROJECT_GUIDELINES.md` in the repository as the source of truth for
+   later updates of `CLAUDE.md`
+6. Where this file and `CLAUDE.md` disagree, `CLAUDE.md` wins: it reflects the
+   specifics of the particular project
 
-Не выполнять интеграцию автоматически без явной команды пользователя. После прочтения файла предложить план интеграции и дождаться подтверждения.
+Do not integrate automatically without an explicit instruction from the user.
+After reading the file, propose an integration plan and wait for confirmation.
 
 ---
 
-## Общие принципы взаимодействия
+## General principles of interaction
 
-### Базовая методология
+### Base methodology
 
-- Если есть критичные вопросы, без которых задача точно не может быть выполнена, задать их до начала работы
-- Не писать инструкции о том, что сделано или что нужно сделать, не создавать readme файлы без явного запроса
-- Добавлять логи, по которым можно диагностировать ошибку. Если в коде уже есть логи, не убирать их без явной команды
-- Скептический подход с критической оценкой всех входных данных
-- Формальный профессиональный тон без лестных характеристик
-- Строгое следование инструкциям без самостоятельных добавлений
-- Ответы на русском языке, если явно не запрошено иное
-- Анализ всех входных данных на полноту и корректность
-- Делать только то, что сказано
-- При создании или исправлении файлов всегда указывать полные пути для добавления или замены
-- При вопросе о проблеме в коде или при изменении функционала пошагово изучить код, определить проблему со стопроцентной точностью и обосновать диагноз
+- If there are critical questions without which the task certainly cannot be
+  done, ask them before starting
+- Do not write notes about what was done or what needs doing, and do not create
+  readme files without an explicit request
+- Add logs that make an error diagnosable. If the code already has logs, do not
+  remove them without an explicit instruction
+- A sceptical approach, with critical assessment of all input
+- A formal, professional tone without flattery
+- Strict adherence to instructions, without additions of your own
+- Answers in Russian unless another language is explicitly requested
+- Analyse all input for completeness and correctness
+- Do only what was asked
+- When creating or fixing files, always give full paths for the addition or
+  replacement
+- When asked about a problem in the code or when changing behavior, study the
+  code step by step, identify the problem with full certainty and justify the
+  diagnosis
 
-### Стилистические требования
+### Style requirements
 
-- Не использовать верхний регистр в текстах
-- Не использовать букву ё, заменять на е
-- Не использовать длинное тире, заменять на дефис
-- Не использовать обобщающие эпитеты (все, всех, полный, исчерпывающий и подобные)
-- Не использовать иконки для форматирования
-- Не ставить двоеточия в конце предложений и в списках
-- Минималистичное форматирование без избыточных элементов
+- Do not use upper case in text
+- In Russian text, do not use the letter ё; replace it with е
+- Do not use em dashes; replace them with a hyphen
+- Do not use sweeping epithets (all, every, complete, exhaustive and the like)
+- Do not use icons as formatting
+- Do not put colons at the end of sentences or list items
+- Minimal formatting, without superfluous elements
 
-### Методология решения проблем
+### Problem-solving methodology
 
-- Выявление точных причин без предположений
-- Предоставление только проверенных фактов
-- Отказ от обобщений без фактических доказательств
-- Требование стопроцентной точности в диагностике
-- Предложение конкретных методов верификации результатов
-- Запрет на временные решения и обходные пути
-- Не делать предположений без проверки
-- Не обобщать без фактических доказательств
-- Указывать только проверенные факты
-- Когда вариант решения звучит как скорее всего, такой ответ неприемлем. Нужно точно разобраться в проблеме и показать её однозначно либо предложить способ выяснить со стопроцентным результатом
+- Establish exact causes without guessing
+- Provide verified facts only
+- Refuse generalizations that lack factual evidence
+- Demand full accuracy in a diagnosis
+- Offer concrete ways to verify the result
+- No temporary solutions and no workarounds
+- Do not make assumptions without checking
+- Do not generalize without factual evidence
+- State verified facts only
+- An answer that sounds like "most likely" is not acceptable. Either understand
+  the problem exactly and show it unambiguously, or propose a way to establish
+  it with certainty
 
-### Процесс работы с задачами
+### How tasks are handled
 
-- Сначала описывать бизнес-логику и алгоритм, затем реализовывать код по явному запросу
-- Описывать варианты решения с обоснованием до написания кода
-- Решать первопричины в первую очередь, не симптомы
-- При недостаточности данных запрашивать недостающие файлы, не делать предположений
-- Возвращать полные файлы при множественных правках с корректным форматированием
-- Приоритет исправления ошибок над улучшениями функционала
-- Никогда не предлагать временных решений
+- Describe the business logic and the algorithm first, then implement the code on
+  an explicit request
+- Describe the options with reasoning before writing code
+- Solve root causes first, not symptoms
+- When the data is insufficient, ask for the missing files instead of assuming
+- Return whole files when making multiple edits, with correct formatting
+- Fixing bugs takes priority over improving features
+- Never propose a temporary solution
 
 ## Project Overview
 
-Краткое описание проекта в двух-трёх предложениях, чтобы агент сразу понимал контекст.
+A short description of the project in two or three sentences, so that an agent
+has the context immediately.
 
-Core concepts (заполняется под конкретный проект):
-- Основные модули и их зона ответственности
-- Ключевые потоки данных или бизнес-сценарии
-- Внешние интеграции и адаптеры
+Core concepts (filled in per project):
+- the main modules and what each is responsible for
+- the key data flows or business scenarios
+- external integrations and adapters
 
-## Post-Release Policy
+## Post-release policy
 
-Применять, когда кодовая база уже стабилизирована, прошла аудит, ревью или вышла в продакшн.
+Apply this once the code base is stabilized, has passed an audit or a review, or
+has shipped to production.
 
-- Только фиксы и точечные улучшения, без крупных рефакторингов
-- Минимальные диффы, изменения строго в границах задачи
-- Не переименовывать переменные, не переставлять функции, не чистить соседний код
-- Не трогать существующую документацию и комментарии, если фикс не меняет описанное поведение
-- Не менять существующую тестовую инфраструктуру (базовые классы, фикстуры, моки), если этого не требует фикс
-- Новый или изменённый код обязан содержать документацию и тесты, покрывающие каждую новую строку и ветку
-- Если фикс влияет на бенчмарки или снапшоты (производительность, размер бандла, время рендера), регенерировать соответствующие артефакты
+- Fixes and targeted improvements only, no large refactors
+- Minimal diffs, changes strictly within the boundaries of the task
+- Do not rename variables, do not move functions around, do not clean up
+  neighbouring code
+- Do not touch existing documentation and comments unless the fix changes the
+  behavior they describe
+- Do not change the existing test infrastructure (base classes, fixtures, mocks)
+  unless the fix requires it
+- New or changed code must carry documentation and tests covering every new line
+  and branch
+- If a fix affects benchmarks or snapshots (performance, bundle size, render
+  time), regenerate the corresponding artifacts
 
-## Архитектурные ограничения
+## Architectural constraints
 
-- Сохранение существующей архитектуры без изменений
-- Переиспользование существующего кода как приоритет
-- Неизменность входных и выходных параметров функций без согласования
-- Запрет на предложения архитектурных модификаций без запроса
-- Запрещено менять архитектуру, предлагать её менять, упрощать или делать временные решения
-- Придерживаться существующей архитектуры проекта, сервера, модулей
-- Не предлагать обходные пути
-- Решать проблемы без изменения архитектуры
+- Preserve the existing architecture unchanged
+- Reusing existing code comes first
+- Do not change the input and output parameters of functions without agreement
+- Do not propose architectural modifications unless asked
+- Changing the architecture, proposing to change it, simplifying it or making
+  temporary solutions is forbidden
+- Stay within the existing architecture of the project, the server and the
+  modules
+- Do not propose workarounds
+- Solve problems without changing the architecture
 
-## Performance Consciousness
+## Performance consciousness
 
-Применять, если проект чувствителен к ресурсам (бекенд под нагрузкой, мобильное, embedded, оптимизированные библиотеки).
+Apply this when the project is sensitive to resources (a backend under load,
+mobile, embedded, optimized libraries).
 
-Перед любым изменением оценить влияние на производительность.
+Assess the performance impact before any change.
 
-- Всегда явно объяснять, зачем нужно изменение и какой компромисс по производительности оно несёт. Если фикс ухудшает метрику, указать стоимость и обосновать через корректность или безопасность
-- Использовать паттерны, уже принятые в кодовой базе (специализированные библиотеки, кэш, пакетные операции)
-- Измерять до и после, сравнивать снапшоты или бенчмарки. Регресс на горячих путях фиксировать и выносить на обсуждение
-- Учитывать структуры данных и схемы хранения. Не добавлять часто читаемые поля бездумно
-- Знать горячие пути проекта и помечать их в этом файле. Любая регрессия там критична
+- Always explain explicitly why a change is needed and what performance
+  trade-off it carries. If a fix makes a metric worse, state the cost and
+  justify it through correctness or safety
+- Use the patterns already accepted in the code base (specialized libraries,
+  caching, batch operations)
+- Measure before and after, compare snapshots or benchmarks. Record a regression
+  on a hot path and bring it up for discussion
+- Take data structures and storage schemas into account. Do not add frequently
+  read fields thoughtlessly
+- Know the hot paths of the project and mark them in this file. Any regression
+  there is critical
 
-Hot paths (заполнить под проект):
-- Перечислить функции, эндпоинты, экраны, запросы, которые выполняются чаще всего
+Hot paths (fill in per project):
+- list the functions, endpoints, screens and queries that run most often
 
-## Build & Verification Commands
+## Build & verification commands
 
-Привести команды для сборки, тестов, форматирования, статанализа, снапшотов.
+List the commands for build, tests, formatting, static analysis and snapshots.
 
-Пример скелета:
+Skeleton example:
 
 ```
 <build>
@@ -132,163 +167,182 @@ Hot paths (заполнить под проект):
 <snapshot / bench>
 ```
 
-CI запускает (перечислить шаги).
+CI runs (list the steps).
 
-После каждого изменения прогнать все команды по порядку и устранить замечания до объявления задачи завершённой.
+After every change, run all the commands in order and clear the findings before
+declaring the task finished.
 
-## Project Structure
+## Project structure
 
-Привести актуальное дерево директорий с короткими аннотациями по каждой ключевой папке и важному файлу. Дерево держать в актуальном состоянии, см. раздел Keeping This File Up to Date.
+Give the current directory tree with short annotations for every key folder and
+important file. Keep the tree current, see Keeping this file up to date.
 
-## Требования к коду
+## Code requirements
 
-### Общие принципы
+### General principles
 
-- Минималистичный подход, минимум кода при сохранении функциональности
-- Компактность без потери возможностей системы
-- Создание универсальных компонентов для повторного использования
-- Минимизация количества создаваемых файлов, создавать только необходимые
-- Обязательное логирование для диагностики ошибок
-- Никогда не писать код, пока об этом явно не попросили
-- Сохранение всей функциональности, уменьшать реализованный функционал запрещено
-- Без комментариев в коде, если явно не запрошены
-- Компактная запись при сохранении читаемости
+- A minimalist approach: the least code that keeps the functionality
+- Compactness without losing what the system can do
+- Build reusable components
+- Keep the number of created files down; create only the necessary ones
+- Logging for error diagnosis is mandatory
+- Never write code before being explicitly asked
+- Keep all functionality; reducing implemented functionality is forbidden
+- No comments in code unless explicitly requested
+- Compact writing that stays readable
 
-### Лицензия и заголовки
+### License and headers
 
-- Какой заголовок ставить в production файлах
-- Какой в тестах и dev утилитах
-- Исключения и форки сторонних модулей
+- which header goes into production files
+- which one into tests and dev utilities
+- exceptions and forks of third-party modules
 
-### Версии и пины
+### Versions and pins
 
-- Версии языка, рантайма, ключевых инструментов
-- Где разрешён точный пин, где допустим диапазон
-- Правило подбора версии для новых файлов, ориентир на соседние файлы в той же директории
+- versions of the language, the runtime and the key tools
+- where an exact pin is allowed and where a range is acceptable
+- the rule for choosing a version for new files: follow the neighbouring files
+  in the same directory
 
-### Форматирование
+### Formatting
 
-Перечислить настройки форматтера, длину строки, отступы, перенос комментариев. Указать, что форматтер обязателен к запуску перед завершением задачи.
+List the formatter settings, line length, indentation and comment wrapping.
+State that running the formatter before finishing a task is mandatory.
 
-### Структура файла и модуля
+### File and module layout
 
-Зафиксировать порядок секций внутри файла, разделители, порядок объявлений (константы, состояние, конструктор, публичный API, внутренние функции, и так далее).
+Fix the order of sections inside a file, the separators and the order of
+declarations (constants, state, constructor, public API, internal functions, and
+so on).
 
-### Импорты
+### Imports
 
-- Группировка (внешние, внутренние, относительные)
-- Источник путей (алиасы, ремаппинги, baseUrl)
-- Запрет на дублирование конфигов путей в разных местах
+- grouping (external, internal, relative)
+- where paths come from (aliases, remappings, baseUrl)
+- no duplication of path configuration in several places
 
-### Именование
+### Naming
 
-- Внутренние и приватные сущности
-- Константы
-- Параметры функций
-- Классы, модули, библиотеки
-- Тестовые сущности и фикстуры
+- internal and private entities
+- constants
+- function parameters
+- classes, modules, libraries
+- test entities and fixtures
 
-### Errors & Events
+### Errors & events
 
-- Где хранятся доменные ошибки и события
-- Как они переиспользуются между модулями и тестами
+- where domain errors and events live
+- how they are reused between modules and tests
 
-## Documentation Standards
+## Documentation standards
 
-Каждый новый публичный модуль, класс, функция, ошибка, событие, тип в production коде обязан иметь документацию. Не дописывать документацию задним числом к существующему стабилизированному коду, если фикс не меняет описанное поведение.
+Every new public module, class, function, error, event and type in production
+code must carry documentation. Do not add documentation after the fact to
+existing stabilized code unless the fix changes the behavior it describes.
 
-Привести шаблоны блоков документации для:
-- модуля, класса, библиотеки, интерфейса
-- ошибок и исключений
-- событий или сигналов
-- функций (назначение, детали реализации, параметры, возвращаемое значение)
-- полей структур и моделей
+Provide documentation block templates for:
+- a module, class, library, interface
+- errors and exceptions
+- events or signals
+- functions (purpose, implementation details, parameters, return value)
+- fields of structures and models
 
-### Стабильность документации при форматировании
+### Documentation stability under formatting
 
-Если форматтер переносит длинные комментарии, описать ограничение по длине описания и команду проверки целостности (grep по объединённым тегам).
+If the formatter wraps long comments, describe the length limit for a
+description and the command that checks integrity (a grep over the joined tags).
 
-### Где документация не нужна
+### Where documentation is not needed
 
-- Тестовые файлы и фикстуры
-- Внутренние моки и dev утилиты
-- Существующий стабилизированный код без изменения поведения
+- test files and fixtures
+- internal mocks and dev utilities
+- existing stabilized code whose behavior does not change
 
 ## Testing
 
-### Фреймворк и конфигурация
+### Framework and configuration
 
-- Тестовый фреймворк и раннер
-- Количество прогонов для свойств, фаззинга, e2e
-- Настройки оптимизатора, билдов под тесты
+- the test framework and runner
+- the number of runs for property tests, fuzzing and e2e
+- optimizer settings and test builds
 
-### Расположение тестов
+### Where tests live
 
-Где лежат юнит, интеграционные, e2e, снапшоты. Где dev утилиты и моки.
+Where the unit, integration, e2e and snapshot tests live. Where the dev
+utilities and mocks live.
 
-### Структура тестов
+### Test structure
 
-Описать базовый класс или набор фикстур, утилиты, готовые аккаунты или пользователей, хелперы для подготовки состояния и ассертов.
+Describe the base class or the set of fixtures, the utilities, the ready-made
+accounts or users, and the helpers for preparing state and asserting.
 
-### Именование тестовых функций
+### Naming of test functions
 
-- Happy path
-- Сценарии ошибок
-- Свойства и фаззинг
-- Бенчмарки и снапшоты
+- happy path
+- error scenarios
+- properties and fuzzing
+- benchmarks and snapshots
 
-### Добавление новых тестов
+### Adding new tests
 
-1. Дописывать в существующий файл по тестируемому модулю
-2. Если файла нет, создать новый по принятому шаблону
-3. Не дописывать тестовые функции в базовые классы и фикстуры
+1. Add to the existing file for the module under test
+2. If there is no such file, create one following the accepted template
+3. Do not add test functions to base classes and fixtures
 
-### Требования к покрытию
+### Coverage requirements
 
-- Цель по линейному и веточному покрытию для нового и изменённого кода
-- Позитивные тесты обязаны проверять все наблюдаемые эффекты (события, состояние, ответы, побочные эффекты)
-- Негативные тесты обязаны проверять конкретный тип ошибки или конкретный селектор
+- the target for line and branch coverage of new and changed code
+- positive tests must check every observable effect (events, state, responses,
+  side effects)
+- negative tests must check the specific error type or the specific selector
 
-### Снапшоты и бенчмарки
+### Snapshots and benchmarks
 
-Если есть, описать как и когда регенерировать.
+If there are any, describe how and when to regenerate them.
 
-### Тестовые паттерны
+### Test patterns
 
-- Подмена пользователя, контекста, времени, сети
-- Ожидание ошибок и событий
-- Балансовые и ассерт хелперы
-- Хелперы подготовки данных
+- substituting the user, the context, time, the network
+- expecting errors and events
+- balance and assertion helpers
+- data preparation helpers
 
-### Тестовые сущности
+### Test entities
 
-Таблицу аккаунтов, пользователей, ролей оставить в актуальном виде под проект.
+Keep the table of accounts, users and roles current for the project.
 
 ## Dependencies
 
-Перечень ключевых зависимостей с одной строкой про роль каждой. Обновлять при добавлении и удалении.
+A list of the key dependencies with one line about the role of each. Update it
+when one is added or removed.
 
-## Локализация и контекст
+## Localization and context
 
-- Анализировать все входные данные
-- Основная локация - северная Европа, это влияет на географию, имена, форматы дат, валюты и подобные элементы
+- Analyse all input
+- The primary location is northern Europe; that affects geography, names, date
+  formats, currencies and similar elements
 
-## Keeping This File Up to Date
+## Keeping this file up to date
 
-После любой задачи, которая меняет соглашения, структуру или процессы, обновлять этот файл.
+After any task that changes conventions, structure or processes, update this
+file.
 
-- Новые модули или директории обновляют Project Structure
-- Новые зависимости заносятся в Dependencies
-- Изменения соглашений (именование, тестовые паттерны, версии, форматирование) фиксируются в соответствующих разделах
-- Бамп версии языка или рантайма
-  1. Обновить версию в конфиге сборки
-  2. Заменить точные пины во всех файлах проекта, не трогая диапазонные пины и сторонние зависимости
-  3. Обновить раздел Версии и пины
-  4. Прогнать билд, тесты, форматирование
-- Новые контракты ошибок и событий фиксировать в разделе Errors & Events
-- Изменения CI и команд сборки заносить в Build & Verification Commands
-- Новые тестовые хелперы и аккаунты заносить в Testing
-- Новые публичные сущности обязаны иметь документацию по принятым шаблонам
-- Изменения политики после релиза или после аудита фиксировать в Post-Release Policy
+- new modules or directories update Project structure
+- new dependencies go into Dependencies
+- changes to conventions (naming, test patterns, versions, formatting) are
+  recorded in the corresponding sections
+- a language or runtime version bump
+  1. update the version in the build configuration
+  2. replace the exact pins across the project files, leaving range pins and
+     third-party dependencies alone
+  3. update the Versions and pins section
+  4. run the build, the tests and the formatter
+- new error and event contracts are recorded in the Errors & events section
+- CI and build command changes go into Build & verification commands
+- new test helpers and accounts go into Testing
+- new public entities must carry documentation following the accepted templates
+- changes to the policy after a release or an audit are recorded in the
+  Post-release policy
 
-Не добавлять сюда заметки по текущей задаче и временные пометки, только стабильные многоразовые инструкции.
+Do not add notes about the current task or temporary marks here; stable,
+reusable instructions only.
