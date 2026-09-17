@@ -1,0 +1,17 @@
+Tessera
+Copyright 2026 Tessera-Note
+
+This product includes software developed by the Tessera-Note project.
+
+Third-party components vendored into this repository keep their own licenses:
+
+- packages/editor-ext/src/lib/prosemirror-docx
+  MIT License, Copyright (c) 2021 Iooxa Inc.
+  https://github.com/curvenote/prosemirror-docx
+
+- packages/editor-ext/src/lib/search-and-replace
+  MIT License, Copyright (c) 2023 - 2024 Jeet Mandaliya
+  https://github.com/sereneinserenade/tiptap-search-and-replace
+
+Runtime dependencies are not vendored here; their licenses ship with the
+packages themselves (see pnpm-lock.yaml and apps/api/uv.lock).

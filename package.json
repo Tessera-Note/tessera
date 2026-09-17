@@ -1,6 +1,7 @@
 {
   "name": "tessera",
   "version": "0.95.0",
+  "license": "Apache-2.0",
   "private": true,
   "scripts": {
     "build": "pnpm --filter @tessera/editor-ext build && pnpm --filter @tessera/web build",
