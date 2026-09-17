@@ -47,7 +47,12 @@ it.
 Answer in Russian. Formal, professional tone. No emoji, no caps lock, no
 marketing phrasing.
 
-Comments and strings in code stay in the language of the file being edited.
+New and changed comments in code are written in English, and so are the strings
+the code itself produces — log lines, failure texts of integrations, messages of
+the repository scripts. The existing Russian comments stay where they are until
+the file is touched for another reason: there is no separate pass to translate
+them, and `docs/future-roadmap.md` carries the count that is left.
+
 User-facing text goes only through the dictionaries in
 `apps/web/static/locales`.
 
