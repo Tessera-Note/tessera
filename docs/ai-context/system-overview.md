@@ -18,6 +18,25 @@ Business logic, permissions and database writes are entirely in Python.
 `services/collab` has one closed exception: the editor node schema and the
 Hocuspocus protocol.
 
+## Why the parts sit where they do
+
+- **`packages/editor-ext` is at the root** because it has two consumers: the
+  screens (`apps/web`, twelve files import it) and the Node collaboration
+  service (`services/collab/src/extensions.js`, `docx.js`). Inside `apps/web`
+  the service would be importing the internals of another application, and the
+  service image — which copies `packages` and builds the package
+  (`services/collab/Dockerfile`) — would stop building. A second copy of the
+  node schema is not an option: a node missing from the second schema is dropped
+  silently on the next parse, and the document is saved without it.
+- **`services/*` is deliberately outside the pnpm workspace.**
+  `pnpm-workspace.yaml` lists only `apps/*` and `packages/*`, so the package
+  manager does not read a manifest there. The collaboration service declares no
+  dependencies of its own; they live in the root `package.json`, and its image is
+  built with the repository root as the context.
+- **`scripts/` is repository tooling**, in three languages, and takes part in no
+  build. The Python files there are the reason the root carries a `ruff.toml` of
+  its own.
+
 ## Main flow
 
 1. The browser gets the page from `apps/web`. This is not static output:

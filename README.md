@@ -56,6 +56,25 @@ Storage is PostgreSQL with pgvector; Redis serves the cache, the job queue and
 the event channel; attachments go to any S3-compatible storage (MinIO ships in
 the compose file).
 
+## Repository layout
+
+```
+apps/api              the application: rules, permissions, database, jobs
+apps/web              the screens — the only front end in the repository
+packages/editor-ext   editor nodes shared by the screens and the collab service
+services/collab       collaborative editing: node schema and Hocuspocus
+services/hub          versions, telemetry, documentation, license
+scripts               tooling: stand sign-in, image checks, dictionary review
+deploy                reverse proxy, backups, database init, deployment guards
+docs                  documentation, including the context for coding agents
+```
+
+`packages/editor-ext` sits at the root rather than inside `apps/web` because it
+has two consumers: the screens and the Node collaboration service. A second copy
+of the editor node schema would drop document nodes silently. `services/*` is
+deliberately outside the pnpm workspace; the reasoning is in
+[`docs/ai-context/system-overview.md`](docs/ai-context/system-overview.md).
+
 ## Quick start
 
 ```
