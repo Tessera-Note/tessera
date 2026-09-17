@@ -1,21 +1,22 @@
 /**
- * Подписи стрелок сортировки в таблице только для чтения.
+ * The labels of the sort arrows in a read-only table.
  *
- * Стрелки ставит сам пакет (`table-readonly-sort.ts`), а подписи у них
- * пользовательские: они стоят в `title`, `aria-label` и всплывающей подсказке,
- * то есть их читает человек. Пакет про словари не знает, поэтому тексты
- * приходят из приложения — так же сделано для подписей отказов загрузки
- * (`media-error.ts`).
+ * The arrows are placed by the package itself (`table-readonly-sort.ts`), but
+ * their labels are user-facing: they sit in `title`, `aria-label` and the
+ * tooltip, which means a person reads them. The package knows nothing about
+ * dictionaries, so the texts come from the application — the same way as the
+ * labels of load failures (`media-error.ts`).
  *
- * До установки берутся английские значения по умолчанию, чтобы пакет оставался
- * самостоятельным: он общий с первой версией, и там словаря для него нет.
+ * Until they are set, the English defaults are used, so that the package stays
+ * self-contained: it is shared with the earlier version, which has no
+ * dictionary for it.
  */
 export type TableSortLabels = {
-  /** Столбец не отсортирован: нажатие отсортирует по возрастанию. */
+  /** The column is unsorted: a click sorts it ascending. */
   ascending: string;
-  /** Отсортирован по возрастанию: нажатие развернёт порядок. */
+  /** Sorted ascending: a click reverses the order. */
   descending: string;
-  /** Отсортирован по убыванию: нажатие снимет сортировку. */
+  /** Sorted descending: a click clears the sort. */
   clear: string;
 };
 

@@ -87,11 +87,11 @@ export const embedProviders: IEmbedProvider[] = [
     },
   },
   {
-    // Drive распознавался только по ссылке на файл. Ссылка на папку и старая
-    // форма `open?id=` проваливались в общий iframe, где Drive показывает
-    // отказ. Все три вида ведут к одному сервису, поэтому обрабатываются
-    // одним провайдером: человек не обязан знать, какой из них у него в
-    // буфере обмена.
+    // Drive used to be recognized only by a link to a file. A link to a folder
+    // and the old `open?id=` form fell through to the generic iframe, where
+    // Drive shows a refusal. All three lead to one service, so one provider
+    // handles them: a person is not obliged to know which of them is in their
+    // clipboard.
     id: "gdrive",
     name: "Google Drive",
     regex:
@@ -101,26 +101,27 @@ export const embedProviders: IEmbedProvider[] = [
       if (fileId) {
         return `https://drive.google.com/file/d/${fileId}/preview`;
       }
-      // Своя встраиваемая форма: обычный адрес папки Drive во фрейме не
-      // открывается.
+      // Its own embeddable form: an ordinary Drive folder address does not open
+      // in a frame.
       return `https://drive.google.com/embeddedfolderview?id=${match[4]}`;
     },
   },
   {
-    // Таблица отдавалась как есть, то есть встраивался адрес редактора со
-    // всеми его параметрами. Приводится к той же встраиваемой форме, что у
-    // документа, презентации и файла Drive.
+    // A spreadsheet used to be served as is, which embedded the editor address
+    // with all of its parameters. It is brought to the same embeddable form as
+    // a document, a presentation and a Drive file.
     //
-    // Номер листа переносится: в адресе редактора он выбирает вкладку, и без
-    // него встроенная таблица открывалась бы не на той, что дал человек.
+    // The sheet number is carried over: in the editor address it selects the
+    // tab, and without it the embedded spreadsheet would open on a different
+    // one than the person gave.
     id: "gsheets",
     name: "Google Sheets",
     regex:
       /^((?:https?:)?\/\/)?((?:www|m)\.)?(docs\.google\.com)\/spreadsheets\/d\/([a-zA-Z0-9_-]+)(\/.*)?$/,
     getEmbedUrl: (match, url: string) => {
-      // Опубликованная таблица это уже готовая для встраивания форма с
-      // отдельным маркером вместо идентификатора: `/d/e/<маркер>/pubhtml`.
-      // Приводить ее к `/preview` нечем, идентификатора там нет.
+      // A published spreadsheet is already an embeddable form, with a separate
+      // marker instead of the identifier: `/d/e/<marker>/pubhtml`. There is
+      // nothing to bring it to `/preview` with — it carries no identifier.
       if (/\/spreadsheets\/d\/e\//.test(url)) return url;
 
       const gid = url.match(/[#?&]gid=(\d+)/);
@@ -129,10 +130,11 @@ export const embedProviders: IEmbedProvider[] = [
     },
   },
   {
-    // Таблицы на docs.google.com распознавались, а документы и презентации
-    // нет: их ссылка проваливалась в общий iframe и встраивался адрес
-    // редактора со всеми параметрами вида `?pli=1&tab=t.0#heading=...`.
-    // Встраиваемая форма у документа это `/preview`, как и у файла Drive.
+    // Spreadsheets on docs.google.com were recognized while documents and
+    // presentations were not: their link fell through to the generic iframe and
+    // embedded the editor address with all its parameters, of the form
+    // `?pli=1&tab=t.0#heading=...`. The embeddable form of a document is
+    // `/preview`, as it is for a Drive file.
     id: "gdocs",
     name: "Google Docs",
     regex:
@@ -151,8 +153,8 @@ export const embedProviders: IEmbedProvider[] = [
     },
   },
   {
-    // Форма без `/viewform` открывается на редактирование и во фрейме
-    // показывает отказ.
+    // A form without `/viewform` opens for editing and shows a refusal in a
+    // frame.
     id: "gforms",
     name: "Google Forms",
     regex:

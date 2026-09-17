@@ -556,10 +556,10 @@ export class DocxSerializerStateAsync {
 
   async render(node: Node, parent: Node, index: number) {
     if (typeof parent === 'number') throw new Error('!');
-    // Неизвестный тип узла не роняет выгрузку целиком. Редактор расширяют
-    // чаще, чем этот сериализатор, и падение всего документа из-за одного
-    // незнакомого узла обходится дороже, чем его пропуск. Узел с детьми
-    // разворачивается, чтобы текст внутри не потерялся.
+    // An unknown node type does not bring the whole export down. The editor is
+    // extended more often than this serializer, and losing the whole document
+    // over one unfamiliar node costs more than skipping it. A node with
+    // children is unwrapped so that the text inside is not lost.
     if (!this.nodes[node.type.name]) {
       if (node.childCount > 0) {
         await this.renderContent(node);

@@ -370,9 +370,9 @@ export const TiptapImage = Image.extend<ImageOptions>({
         el.classList.remove("media-pulse");
       };
 
-      // Без этого при 404 или 403 обработчик успеха не наступает, и узел
-      // навсегда остается заблокированным для мыши: ни выделить, ни
-      // перетащить, ни открыть в меню.
+      // Without this the success handler never runs on a 404 or a 403, and the
+      // node stays blocked for the mouse forever: it cannot be selected,
+      // dragged, or opened from the menu.
       el.onerror = () => {
         handleMediaError(dom, el, el.src);
       };

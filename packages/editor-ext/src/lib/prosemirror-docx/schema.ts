@@ -159,17 +159,17 @@ export const defaultAsyncNodes: NodeSerializerAsync = {
   async transclusionSource(state, node) {
     await state.renderContent(node);
   },
-  // Синхронизированный блок разворачивается в обычные блоки: важно
-  // содержимое, а не то, что оно повторно используется.
+  // A synchronized block is unwrapped into ordinary blocks: what matters is the
+  // content, not the fact that it is reused.
   async shared(state, node) {
     await state.renderContent(node);
   },
-  // У встроенной базы нет статического представления: это таблица, которая
-  // живет в отдельных таблицах базы, а не в документе. Вместо молчаливой
-  // потери ставится заметная отбивка, иначе читатель файла не узнает, что
-  // на странице что-то было.
+  // An embedded database has no static representation: it is a table that
+  // lives in the base's own tables rather than in the document. Instead of
+  // losing it silently, a visible marker is put in, otherwise a reader of the
+  // file would never know that something was there.
   base(state, node) {
-    state.text('[встроенная база данных]');
+    state.text('[embedded database]');
     state.closeBlock(node);
   },
   mention(state, node) {

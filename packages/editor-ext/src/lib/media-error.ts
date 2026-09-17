@@ -1,24 +1,26 @@
 /**
- * Обработка недоступного вложения в узлах, которые рисуются обычным DOM.
+ * Handling an unavailable attachment in the nodes drawn with plain DOM.
  *
- * Узлы `image`, `video`, `drawio` и `excalidraw` идут через `ResizableNodeView`,
- * который до загрузки ставит контейнеру `pointer-events: none` и класс
- * пульсации. Снималось это **только** в обработчике успешной загрузки, поэтому
- * при 404 или 403 узел навсегда оставался пульсирующей заглушкой: его нельзя
- * было ни выделить мышью, ни потянуть, ни открыть в меню. Состояние чисто
- * runtime, в содержимом ничего не хранится, поэтому оно снимается само, как
- * только узел отрисовывается этим кодом.
+ * The `image`, `video`, `drawio` and `excalidraw` nodes go through
+ * `ResizableNodeView`, which sets `pointer-events: none` and a pulsing class on
+ * the container until the load finishes. That was removed **only** in the
+ * successful-load handler, so on a 404 or a 403 the node stayed a pulsing
+ * placeholder forever: it could not be selected with the mouse, dragged, or
+ * opened from the menu. The state is purely runtime and nothing of it is stored
+ * in the content, so it clears itself as soon as the node is rendered by this
+ * code.
  *
- * Тексты приходят из приложения: пакет расширений не знает про i18next, а
- * пользовательские строки обязаны идти через него. До установки берутся
- * английские значения по умолчанию, чтобы пакет оставался самостоятельным.
+ * The texts come from the application: the extensions package knows nothing
+ * about i18next, while user-facing strings must go through it. Until they are
+ * set, the English defaults are used, so that the package stays
+ * self-contained.
  */
 export type MediaErrorLabels = {
-  /** Файла нет: 404. */
+  /** The file is gone: 404. */
   missing: string;
-  /** Файл есть, доступа нет: 403. */
+  /** The file exists, access does not: 403. */
   forbidden: string;
-  /** Все прочее, включая обрыв сети. */
+  /** Everything else, a dropped connection included. */
   failed: string;
 };
 
@@ -37,11 +39,11 @@ export function getMediaErrorLabels(): MediaErrorLabels {
 }
 
 /**
- * Код ответа для адреса, который не смог загрузить `img` или `video`.
+ * The response code for an address that `img` or `video` failed to load.
  *
- * Тег о причине отказа ничего не сообщает, поэтому статус выясняется
- * отдельным запросом. Он делается **только** после отказа, поэтому на
- * обычном пути стоимости не добавляет.
+ * The tag says nothing about the reason, so the status is found out with a
+ * separate request. It is made **only** after a failure, so it adds no cost to
+ * the ordinary path.
  */
 export async function resolveMediaErrorStatus(
   src: string,
@@ -50,7 +52,7 @@ export async function resolveMediaErrorStatus(
     const response = await fetch(src, {
       method: 'GET',
       credentials: 'include',
-      // Ответ нужен только ради статуса, тело не читается.
+      // The response is needed only for its status; the body is not read.
       cache: 'no-store',
     });
     return response.status;
@@ -66,10 +68,10 @@ export function mediaErrorMessage(status: number | undefined): string {
 }
 
 /**
- * Снять блокировку и показать причину.
+ * Remove the block and show the reason.
  *
- * Порядок важен: блокировка снимается сразу и не ждет запроса за статусом,
- * иначе узел оставался бы неподвижным еще на время round-trip.
+ * The order matters: the block is removed at once and does not wait for the
+ * status request, otherwise the node would stay immovable for the round trip.
  */
 export function handleMediaError(
   dom: HTMLElement,

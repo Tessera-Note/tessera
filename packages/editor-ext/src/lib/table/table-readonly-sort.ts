@@ -141,9 +141,9 @@ function updateChevrons(table: HTMLTableElement): void {
   if (!firstRow) return;
 
   const state = sortStates.get(table) ?? null;
-  // Подписи приходят из приложения: пакет про словари не знает, а эти тексты
-  // читает человек. Английские значения по умолчанию остаются, если приложение
-  // их не поставило.
+  // The labels come from the application: the package knows nothing about
+  // dictionaries, and a person reads these texts. The English defaults stay if
+  // the application has not set them.
   const labels = getTableSortLabels();
   let col = 0;
   for (let i = 0; i < firstRow.cells.length; i++) {
