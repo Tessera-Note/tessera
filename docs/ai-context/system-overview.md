@@ -1,50 +1,74 @@
-# Обзор системы
+# System overview
 
-## Продукт и границы
+## Product and boundaries
 
-Это совместная вики: рабочие пространства содержат spaces, а spaces содержат иерархические страницы с правами, комментариями, вложениями, историей, поиском и совместным редактированием в реальном времени.
+A collaborative wiki: workspaces hold spaces, and spaces hold a tree of pages
+with permissions, comments, attachments, history, search and real-time
+collaborative editing.
 
-| Область | Ответственность | Основная точка входа |
+| Area | Responsibility | Main entry point |
 | --- | --- | --- |
-| `apps/api` | HTTP-маршруты, права, база, фоновые задания | `tessera_api/app.py` |
-| `apps/web` | экраны, которые видит человек | `src/routes`, оболочка `src/routes/+layout.svelte` |
-| `services/collab` | совместное редактирование: схема узлов и Hocuspocus | `src/server.js` |
-| `services/hub` | версии, телеметрия, документация, лицензия | `hub/app.py` |
-| `packages/editor-ext` | общие расширения редактора | `src/index.ts` |
+| `apps/api` | HTTP routes, permissions, database, background jobs | `tessera_api/app.py` |
+| `apps/web` | the screens a person sees | `src/routes`, shell `src/routes/+layout.svelte` |
+| `services/collab` | collaborative editing: node schema and Hocuspocus | `src/server.js` |
+| `services/hub` | versions, telemetry, documentation, license | `hub/app.py` |
+| `packages/editor-ext` | shared editor extensions | `src/index.ts` |
 
-Бизнес-логика, права и запись в базу целиком на Python. У `services/collab` одно закрытое исключение: схема узлов редактора и протокол Hocuspocus.
+Business logic, permissions and database writes are entirely in Python.
+`services/collab` has one closed exception: the editor node schema and the
+Hocuspocus protocol.
 
-## Основной поток
+## Main flow
 
-1. Браузер получает страницу от `apps/web`. Это не статика: SvelteKit собран узлом, и серверные загрузчики (`+page.server.ts`) отрисовывают экран уже с данными.
-2. `src/hooks.server.ts` на каждом запросе разбирает куку входа и кладёт сеанс в `event.locals`. Куку надо переложить из входящего запроса в исходящий вручную — сама она на сервере не подставляется.
-3. Обращения к серверу идут на `/api`. В разработке Vite проксирует `/api`, `/socket.io` и `/collab`; в развёртывании то же делает обратный прокси.
-4. `apps/api/tessera_api/app.py` собирает Litestar: контроллеры, зависимость сессии базы, `jwt_guard`, обработчик отказов.
-5. Контроллер извлекает принципала, сервис применяет правила, репозиторий обращается к базе. Redis служит кешем, очередью и каналом событий.
-6. Содержимое документа идёт мимо этого пути: браузер держит соединение `/collab` с `services/collab`, а тот спрашивает права и сохраняет текст через `/api/internal/collab/*`.
+1. The browser gets the page from `apps/web`. This is not static output:
+   SvelteKit is built as a node process, and the server loaders
+   (`+page.server.ts`) render the screen with the data already in place.
+2. `src/hooks.server.ts` parses the sign-in cookie on every request and puts the
+   session into `event.locals`. The cookie has to be copied from the incoming
+   request to the outgoing one by hand — the server does not add it by itself.
+3. Calls to the server go to `/api`. In development Vite proxies `/api`,
+   `/socket.io` and `/collab`; in a deployment the reverse proxy does the same.
+4. `apps/api/tessera_api/app.py` assembles Litestar: controllers, the database
+   session dependency, `jwt_guard`, the failure handler.
+5. The controller extracts the principal, the service applies the rules, the
+   repository talks to the database. Redis serves as cache, queue and event
+   channel.
+6. Document content goes around that path: the browser holds a `/collab`
+   connection to `services/collab`, which asks for permissions and saves the
+   text through `/api/internal/collab/*`.
 
-## Значимые границы
+## Boundaries that matter
 
-- `apps/api/tessera_api/api`: контроллеры. Путь, метод, статус, DTO, извлечение принципала.
-- `apps/api/tessera_api/services`: бизнес-правила, 57 модулей.
-- `apps/api/tessera_api/domain`: сущности и правила без ввода-вывода, включая каталог кодов отказа.
-- `apps/api/tessera_api/infrastructure`: база, Redis, хранилище, почта, очереди, внешние службы.
-- `apps/web/src/lib/features/<домен>`: обращения к серверу и логика домена, 22 домена.
-- `apps/web/src/lib/components`: разметка, сгруппированная по областям экрана.
+- `apps/api/tessera_api/api`: controllers. Path, method, status, DTO, extraction
+  of the principal.
+- `apps/api/tessera_api/services`: business rules.
+- `apps/api/tessera_api/domain`: entities and rules without input or output,
+  including the catalogue of failure codes.
+- `apps/api/tessera_api/infrastructure`: database, Redis, storage, mail, queues,
+  external services.
+- `apps/web/src/lib/features/<domain>`: calls to the server and domain logic.
+- `apps/web/src/lib/components`: markup grouped by area of the screen.
 
-Слои приложения направлены в одну сторону: `api` → `services` → (`domain`, `infrastructure`). Обратных связей нет.
+Application layers point one way: `api` → `services` → (`domain`,
+`infrastructure`). There are no reverse edges.
 
-## Два канала реального времени
+## Two realtime channels
 
-Их нельзя подменять один другим.
+They must not be substituted for one another.
 
-| Канал | Транспорт | Что несёт |
+| Channel | Transport | What it carries |
 | --- | --- | --- |
-| `/collab` | Hocuspocus поверх WebSocket, документы `page.<pageId>` | содержимое документа |
-| `/socket.io` | Socket.IO | дерево, страницы, комментарии, уведомления |
+| `/collab` | Hocuspocus over WebSocket, documents `page.<pageId>` | document content |
+| `/socket.io` | Socket.IO | page tree, pages, comments, notifications |
 
-Заголовок страницы правится вне совместного документа: он идёт обычным обращением к серверу.
+The page title is edited outside the collaborative document: it goes through an
+ordinary call to the server.
 
-## Состав развёртывания
+## What a deployment consists of
 
-Приложение, экраны, совместное редактирование, обработчик заданий, обратный прокси, PostgreSQL с pgvector, Redis, MinIO, Gotenberg, drawio, SearXNG и внутренний сервис версий. Наружу состав не ходит: почта пишется в журнал, поиск идёт своим SearXNG, диаграммы своим drawio. Исключение одно — провайдер модели для ИИ, и он выключен, пока не задан `AI_DRIVER`.
+The application, the screens, collaborative editing, the job worker, the reverse
+proxy, PostgreSQL with pgvector, Redis, MinIO, Gotenberg, drawio, SearXNG and
+the internal version service. The set does not reach outside: mail is written to
+the log, search goes through its own SearXNG, diagrams through its own drawio.
+There is one exception — the AI model provider — and it is off until `AI_DRIVER`
+is set.

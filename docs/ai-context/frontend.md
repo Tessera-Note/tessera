@@ -1,58 +1,87 @@
-# Экраны
+# Screens
 
-## Каркас
+## Framework
 
-SvelteKit 2 и Svelte 5 на рунах, сборка Vite 8, стилизация Tailwind 4. Адаптер `adapter-node`: это не статика, а процесс на Node.
+SvelteKit 2 and Svelte 5 on runes, built with Vite 8, styled with Tailwind 4.
+The adapter is `adapter-node`: this is a Node process, not static output.
 
-Причина адаптера записана в `apps/web/svelte.config.js`: часть маршрутов требует серверной отдачи, настройки экземпляра читаются из окружения на старте, а не зашиваются в сборку.
+The reason for the adapter is recorded in `apps/web/svelte.config.js`: some
+routes require server rendering, and instance settings are read from the
+environment at startup instead of being baked into the build.
 
-## Организация кода
+## Code organization
 
 ```
-src/routes/            маршруты, сгруппированные оболочками
-src/lib/api/           client, base, session, разбор отказов
-src/lib/features/<домен>/services/   обращения к серверу и логика домена
+src/routes/            routes, grouped by shells
+src/lib/api/           client, base, session, failure parsing
+src/lib/features/<domain>/services/   calls to the server and domain logic
 src/lib/components/    ai, layout, page, search, space, ui
-src/lib/stores/        разделяемое состояние на рунах
-src/lib/i18n/          словари, подстановка, формы числа
+src/lib/stores/        shared state on runes
+src/lib/i18n/          dictionaries, substitution, plural forms
 ```
 
-Группы маршрутов: `(app)` требует входа, `(auth)` показывает формы входа, `(share)` отдаёт публичную ссылку, `(render)` служит отрисовке PDF.
+Route groups: `(app)` requires a session, `(auth)` shows the sign-in forms,
+`(share)` serves a public link, `(render)` serves PDF rendering.
 
-## Порядок обращения к серверу
+## The order of calls to the server
 
-Компонент не вызывает `fetch`. Порядок: `lib/api/client` → `lib/features/<домен>/services` → компонент.
+A component never calls `fetch`. The order is `lib/api/client` →
+`lib/features/<domain>/services` → component.
 
-- `credentials: 'include'` обязателен и уже задан: вход держится в куке
-- префикс `/api` пишется в самом пути, база его не добавляет
-- отказ приходит кодом и разворачивается словарём. Показ `message` с сервера означал бы английский текст человеку с любой из двенадцати локалей
+- `credentials: 'include'` is mandatory and already set: the session lives in a
+  cookie
+- the `/api` prefix is written in the path itself; the base does not add it
+- a failure arrives as a code and is expanded by the dictionary. Showing
+  `message` from the server would mean English text for a person on any of the
+  twelve locales
 
-## Серверная сторона
+## The server side
 
-`hooks.server.ts` разбирает куку на каждом запросе и кладёт сеанс в `event.locals`. Куку надо переложить из входящего запроса в исходящий: на сервере она сама не подставляется, и без этого страница всегда выглядит как «не вошёл».
+`hooks.server.ts` parses the cookie on every request and puts the session into
+`event.locals`. The cookie has to be copied from the incoming request to the
+outgoing one: the server does not add it by itself, and without that the page
+always looks signed out.
 
-Адрес приложения для серверной стороны берётся из `API_INTERNAL_URL` и в браузер не попадает. Публичные значения объявлены как `PUBLIC_*`.
+The application address for the server side comes from `API_INTERNAL_URL` and
+never reaches the browser. Public values are declared as `PUBLIC_*`.
 
-## Состояние
+## State
 
-- состояние экрана на рунах: `$state`, `$derived`, `$effect`
-- разделяемое состояние в `lib/stores/*.svelte.ts` и в модулях `*.svelte.ts` внутри фичи
-- библиотеки серверного состояния в проекте нет: данные приходят загрузчиком маршрута либо модулем `services`
+- screen state on runes: `$state`, `$derived`, `$effect`
+- shared state in `lib/stores/*.svelte.ts` and in `*.svelte.ts` modules inside a
+  feature
+- there is no server-state library in the project: data arrives from the route
+  loader or from a `services` module
 
-Дерево страниц особый случай: изменение обязано согласованно обновить локальное состояние, обратиться к серверу и отправить событие. Пропуск любого шага рассинхронизирует вкладки.
+The page tree is a special case: a change must update the local state, call the
+server and emit an event, all consistently. Skipping any of the three desyncs
+the open tabs.
 
-## Отложенная загрузка
+## Lazy loading
 
-Тяжёлые части грузятся по требованию внутри страницы: редактор, диаграммы, история. Excalidraw монтируется отдельно и остаётся React-компонентом — ради него в зависимостях лежат `react` и `react-dom`.
+Heavy parts load on demand inside the page: the editor, diagrams, history.
+Excalidraw is mounted separately and stays a React component — `react` and
+`react-dom` are in the dependencies for its sake.
 
-Читатель без прав на правку получает вариант только для чтения и не поднимает соединение совместного редактирования.
+A reader without edit permission gets the read-only variant and does not open a
+collaborative editing connection.
 
-## Локализация
+## Localization
 
-Словари `static/locales/<locale>.json`, двенадцать языков. В компонент перевод приходит из стора: `import { locale } from '$lib/stores/i18n.svelte'`, затем `const t = $derived(locale.t)`. Подробности в `.claude/skills/i18n/SKILL.md`.
+Dictionaries are `static/locales/<locale>.json`, twelve languages. Translation
+reaches a component from the store: `import { locale } from
+'$lib/stores/i18n.svelte'`, then `const t = $derived(locale.t)`. Details are in
+`.claude/skills/i18n/SKILL.md`.
 
-Вычитка словарей носителями — `scripts/locale-review.mjs`. Выгрузка таблицей отдаёт только строки, изменённые с прошлой вычитки. Внесение сверяет подстановки с источником и при расхождении ничего не пишет. Отметка «до какого коммита прочитано» — `docs/i18n-review-marks.json`. Crowdin выключен намеренно, причина в `docs/future-roadmap.md`.
+Proofreading by native speakers goes through `scripts/locale-review.mjs`. The
+table export gives only the strings changed since the last pass. The import
+compares substitutions against the source and writes nothing when they diverge.
+The "read up to this commit" mark is `docs/i18n-review-marks.json`. Crowdin is
+off deliberately; the reason is in `docs/future-roadmap.md`.
 
-## Статика
+## Static files
 
-`static/` копируется в сборку целиком. Шрифты Excalidraw кладёт туда шаг сборки (`apps/web/scripts/copy-excalidraw-assets.mjs`): экземпляр раздаёт их сам, потому что выгруженный SVG ссылается на `/excalidraw-assets/`, а выход в интернет закрыт.
+`static/` is copied into the build as it is. The Excalidraw fonts are put there
+by a build step (`apps/web/scripts/copy-excalidraw-assets.mjs`): the instance
+serves them itself, because the exported SVG refers to `/excalidraw-assets/` and
+there is no internet access.

@@ -1,59 +1,88 @@
-# Приложение
+# Application
 
-## Каркас
+## Framework
 
-Litestar 2 на Python 3.13, асинхронно. Сборка приложения в `apps/api/tessera_api/app.py`: там перечислены 29 контроллеров, объявлены зависимости, стоит `jwt_guard` и обработчик отказов. Настройки читаются один раз при сборке, в `config.py`.
+Litestar 2 on Python 3.13, asynchronous. The application is assembled in
+`apps/api/tessera_api/app.py`: the controllers are listed there, the
+dependencies are declared, and `jwt_guard` and the failure handler are installed.
+Settings are read once, while the application is being assembled, in
+`config.py`.
 
-Все маршруты живут под `/api`, кроме нескольких, которые обязаны отвечать по корневому пути (`/robots.txt`, публичная ссылка, `/mcp`, приём ответов провайдера входа).
+Every route lives under `/api`, except the few that must answer on the root path
+(`/robots.txt`, the public link, `/mcp`, and the callbacks of a sign-in
+provider).
 
-## Слои
+## Layers
 
 ```
-api/            путь, метод, статус, DTO, извлечение принципала
-services/       правила, транзакции, события, очереди
-domain/         сущности, роли, каталог кодов отказа
-infrastructure/ база, Redis, хранилище, почта, очереди, внешние службы
+api/            path, method, status, DTO, extraction of the principal
+services/       rules, transactions, events, queues
+domain/         entities, roles, catalogue of failure codes
+infrastructure/ database, Redis, storage, mail, queues, external services
 ```
 
-`api` знает `services`, `services` знает `domain` и `infrastructure`. Обратных связей нет.
+`api` knows `services`, `services` knows `domain` and `infrastructure`. There
+are no reverse edges.
 
-## Аутентификация
+## Authentication
 
-`api/guards.py` держит `jwt_guard` и признак открытого маршрута.
+`api/guards.py` holds `jwt_guard` and the marker of a public route.
 
-- вход держится в куке, токен подписан `APP_SECRET`
-- разобранный принципал кладётся в `request.scope["principal"]`: пользователь, рабочее пространство, роль
-- открытый маршрут помечается `opt={PUBLIC: True}`. Это изменение поверхности аутентификации, ставится осознанно
-- рабочее пространство определяется по имени узла запроса
+- the session is kept in a cookie, and the token is signed with `APP_SECRET`
+- the parsed principal is placed into `request.scope["principal"]`: user,
+  workspace, role
+- a public route is marked with `opt={PUBLIC: True}`. That changes the
+  authentication surface and is done deliberately
+- the workspace is determined by the request host name
 
-## Отказы
+## Failures
 
-Каталог кодов в `domain/errors.py`, обработчик подключён в `app.py`. Наружу уходит `{code, message, params}`, и экран переводит по коду, а не показывает `message`.
+The catalogue of codes is in `domain/errors.py`, and the handler is installed in
+`app.py`. What leaves the server is `{code, message, params}`, and the screen
+translates by code instead of showing `message`.
 
-Ловушка: код не должен оканчиваться суффиксом формы числа (`_one`, `_few`, `_many`, `_other`) — разбор примет хвост за форму и перевода не найдёт.
+A trap: a code must not end with a plural-form suffix (`_one`, `_few`, `_many`,
+`_other`) — the parser would take the tail for a form and find no translation.
 
-## Форма маршрутов
+## Shape of the routes
 
-Действия оформлены как `POST` с телом, а не как REST по методам. Так пришло из первой версии, и экраны рассчитывают именно на это.
+Actions are `POST` requests with a body rather than REST by method, and the
+screens are written for exactly that.
 
-Всего около 254 обработчиков. Самые крупные группы: страницы вместе с комментариями, метками и избранным (`api/pages.py`), spaces и группы (`api/spaces.py`), bases (`api/bases.py`), SCIM (`api/scim.py`), вход и MFA.
+The largest groups are pages together with comments, labels and favourites
+(`api/pages.py`), spaces and groups (`api/spaces.py`), bases (`api/bases.py`),
+SCIM (`api/scim.py`), and sign-in with MFA.
 
-## Права
+## Permissions
 
-Доступ к содержимому страницы проверяет `services/page_access.py`. Членства в space недостаточно: нужен доступ ко всем ограниченным предкам, а ближайший ограниченный предок определяет право записи.
+Access to page content is checked by `services/page_access.py`. Space membership
+is not enough: access to every restricted ancestor is required, and the nearest
+restricted ancestor decides the write permission.
 
-Одно и то же правило обязано действовать в HTTP, в совместном редактировании, в списках, в уведомлениях, в событиях и в инструментах MCP.
+The same rule must hold in HTTP, in collaborative editing, in listings, in
+notifications, in events and in the MCP tools.
 
-## Ограничение частоты
+## Rate limiting
 
-`infrastructure/throttle.py`. Глобального предела нет; отдельные пределы стоят на входе, MFA, чате ИИ, вывозе, MCP, отрисовке PDF и провайдерах входа. Адрес клиента берётся с учётом `TRUST_PROXY_HOPS`.
+`infrastructure/throttle.py`. There is no global limit; separate limits sit on
+sign-in, MFA, the AI chat, export, MCP, PDF rendering and the sign-in providers.
+The client address is taken with `TRUST_PROXY_HOPS` in mind.
 
-## Внутренние маршруты совместного редактирования
+## Internal collaboration routes
 
-`api/collab.py`, путь `/api/internal/collab`, семь обработчиков: `authorize`, `document`, `store`, `rights` и отметка владения документом `owner`, `owner/renew`, `owner/release` (`services/collab_owner.py`, Redis). Они открыты для guard, но защищены общим секретом `COLLAB_INTERNAL_TOKEN`; перечень открытых маршрутов сверяет `tests/test_public_routes.py`. Решения о правах, запись документа и отметку владения принимает эта сторона, а не сосед на Node.
+`api/collab.py`, path `/api/internal/collab`, seven handlers: `authorize`,
+`document`, `store`, `rights` and the document ownership mark — `owner`,
+`owner/renew`, `owner/release` (`services/collab_owner.py`, Redis). They are
+public to the guard but protected by the shared secret `COLLAB_INTERNAL_TOKEN`;
+the list of public routes is checked by `tests/test_public_routes.py`.
+Permission decisions, document writes and the ownership mark belong to this
+side, not to the Node neighbour.
 
-## Фоновые задания
+## Background jobs
 
-Определения в `jobs.py`, точка входа исполнителя в `worker.py`, обвязка в `infrastructure/queue.py`, очередь arq поверх Redis. Разделение намеренное: `jobs.py` импортируется без окружения.
+Definitions in `jobs.py`, the worker entry point in `worker.py`, the plumbing in
+`infrastructure/queue.py`, an arq queue on top of Redis. The split is
+deliberate: `jobs.py` imports without an environment.
 
-В очередь уходят письма, история, упоминания, обратные ссылки, индексация для ИИ, уведомления, обслуживание.
+Mail, history, mentions, backlinks, indexing for AI, notifications and
+maintenance go through the queue.

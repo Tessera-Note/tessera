@@ -1,48 +1,64 @@
-# Контекст для агентов
+# Context for agents
 
-Этот каталог это стабильный технический контекст репозитория. Он дополняет `AGENTS.md` и `CLAUDE.md`, но не заменяет код, исполняемую конфигурацию и продуктовую документацию.
+This directory is the stable technical context of the repository. It complements
+`AGENTS.md` and `CLAUDE.md`, but does not replace the code, the executable
+configuration or the product documentation.
 
-## Выборочное чтение
+## Selective reading
 
-| Задача | Нужные файлы |
+| Task | Files to read |
 | --- | --- |
-| Понять продукт, приложения или основной поток | `system-overview.md` |
-| Менять маршруты, аутентификацию, права или слои приложения | `backend.md`, `code-patterns.md` |
-| Менять вход, сессии, ключи API, рабочее пространство, группы или spaces | `identity-access.md`, `backend.md` |
-| Менять экраны, маршруты, состояние, формы или обращения к серверу | `frontend.md`, `code-patterns.md` |
-| Менять страницы, комментарии, вложения, публичные ссылки или дерево | `content-workflows.md`, плюс `identity-access.md` там, где есть права |
-| Менять редактор, Yjs, Socket.IO, совместное редактирование или историю | `collaboration-realtime.md`, `content-workflows.md` |
-| Менять схему, хранилище, очереди или окружение | `data-runtime.md`, при необходимости `backend.md` |
-| Менять хранилище, почту, ввоз, вывоз, фоновые задачи или проверку живости | `integrations-jobs.md`, `data-runtime.md` |
-| Менять инструменты, аутентификацию или настройку MCP | `mcp.md`, `backend.md` |
-| Менять ИИ, поиск, эмбеддинги или чат | `ai-search.md`, при необходимости `mcp.md` |
-| Менять bases или шаблоны | `bases-templates.md`, `identity-access.md` |
-| Менять SSO, SCIM, MFA или проверку страниц | `enterprise-security.md`, `identity-access.md` |
-| Создавать или менять тесты, сборку, линт, Docker или развёртывание | `verification-operations.md` |
-| Искать причину расхождения, которое ничем не проявляется | `silent-divergence.md` |
-| Вносить изменение, пересекающее слои | Начать с `system-overview.md` и прочитать файлы затронутых слоев |
+| Understand the product, the applications or the main flow | `system-overview.md` |
+| Change routes, authentication, permissions or the application layers | `backend.md`, `code-patterns.md` |
+| Change sign-in, sessions, API keys, the workspace, groups or spaces | `identity-access.md`, `backend.md` |
+| Change screens, routes, state, forms or calls to the server | `frontend.md`, `code-patterns.md` |
+| Change pages, comments, attachments, public links or the tree | `content-workflows.md`, plus `identity-access.md` where permissions are involved |
+| Change the editor, Yjs, Socket.IO, collaborative editing or history | `collaboration-realtime.md`, `content-workflows.md` |
+| Change the schema, storage, queues or the environment | `data-runtime.md`, and `backend.md` if needed |
+| Change storage, mail, import, export, background jobs or health checks | `integrations-jobs.md`, `data-runtime.md` |
+| Change the tools, authentication or configuration of MCP | `mcp.md`, `backend.md` |
+| Change AI, search, embeddings or chat | `ai-search.md`, and `mcp.md` if needed |
+| Change bases or templates | `bases-templates.md`, `identity-access.md` |
+| Change SSO, SCIM, MFA or page verification | `enterprise-security.md`, `identity-access.md` |
+| Create or change tests, the build, lint, Docker or deployment | `verification-operations.md` |
+| Look for the cause of a divergence that shows no symptom | `silent-divergence.md` |
+| Make a change that crosses layers | Start with `system-overview.md` and read the files of the layers involved |
 
-## Обязательное сопровождение
+## Mandatory upkeep
 
-- Любое изменение обязано оценить, затронуло ли оно поведение, архитектуру, границу модуля, команду, конфигурацию или повторяющийся паттерн.
-- Если затронуло, обновить соответствующий тематический файл в этой же работе и указать обновление в финальном ответе.
-- Не обновлять контекст ради внутренних правок, которые не меняют перечисленные контракты. В финальном ответе заявить, что оценка сделана.
-- Предпочитать проверяемые факты и пути в коде. Не копировать сюда большие блоки кода, полные списки маршрутов и планы текущих задач.
+- Every change must assess whether it touched behavior, architecture, a module
+  boundary, a command, configuration or a recurring pattern.
+- If it did, update the corresponding topic file in the same piece of work and
+  say so in the final response.
+- Do not update the context for internal edits that change none of the contracts
+  listed above. State in the final response that the assessment was made.
+- Prefer verifiable facts and paths in the code. Do not copy large blocks of
+  code, exhaustive route listings or plans for current tasks here.
 
-## Файлы
+## Files
 
-- `system-overview.md`: назначение, границы, части состава, точки входа и потоки.
-- `backend.md`: Litestar, слои приложения, маршруты, аутентификация, рабочее пространство.
-- `frontend.md`: SvelteKit и Svelte 5, маршруты, организация кода, состояние, обращения к серверу.
-- `data-runtime.md`: база, схема через Atlas, модели, окружение и службы времени выполнения.
-- `identity-access.md`: аутентификация, сессии, ключи API, рабочие пространства, группы, spaces и авторизация.
-- `content-workflows.md`: страницы, дерево, комментарии, вложения, публичные ссылки, история.
-- `collaboration-realtime.md`: редактор Tiptap и Yjs, Hocuspocus, Socket.IO, сохранение документа.
-- `integrations-jobs.md`: очереди, хранилище, почта, ввоз и вывоз, проверка живости, телеметрия.
-- `ai-search.md`: текстовый поиск, помощник, чат, эмбеддинги и их требования.
-- `bases-templates.md`: bases, формулы, шаблоны.
-- `enterprise-security.md`: SSO, SCIM, MFA, аудит, проверка страниц.
-- `mcp.md`: маршрут MCP, протокол JSON-RPC, инструменты, авторизация, ограничения.
-- `code-patterns.md`: повторяющиеся паттерны реализации кода и проверок в обоих слоях.
-- `verification-operations.md`: команды, проверки, Docker, вход на стенд, развёртывание.
-- `silent-divergence.md`: способ искать расхождения, которые не проявляются отказом.
+- `system-overview.md`: purpose, boundaries, parts of the set, entry points and
+  flows.
+- `backend.md`: Litestar, application layers, routes, authentication, workspace.
+- `frontend.md`: SvelteKit and Svelte 5, routes, code organization, state, calls
+  to the server.
+- `data-runtime.md`: database, schema through Atlas, models, environment and
+  runtime services.
+- `identity-access.md`: authentication, sessions, API keys, workspaces, groups,
+  spaces and authorization.
+- `content-workflows.md`: pages, tree, comments, attachments, public links,
+  history.
+- `collaboration-realtime.md`: the Tiptap and Yjs editor, Hocuspocus, Socket.IO,
+  saving a document.
+- `integrations-jobs.md`: queues, storage, mail, import and export, health
+  checks, telemetry.
+- `ai-search.md`: text search, the assistant, chat, embeddings and what they
+  require.
+- `bases-templates.md`: bases, formulas, templates.
+- `enterprise-security.md`: SSO, SCIM, MFA, audit, page verification.
+- `mcp.md`: the MCP route, the JSON-RPC protocol, tools, authorization, limits.
+- `code-patterns.md`: recurring implementation and test patterns in both layers.
+- `verification-operations.md`: commands, checks, Docker, signing in to the
+  stand, deployment.
+- `silent-divergence.md`: how to look for divergences that do not show up as a
+  failure.

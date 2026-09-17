@@ -1,72 +1,87 @@
-# Вход и доступ
+# Sign-in and access
 
-## Вход
+## Sign-in
 
-`api/auth.py`, `services/auth.py`. Тринадцать маршрутов: вход, настройка экземпляра, признак «настройка нужна», список сеансов, отзыв одного и всех, выход, смена пароля, забытый пароль, сброс пароля, проверка приглашения, токен совместного редактирования, сведения о себе.
+`api/auth.py`, `services/auth.py`. The routes cover sign-in, instance setup, the
+"setup required" flag, the session list, revoking one session and all of them,
+sign-out, password change, forgotten password, password reset, invitation check,
+the collaboration token, and information about yourself.
 
-- пароль хранится хешем bcrypt
-- вход держится в куке, токен подписан `APP_SECRET`
-- сеансы перечислимы и отзываемы поимённо, `services/tokens.py`
-- рабочее пространство определяется по имени узла запроса
+- the password is stored as a bcrypt hash
+- the session is kept in a cookie, and the token is signed with `APP_SECRET`
+- sessions are listable and revocable one by one, `services/tokens.py`
+- the workspace is determined by the request host name
 
-Настройка экземпляра пишет семь связанных записей. Порядок между ними проверяется внешними ключами базы, а не кодом: ссылка на space по умолчанию проставляется после создания самого space.
+Instance setup writes seven related rows. The order between them is enforced by
+the database foreign keys rather than by the code: the reference to the default
+space is set after the space itself is created.
 
-### Сопоставление при входе через провайдера
+### Matching a person when signing in through a provider
 
-`SsoIdentityService.resolve` (`services/sso.py`) ищет человека в таком порядке:
-связь по идентификатору провайдера, затем по неизменному ключу, затем по почте.
-Ключ — утверждение, которое администратор назначил у провайдера
-(`auth_providers.match_claim_name`, поле «Неизменный признак для
-сопоставления»); значение хранится рядом со связью
-(`auth_accounts.match_claim_value`) и дописывается к старым связям при обычном
-входе. Ключ нужен на случай, когда у провайдера сменились и идентификатор, и
-почта разом: оба прежних поиска тогда промахиваются. Совпадение по ключу
-перевешивает связь на новый идентификатор (`user.sso_relinked`); две связи с
-одним ключом — отказ `error.sso.identity_conflict`. Утверждение обязано быть
-таким, которое человек у провайдера сам не правит, иначе по нему входят в
-чужую запись.
+`SsoIdentityService.resolve` (`services/sso.py`) looks a person up in this
+order: the link by provider identifier, then the immutable key, then the email
+address. The key is a claim that an administrator picked at the provider
+(`auth_providers.match_claim_name`, the "immutable claim for matching" field);
+the value is stored next to the link (`auth_accounts.match_claim_value`) and is
+written to older links on an ordinary sign-in. The key is there for the case
+where both the identifier and the email changed at the provider at once: both
+earlier lookups miss then. A match by key outweighs the link and moves it to the
+new identifier (`user.sso_relinked`); two links with the same key are a refusal,
+`error.sso.identity_conflict`. The claim must be one that a person cannot edit at
+the provider, otherwise it becomes a way into someone else's account.
 
-Без ключа такой вход заводит новую запись, но не молча: если у действующего
-участника то же имя, в журнал уходит `user.sso_possible_duplicate`, и
-администратор решает действием «это тот же человек» на экране участников
-(`SsoProviderService.merge_duplicate`, `POST /api/sso/merge`). Связи дубля
-переходят к прежней записи, дубль отключается штатным `set_active` с отзывом
-сеансов, в журнале `user.sso_merged`.
+Without the key such a sign-in creates a new record, but not silently: if an
+active member has the same name, `user.sso_possible_duplicate` goes into the
+audit log, and an administrator resolves it with the "this is the same person"
+action on the members screen (`SsoProviderService.merge_duplicate`,
+`POST /api/sso/merge`). The duplicate's links move to the earlier record, the
+duplicate is deactivated by the ordinary `set_active` with its sessions revoked,
+and `user.sso_merged` goes into the log.
 
-Уникальность пары «человек, провайдер» в `auth_accounts` не учитывает мягкое
-удаление. Поэтому `_link` оживляет снятую связь, а не вставляет вторую строку:
-иначе вход после «снять связь» падал на ней.
+The uniqueness of the "person, provider" pair in `auth_accounts` does not take
+soft deletion into account. That is why `_link` revives a removed link instead of
+inserting a second row: otherwise a sign-in after "unlink" would fail on it.
 
-## Роли
+## Roles
 
 `domain/roles.py`.
 
-| Уровень | Роли |
+| Level | Roles |
 | --- | --- |
-| рабочее пространство | `owner`, `admin`, `member` |
+| workspace | `owner`, `admin`, `member` |
 | space | `admin`, `writer`, `reader` |
-| страница | отдельные права поверх space, `services/page_permissions.py` |
+| page | individual permissions on top of the space, `services/page_permissions.py` |
 
-Рабочее пространство обязано сохранять хотя бы одного действующего владельца. Себя изменить нельзя.
+A workspace must keep at least one active owner. You cannot change your own
+role.
 
-## Права на страницу
+## Page permissions
 
-`services/page_access.py` собирает права по цепочке предков. Членства в space недостаточно: нужен доступ ко всем ограниченным предкам, а ближайший ограниченный предок определяет право записи.
+`services/page_access.py` assembles the permissions along the ancestor chain.
+Space membership is not enough: access to every restricted ancestor is required,
+and the nearest restricted ancestor decides the write permission.
 
-Любая новая выдача содержимого страницы обязана пройти этот путь — включая поиск, вывоз, публичные ссылки, контекст ИИ и инструменты MCP.
+Any new way of serving page content must go through that path — including
+search, export, public links, the AI context and the MCP tools.
 
-Страница чужого рабочего пространства отдаётся как «не найдено», а не как «нет доступа»: иначе идентификаторы можно перебирать.
+A page from another workspace is served as "not found" rather than "no access":
+otherwise identifiers could be enumerated.
 
-## Ключи API
+## API keys
 
-`api/api_keys.py`, `services/api_keys.py`. Четыре маршрута: список, создание, правка, отзыв. Ключ хранится хешем, наружу целиком отдаётся один раз при создании.
+`api/api_keys.py`, `services/api_keys.py`. Four routes: list, create, edit,
+revoke. A key is stored as a hash and returned in full exactly once, when it is
+created.
 
-## Приглашения
+## Invitations
 
-`api/invitations.py`, семь маршрутов. Приглашение живёт токеном, принятие создаёт участника рабочего пространства.
+`api/invitations.py`. An invitation lives as a token, and accepting it creates a
+workspace member.
 
-## Группы и spaces
+## Groups and spaces
 
-`api/spaces.py` держит и spaces, и группы, и личный space: 27 маршрутов. Участники space задаются поимённо и через группы.
+`api/spaces.py` holds spaces, groups and the personal space. Space members are
+set both one by one and through groups.
 
-При потере доступа связанные записи убираются в той же транзакции: избранное и наблюдатели. Новая связь доступа обязана делать то же самое.
+When access is lost, the related rows are removed in the same transaction:
+favourites and watchers. A new access link must do the same.
