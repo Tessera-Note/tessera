@@ -121,9 +121,6 @@ tessera/
     hub/                        Python и Litestar: версии, телеметрия, документация, лицензия
   docs/
     ai-context/                 тематический контекст для агентов, обязателен к обновлению
-    v2-migration/               план перехода на вторую версию и записи о сделанном
-    superpowers/{plans,specs}   планы и спеки реализованных задач
-    templates/                  шаблон техдокументации
     deployment-from-scratch.md, open-api.md, future-roadmap.md
   deploy/                       nginx, backup-db.sh, postgres-init, searxng
   scripts/                      вход на стенд, сверка образа, данные эмодзи,

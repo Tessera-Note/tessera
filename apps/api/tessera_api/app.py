@@ -1,6 +1,6 @@
 """Сборка приложения Litestar.
 
-Порядок слоёв тот же, что описан в `docs/v2-migration/01-backend-plan.md`:
+Порядок слоёв тот же, что описан в `docs/ai-context/backend.md`:
 `api` знает про `services`, `services` про `domain` и `infrastructure`, обратных
 связей нет.
 """

@@ -159,7 +159,7 @@
 
 Экраны читают три значения: `API_INTERNAL_URL` (адрес приложения для отрисовки на сервере, только в `hooks.server.ts`, в браузер не попадает), `PUBLIC_API_URL` и `PUBLIC_DRAWIO_URL`.
 
-Сервис совместного редактирования читает `API_URL`, `COLLAB_INTERNAL_TOKEN`, `HOST`, `PORT`, `MAX_PDF_BODY` и четыре порога слияния: `COLLAB_DEBOUNCE_MS`, `COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`, `COLLAB_SWEEP_INTERVAL_MS`. `COLLAB_ALLOW_UNNAMED_DOCUMENT` (`true` или `1`, по умолчанию выключен) пускает подключения без имени документа в адресе — только на время раскатки при одной реплике, порядок в `docs/v2-migration/09-switchover.md`. `COLLAB_REPLICA_ID` — имя реплики в отметке владения документом, по умолчанию имя узла.
+Сервис совместного редактирования читает `API_URL`, `COLLAB_INTERNAL_TOKEN`, `HOST`, `PORT`, `MAX_PDF_BODY` и четыре порога слияния: `COLLAB_DEBOUNCE_MS`, `COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`, `COLLAB_SWEEP_INTERVAL_MS`. `COLLAB_ALLOW_UNNAMED_DOCUMENT` (`true` или `1`, по умолчанию выключен) пускает подключения без имени документа в адресе — только на время раскатки при одной реплике. `COLLAB_REPLICA_ID` — имя реплики в отметке владения документом, по умолчанию имя узла.
 
 Только compose: `LOCAL_PORT`, `POSTGRES_PASSWORD`, `HUB_POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET`, `MINIO_REGION`, `SEARXNG_SECRET`, `PDF_ALLOW_LIST`.
 

@@ -8,8 +8,6 @@
 
 Рабочее пространство может требовать вход только через провайдера. На этот случай есть аварийный вход паролем — он задаётся настройкой и по умолчанию закрыт.
 
-Правила разбора SAML вынесены отдельно: `docs/v2-migration/08-saml-rules.md`.
-
 ## SCIM
 
 `api/scim.py` (16 маршрутов), `api/scim_tokens.py`, сервисы `scim_users.py`, `scim_groups.py`, `scim_filter.py`, `scim_schemas.py`, `scim_tokens.py`.
