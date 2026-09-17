@@ -1,108 +1,149 @@
-# Совместное редактирование и события
+# Collaborative editing and events
 
-## Два канала
+## Two channels
 
-Их нельзя подменять один другим.
+They must not be substituted for one another.
 
-| Канал | Транспорт | Что несёт | Где живёт |
+| Channel | Transport | What it carries | Where it lives |
 | --- | --- | --- | --- |
-| `/collab` | Hocuspocus поверх WebSocket, документы `page.<pageId>` | содержимое документа | `services/collab` |
-| `/socket.io` | Socket.IO | дерево, страницы, комментарии, уведомления | `services/realtime.py`, `api/realtime.py` |
+| `/collab` | Hocuspocus over WebSocket, documents `page.<pageId>` | document content | `services/collab` |
+| `/socket.io` | Socket.IO | page tree, pages, comments, notifications | `services/realtime.py`, `api/realtime.py` |
 
-## Сервис совместного редактирования
+## The collaboration service
 
-`services/collab` на Node — закрытое исключение из правила «рантайм на Python». Причина: там живут схема узлов редактора (расширения Tiptap) и протокол Hocuspocus, и второе их описание на Python теряло бы узлы документа молча, без единого отказа.
+`services/collab` on Node is the closed exception to the "runtime in Python"
+rule. The reason: it owns the editor node schema (Tiptap extensions) and the
+Hocuspocus protocol, and a second description of either in Python would drop
+document nodes silently, with no error at all.
 
-Исключение ограничено этими двумя предметами. Решения о правах и запись в базу остаются на Python: сосед спрашивает их четырьмя внутренними маршрутами.
+The exception is limited to those two subjects. Authorization decisions and
+database writes stay in Python: the neighbour asks for them over internal
+routes.
 
-| Маршрут | Зачем |
+| Route | What for |
 | --- | --- |
-| `/api/internal/collab/authorize` | пускать ли этого человека к этому документу |
-| `/api/internal/collab/document` | отдать текущее состояние документа |
-| `/api/internal/collab/store` | сохранить состояние |
-| `/api/internal/collab/rights` | какие права у человека на странице |
+| `/api/internal/collab/authorize` | whether to admit this person to this document |
+| `/api/internal/collab/document` | return the current state of the document |
+| `/api/internal/collab/store` | save the state |
+| `/api/internal/collab/rights` | what permissions the person has on the page |
 
-Маршруты открыты для guard и защищены общим секретом `COLLAB_INTERNAL_TOKEN`. Значение уходит заголовком HTTP, поэтому только латиница и цифры.
+The routes are public to the guard and protected by the shared secret
+`COLLAB_INTERNAL_TOKEN`. The value travels in an HTTP header, hence Latin
+letters and digits only.
 
-## Закрепление за репликой
+## Pinning to a replica
 
-Документ живёт в памяти процесса `services/collab`, поэтому все соединения по
-нему обязаны приходить в один процесс. Клиент передаёт имя документа доводом
-адреса (`collabAddress(name)` в `lib/features/editor/collab.ts` →
-`/collab?documentName=page.<id>`), прокси выбирает реплику по нему
-(`hash $arg_documentName consistent` в `deploy/nginx/*`), а служба в
-`onAuthenticate` сверяет довод с именем из протокола и при расхождении или
-отсутствии довода отвергает соединение. Первое сообщение протокола прокси не
-разбирает — закрепить по нему нельзя.
+A document lives in the memory of the `services/collab` process, so every
+connection to it must land in the same process. The client passes the document
+name as a query argument (`collabAddress(name)` in
+`lib/features/editor/collab.ts` → `/collab?documentName=page.<id>`), the proxy
+picks the replica by it (`hash $arg_documentName consistent` in
+`deploy/nginx/*`), and the service compares the argument with the name from the
+protocol in `onAuthenticate`, refusing the connection when they differ or when
+the argument is missing. The proxy does not parse the first protocol message —
+pinning by it is not possible.
 
-Состав реплик меняется перезапуском прокси, не `reload`: перечитанная
-настройка не рвёт открытых соединений.
+The set of replicas is changed by restarting the proxy, not by `reload`: a
+re-read configuration does not break open connections.
 
-## Пороги сохранения
+## Save thresholds
 
-Сервис читает четыре порога: `COLLAB_DEBOUNCE_MS`, `COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`, `COLLAB_SWEEP_INTERVAL_MS`. Они определяют, как часто состояние уходит на сохранение и когда документ выгружается из памяти.
+The service reads four thresholds: `COLLAB_DEBOUNCE_MS`,
+`COLLAB_MAX_DEBOUNCE_MS`, `COLLAB_BACKEND_TIMEOUT_MS`,
+`COLLAB_SWEEP_INTERVAL_MS`. They decide how often the state goes off to be
+saved and when a document is unloaded from memory.
 
-Имя документа в адресе подключения (`?documentName=`) обязано совпадать с именем из протокола; отсутствие довода — тоже отказ (`onAuthenticate` в `services/collab/src/collab.js`). Исключение одно: `COLLAB_ALLOW_UNNAMED_DOCUMENT=true` пускает соединения без довода — вкладки, открытые до обновления. Только при одной реплике; каждое допущенное подключение пишется в журнал с именем документа и временем, расхождение имён отвергается и с флагом. До второй реплики флаг выключается.
+The document name in the connection address (`?documentName=`) must match the
+name from the protocol; a missing argument is a refusal too (`onAuthenticate` in
+`services/collab/src/collab.js`). There is one exception:
+`COLLAB_ALLOW_UNNAMED_DOCUMENT=true` admits connections without the argument —
+tabs opened before an update. Only with a single replica; every admitted
+connection is written to the log with the document name and the time, and
+mismatched names are refused even with the flag on. Before a second replica the
+flag is turned off.
 
-Документ открыт только на одной реплике: её держит отметка владения в Redis. Отметку ведёт приложение (`services/collab_owner.py`, маршруты `/api/internal/collab/owner`, `owner/renew`, `owner/release` под тем же общим секретом); ключ `collab:owner:<имя документа>`, значение — имя реплики (`COLLAB_REPLICA_ID`, по умолчанию имя узла). Служба берёт отметку в `onAuthenticate` после проверки прав, продлевает таймером все открытые документы с периодом из ответа на взятие и снимает её в `afterUnloadDocument`. Срок и период — настройки приложения `COLLAB_OWNER_TTL_MS` (30000) и `COLLAB_OWNER_RENEW_MS` (10000), продление обязано быть меньше срока. Отказ по занятому документу (409, `error.collaboration.document_owned_elsewhere`, с именем владельца) и по недоступному Redis (503, `error.collaboration.owner_store_unavailable`) пишутся в журнал разными строками. Отметку, перехваченную другой репликой, продление возвращает списком потерянных: реплика закрывает соединения с таким документом и не сохраняет его.
+A document is open on one replica only, and an ownership mark in Redis holds it.
+The mark is managed by the application (`services/collab_owner.py`, routes
+`/api/internal/collab/owner`, `owner/renew`, `owner/release` under the same
+shared secret); the key is `collab:owner:<document name>` and the value is the
+replica name (`COLLAB_REPLICA_ID`, the host name by default). The service takes
+the mark in `onAuthenticate` after the permission check, renews all open
+documents on a timer with the period from the response, and releases it in
+`afterUnloadDocument`. The lifetime and the period are application settings
+`COLLAB_OWNER_TTL_MS` (30000) and `COLLAB_OWNER_RENEW_MS` (10000), and the renew
+period must be shorter than the lifetime. A refusal for a document owned
+elsewhere (409, `error.collaboration.document_owned_elsewhere`, with the owner
+name) and one for an unreachable Redis (503,
+`error.collaboration.owner_store_unavailable`) are written to the log as
+different lines. A mark taken over by another replica comes back from the renew
+call in the list of lost documents: the replica closes the connections for such
+a document and does not save it.
 
-## Образ сервиса
+## The service image
 
-База с glibc, а не Alpine: разбор PDF идёт природным модулем `@docmost/pdf-inspector`, у которого нет сборки под musl. На Alpine он отказывает «Cannot find native binding» при первом же обращении.
+The base has glibc rather than Alpine: PDF parsing goes through the native module
+`@docmost/pdf-inspector`, which has no musl build. On Alpine it fails with
+"Cannot find native binding" on the very first call.
 
-Пакет объявлен в корневом `package.json`: каталог `services` не входит в рабочее пространство pnpm, и свой манифест там пакетный менеджер не читает.
+The package is declared in the root `package.json`: the `services` directory is
+not part of the pnpm workspace, and the package manager does not read a manifest
+there.
 
-## Обрыв связи
+## Losing the connection
 
-Экран редактора (`apps/web/src/lib/features/editor/Editor.svelte`) держит три
-правила, и каждое стоит на своей причине.
+The editor screen (`apps/web/src/lib/features/editor/Editor.svelte`) holds three
+rules, and each one stands on its own reason.
 
-- **Документ собирается из двух источников**: сервера и хранилища браузера
-  (`y-indexeddb`, имя записи то же — `page.<pageId>`). Хранилище держит правки,
-  набранные без связи: без него они живут только в памяти вкладки и пропадают
-  от её перезагрузки. Засев тела ждёт оба источника (`seedDecision` в
-  `collab.ts`) — решение по одному даёт страницу с удвоенным содержимым.
-- **Пока совместный документ не доехал, показывается `DocumentView`** с телом,
-  пришедшим с самой страницей. Иначе при недоступном `services/collab` вся вика
-  выглядит пустой.
-- **Токен спрашивается перед каждым рукопожатием** (`token` доводом-функцией, а
-  не строкой). Он живёт сутки, вкладка живёт дольше; с просроченным канал не
-  пускает, и вкладка осталась бы без связи навсегда.
+- **The document is assembled from two sources**: the server and the browser
+  store (`y-indexeddb`, the record name is the same — `page.<pageId>`). The store
+  keeps edits typed with no connection: without it they live only in the tab's
+  memory and disappear when it reloads. Seeding the body waits for both sources
+  (`seedDecision` in `collab.ts`) — deciding on one gives a page with its
+  content doubled.
+- **While the collaborative document has not arrived, `DocumentView` is shown**
+  with the body that came with the page itself. Otherwise, with
+  `services/collab` unreachable, the whole wiki looks empty.
+- **The token is requested before every handshake** (`token` as a function
+  argument, not a string). It lives for a day and a tab lives longer; with an
+  expired one the channel refuses, and the tab would stay disconnected forever.
 
-Состояние канала считает `nextStatus`: библиотека повторяет попытки и о каждой
-сообщает `connecting`, и без этого правила сообщение о потерянной связи
-затиралось бы словом «загрузка».
+The channel state is computed by `nextStatus`: the library retries and reports
+`connecting` on every attempt, and without that rule the message about a lost
+connection would be overwritten by the word "loading".
 
-Отказ службы в подключении (`onAuthenticationFailed`: имя в адресе не сошлось —
-вкладка открыта до обновления, — или права не подтвердились) показывается
-заметным блоком `ConnectionRefused.svelte` с кнопкой перезагрузки. Сокет при
-отказе открыт, и состояние канала выглядит рабочим, поэтому без блока вкладка
-казалась бы исправной. Блок снимается `onAuthenticated`, если канал позже прошёл
-проверку.
+A refusal from the service (`onAuthenticationFailed`: the name in the address did
+not match — a tab opened before an update — or the permissions were not
+confirmed) is shown as a prominent `ConnectionRefused.svelte` block with a
+reload button. On a refusal the socket stays open and the channel state looks
+healthy, so without the block the tab would seem fine. The block is removed by
+`onAuthenticated` if the channel passes the check later.
 
-## Присутствие
+## Presence
 
-Кто ещё открыл страницу, берётся из awareness того же канала: объявляет себя
-расширение чужих курсоров (`CollaborationCaret`, довод `user`), читает
-`onAwarenessChange` у соединения. Второго источника нет намеренно — запрос к
-серверу отставал бы, и в перечне стоял бы человек, курсора которого в тексте
-уже нет.
+Who else has the page open comes from the awareness of the same channel: the
+foreign-cursor extension announces itself (`CollaborationCaret`, the `user`
+argument), and `onAwarenessChange` on the connection reads it. There is
+deliberately no second source — a call to the server would lag behind, and the
+list would hold a person whose cursor is no longer in the text.
 
-Разбор в `lib/features/editor/presence.ts` (`presentPeople`): своя вкладка
-отбрасывается по `clientId`, вкладки одного человека сводятся по
-идентификатору учётной записи. Показ — `lib/components/page/PagePresence.svelte`,
-внизу листа; пустой перечень не рисуется вовсе.
+Parsing is in `lib/features/editor/presence.ts` (`presentPeople`): your own tab
+is dropped by `clientId`, and several tabs of one person are merged by account
+identifier. Display is `lib/components/page/PagePresence.svelte`, at the bottom
+of the sheet; an empty list is not drawn at all.
 
-## События
+## Events
 
-`services/realtime.py` рассылает события через Redis. Экран подписывается в `lib/features/realtime/socket.ts`.
+`services/realtime.py` broadcasts events through Redis. The screen subscribes in
+`lib/features/realtime/socket.ts`.
 
-Изменение дерева обязано согласованно сделать три вещи: обновить локальное состояние экрана, обратиться к серверу и отправить событие. Пропуск любого шага рассинхронизирует вкладки.
+A change to the tree must do three things consistently: update the local screen
+state, call the server and emit an event. Skipping any of them desyncs the tabs.
 
-## Заголовок правится вне совместного документа
+## The title is edited outside the collaborative document
 
-Название и значок сохраняются обычным запросом, а не через Yjs. Молчаливого
-затирания при этом нет: сервер рассылает `page:heading:updated`, открытая
-вкладка обновляет их без перезагрузки, а сохранение поверх чужого отвергается —
-правящий отдаёт то название, которое видел (`expected_title` у
-`PageService.update`), и расхождение отвечает `error.page.title_changed_elsewhere`.
+The title and the icon are saved with an ordinary request rather than through
+Yjs. There is no silent overwrite: the server broadcasts
+`page:heading:updated`, an open tab updates them without a reload, and saving
+over someone else's change is refused — the editor sends the title it saw
+(`expected_title` in `PageService.update`), and a mismatch answers
+`error.page.title_changed_elsewhere`.

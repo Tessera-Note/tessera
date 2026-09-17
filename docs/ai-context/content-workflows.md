@@ -1,70 +1,112 @@
-# Страницы и содержимое
+# Pages and content
 
-## Страницы
+## Pages
 
-`api/pages.py` — самый крупный контроллер: 53 обработчика. Кроме самих страниц он держит комментарии, метки и избранное.
+`api/pages.py` is the largest controller. Besides the pages themselves it holds
+comments, labels and favourites.
 
-Возможности: дерево с перетаскиванием, перенос между spaces, дублирование, хлебные крошки, корзина и восстановление, недавние, история версий, обратные ссылки, включение одной страницы в другую (`services/transclusion.py`).
+What it covers: the tree with drag and drop, moving between spaces,
+duplication, breadcrumbs, trash and restore, recents, version history,
+backlinks, and including one page inside another
+(`services/transclusion.py`).
 
-Порядок в дереве держится дробным ключом (`position`). Сортировка колонки и индексов задана как `C` — побайтно. Под сортировкой базы `en_US.utf8` символ `h:` идёт раньше `h0`, и одиннадцатая строка списка прыгает в начало.
+Order in the tree is held by a fractional key (`position`). The collation of the
+column and of the indexes is set to `C` — byte by byte. Under the database
+collation `en_US.utf8` the character `h:` sorts before `h0`, and the eleventh row
+of a list jumps to the top.
 
-## Заголовок и текст
+## Title and text
 
-Текст страницы живёт в совместном документе и идёт каналом `/collab`. Заголовок правится обычным обращением к серверу, вне совместного документа.
+The page text lives in the collaborative document and travels over the `/collab`
+channel. The title is edited with an ordinary call to the server, outside the
+collaborative document.
 
-## Комментарии
+## Comments
 
-`services/comments.py`. Ветки обсуждения, разрешение ветки, комментарии наблюдателя. Отдельный маршрут для перехода к комментарию по ссылке.
+`services/comments.py`. Discussion threads, resolving a thread, watcher
+comments. A separate route jumps to a comment from a link.
 
-## Вложения
+## Attachments
 
-`api/attachments.py`, восемь маршрутов под `/api/attachments` и `/api/files`. Хранилище за `infrastructure/storage.py`.
+`api/attachments.py`, routes under `/api/attachments` and `/api/files`. Storage
+sits behind `infrastructure/storage.py`.
 
-Текст вложения попадает в поиск: `services/attachment_index.py` разбирает обычный текст, Markdown, JSON, PDF и DOCX. Картинка, архив и PDF из сканов в поиск не попадут никогда — правило живёт на сервере, повторять его на экране нельзя.
+The text of an attachment goes into search: `services/attachment_index.py`
+parses plain text, Markdown, JSON, PDF and DOCX. An image, an archive and a
+scanned PDF will never get into search — that rule lives on the server and must
+not be repeated on the screen.
 
-Картинка по чужой ссылке переносится во вложения (`services/media_fetch.py`): ссылка на чужой сервер сегодня открывается, завтра нет, а на закрытом контуре не открывается вовсе.
+An image behind a foreign link is moved into attachments
+(`services/media_fetch.py`): a link to someone else's server opens today and not
+tomorrow, and in a closed network it does not open at all.
 
-Страницы, написанные до того, как перенос стал происходить сам, чинит проход `services/media_rehost.py`. Запускает распорядитель (`POST /api/workspace/rehost-images`), работа идёт заданием `workspace-rehost-images` кусками по `MAX_PAGES_PER_RUN` страниц с курсором по идентификатору: предел задания десять минут, а одно скачивание ждёт двадцать секунд. Итог — запись журнала аудита `workspace.images_rehosted` с перечнем адресов, которые не открылись: по мёртвому адресу скачивать нечего, и страницу правит человек.
+Pages written before that move became automatic are fixed by a pass in
+`services/media_rehost.py`. An administrator starts it
+(`POST /api/workspace/rehost-images`), the work runs as the
+`workspace-rehost-images` job in chunks of `MAX_PAGES_PER_RUN` pages with a
+cursor by identifier: the job limit is ten minutes, and a single download waits
+twenty seconds. The result is the audit record `workspace.images_rehosted` with
+the list of addresses that did not open: there is nothing to download from a dead
+address, and a person fixes such a page.
 
-## Встроенные ролики
+## Embedded videos
 
-Ссылка на ролик становится проигрывателем, а не остаётся ссылкой. Два места:
+A link to a video becomes a player instead of staying a link. Two places:
 
-- `lib/features/editor/extensions/embed-paste.ts` — распознаёт вставленный
-  адрес. Старшинство выше разбора буфера как Markdown: тот забирает вставку
-  первым и до правил вставки ссылку не доводит.
-- `lib/features/editor/views/EmbedView.svelte` — показывает узел `embed`
-  проигрывателем, а пустой узел (его кладёт пункт меню) — полем для адреса.
-  Раньше узел рисовался ссылкой, и «встраивание» ничего не встраивало.
+- `lib/features/editor/extensions/embed-paste.ts` recognizes a pasted address.
+  Its priority is above parsing the clipboard as Markdown: that one takes the
+  paste first and never lets the link reach the paste rules.
+- `lib/features/editor/views/EmbedView.svelte` shows the `embed` node as a
+  player, and an empty node (the one the menu item inserts) as a field for the
+  address. Earlier the node was drawn as a link, and "embedding" embedded
+  nothing.
 
-Разбор адреса общий для обоих — `getEmbedUrlAndProvider` из пакета расширений,
-он же знает Vimeo и остальные службы. Незнакомый адрес разбор помечает как
-`iframe`, и такая ссылка остаётся ссылкой: иначе любой вставленный адрес
-превращался бы во встроенное окно.
+Address parsing is shared by both — `getEmbedUrlAndProvider` from the extension
+package, which also knows Vimeo and the other services. An unknown address is
+marked as `iframe` by the parser, and such a link stays a link: otherwise any
+pasted address would turn into an embedded window.
 
-Ролик открывается через `youtube-nocookie`: обычный адрес ставит следящие куки
-ещё до нажатия «смотреть». Права окна ограничены списком, полноэкранный показ
-оставлен.
+A video opens through `youtube-nocookie`: the ordinary address sets tracking
+cookies before "play" is even pressed. The window permissions are restricted to
+a list, and full-screen playback is kept.
 
-## Публичные ссылки
+On a printed sheet the node shows its title and address as a link instead of an
+empty frame: a foreign window does not load in print. The print flag is set by
+the sheet renderer (`lib/stores/print.svelte.ts`).
 
-`services/shares.py`. Ссылка живёт ключом, отдаётся оболочкой маршрута `(share)`. Разрешение ссылки проверяет права на саму страницу и на её предков.
+## Public links
 
-## Ввоз и вывоз
+`services/shares.py`. A link lives as a key and is served by the `(share)` route
+shell. Resolving a link checks the permissions on the page itself and on its
+ancestors.
 
-`services/imports.py`, `services/import_archives.py`, `services/exports.py`, `services/docx.py`, `services/docx_import.py`, `services/spreadsheet.py`.
+## Import and export
 
-Ввоз: Markdown, HTML, DOCX, PDF, выгрузки Confluence, табличные форматы. Разбор PDF идёт на стороне `services/collab`: качество разбора это свойство библиотеки, а не языка.
+`services/imports.py`, `services/import_archives.py`, `services/exports.py`,
+`services/docx.py`, `services/docx_import.py`, `services/odt_import.py`,
+`services/spreadsheet.py`.
 
-Название страницы берётся из первого заголовка документа, и он же снимается с
-тела через `drop_title_heading` — иначе одно и то же видно и в дереве, и первой
-строкой страницы. Снятие обязано стоять на каждом пути, где название взято из
-заголовка: Markdown, HTML, DOCX, PDF и страница выгрузки Confluence. Сверка
-идёт без учёта регистра и лишних пробелов; заголовок, не совпавший с названием,
-остаётся частью документа.
+Import: Markdown, HTML, DOCX, ODT, PDF, Confluence dumps, spreadsheet formats.
+PDF parsing happens on the `services/collab` side: the quality of the parsing is
+a property of the library, not of the language.
 
-Вывоз: Markdown, HTML, DOCX, PDF. Отрисовку PDF делает Gotenberg по маршруту `(render)` экранов.
+The page title is taken from the first heading of the document, and that heading
+is then removed from the body by `drop_title_heading` — otherwise the same text
+shows up both in the tree and as the first line of the page. The removal must be
+in place on every path where the title comes from a heading: Markdown, HTML,
+DOCX, PDF and a Confluence dump page. The comparison ignores case and extra
+spaces; a heading that does not match the title stays part of the document.
 
-## История
+Images travel with the document where the parser returns them: DOCX and ODT hand
+over a list of images along with the markup, and the shared import path uploads
+them as attachments and substitutes their addresses.
 
-`services/history.py`. Версия пишется фоновым заданием после сохранения текста. Туда же уходят упоминания, обратные ссылки, индексация для ИИ и уведомления — переносить это в сам запрос нельзя, не оценив идемпотентность.
+Export: Markdown, HTML, DOCX, PDF. PDF rendering is done by Gotenberg through
+the `(render)` route of the screens.
+
+## History
+
+`services/history.py`. A version is written by a background job after the text is
+saved. Mentions, backlinks, indexing for AI and notifications go the same way —
+moving any of that into the request itself is not allowed without assessing
+idempotency.
