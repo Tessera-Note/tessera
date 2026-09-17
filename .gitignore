@@ -65,6 +65,11 @@ backups/
 
 __temp__/
 
+# The organization profile repository is checked out here as a repository of its
+# own (github.com/Tessera-Note/.github). It is not part of this one, and without
+# this line a `git add` would pull it in as an embedded repository.
+__org__/
+
 # IDEs and editors
 /.idea
 .project
