@@ -14,10 +14,18 @@ Run the tests.
 | `web` | `pnpm --filter @tessera/web test` | Vitest, 97 files |
 | `collab` | `node --test services/collab/src/*.test.js` | 3 files |
 | `hub` | `uv run pytest` in `services/hub` | 3 files |
-| a path or a substring | `uv run --project apps/api pytest -k $1` or `pnpm --filter @tessera/web test -- $1` | a targeted run |
+| a path or a substring | `uv run --project apps/api pytest -k $1` or `pnpm --filter @tessera/web test $1` | a targeted run |
 
 Work out the side from the path: `apps/api` means pytest, `apps/web` means
 Vitest.
+
+The filter for the screens goes in without dashes. `test -- dictionaries`
+swallows it and runs all 97 files; `test dictionaries` runs the one file.
+Measured on 17 September 2026 on both forms.
+
+A full run of the screens' tests needs Node 22. On Node 26 the ten tests of
+`theme.dom.test.ts` and `width.dom.test.ts` fail for want of `localStorage`, and
+the failure reads as a defect of whatever is being checked.
 
 ## Tests against a real database
 

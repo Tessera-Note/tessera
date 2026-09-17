@@ -54,7 +54,7 @@ one exception — the failure codes (`error.*`), which come from the server.
 3. Translate the key **in all twelve dictionaries at once**: synchronization is
    off (`crowdin.yml`), there is nobody else to fill them in, and an untranslated
    key is shown to a person as the English phrase
-4. Run `pnpm --filter @tessera/web test -- dictionaries`: the key sets must match
+4. Run `pnpm --filter @tessera/web test dictionaries`: the key sets must match
 
 ## Substituting values
 
@@ -144,8 +144,8 @@ must not be translated in isolation from the sentence.
 ## Verification
 
 ```
-pnpm --filter @tessera/web test -- dictionaries
-pnpm --filter @tessera/web test -- error-codes
+pnpm --filter @tessera/web test dictionaries
+pnpm --filter @tessera/web test error-codes
 ```
 
 Then the `i18n-reviewer` agent. It compares the keys from the code against the

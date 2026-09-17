@@ -15,7 +15,7 @@ done
 ## Step 2. Consistency of the key sets
 
 ```
-pnpm --filter @tessera/web test -- dictionaries
+pnpm --filter @tessera/web test dictionaries
 ```
 
 The test `apps/web/src/lib/i18n/dictionaries.test.ts` compares the key sets

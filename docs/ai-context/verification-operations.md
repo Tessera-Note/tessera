@@ -429,6 +429,19 @@ Redis has no password and is at the container address `tessera-v2-redis`; the
 tests delete only their own keys by name, with no `FLUSHDB`. The outcome of a
 full run is zero skips.
 
+**A filter after `--` does not narrow a run of the screens' tests.** `pnpm
+--filter @tessera/web test -- dictionaries` runs all 97 files and 701 tests: the
+dashes swallow the argument, and the run looks targeted while it is not. The
+filter goes in without them — `pnpm --filter @tessera/web test dictionaries`
+runs one file and 87 tests. Measured on 17 September 2026 on both forms.
+
+**A full run of the screens' tests needs Node 22.** On Node 26 ten tests of
+`src/lib/stores/theme.dom.test.ts` and `src/lib/features/share/width.dom.test.ts`
+fail with "localStorage is not available because --localstorage-file was not
+provided", and that reads as a defect of the change being checked. Measured on
+17 September 2026: the same two files pass 10/10 under Node 22.22.1, and the
+tests themselves were not touched.
+
 ## Simultaneous editing is checked with connections, not with tabs
 
 Ten tabs cannot be typed into at once by hand, and a merge divergence shows up

@@ -62,7 +62,8 @@ check that a test exists.
 - the application: `apps/api/tests`, run with `uv run --project apps/api pytest
   -k <substring>`
 - the screens: next to the code, `*.test.ts`, run with `pnpm --filter
-  @tessera/web test -- <path>`
+  @tessera/web test <path>` — without the dashes, since a filter after `--` is
+  swallowed and the whole suite runs
 - collaborative editing: `services/collab/src/*.test.js`, run with `node --test
   services/collab/src/*.test.js`
 
