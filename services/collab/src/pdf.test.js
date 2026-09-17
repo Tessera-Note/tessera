@@ -1,24 +1,27 @@
 /**
- * Разбор PDF.
+ * Parsing a PDF.
  *
- * Сама библиотека здесь не проверяется: она проверена в v1 на настоящих
- * файлах, и второй такой замер ничего не добавит. Проверяется то, что вокруг
- * неё: пустой файл, отказ разбора, скан без текстового слоя и превращение
- * markdown в разметку.
+ * The library itself is not tested here: it was tested on real files in the
+ * earlier version, and a second such measurement would add nothing. What is
+ * tested is everything around it: an empty file, a refused parse, a scan with
+ * no text layer, and the conversion of markdown into markup.
+ *
+ * The fixtures are deliberately Cyrillic: that a heading and a paragraph in
+ * Cyrillic survive the conversion is part of what this file checks.
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { htmlFromPdf, PDF_EMPTY, PDF_NO_TEXT_LAYER, PDF_UNREADABLE } from './pdf.js';
 
-/** Разборщик-двойник: отвечает тем, что ему задали. */
+/** A stub parser: it answers with whatever it was given. */
 function parser(answer) {
   return () => answer;
 }
 
 const SOME_PDF = Buffer.from('%PDF-1.4 что-то').toString('base64');
 
-test('markdown превращается в разметку', async () => {
+test('markdown is turned into markup', async () => {
   const html = await htmlFromPdf(
     SOME_PDF,
     parser({ markdown: '# Регламент\n\nтекст', pdfType: 'Text' }),
@@ -27,29 +30,29 @@ test('markdown превращается в разметку', async () => {
   assert.match(html, /текст/);
 });
 
-test('пустой файл отвергается', async () => {
+test('an empty file is refused', async () => {
   await assert.rejects(() => htmlFromPdf('', parser({})), { message: PDF_EMPTY });
 });
 
-test('неразобранный файл отвергается своей причиной', async () => {
+test('a file that did not parse is refused with its own reason', async () => {
   await assert.rejects(
     () =>
       htmlFromPdf(SOME_PDF, () => {
-        throw new Error('внутренняя поломка библиотеки');
+        throw new Error('an internal breakage of the library');
       }),
     { message: PDF_UNREADABLE },
   );
 });
 
-test('скан без текстового слоя отвергается', async () => {
-  // Пустая страница вместо документа выглядела бы успешным ввозом.
+test('a scan with no text layer is refused', async () => {
+  // An empty page instead of a document would look like a successful import.
   await assert.rejects(
     () => htmlFromPdf(SOME_PDF, parser({ markdown: 'что-то', pdfType: 'Scanned' })),
     { message: PDF_NO_TEXT_LAYER },
   );
 });
 
-test('пустой разбор отвергается так же, как скан', async () => {
+test('an empty parse is refused the same way as a scan', async () => {
   await assert.rejects(
     () => htmlFromPdf(SOME_PDF, parser({ markdown: '   ', pdfType: 'Text' })),
     { message: PDF_NO_TEXT_LAYER },

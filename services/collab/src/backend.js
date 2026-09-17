@@ -1,36 +1,38 @@
 /**
- * Обращения к серверной половине.
+ * Calls to the server half.
  *
- * Здесь нет ни одного решения о правах и ни одной записи в базу: и то и другое
- * описано на стороне Python и второго описания иметь не должно. Этот файл
- * только спрашивает и передаёт ответ дальше.
+ * There is not a single permission decision or database write here: both are
+ * described on the Python side and must have no second description. This file
+ * only asks and passes the answer on.
  *
- * Секрет уходит своим заголовком, а не `Authorization`: в том ходят токены
- * людей, и путать два разных вида предъявления себя нельзя даже по имени.
+ * The secret travels in a header of its own rather than in `Authorization`:
+ * that one carries the tokens of people, and two different ways of presenting
+ * yourself must not be confused, not even by name.
  */
 
 /**
- * Окружение читается на каждом вызове, а не при загрузке файла.
+ * The environment is read on every call rather than when the file is loaded.
  *
- * Значение, снятое при загрузке, привязывает адрес к порядку импортов: файл,
- * подключённый раньше, чем выставлено окружение, навсегда запоминает адрес по
- * умолчанию. В проверках это выглядит как зависший запрос к несуществующему
- * узлу, а в развёртывании — как обращение не туда после смены переменной.
+ * A value taken at load time ties the address to the order of imports: a file
+ * imported before the environment is set remembers the default address forever.
+ * In the tests that looks like a hung request to a host that does not exist,
+ * and in a deployment like a call to the wrong place after a variable changed.
  */
 function settings() {
   return {
     apiUrl: (process.env.API_URL || 'http://tessera-v2-api:3000').replace(/\/+$/, ''),
     token: process.env.COLLAB_INTERNAL_TOKEN || '',
-    // Сколько ждать ответа. Обращения короткие: один запрос к базе.
+    // How long to wait for an answer. The calls are short: one database query.
     timeoutMs: Number(process.env.COLLAB_BACKEND_TIMEOUT_MS || 10000),
   };
 }
 
 /**
- * Отказ серверной половины с сохранённым кодом.
+ * A failure of the server half, with the code kept.
  *
- * Код нужен вызывающему: «нет доступа» закрывает соединение молча, а
- * недоступная база это временный отказ, после которого клиент переподключается.
+ * The caller needs the code: "no access" closes the connection silently, while
+ * an unreachable database is a temporary failure after which the client
+ * reconnects.
  */
 export class BackendError extends Error {
   constructor(status, code, message, params) {
@@ -38,7 +40,7 @@ export class BackendError extends Error {
     this.name = 'BackendError';
     this.status = status;
     this.code = code;
-    // Подробности отказа: для занятого документа — какая реплика его держит.
+    // The details of a failure: for a taken document, which replica holds it.
     this.params = params || {};
   }
 }
@@ -47,20 +49,21 @@ async function call(path, payload) {
   const { apiUrl, token: internalToken, timeoutMs } = settings();
 
   if (!internalToken) {
-    // Без секрета внутренние маршруты выключены на той стороне. Отказ здесь,
-    // а не там: иначе каждое подключение стоит запроса по сети ради того же
-    // ответа.
-    throw new BackendError(0, 'collab.internal_token_missing', 'COLLAB_INTERNAL_TOKEN не задан');
+    // Without the secret the internal routes are off on that side. The refusal
+    // happens here rather than there: otherwise every connection would cost a
+    // request over the network for the same answer.
+    throw new BackendError(0, 'collab.internal_token_missing', 'COLLAB_INTERNAL_TOKEN is not set');
   }
 
   if (!/^[\x21-\x7e]+$/.test(internalToken)) {
-    // Заголовок HTTP допускает только видимые знаки латиницы. Секрет с
-    // кириллицей или пробелом роняет сам вызов, и отказ приходит из недр
-    // клиента сообщением про ByteString, по которому причину не найти.
+    // An HTTP header admits visible Latin characters only. A secret with
+    // Cyrillic text or a space breaks the call itself, and the failure comes
+    // from the depths of the client as a message about a ByteString, which
+    // tells nobody the reason.
     throw new BackendError(
       0,
       'collab.internal_token_invalid',
-      'COLLAB_INTERNAL_TOKEN обязан состоять из видимых знаков латиницы',
+      'COLLAB_INTERNAL_TOKEN must consist of visible Latin characters',
     );
   }
 
@@ -89,8 +92,8 @@ async function call(path, payload) {
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
-    // Тело не разобралось: для отказа это не важно, а для успеха означает, что
-    // на том конце не наш маршрут.
+    // The body did not parse: for a failure that does not matter, and for a
+    // success it means the other end is not our route.
     body = null;
   }
 
@@ -117,8 +120,8 @@ export function rights(documentName, userIds) {
 }
 
 /**
- * Отметка владения документом. Решает приложение: срок жизни и период
- * продления живут в его настройках, а Redis — на его стороне.
+ * The ownership mark of a document. The application decides: the lifetime and
+ * the renewal period live in its settings, and Redis is on its side.
  */
 export function claimDocument(documentName, replica) {
   return call('/api/internal/collab/owner', { documentName, replica });
