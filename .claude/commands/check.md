@@ -1,34 +1,39 @@
 ---
-description: Проверка типов и сборка затронутых частей
-argument-hint: [api | web | all, по умолчанию all]
+description: Type checking and building the parts affected
+argument-hint: [api | web | all, all by default]
 ---
 
-Прогони проверку типов.
+Run the type check.
 
-## Что запускать
+## What to run
 
-Аргумент `$1` определяет объем, по умолчанию `all`.
+The argument `$1` sets the scope, `all` by default.
 
-| Аргумент | Команды |
+| Argument | Commands |
 |---|---|
 | `api` | `uv run --project apps/api ruff check .` |
-| `web` | `pnpm --filter @tessera/web check` (`svelte-kit sync`, затем `svelte-check`) |
-| `all` | обе команды подряд |
+| `web` | `pnpm --filter @tessera/web check` (`svelte-kit sync`, then `svelte-check`) |
+| `all` | both commands in a row |
 
-Проверки типов у приложения на Python нет: ruff проверяет стиль и очевидные ошибки, а типы держатся аннотациями и проверками.
+The Python application has no type check of its own: ruff checks the style and
+the obvious mistakes, while the types are held by annotations and by the tests.
 
-## Перед запуском
+## Before running
 
-- если нет `node_modules`, сначала `pnpm install --frozen-lockfile`
-- если нет `apps/api/.venv`, сначала `uv sync --project apps/api`
-- `svelte-check` требует сгенерированных типов маршрутов, их делает `svelte-kit sync` внутри самой команды
+- if there is no `node_modules`, run `pnpm install --frozen-lockfile` first
+- if there is no `apps/api/.venv`, run `uv sync --project apps/api` first
+- `svelte-check` needs the generated route types, and `svelte-kit sync` inside
+  the command itself produces them
 
-## Как читать результат
+## How to read the result
 
-- ошибки `svelte-check` обязательны к исправлению, предупреждения о доступности разбирать по существу
-- ruff с набором `E,F,I,UP,B,SIM` ловит неиспользуемые имена, порядок импортов и часть ловушек, но не типы
-- отсутствие ошибок не означает, что экран работает. Проверять глазами
+- `svelte-check` errors must be fixed; accessibility warnings are judged on
+  their merits
+- ruff with the `E,F,I,UP,B,SIM` set catches unused names, the order of imports
+  and some of the traps, but not types
+- the absence of errors does not mean the screen works. Check it by eye
 
-## После прогона
+## After the run
 
-Показать сводку. При ошибках вывести первые три с путем, строкой и типом. Сам код без запроса не править, показать где проблема.
+Show a summary. On errors, print the first three with the path, the line and the
+kind. Do not edit the code itself without being asked; show where the problem is.

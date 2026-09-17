@@ -1,41 +1,51 @@
 ---
-description: Прогон тестов
-argument-hint: [api | web | collab | hub | путь или подстрока]
+description: Running the tests
+argument-hint: [api | web | collab | hub | a path or a substring]
 ---
 
-Прогони тесты.
+Run the tests.
 
-## Что запускать
+## What to run
 
-| Аргумент | Команда | Что покрывает |
+| Argument | Command | What it covers |
 |---|---|---|
-| пусто | обе основные команды подряд | приложение и экраны |
-| `api` | `uv run --project apps/api pytest` | 73 файла проверок приложения |
-| `web` | `pnpm --filter @tessera/web test` | Vitest, 87 файлов |
-| `collab` | `node --test services/collab/src/*.test.js` | 3 файла |
-| `hub` | `uv run pytest` в `services/hub` | 5 файлов |
-| путь или подстрока | `uv run --project apps/api pytest -k $1` либо `pnpm --filter @tessera/web test -- $1` | точечный прогон |
+| empty | both main commands in a row | the application and the screens |
+| `api` | `uv run --project apps/api pytest` | 81 test files of the application |
+| `web` | `pnpm --filter @tessera/web test` | Vitest, 97 files |
+| `collab` | `node --test services/collab/src/*.test.js` | 3 files |
+| `hub` | `uv run pytest` in `services/hub` | 3 files |
+| a path or a substring | `uv run --project apps/api pytest -k $1` or `pnpm --filter @tessera/web test -- $1` | a targeted run |
 
-Определить сторону по пути: `apps/api` это pytest, `apps/web` это Vitest.
+Work out the side from the path: `apps/api` means pytest, `apps/web` means
+Vitest.
 
-## Проверки против настоящей базы
+## Tests against a real database
 
-Часть проверок приложения работает против настоящей базы и **без `DATABASE_URL` пропускается**. Пропуск виден в выводе как `skipped`, и зелёный прогон без этой переменной не означает, что проверено всё.
+Part of the application tests run against a real database and are **skipped
+without `DATABASE_URL`**. The skip is visible in the output as `skipped`, and a
+green run without that variable does not mean everything was checked.
 
 ```
-DATABASE_URL="postgresql://tessera:ПАРОЛЬ@АДРЕС:5432/tessera" uv run --project apps/api pytest
+DATABASE_URL="postgresql://tessera:PASSWORD@HOST:5432/tessera" uv run --project apps/api pytest
 ```
 
-Порт базы стенда наружу не проброшен: у состава открыты только прокси и три
-процесса приложения. Адрес берётся либо у своей базы, либо у контейнера стенда
-изнутри его сети.
+The port of the stand database is not published outside: only the proxy and the
+three application processes are open on the set. The address is taken either
+from your own database or from the stand container, from inside its network.
 
-Такие проверки идут в откатываемой транзакции и в базе ничего не оставляют.
+Those tests run inside a transaction that is rolled back and leave nothing in
+the database.
 
-Почему на настоящей базе, а не на заглушках: настройка экземпляра пишет семь связанных записей, и внешние ключи между ними проверяет только база. На заглушке ошибка порядка не видна вовсе.
+Why on a real database rather than on stubs: setting up an instance writes seven
+related rows, and the foreign keys between them are enforced only by the
+database. On a stub an ordering mistake is not visible at all.
 
-## После прогона
+## After the run
 
-Показать число пройденных, упавших и пропущенных. По каждому упавшему дать файл, имя теста и суть ошибки. Число пропущенных называть всегда: оно означает, что часть проверок не работала.
+Show the number of passed, failed and skipped. For every failure give the file,
+the test name and the essence of the error. Always name the number of skipped:
+it means part of the checks did not run.
 
-Если тест падал и до изменений, показать это отдельно и не выдавать за результат задачи. Красных тестов в финальном отчете быть не должно.
+If a test was failing before the changes as well, show that separately and do
+not present it as a result of the task. There must be no red tests in the final
+report.

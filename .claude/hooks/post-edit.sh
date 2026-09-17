@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Автоформат после Edit/Write/MultiEdit.
-# Зависимости: bash, jq, uv и npx (оба опциональны).
+# Auto-formatting after Edit/Write/MultiEdit.
+# Dependencies: bash, jq, uv and npx (both optional).
 #
-# Приложение форматируется ruff: у него единый стиль, заданный в pyproject.toml,
-# и расхождений в коде нет.
+# The application is formatted by ruff: it has a single style, set in
+# pyproject.toml, and there are no divergences in the code.
 #
-# Экраны форматируются prettier с плагином для Svelte: конфигурация общая,
-# и её же проверяет `pnpm --filter @tessera/web lint`.
+# The screens are formatted by prettier with the Svelte plugin: the
+# configuration is shared, and `pnpm --filter @tessera/web lint` checks the very
+# same one.
 #
-# Сервис совместного редактирования не форматируется: своего prettier у него
-# нет, а общий сложил бы его код по чужим правилам.
+# The collaboration service is not formatted: it has no prettier of its own, and
+# the shared one would lay its code out by someone else's rules.
 
 set -euo pipefail
 

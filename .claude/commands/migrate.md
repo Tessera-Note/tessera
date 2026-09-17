@@ -1,46 +1,53 @@
 ---
-description: Изменение схемы базы данных
+description: Changing the database schema
 argument-hint: [apply | plan | status]
 ---
 
-Схема объявляется, а не собирается из миграций. Источник истины —
-`apps/api/schema/schema.hcl`, применяет его Atlas. Подробности паттерна в
-`.claude/skills/schema-changes/SKILL.md`.
+The schema is declared rather than assembled from migrations. The source of
+truth is `apps/api/schema/schema.hcl`, and Atlas applies it. The details of the
+pattern are in `.claude/skills/schema-changes/SKILL.md`.
 
-## Действия
+## Actions
 
-| Аргумент | Что делать |
+| Argument | What to do |
 |---|---|
-| `plan` | `atlas schema diff` от текущей базы к `schema.hcl`, показать разницу и не применять |
-| `apply` | поднять состав: шаги `tessera-v2-schema-base`, `tessera-v2-schema-tables`, `tessera-v2-schema-rest` выполняются по порядку сами |
-| `status` | показать разницу между базой и `schema.hcl`, ничего не меняя |
+| `plan` | `atlas schema diff` from the current database to `schema.hcl`, show the difference and do not apply it |
+| `apply` | bring the set up: the steps `tessera-v2-schema-base`, `tessera-v2-schema-tables`, `tessera-v2-schema-rest` run in order by themselves |
+| `status` | show the difference between the database and `schema.hcl`, changing nothing |
 
-На стенде схема раскатывается тремя шагами compose, и порядок между ними
-обязателен: расширения и типы, затем таблицы Atlas, затем триггеры и индексы с
-сортировкой `C` из `after-atlas.sql`.
+On the stand the schema is rolled out by three compose steps, and the order
+between them is mandatory: the extensions and the types, then the Atlas tables,
+then the triggers and the `C` collated indexes from `after-atlas.sql`.
 
-## Порядок для изменения схемы
+## The order for changing the schema
 
-1. правка `apps/api/schema/schema.hcl`
-2. `plan`: посмотреть, что Atlas собирается сделать
-3. применить и убедиться, что шаг завершился без ошибки
-4. обновить модели в `apps/api/tessera_api/infrastructure/models.py`
-5. обновить запросы в `infrastructure/repositories.py`, если менялись поля
-6. запустить агента `schema-reviewer`
+1. edit `apps/api/schema/schema.hcl`
+2. `plan`: look at what Atlas is about to do
+3. apply it and make sure the step finished without an error
+4. update the models in `apps/api/tessera_api/infrastructure/models.py`
+5. update the queries in `infrastructure/repositories.py` if the fields changed
+6. run the `schema-reviewer` agent
 
-## Требования к изменению
+## Requirements for a change
 
-- `baseline.sql` и `after-atlas.sql` руками не правятся: первый это снимок, второй доводка после Atlas
-- четыре индекса с сортировкой `C` исключены из ведения Atlas списком `--exclude` в compose. Добавляя такой индекс, добавить и исключение, иначе он будет удаляться и создаваться при каждом подъёме, а это блокировка на большой таблице
-- первичный ключ `uuid`, временные метки `timestamptz`
-- ссылку на рабочее пространство делать через `workspace_id` с каскадным удалением
-- на колонку внешнего ключа, по которой идет выборка, ставить индекс
-- `NOT NULL` в непустой таблице добавлять в три шага: колонка, заполнение, ограничение
+- `baseline.sql` and `after-atlas.sql` are not edited by hand: the first is a
+  snapshot, the second is the touch-up after Atlas
+- the four `C` collated indexes are excluded from Atlas's hands by the
+  `--exclude` list in compose. When adding an index like that, add the exclusion
+  too, otherwise it will be dropped and created on every bring-up, and that is a
+  lock on a large table
+- a `uuid` primary key, `timestamptz` timestamps
+- a reference to the workspace goes through `workspace_id` with cascading delete
+- put an index on a foreign key column that queries select by
+- `NOT NULL` on a non-empty table is added in three steps: the column, the
+  filling, the constraint
 
-## Замечания
+## Notes
 
-Вторая версия подключается к той же базе, что и первая, и схему не пересоздаёт.
-Порядок работы со схемой — в `docs/ai-context/data-runtime.md`.
+The application connects to an existing database and does not recreate the
+schema. The order of work with the schema is in
+`docs/ai-context/data-runtime.md`.
 
-Разрушающие изменения (удаление колонки, сужение типа) Atlas выполнит молча,
-если они объявлены. Перед применением на боевой базе показать план пользователю.
+Atlas will carry out destructive changes (dropping a column, narrowing a type)
+silently if they are declared. Before applying to a production database, show
+the plan to the user.

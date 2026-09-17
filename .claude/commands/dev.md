@@ -1,48 +1,62 @@
 ---
-description: Запуск среды разработки
-argument-hint: [all | api | web | stand, по умолчанию all]
+description: Starting the development environment
+argument-hint: [all | api | web | stand, all by default]
 ---
 
-Подними среду разработки.
+Bring up the development environment.
 
-## Предусловия
+## Preconditions
 
-Проверить по порядку и сообщить о недостающем, не пытаясь чинить молча.
+Check them in order and report what is missing rather than trying to fix it
+silently.
 
-1. `python3 --version` не ниже 3.13 и доступен `uv`
-2. `node --version`, ожидается 22
-3. каталог `node_modules` существует, иначе `pnpm install --frozen-lockfile`
-4. каталог `apps/api/.venv` существует, иначе `uv sync --project apps/api`
-5. PostgreSQL и Redis доступны по `DATABASE_URL` и `REDIS_URL`
-6. схема применена. Отдельной команды миграции нет: схему раскатывает Atlas, порядок в `.claude/commands/migrate.md`
+1. `python3 --version` is 3.13 or above and `uv` is available
+2. `node --version`, 22 expected
+3. the `node_modules` directory exists, otherwise `pnpm install
+   --frozen-lockfile`
+4. the `apps/api/.venv` directory exists, otherwise `uv sync --project apps/api`
+5. PostgreSQL and Redis are reachable at `DATABASE_URL` and `REDIS_URL`
+6. the schema is applied. There is no separate migration command: the schema is
+   rolled out by Atlas, and the order is in `.claude/commands/migrate.md`
 
-## Запуск
+## Starting
 
-| Аргумент | Команда | Порт |
+| Argument | Command | Port |
 |---|---|---|
 | `api` | `uv run --project apps/api litestar --app tessera_api.app:create_app run --reload` | 3000 |
 | `web` | `pnpm --filter @tessera/web dev` | 3200 |
-| `all` | обе, каждая своим процессом | 3000 и 3200 |
+| `all` | both, each as its own process | 3000 and 3200 |
 | `stand` | `docker compose -f apps/api/docker-compose.v2.yml up -d --build` | 8080 |
 
-Vite проксирует `/api`, `/socket.io` и `/collab`. Адреса задаются `API_PROXY_TARGET` (по умолчанию `http://127.0.0.1:3100`) и `COLLAB_PROXY_TARGET` (`http://127.0.0.1:3101`). Умолчания указывают на стенд, поэтому экраны в режиме разработки работают против поднятого состава без лишней настройки.
+Vite proxies `/api`, `/socket.io` and `/collab`. The addresses are set by
+`API_PROXY_TARGET` (`http://127.0.0.1:3100` by default) and
+`COLLAB_PROXY_TARGET` (`http://127.0.0.1:3101`). The defaults point at the
+stand, so the screens in development mode work against a running set with no
+extra configuration.
 
-Долгие процессы запускать в фоне, чтобы не блокировать сессию.
+Start long-running processes in the background so that the session is not
+blocked.
 
-## Проверка живости
+## Liveness check
 
 ```
 curl -sS --max-time 5 http://localhost:3000/api/health
 ```
 
-Отвечает состоянием PostgreSQL и Redis. Для простой проверки процесса есть `/api/health/live`.
+It answers with the state of PostgreSQL and Redis. For a simple check of the
+process there is `/api/health/live`.
 
-На стенде тот же путь через прокси: `curl -sS --max-time 5 http://127.0.0.1:8080/api/health`.
+On the stand the same path goes through the proxy: `curl -sS --max-time 5
+http://127.0.0.1:8080/api/health`.
 
-## Вход
+## Signing in
 
-Пароли в формы не вводить. Сеанс на стенде выдаёт `scripts/stand-session.py`, cookie ставит `scripts/stand-cookie.py`. Порядок и оговорки в `docs/ai-context/verification-operations.md`.
+Do not type passwords into forms. On the stand the session is issued by
+`scripts/stand-session.py` and the cookie is set by `scripts/stand-cookie.py`.
+The order and the caveats are in `docs/ai-context/verification-operations.md`.
 
-## Остановка
+## Stopping
 
-Остановить фоновый процесс. Стенд гасится `docker compose -f apps/api/docker-compose.v2.yml down` — без `-v`, иначе пропадут тома с базой и вложениями.
+Stop the background process. The stand is brought down with `docker compose -f
+apps/api/docker-compose.v2.yml down` — without `-v`, otherwise the volumes with
+the database and the attachments are lost.

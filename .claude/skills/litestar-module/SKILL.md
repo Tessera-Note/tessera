@@ -1,38 +1,43 @@
 ---
 name: litestar-module
-description: Паттерн серверного кода на Litestar в этом проекте. Применяется при добавлении маршрута, контроллера, сервиса, DTO, при работе с аутентификацией, правами, очередями и событиями на стороне apps/api.
+description: The pattern for server code on Litestar in this project. Applies when adding a route, a controller, a service or a DTO, and when working with authentication, permissions, queues and events on the apps/api side.
 ---
 
-# Серверный модуль
+# A server module
 
-## Когда применять
+## When to apply this
 
-Добавляется маршрут, новый контроллер, меняется DTO, guard, проверка прав, ставится задание в очередь.
+A route or a new controller is being added, a DTO, a guard or a permission check
+is changing, or a job is being put on a queue.
 
-## Устройство
+## How it is built
 
-Litestar 2 на Python 3.13. Приложение собирается в `apps/api/tessera_api/app.py`: там перечислены контроллеры, объявлены зависимости, стоит `jwt_guard` и обработчик отказов.
+Litestar 2 on Python 3.13. The application is assembled in
+`apps/api/tessera_api/app.py`: that is where the controllers are listed, the
+dependencies are declared, and `jwt_guard` and the failure handler stand.
 
-Слои направлены в одну сторону.
+The layers point one way.
 
 ```
-api/           контроллеры, DTO msgspec, guard-ы
-services/      бизнес-логика
-domain/        сущности и правила, без ввода-вывода
-infrastructure/ база, Redis, хранилище, почта, очереди
+api/            controllers, msgspec DTOs, guards
+services/       business logic
+domain/         entities and rules, without input or output
+infrastructure/ database, Redis, storage, mail, queues
 ```
 
-`api` знает про `services`, `services` про `domain` и `infrastructure`. Обратных связей нет: сервис не импортирует контроллер, а `domain` не импортирует ничего из `infrastructure`.
+`api` knows `services`, and `services` knows `domain` and `infrastructure`.
+There are no reverse edges: a service does not import a controller, and `domain`
+imports nothing from `infrastructure`.
 
-## Разделение обязанностей
+## The division of duties
 
-| Слой | Отвечает за | Не делает |
+| Layer | Responsible for | Does not do |
 |---|---|---|
-| контроллер | путь, метод, статус, DTO, извлечение принципала | бизнес-правила, запросы к базе |
-| сервис | правила, транзакции, события, очереди, хранилище | разбор запроса |
-| репозиторий | запросы SQLAlchemy, пределы выборки | правила и внешние эффекты |
+| the controller | the path, the method, the status, the DTO, extracting the principal | business rules, database queries |
+| the service | rules, transactions, events, queues, storage | parsing the request |
+| the repository | SQLAlchemy queries, selection limits | rules and external effects |
 
-## Контроллер
+## The controller
 
 ```python
 class NotificationController(Controller):
@@ -52,63 +57,100 @@ class NotificationController(Controller):
         return {"count": count}
 ```
 
-Соглашения проекта
+The conventions of the project
 
-- действия оформлены как `POST` с телом, а не как REST по методам. Так пришло из первой версии, и экраны рассчитывают именно на это. Следовать соседним контроллерам
-- пользователь и рабочее пространство берутся из `request.scope["principal"]`. Разбирать заголовок вручную не надо, это делает `jwt_guard`
-- защита по умолчанию. Открытый маршрут помечается `opt={PUBLIC: True}`, и это изменение поверхности аутентификации: ставить осознанно и объяснять
-- зависимости объявляются в `app.py` и приходят в обработчик через `NamedDependency`
-- отказ поднимается через каталог `domain/errors.py`, кодом, а не готовым текстом. Текст человеку разворачивает словарь на экране
-- страница чужого рабочего пространства отдаётся как «не найдено», а не как «нет доступа», чтобы нельзя было перебирать идентификаторы
+- actions are shaped as a `POST` with a body rather than as REST by method. The
+  screens are built for exactly that. Follow the neighbouring controllers
+- the user and the workspace are taken from `request.scope["principal"]`. There
+  is no need to parse the header by hand, `jwt_guard` does it
+- protected by default. An open route is marked `opt={PUBLIC: True}`, and that is
+  a change to the authentication surface: do it deliberately and explain it
+- dependencies are declared in `app.py` and reach the handler through
+  `NamedDependency`
+- a failure is raised through the catalogue in `domain/errors.py`, by code rather
+  than with ready text. The text for a person is expanded by the dictionary on
+  the screen
+- a page of another workspace is served as "not found" rather than "no access",
+  so that identifiers cannot be enumerated
 
-## DTO
+## DTOs
 
-Структуры `msgspec.Struct` в теле контроллера или в `api/dto.py`. Имена полей повторяют то, что шлют экраны, вплоть до верблюжьего регистра: расхождение молча ломает разбор. Там, где имя нарушает питоновский стиль, ставится `# noqa: N815` с причиной.
+`msgspec.Struct` structures in the body of the controller or in `api/dto.py`. The
+field names repeat what the screens send, camel case included: a divergence
+breaks the parsing silently. Where a name violates the Python style, `# noqa:
+N815` is placed with a reason.
 
-Числовые границы задавать явно, а не надеяться на здравый смысл вызывающего.
+Set numeric bounds explicitly rather than relying on the good sense of the
+caller.
 
-## Отказы
+## Failures
 
-Каталог кодов в `apps/api/tessera_api/domain/errors.py`. Код это ключ перевода на экране.
+The catalogue of codes is in `apps/api/tessera_api/domain/errors.py`. A code is a
+translation key on the screen.
 
-Ловушка, перенесённая из первой версии: **код не должен оканчиваться суффиксом формы множественного числа** (`_one`, `_few`, `_many`, `_other`) — разбор примет его за форму числа и перевода не найдёт.
+The trap: **a code must not end with a plural form suffix** (`_one`, `_few`,
+`_many`, `_other`) — the parser would take it for a number form and would not
+find the translation.
 
-Новый код заводится в каталоге и в двенадцати словарях сразу, иначе человек увидит сырой ключ. Соответствие проверяет `apps/web/src/lib/i18n/error-codes.test.ts`.
+A new code is created in the catalogue and in all twelve dictionaries at once,
+otherwise a person sees a raw key. The correspondence is checked by
+`apps/web/src/lib/i18n/error-codes.test.ts`.
 
-## Права
+## Permissions
 
-- доступ к содержимому страницы только через `services/page_access.py`. Членства в space недостаточно: нужен доступ ко всем ограниченным предкам, а ближайший ограниченный предок определяет право записи
-- одно и то же правило обязано действовать в HTTP, в совместном редактировании, в списках, в уведомлениях, в событиях Socket.IO и в инструментах MCP. Добавил проверку в одном месте, проверь остальные
+- access to page content only through `services/page_access.py`. Space
+  membership is not enough: access to every restricted ancestor is required, and
+  the nearest restricted ancestor decides the write permission
+- one and the same rule must hold in HTTP, in collaborative editing, in the
+  lists, in the notifications, in the Socket.IO events and in the MCP tools. If
+  you added a check in one place, check the others
 
-## Ограничение частоты
+## Rate limiting
 
-Глобального предела на все маршруты нет. Отдельные пределы настроены для входа, чата ИИ, MCP и отрисовки PDF через `infrastructure/throttle.py`. Новый маршрут в этих областях обязан получить такую же проверку.
+There is no global limit over all routes. Separate limits are configured for
+sign-in, the AI chat, MCP and PDF rendering through
+`infrastructure/throttle.py`. A new route in those areas must get the same
+check.
 
-Адрес клиента берётся с учётом `TRUST_PROXY_HOPS`: доверять всей цепочке `X-Forwarded-For` нельзя, адрес подставляется заголовком.
+The client address is taken with `TRUST_PROXY_HOPS` in mind: the whole
+`X-Forwarded-For` chain cannot be trusted, since the address is substituted by a
+header.
 
-## Очереди и события
+## Queues and events
 
-Долгие и отложенные эффекты уходят в arq. Определения заданий в `jobs.py`, точка входа исполнителя в `worker.py`, обвязка в `infrastructure/queue.py`. Разделение намеренное: `jobs.py` импортируется без окружения, а `worker.py` требует готовых настроек.
+Long and deferred effects go to arq. The job definitions are in `jobs.py`, the
+worker entry point in `worker.py`, the plumbing in `infrastructure/queue.py`. The
+split is deliberate: `jobs.py` is imported without the environment, while
+`worker.py` requires ready settings.
 
-Не переносить в HTTP-запрос то, что сейчас выполняется в очереди (история, упоминания, обратные ссылки, индексация ИИ, наблюдатели, уведомления), не оценив идемпотентность и задержку.
+Do not move into an HTTP request what is currently executed on a queue (history,
+mentions, backlinks, AI indexing, watchers, notifications) without assessing
+idempotency and latency.
 
-## Тесты
+## Tests
 
-Проверки в `apps/api/tests`, pytest в режиме `asyncio_mode = auto`. Часть работает против настоящей базы и без `DATABASE_URL` пропускается — пропуск виден в выводе.
+The tests are in `apps/api/tests`, pytest with `asyncio_mode = auto`. Part of
+them run against a real database and are skipped without `DATABASE_URL` — the
+skip is visible in the output.
 
 ```
 uv run --project apps/api pytest
-uv run --project apps/api pytest -k <подстрока>
+uv run --project apps/api pytest -k <substring>
 ```
 
-Проверки на настоящей базе идут в откатываемой транзакции и ничего не оставляют. Так сделано потому, что связанные записи проверяются внешними ключами, а на заглушке ошибка порядка не видна вовсе.
+The tests on a real database run inside a transaction that is rolled back and
+leave nothing behind. It is done that way because the related rows are enforced
+by foreign keys, and on a stub an ordering mistake is not visible at all.
 
-## Антипаттерны
+## Antipatterns
 
-- запрос к базе внутри контроллера
-- импорт из `infrastructure` внутри `domain`
-- возврат словаря с описанием ошибки вместо отказа из каталога
-- готовый текст отказа вместо кода
-- новый маршрут выдачи содержимого без прохода через проверку доступа к странице
-- смешивание каналов: дерево и уведомления идут через Socket.IO, содержимое документа через Hocuspocus на `/collab`
-- ленивая загрузка связи в асинхронной сессии: она отвечает отказом, связь запрашивается через `selectinload`
+- a database query inside a controller
+- an import from `infrastructure` inside `domain`
+- returning a dictionary describing an error instead of a failure from the
+  catalogue
+- ready failure text instead of a code
+- a new content-serving route that does not go through the page access check
+- mixing the channels: the tree and the notifications go over Socket.IO, the
+  document content over Hocuspocus on `/collab`
+- lazy loading of a relationship in an async session: it answers with a failure,
+  and the relationship is requested through `selectinload`

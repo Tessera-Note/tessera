@@ -1,37 +1,50 @@
 ---
-description: Production сборка
-argument-hint: [all | web | editor-ext, по умолчанию all]
+description: Production build
+argument-hint: [all | web | editor-ext, all by default]
 ---
 
-Собери проект.
+Build the project.
 
-## Команды
+## Commands
 
-| Аргумент | Команда | Результат |
+| Argument | Command | Result |
 |---|---|---|
-| `all` | `pnpm build` | расширения редактора, затем экраны |
-| `web` | `pnpm --filter @tessera/web build` | шрифты Excalidraw, затем сборка Vite в `apps/web/build` |
-| `editor-ext` | `pnpm --filter @tessera/editor-ext build` | `tsc --build` в `packages/editor-ext/dist` |
+| `all` | `pnpm build` | the editor extensions, then the screens |
+| `web` | `pnpm --filter @tessera/web build` | the Excalidraw fonts, then the Vite build into `apps/web/build` |
+| `editor-ext` | `pnpm --filter @tessera/editor-ext build` | `tsc --build` into `packages/editor-ext/dist` |
 
-Приложение на Python не собирается: образ ставит зависимости через `uv sync` и запускает исходники.
+The Python application is not built: the image installs the dependencies with
+`uv sync` and runs the sources.
 
-## Порядок зависимостей
+## The order of dependencies
 
-Экраны берут типы из `packages/editor-ext/dist`, поэтому пакет собирается первым. Полный `pnpm build` этот порядок соблюдает сам.
+The screens take their types from `packages/editor-ext/dist`, so that package is
+built first. A full `pnpm build` keeps that order by itself.
 
-Сборка экранов начинается с копирования шрифтов Excalidraw в `apps/web/static/excalidraw-assets` (`apps/web/scripts/copy-excalidraw-assets.mjs`). Шаг обязателен: экземпляр раздаёт шрифты сам, а выгруженный SVG ссылается на путь `/excalidraw-assets/`. Без шага путь отвечает 404, и диаграмма уезжает без букв.
+The screens' build starts by copying the Excalidraw fonts into
+`apps/web/static/excalidraw-assets`
+(`apps/web/scripts/copy-excalidraw-assets.mjs`). The step is mandatory: the
+instance serves the fonts itself, and an exported SVG refers to the path
+`/excalidraw-assets/`. Without the step that path answers 404 and the diagram
+comes out without letters.
 
-## Если сборка упала
+## If the build failed
 
-Прочитать вывод и показать пользователю, не чиня молча. Частые причины.
+Read the output and show it to the user rather than fixing it silently. The
+common causes.
 
-- не установлены зависимости, нужен `pnpm install --frozen-lockfile`
-- отсутствует `packages/editor-ext/dist` при изолированной сборке экранов
-- скрипт шрифтов не нашёл пакет `@excalidraw/excalidraw`: зависимости не поставлены
-- ошибка типов после правки DTO на стороне приложения, при этом тип на экране не обновлён
+- the dependencies are not installed, `pnpm install --frozen-lockfile` is needed
+- `packages/editor-ext/dist` is missing while the screens are built on their own
+- the font script did not find the `@excalidraw/excalidraw` package: the
+  dependencies are not installed
+- a type error after a DTO change on the application side while the type on the
+  screen was not updated
 
-## После сборки
+## After the build
 
-Показать итоговые размеры чанков из вывода Vite. Если размер основного чанка внезапно вырос, проверить, не попал ли в него редактор: он грузится по требованию.
+Show the resulting chunk sizes from the Vite output. If the size of the main
+chunk has suddenly grown, check whether the editor ended up inside it: it is
+loaded on demand.
 
-Артефакт `apps/web/build` запускается узлом, `node apps/web/build/index.js`. Статика из `apps/web/static` попадает в сборку целиком.
+The `apps/web/build` artifact is run by Node, `node apps/web/build/index.js`. The
+static files from `apps/web/static` go into the build in full.

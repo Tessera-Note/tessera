@@ -1,116 +1,142 @@
 ---
 name: post-scope-review
-description: Обязательный чек-лист перед объявлением любой задачи завершенной. Применяется после фикса, фичи или рефактора, до слова «готово» в ответе пользователю. Включает stub-hunter, доменного ревьюера, pattern-grep того же класса бага, проверку покрытия тестами, линт и прогон тестов.
+description: The mandatory checklist before declaring any task finished. Applies after a fix, a feature or a refactor, before the word "done" in the answer to the user. It covers stub-hunter, the domain reviewer, a pattern grep for the same class of bug, a test coverage check, lint and a test run.
 ---
 
-# Пост-скоуп ревью
+# Post-scope review
 
-Прогонять после завершения любого scope и до сообщения пользователю о готовности. Пропуск шага допустим, только если он явно неприменим, и тогда это указывается в отчете словом «неприменимо».
+Run it after finishing any scope and before telling the user it is done. A step
+may be skipped only if it is clearly not applicable, and then the report says so
+with the words "not applicable".
 
-## Шаг 1. stub-hunter
+## Step 1. stub-hunter
 
-Запустить агента `stub-hunter` по измененным production-файлам.
+Run the `stub-hunter` agent over the changed production files.
 
-Находки в измененных файлах это блокер. TODO, FIXME, отладочный `print` и `console.log`, заглушка вместо реализации, пустой `except`, маршрут без guard. Чинить в этой же сессии.
+Findings in the changed files are a blocker. A TODO, a FIXME, a debug `print` or
+`console.log`, a stub instead of an implementation, an empty `except`, a route
+with no guard. Fix them in the same session.
 
-Находки в остальном коде записать в отчет как справку, не чинить без запроса.
+Findings in the rest of the code go into the report for reference; do not fix
+them unasked.
 
-## Шаг 2. Доменный ревьюер
+## Step 2. The domain reviewer
 
-| Что трогал | Кого запускать |
+| What you touched | Who to run |
 |---|---|
-| схема, модели, репозитории, запросы | `schema-reviewer` |
-| видимые пользователю строки, словари локалей | `i18n-reviewer` |
-| ни то, ни другое | неприменимо, написать явно |
+| the schema, models, repositories, queries | `schema-reviewer` |
+| user-facing strings, the locale dictionaries | `i18n-reviewer` |
+| neither | not applicable, say so explicitly |
 
-## Шаг 3. Pattern-grep того же класса бага
+## Step 3. A pattern grep for the same class of bug
 
-Самый важный шаг, его нельзя сокращать.
+The most important step; it must not be cut short.
 
-Если задача чинила конкретный класс проблемы, найти все остальные места в репозитории с тем же паттерном. Один фикс в одном месте почти никогда не закрывает класс целиком.
+If the task fixed a specific class of problem, find every other place in the
+repository with the same pattern. One fix in one place almost never closes the
+class as a whole.
 
-В этом репозитории один и тот же контракт обычно реализован в нескольких точках входа. Поэтому проверять надо все, а не только ту, где нашли баг.
+In this repository the same contract is usually implemented in several entry
+points. So all of them have to be checked, not only the one where the bug was
+found.
 
-| Класс правки | Где еще искать |
+| Class of change | Where else to look |
 |---|---|
-| проверка доступа к странице | контроллер в `api/`, инструмент MCP (`api/mcp.py`), события в `services/realtime.py`, совместное редактирование (`services/collab.py` и `services/collab`), поиск, экспорт, публичные ссылки, контекст ИИ |
-| фильтр по рабочему пространству | репозитории, MCP, поиск, эмбеддинги |
-| ограничение частоты | маршруты `/ai`, `/mcp`, `/pdf-export` |
-| код отказа | каталог `domain/errors.py` и двенадцать словарей, плюс `error-codes.test.ts` |
-| обновление дерева страниц | локальное состояние экрана, обращение к серверу, событие Socket.IO. Все три должны остаться согласованными |
-| очистка при потере доступа | избранное, наблюдатели, шары, эмбеддинги |
-| эффект после сохранения содержимого | очереди истории, упоминаний, обратных ссылок, индексации ИИ, уведомлений |
+| the page access check | the controller in `api/`, the MCP tools (`api/mcp.py`), the events in `services/realtime.py`, collaborative editing (`services/collab.py` and `services/collab`), search, export, public links, the AI context |
+| the workspace filter | repositories, MCP, search, embeddings |
+| rate limiting | the `/ai`, `/mcp`, `/pdf-export` routes |
+| a failure code | the catalogue in `domain/errors.py` and the twelve dictionaries, plus `error-codes.test.ts` |
+| updating the page tree | the local screen state, the call to the server, the Socket.IO event. All three must stay consistent |
+| cleanup when access is lost | favourites, watchers, shares, embeddings |
+| an effect after content is saved | the queues for history, mentions, backlinks, AI indexing, notifications |
 
-Способ выполнения: `Grep` по сигнатуре паттерна либо отдельный агент общего назначения с задачей найти аналоги. Результат в отчет, даже если аналогов нет.
+How to do it: `Grep` by the signature of the pattern, or a separate
+general-purpose agent with the task of finding the analogues. The result goes
+into the report even when there are no analogues.
 
-## Шаг 4. Test coverage gap
+## Step 4. Test coverage gap
 
-Для каждой новой публичной функции, новой ветки условия и нового пути исключения проверить наличие теста.
+For every new public function, new conditional branch and new exception path,
+check that a test exists.
 
-- приложение: `apps/api/tests`, запуск `uv run --project apps/api pytest -k <подстрока>`
-- экраны: рядом с кодом, `*.test.ts`, запуск `pnpm --filter @tessera/web test -- <путь>`
-- совместное редактирование: `services/collab/src/*.test.js`, запуск `node --test services/collab/src/*.test.js`
+- the application: `apps/api/tests`, run with `uv run --project apps/api pytest
+  -k <substring>`
+- the screens: next to the code, `*.test.ts`, run with `pnpm --filter
+  @tessera/web test -- <path>`
+- collaborative editing: `services/collab/src/*.test.js`, run with `node --test
+  services/collab/src/*.test.js`
 
-Отдельно проверить, не ушли ли проверки против базы в пропуск: без `DATABASE_URL` они помечаются `skipped`, и зелёный прогон тогда ничего не доказывает.
+Check separately whether the tests against the database went into skips: without
+`DATABASE_URL` they are marked `skipped`, and a green run then proves nothing.
 
-Теста нет, добавить в этой же сессии. Существующую тестовую инфраструктуру при этом не переделывать.
+If there is no test, add it in the same session. Do not rework the existing test
+infrastructure while doing so.
 
-## Шаг 5. Линт и тесты
+## Step 5. Lint and tests
 
-| Что трогал | Команды |
+| What you touched | Commands |
 |---|---|
-| приложение | `uv run --project apps/api ruff check .`, `uv run --project apps/api pytest` |
-| экраны | `pnpm --filter @tessera/web lint`, `pnpm --filter @tessera/web check`, `pnpm --filter @tessera/web test` |
-| совместное редактирование | `node --test services/collab/src/*.test.js` |
-| пакет расширений | `pnpm --filter @tessera/editor-ext build` |
-| межслойная задача | всё перечисленное |
+| the application | `uv run --project apps/api ruff check .`, `uv run --project apps/api pytest` |
+| the screens | `pnpm --filter @tessera/web lint`, `pnpm --filter @tessera/web check`, `pnpm --filter @tessera/web test` |
+| collaborative editing | `node --test services/collab/src/*.test.js` |
+| the extensions package | `pnpm --filter @tessera/editor-ext build` |
+| a cross-layer task | everything listed above |
 
-Ни линт приложения, ни линт экранов файлы не переписывают: обе команды только проверяют. Форматирование запускается отдельно и осознанно.
+Neither the application lint nor the screens lint rewrites files: both commands
+only check. Formatting is run separately and deliberately.
 
-Красных тестов в финальном отчете быть не должно. Если тест падал до твоих изменений, сказать об этом отдельно и показать, что падение не связано с задачей.
+There must be no red tests in the final report. If a test was failing before
+your changes, say so separately and show that the failure is unrelated to the
+task.
 
-## Шаг 6. Контекст для агентов
+## Step 6. The context for agents
 
-Проверить, менялось ли поведение, архитектура, граница модуля, команда, конфигурация или повторяющийся паттерн. Если да, обновить нужный файл в `docs/ai-context/` в этой же задаче. Если нет, написать в отчете, что оценка сделана и обновление не требуется.
+Check whether behavior, architecture, a module boundary, a command,
+configuration or a recurring pattern changed. If so, update the relevant file in
+`docs/ai-context/` in the same task. If not, write in the report that the
+assessment was made and no update is needed.
 
-## Шаг 7. Проверка собственных утверждений
+## Step 7. Checking your own claims
 
-Перечитать всё, что написано в этой же правке: комментарии в коде, сообщение
-коммита, ответ пользователю.
+Re-read everything written in this same change: the comments in the code, the
+commit message, the answer to the user.
 
-Каждое утверждение о поведении проверяется так же, как код. Слова-признаки:
-«обязан», «всегда», «никогда», «гарантирует», «см. ниже», «это невозможно».
+Every claim about behavior is checked the way code is. The telltale words:
+"must", "always", "never", "guarantees", "see below", "this is impossible".
 
-За одну сессию комментарий трижды обещал то, чего в коде нет: согласование
-паролей, которого не требуется; однократность решения, которой не было;
-страницу-заметку в выгрузке, которой не сделали. Каждый раз писал тот же
-человек, что делал правку, и каждый раз это ловилось позже, чужими глазами.
+In one session a comment promised three times what the code did not have:
+password agreement that is not required; a decision made once, which was not;
+a note page in an export that was never built. Every time it was written by the
+same person who made the change, and every time it was caught later, by someone
+else's eyes.
 
-Делать шагом здесь, а не в конце ответа: в конце забывается.
+Do it as a step here rather than at the end of the answer: at the end it gets
+forgotten.
 
-## Формат блока в ответе
+## The format of the block in the answer
 
 ```
-Пост-скоуп ревью
-1. stub-hunter: <результат>
-2. Доменный ревьюер: <какой, результат либо неприменимо>
-3. Pattern-grep: <что искал, сколько мест нашел, что сделал>
-4. Покрытие тестами: <какие тесты добавлены либо почему не нужны>
-5. Линт и тесты: <команды и их результат>
-6. docs/ai-context: <какой файл обновлен либо почему не требуется>
-7. Свои утверждения: <что перечитано, что исправлено>
+Post-scope review
+1. stub-hunter: <result>
+2. Domain reviewer: <which one, the result or not applicable>
+3. Pattern grep: <what was searched for, how many places were found, what was done>
+4. Test coverage: <which tests were added, or why none are needed>
+5. Lint and tests: <the commands and their result>
+6. docs/ai-context: <which file was updated, or why it is not needed>
+7. Own claims: <what was re-read, what was corrected>
 ```
 
-## Что считается блокером
+## What counts as a blocker
 
-Чинить в этой же сессии, не сообщать о готовности.
+Fix it in the same session; do not report readiness.
 
-- тот же класс бага, найденный в другом месте
-- нерабочий или падающий тест
-- рассинхрон схемы базы и кода
-- стаб или отладочный вывод в production коде
-- новый путь выдачи содержимого без проверки прав
+- the same class of bug found somewhere else
+- a test that does not work or that fails
+- a mismatch between the database schema and the code
+- a stub or debug output in production code
+- a new path that serves content without a permission check
 
-## Что не блокер
+## What is not a blocker
 
-Упомянуть в отчете и не править без подтверждения: стилистические замечания, отложенный рефакторинг, находки в файлах, которых задача не касалась.
+Mention it in the report and do not fix it without confirmation: stylistic
+remarks, deferred refactoring, findings in files the task never touched.

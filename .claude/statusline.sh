@@ -1,7 +1,9 @@
 #!/bin/bash
-# Claude Code передает JSON с данными сессии на вход скрипта (stdin).
-# Скрипт вытаскивает нужные поля и печатает одну строку, она и есть статус-строка.
-# Лимиты сессии и недели приходят только при входе через подписку Pro или Max.
+# Claude Code passes JSON with the session data to the script on stdin.
+# The script pulls out the fields it needs and prints one line, and that line is
+# the status line.
+# The session and week limits only arrive when signed in through a Pro or Max
+# subscription.
 
 input=$(cat)
 
@@ -11,8 +13,8 @@ five=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 week=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
 line="$model"
-[ -n "$ctx" ]  && line="$line | контекст ${ctx%.*}%"
-[ -n "$five" ] && line="$line | сессия(5ч) ${five%.*}%"
-[ -n "$week" ] && line="$line | неделя ${week%.*}%"
+[ -n "$ctx" ]  && line="$line | context ${ctx%.*}%"
+[ -n "$five" ] && line="$line | session(5h) ${five%.*}%"
+[ -n "$week" ] && line="$line | week ${week%.*}%"
 
 echo "$line"

@@ -1,72 +1,100 @@
 ---
 name: schema-changes
-description: Работа со схемой базы данных проекта. Применяется при добавлении таблицы или колонки, изменении индексов, правке моделей и написании запросов в репозиториях. База PostgreSQL, доступ через SQLAlchemy 2.0 async, схема объявляется целиком и применяется Atlas.
+description: Working with the database schema of the project. Applies when adding a table or a column, changing indexes, editing models and writing queries in repositories. The database is PostgreSQL, accessed through SQLAlchemy 2.0 async, and the schema is declared as a whole and applied by Atlas.
 ---
 
-# Схема и слой данных
+# The schema and the data layer
 
-## Когда применять
+## When to apply this
 
-Задача добавляет или меняет таблицу, колонку, индекс, ограничение. Либо добавляет запрос в репозиторий. Либо надо понять, откуда берётся схема.
+The task adds or changes a table, a column, an index or a constraint. Or it adds
+a query to a repository. Or you need to understand where the schema comes from.
 
-## Главное отличие от привычного
+## The main difference from the usual
 
-**Файлов миграций здесь нет.** Схема объявляется целиком в одном файле, а разницу с базой вычисляет Atlas. Не искать каталог `migrations` и не заводить его.
+**There are no migration files here.** The schema is declared as a whole in one
+file, and Atlas computes the difference against the database. Do not look for a
+`migrations` directory and do not create one.
 
-## Расклад по файлам
+## The layout of the files
 
-| Что | Где |
+| What | Where |
 |---|---|
-| объявленная схема | `apps/api/schema/schema.hcl`, около 3800 строк |
-| снимок для чистой базы | `apps/api/schema/baseline.sql`, руками не править |
-| доводка после Atlas | `apps/api/schema/after-atlas.sql`, руками не править |
-| модели | `apps/api/tessera_api/infrastructure/models.py` |
-| запросы | `apps/api/tessera_api/infrastructure/repositories.py` |
-| подключение и сессия | `apps/api/tessera_api/infrastructure/database.py` |
+| the declared schema | `apps/api/schema/schema.hcl`, about 3800 lines |
+| the snapshot for a clean database | `apps/api/schema/baseline.sql`, not edited by hand |
+| the touch-up after Atlas | `apps/api/schema/after-atlas.sql`, not edited by hand |
+| the models | `apps/api/tessera_api/infrastructure/models.py` |
+| the queries | `apps/api/tessera_api/infrastructure/repositories.py` |
+| the connection and the session | `apps/api/tessera_api/infrastructure/database.py` |
 
-В базе змеиный регистр (`workspace_id`), в DTO наружу верблюжий (`workspaceId`). Преобразование делает слой DTO, а не запрос.
+Snake case in the database (`workspace_id`), camel case in the DTOs served
+outward (`workspaceId`). The DTO layer does the conversion, not the query.
 
-## Порядок раскатки
+## The order of the rollout
 
-Три шага, порядок между ними обязателен.
+Three steps, and the order between them is mandatory.
 
-1. `tessera-v2-schema-base` — расширения, функции и умолчания первичных ключей
-2. `tessera-v2-schema-tables` — Atlas применяет `schema.hcl`
-3. `tessera-v2-schema-rest` — `after-atlas.sql`: триггеры полнотекстового поиска и индексы с сортировкой `C`
+1. `tessera-v2-schema-base` — the extensions, the functions and the primary key
+   defaults
+2. `tessera-v2-schema-tables` — Atlas applies `schema.hcl`
+3. `tessera-v2-schema-rest` — `after-atlas.sql`: the full-text search triggers
+   and the `C` collated indexes
 
-Почему так: триггеры ссылаются на таблицы, а таблицы создаёт Atlas. Функции, наоборот, нужны до него, иначе не построятся умолчания ключей.
+Why that way: the triggers refer to the tables, and the tables are created by
+Atlas. The functions, on the contrary, are needed before it, otherwise the key
+defaults cannot be built.
 
-## Порядок изменения схемы
+## The order for changing the schema
 
-1. Правка `apps/api/schema/schema.hcl`
-2. Посмотреть план: `atlas schema diff` от базы к файлу. Разрушающее изменение Atlas выполнит молча
-3. Применить
-4. Обновить модель в `models.py`
-5. Обновить запросы в `repositories.py`
-6. Запустить агента `schema-reviewer`
+1. Edit `apps/api/schema/schema.hcl`
+2. Look at the plan: `atlas schema diff` from the database to the file. Atlas
+   will carry out a destructive change silently
+3. Apply it
+4. Update the model in `models.py`
+5. Update the queries in `repositories.py`
+6. Run the `schema-reviewer` agent
 
-## Индексы с сортировкой C
+## The `C` collated indexes
 
-Четыре индекса по ключу порядка живут в `after-atlas.sql`, а не в `schema.hcl`, и перечислены в списке `--exclude` у шага Atlas.
+The four indexes on the order key live in `after-atlas.sql` rather than in
+`schema.hcl`, and they are listed in the `--exclude` list of the Atlas step.
 
-Причина замерена обоими концами: **Atlas в свободной редакции не видит `COLLATE` у колонки индекса**. Оставленные в `schema.hcl`, они удалялись бы и создавались заново при каждом подъёме — это перестройка индекса и блокировка на большой таблице.
+The reason was measured from both ends: **Atlas in the free edition does not see
+the `COLLATE` of an index column**. Left in `schema.hcl`, they would be dropped
+and created again on every bring-up — that is an index rebuild and a lock on a
+large table.
 
-Сортировка `C` нужна по существу: ключ порядка это дробный индекс, и сравнивать его строки надо побайтно. Под сортировкой базы `en_US.utf8` символ `h:` идёт раньше `h0`, и одиннадцатая строка списка прыгает в начало.
+The `C` collation is needed on the merits: the order key is a fractional index,
+and its strings have to be compared byte by byte. Under the database collation
+`en_US.utf8` the character `h:` comes before `h0`, and the eleventh row of a list
+jumps to the top.
 
-**А вот у колонки таблицы сортировка объявляется в `schema.hcl`, и Atlas её держит.** Замерено 16 сентября 2026: с `collate = "C"` у четырёх колонок `position` дифф против базы пуст, а шаг Atlas на подъёме докладывает «Schema is synced, no changes to be made». Без объявления тот же шаг применял четыре `ALTER COLUMN "position" TYPE character varying`, снимая сортировку, а следующий шаг возвращал её — две перезаписи таблицы за подъём. Заводишь колонку порядка — объявляй сортировку у неё, а не только в `after-atlas.sql`; сортировку колонок базы сторожит `apps/api/tests/test_position_collation.py`.
+**The collation of a table column, though, is declared in `schema.hcl`, and
+Atlas does keep it.** Measured on 16 September 2026: with `collate = "C"` on the
+four `position` columns the diff against the database is empty, and the Atlas
+step reports "Schema is synced, no changes to be made" on bring-up. Without the
+declaration the same step applied four `ALTER COLUMN "position" TYPE character
+varying`, removing the collation, and the next step put it back — two table
+rewrites per bring-up. When you create an order column, declare the collation on
+the column itself, not only in `after-atlas.sql`; the collation of the table
+columns is guarded by `apps/api/tests/test_position_collation.py`.
 
-Добавляешь такой индекс — добавь и исключение, иначе он будет пересоздаваться при каждом подъёме.
+When you add an index like that, add the exclusion too, otherwise it will be
+recreated on every bring-up.
 
-## Требования к изменению
+## Requirements for a change
 
-- разрушающее изменение (удаление колонки, сужение типа) показывать пользователю планом до применения
-- `NOT NULL` в непустой таблице добавлять в три шага: колонка, заполнение, ограничение
-- первичный ключ `uuid` с умолчанием `gen_uuid_v7()`, временные метки `timestamptz`
-- ссылку на рабочее пространство делать через `workspace_id` с каскадным удалением
-- на колонку внешнего ключа, по которой идёт выборка, ставить индекс
-- новый уникальный индекс — сначала проверить существующие дубликаты
+- show a destructive change (dropping a column, narrowing a type) to the user as
+  a plan before applying it
+- `NOT NULL` on a non-empty table is added in three steps: the column, the
+  filling, the constraint
+- a `uuid` primary key with the default `gen_uuid_v7()`, `timestamptz`
+  timestamps
+- a reference to the workspace goes through `workspace_id` with cascading delete
+- put an index on a foreign key column that queries select by
+- a new unique index — check the existing duplicates first
 
-## Запросы
+## Queries
 
 ```python
 class UserRepo:
@@ -74,32 +102,46 @@ class UserRepo:
         ...
 ```
 
-- запрос живёт в репозитории, а не в сервисе
-- выборка, принадлежащая рабочему пространству, всегда ограничена `workspace_id`
-- список, растущий вместе с рабочим пространством, всегда с пределом
-- фильтр доступа применяется до ограничения выборки, а не после
-- связь, к которой обратятся после запроса, загружается через `selectinload`: в асинхронной сессии ленивая загрузка отвечает отказом
-- атомарная операция идёт одной транзакцией, а не несколькими вызовами
+- a query lives in a repository, not in a service
+- a selection that belongs to a workspace is always limited by `workspace_id`
+- a list that grows along with the workspace always has a limit
+- the access filter is applied before the selection limit, not after it
+- a relationship that will be touched after the query is loaded through
+  `selectinload`: in an async session lazy loading answers with a failure
+- an atomic operation goes as one transaction rather than several calls
 
-## Общая база с первой версией
+## An external database that already exists
 
-Вторая версия подключается к той же базе и схему не пересоздаёт. Поэтому применение к общей базе обязано быть безопасным для работающей первой версии.
+The application connects to an existing database and does not recreate the
+schema. So applying anything to a shared database has to be safe for the
+instance that is running against it.
 
-Atlas к общей базе не применяется: в боевом составе шагов наката нет. Правка схемы, нужная на общей базе, в том же коммите несёт SQL, безопасный для работающей первой версии (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX CONCURRENTLY`), проверку после и пометку, нужен ли шаг до подъёма образа. Обязательные шаги стережёт `deploy/preflight-check.sql`: он отказывает, пока их не сделали. Шаг прогоняется на базе в исходном состоянии боевой до того, как попасть в порядок подъёма.
+Atlas is not applied to a shared database: the production set has no rollout
+steps. A schema change needed on a shared database carries, in the same commit,
+SQL that is safe for a running instance (`ADD COLUMN IF NOT EXISTS`, `CREATE
+INDEX CONCURRENTLY`), a check afterwards, and a note on whether the step is
+required before the image comes up. The mandatory steps are guarded by
+`deploy/preflight-check.sql`: it refuses while they have not been done. The step
+is exercised on a database in the starting state of production before it makes
+it into the bring-up order.
 
-## Проверка
+## Verification
 
 ```
 uv run --project apps/api pytest
-DATABASE_URL="postgresql://tessera:ПАРОЛЬ@АДРЕС:5432/tessera" uv run --project apps/api pytest
+DATABASE_URL="postgresql://tessera:PASSWORD@HOST:5432/tessera" uv run --project apps/api pytest
 ```
 
-Без `DATABASE_URL` проверки против базы пропускаются, пропуск виден в выводе. Такие проверки идут в откатываемой транзакции и в базе ничего не оставляют.
+Without `DATABASE_URL` the tests against the database are skipped, and the skip
+is visible in the output. Those tests run inside a transaction that is rolled
+back and leave nothing in the database.
 
-## Антипаттерны
+## Antipatterns
 
-- заведение каталога миграций «как привычнее»
-- правка `baseline.sql` или `after-atlas.sql` руками
-- поле добавлено в схему, но не заведено в модели, а код на него уже ссылается
-- запрос без ограничения рабочим пространством
-- выдача содержимого страницы без проверки прав через `services/page_access.py`
+- creating a migrations directory because "that is how it is usually done"
+- editing `baseline.sql` or `after-atlas.sql` by hand
+- a field added to the schema but not to the model while the code already refers
+  to it
+- a query with no workspace limit
+- serving page content without the permission check through
+  `services/page_access.py`

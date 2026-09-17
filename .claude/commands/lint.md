@@ -1,28 +1,33 @@
 ---
-description: Линт приложения и экранов
-argument-hint: [api | web, по умолчанию обе стороны]
+description: Lint for the application and the screens
+argument-hint: [api | web, both sides by default]
 ---
 
-Прогони линт.
+Run the lint.
 
-## Команды
+## Commands
 
-| Сторона | Команда | Поведение |
+| Side | Command | Behavior |
 |---|---|---|
-| приложение | `uv run --project apps/api ruff check .` | только проверка, файлы не меняются |
-| экраны | `pnpm --filter @tessera/web lint` | `prettier --check`, файлы не меняются |
-| внутренний сервис | `uv run ruff check .` в `services/hub` | только проверка |
+| the application | `uv run --project apps/api ruff check .` | check only, files are not changed |
+| the screens | `pnpm --filter @tessera/web lint` | `prettier --check`, files are not changed |
+| the internal service | `uv run ruff check .` in `services/hub` | check only |
 
-Ни одна из команд не переписывает файлы. Форматирование запускается отдельно и осознанно: `uv run --project apps/api ruff format .` для приложения, `pnpm --filter @tessera/web exec prettier --write .` для экранов.
+None of these commands rewrites files. Formatting is run separately and
+deliberately: `uv run --project apps/api ruff format .` for the application,
+`pnpm --filter @tessera/web exec prettier --write .` for the screens.
 
-## Конфигурация
+## Configuration
 
-- приложение: `[tool.ruff]` в `apps/api/pyproject.toml`, длина строки 100, набор правил `E,F,I,UP,B,SIM`
-- экраны: `prettier` с `prettier-plugin-svelte`
-- конфигурации линта без явной команды пользователя не менять
+- the application: `[tool.ruff]` in `apps/api/pyproject.toml`, line length 100,
+  rule set `E,F,I,UP,B,SIM`
+- the screens: `prettier` with `prettier-plugin-svelte`
+- do not change the lint configuration without an explicit command from the user
 
-Подавление правила снабжается причиной в том же месте, где стоит. Голый `# noqa` без кода и объяснения не проходит ревью.
+A suppressed rule carries a reason in the very place it stands. A bare `# noqa`
+with no code and no explanation does not pass review.
 
-## После прогона
+## After the run
 
-Перечислить оставшиеся нарушения. Одинаковые сгруппировать. Сам код без запроса не править.
+List the violations that are left. Group the identical ones. Do not edit the
+code itself without being asked.

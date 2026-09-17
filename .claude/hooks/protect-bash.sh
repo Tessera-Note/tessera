@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Блокирует опасные bash-команды до выполнения.
-# Зависимости: bash, jq.
+# Blocks dangerous bash commands before they run.
+# Dependencies: bash, jq.
 
 set -euo pipefail
 
-# Без jq разбор входа невозможен. Выходить надо именно кодом 2: любой другой
-# код PreToolUse не считает запретом, и запрещённая команда выполнилась бы —
-# защита открывалась бы молча ровно там, где её отсутствие незаметно.
+# Without jq the input cannot be parsed. The exit code has to be exactly 2: any
+# other code is not treated as a refusal by PreToolUse, and a forbidden command
+# would run — the protection would open up silently exactly where its absence
+# goes unnoticed.
 if ! command -v jq >/dev/null 2>&1; then
-  echo "BLOCKED: нет jq, разобрать команду нечем" 1>&2
-  echo "Установить jq либо снять хук из .claude/settings.json осознанно" 1>&2
+  echo "BLOCKED: no jq, nothing to parse the command with" 1>&2
+  echo "Install jq, or remove the hook from .claude/settings.json deliberately" 1>&2
   exit 2
 fi
 
@@ -20,36 +21,37 @@ if [ -z "$cmd" ]; then
   exit 0
 fi
 
-# Каждый элемент это пара "регулярка##причина".
-# Разделитель именно ##, потому что | встречается внутри самих регулярок.
-# Кавычки одинарные: в двойных bash раскрыл бы $## как переменную $#.
+# Every item is a "regex##reason" pair.
+# The separator is ## precisely because | occurs inside the regexes themselves.
+# The quotes are single: inside double ones bash would expand $## as the
+# variable $#.
 #
-# Правила про `.env` заканчиваются якорем: без него они закрывали бы и
-# `.env.example`, который лежит в индексе и правится штатно.
+# The rules about `.env` end with an anchor: without it they would also close
+# `.env.example`, which is in the index and is edited as a matter of course.
 deny_rules=(
-  'rm +-rf +/##удаление от корня'
-  'rm +-rf +~##удаление домашней директории'
-  'rm +-rf +\*##удаление по маске'
-  'rm +-rf +\.( |$)##удаление текущей директории'
-  'npm +publish##публикация пакета'
-  'pnpm +publish##публикация пакета'
-  'npm +version##бамп версии пакета'
-  'uv +publish##публикация пакета'
-  'git +push +--force##принудительный push'
-  'git +push +-f( |$)##принудительный push'
-  'git +reset +--hard##потеря незакоммиченных изменений'
-  'chmod +777##небезопасные права'
-  '>>? *"?[^ "]*\.env($|[^.a-zA-Z0-9_-])##перезапись .env'
-  'cp +.+ +\.env( |$)##перезапись .env копированием'
-  'mv +.+ +\.env( |$)##перезапись .env переносом'
-  '(^|[;&|(] *)atlas +schema +apply##изменение схемы базы, выполняется составом и осознанно'
-  'docker +compose +down +.*-v##удаление docker-томов с данными'
-  'docker +volume +rm##удаление docker-тома с данными'
-  '(^|[;&|(] *)docker +system +prune##удаление чужих образов и томов на общей машине'
-  'DROP +TABLE##разрушающий SQL'
-  'DROP +DATABASE##разрушающий SQL'
-  'TRUNCATE +##разрушающий SQL'
-  'pnpm +install +--no-frozen-lockfile##расхождение с pnpm-lock.yaml'
+  'rm +-rf +/##deleting from the root'
+  'rm +-rf +~##deleting the home directory'
+  'rm +-rf +\*##deleting by a mask'
+  'rm +-rf +\.( |$)##deleting the current directory'
+  'npm +publish##publishing a package'
+  'pnpm +publish##publishing a package'
+  'npm +version##bumping the package version'
+  'uv +publish##publishing a package'
+  'git +push +--force##force push'
+  'git +push +-f( |$)##force push'
+  'git +reset +--hard##loss of uncommitted changes'
+  'chmod +777##unsafe permissions'
+  '>>? *"?[^ "]*\.env($|[^.a-zA-Z0-9_-])##overwriting .env'
+  'cp +.+ +\.env( |$)##overwriting .env by copying'
+  'mv +.+ +\.env( |$)##overwriting .env by moving'
+  '(^|[;&|(] *)atlas +schema +apply##changing the database schema, done by the set and deliberately'
+  'docker +compose +down +.*-v##deleting docker volumes that hold data'
+  'docker +volume +rm##deleting a docker volume that holds data'
+  '(^|[;&|(] *)docker +system +prune##deleting images and volumes of other projects on a shared machine'
+  'DROP +TABLE##destructive SQL'
+  'DROP +DATABASE##destructive SQL'
+  'TRUNCATE +##destructive SQL'
+  'pnpm +install +--no-frozen-lockfile##divergence from pnpm-lock.yaml'
 )
 
 for rule in "${deny_rules[@]}"; do
@@ -57,9 +59,9 @@ for rule in "${deny_rules[@]}"; do
   reason="${rule#*##}"
   if echo "$cmd" | grep -Eiq "$pat"; then
     echo "BLOCKED: $reason" 1>&2
-    echo "Команда: $cmd" 1>&2
-    echo "Паттерн: $pat" 1>&2
-    echo "Если операция действительно нужна, попроси пользователя выполнить ее вручную" 1>&2
+    echo "Command: $cmd" 1>&2
+    echo "Pattern: $pat" 1>&2
+    echo "If the operation is really needed, ask the user to run it by hand" 1>&2
     exit 2
   fi
 done

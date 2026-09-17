@@ -1,32 +1,39 @@
 ---
-description: Обязательное пост-скоуп ревью перед объявлением задачи готовой
+description: The mandatory post-scope review before declaring a task finished
 ---
 
-Прогони пост-скоуп ревью по скилу `.claude/skills/post-scope-review/SKILL.md`.
+Run the post-scope review by the skill
+`.claude/skills/post-scope-review/SKILL.md`.
 
-Порядок шагов.
+The order of the steps.
 
-1. `stub-hunter` по измененным production-файлам
-2. доменный ревьюер: `schema-reviewer` при правках схемы, моделей или репозиториев, `i18n-reviewer` при правках текстов и словарей. Если ни то, ни другое, написать «неприменимо»
-3. pattern-grep того же класса бага по всему репозиторию. Помнить, что один контракт здесь обычно реализован сразу в нескольких точках: HTTP, MCP, Socket.IO, коллаборация, поиск, экспорт, публичные шары, контекст ИИ
-4. проверка покрытия тестами для каждой новой функции, ветки и пути исключения
-5. линт и прогон тестов затронутой части
-6. оценка необходимости обновить `docs/ai-context/`
-7. проверка собственных утверждений: комментарии, сообщение коммита и ответ перечитываются так же, как код
+1. `stub-hunter` over the changed production files
+2. the domain reviewer: `schema-reviewer` for changes to the schema, the models
+   or the repositories, `i18n-reviewer` for changes to text and dictionaries. If
+   neither applies, write "not applicable"
+3. a pattern grep for the same class of bug across the repository. Remember that
+   one contract here is usually implemented in several points at once: HTTP, MCP,
+   Socket.IO, collaboration, search, export, public shares, the AI context
+4. a test coverage check for every new function, branch and exception path
+5. lint and a test run for the part you touched
+6. an assessment of whether `docs/ai-context/` needs updating
+7. checking your own claims: comments, the commit message and the answer are
+   re-read the way code is
 
-Ответ обязан заканчиваться блоком.
+The answer must end with the block.
 
 ```
-Пост-скоуп ревью
+Post-scope review
 1. stub-hunter: ...
-2. Доменный ревьюер: ...
-3. Pattern-grep: ...
-4. Покрытие тестами: ...
-5. Линт и тесты: ...
+2. Domain reviewer: ...
+3. Pattern grep: ...
+4. Test coverage: ...
+5. Lint and tests: ...
 6. docs/ai-context: ...
-7. Свои утверждения: ...
+7. Own claims: ...
 ```
 
-Шаги, которые не применимы, помечать явно, не пропускать молча.
+Mark the steps that do not apply explicitly; do not skip them silently.
 
-Критичные находки чинить в этой же сессии и не сообщать о готовности до их устранения. Некритичные перечислить и не править без подтверждения.
+Fix critical findings in the same session and do not report readiness until they
+are gone. List the non-critical ones and do not fix them without confirmation.

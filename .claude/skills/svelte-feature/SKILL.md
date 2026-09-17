@@ -1,28 +1,30 @@
 ---
 name: svelte-feature
-description: Паттерн клиентского кода в этом проекте. Применяется при добавлении экрана, компонента, обращения к серверу, работе с состоянием, кешем и событиями реального времени на стороне apps/web.
+description: The pattern for client code in this project. Applies when adding a screen, a component or a call to the server, and when working with state, the cache and real-time events on the apps/web side.
 ---
 
-# Клиентская фича
+# A client feature
 
-## Когда применять
+## When to apply this
 
-Добавляется компонент, страница, маршрут, обращение к серверу, обработка события реального времени.
+A component, a page, a route, a call to the server or the handling of a real-time
+event is being added.
 
-## Порядок работы
+## The order of work
 
-Для фичи с обращением к серверу двигаться строго в этом порядке.
+For a feature with a call to the server, move strictly in this order.
 
 ```
-lib/features/<домен>/services/<предмет>.ts   типы данных и функции над сервером
-lib/components/<домен>/*.svelte              разметка
-routes/(app)/<путь>/+page.server.ts          загрузка данных для отрисовки на сервере
-routes/(app)/<путь>/+page.svelte             сборка экрана
+lib/features/<domain>/services/<subject>.ts   data types and functions over the server
+lib/components/<domain>/*.svelte              markup
+routes/(app)/<path>/+page.server.ts           loading data for server rendering
+routes/(app)/<path>/+page.svelte              assembling the screen
 ```
 
-Компонент не вызывает `fetch` напрямую и не разбирает ответы. Обращение живёт в `services`, общий транспорт в `lib/api/client.ts`.
+A component does not call `fetch` directly and does not parse answers. The call
+lives in `services`, and the shared transport in `lib/api/client.ts`.
 
-## Обращение к серверу
+## Calling the server
 
 ```ts
 import { post } from '$lib/api/client';
@@ -34,49 +36,74 @@ export async function attachmentInfo(attachmentId: string): Promise<Attachment> 
 }
 ```
 
-- транспорт в `lib/api/client.ts`, адрес приложения даёт `lib/api/base.ts`. Префикс `/api` пишется в самом пути, база его не добавляет
-- `credentials: 'include'` обязателен и уже задан: вход держится в куке
-- обращения оформляются как `POST` с телом, следуя контроллерам приложения
-- **отказ разбирается по коду, а не по тексту.** Сервер отдаёт `{code, message, params}`, экран переводит по коду. Показать `message` значит показать английский текст человеку с любой из двенадцати локалей
-- отказ не проглатывать: он всплывает как `ApiError`, и решение о показе принимает вызывающий
+- the transport is in `lib/api/client.ts`, and the application address comes from
+  `lib/api/base.ts`. The `/api` prefix is written in the path itself; the base
+  does not add it
+- `credentials: 'include'` is mandatory and already set: sign-in is held in a
+  cookie
+- calls are shaped as a `POST` with a body, following the application
+  controllers
+- **a failure is parsed by its code, not by its text.** The server serves
+  `{code, message, params}`, and the screen translates by the code. Showing
+  `message` means showing English text to a person on any of the twelve locales
+- do not swallow a failure: it surfaces as an `ApiError`, and the caller decides
+  whether to show it
 
-## Отрисовка на сервере
+## Server rendering
 
-Серверные загрузчики (`+page.server.ts`, `+layout.server.ts`, `hooks.server.ts`) выполняются в процессе Node и куку сами не подставляют: её надо переложить из входящего запроса. Без этого страница, отрисованная сервером, всегда выглядит как «не вошёл».
+The server loaders (`+page.server.ts`, `+layout.server.ts`, `hooks.server.ts`)
+run in the Node process and do not attach the cookie themselves: it has to be
+carried over from the incoming request. Without that a server-rendered page
+always looks "not signed in".
 
-Адрес приложения для серверной стороны берётся из `API_INTERNAL_URL` и в браузер не попадает. Публичные значения объявлены как `PUBLIC_*`.
+The application address for the server side comes from `API_INTERNAL_URL` and
+never reaches the browser. Public values are declared as `PUBLIC_*`.
 
-## Состояние
+## State
 
-- состояние экрана на рунах Svelte 5: `$state`, `$derived`, `$effect`
-- разделяемое состояние в `lib/stores/*.svelte.ts` и в модулях `*.svelte.ts` внутри фичи
-- библиотеки серверного состояния в проекте нет. Данные приходят загрузчиком маршрута либо модулем `services`
+- screen state is on Svelte 5 runes: `$state`, `$derived`, `$effect`
+- shared state goes in `lib/stores/*.svelte.ts` and in `*.svelte.ts` modules
+  inside the feature
+- there is no server-state library in the project. Data arrives from the route
+  loader or from a `services` module
 
-Дерево страниц это особый случай. Изменение обязано согласованно сделать три вещи: обновить локальное состояние, обратиться к серверу и отправить событие. Пропуск любого шага рассинхронизирует вкладки.
+The page tree is a special case. A change must consistently do three things:
+update the local state, call the server and emit an event. Skipping any step
+desyncs the tabs.
 
-## Компоненты
+## Components
 
-- стилизация Tailwind. Другой подход к стилям не вводить
-- общие примитивы в `lib/components/ui`, переиспользовать их, а не заводить свои
-- файлы компонентов в верблюжьем регистре с большой буквы (`CopyButton.svelte`), модули логики в кебаб-кейсе (`order-key.ts`)
-- любой видимый пользователю текст через перевод: `import { locale } from '$lib/stores/i18n.svelte'`, затем `const t = $derived(locale.t)`. См. скил `i18n`
+- styling with Tailwind. Do not introduce another approach to styles
+- shared primitives are in `lib/components/ui`; reuse them rather than creating
+  your own
+- component files in capitalized camel case (`CopyButton.svelte`), logic modules
+  in kebab case (`order-key.ts`)
+- any user-facing text goes through a translation: `import { locale } from
+  '$lib/stores/i18n.svelte'`, then `const t = $derived(locale.t)`. See the `i18n`
+  skill
 
-## Маршруты
+## Routes
 
-Группы маршрутов разделяют оболочки: `(app)` требует входа, `(auth)` показывает формы входа, `(share)` отдаёт публичную ссылку, `(render)` служит отрисовке PDF.
+The route groups separate the shells: `(app)` requires sign-in, `(auth)` shows
+the sign-in forms, `(share)` serves a public link, `(render)` serves PDF
+rendering.
 
-Тяжёлые части грузятся по требованию уже внутри страницы: редактор, диаграммы, история. Читатель без прав на правку получает вариант только для чтения и не поднимает соединение совместного редактирования. Это сделано намеренно, не ломать.
+The heavy parts load on demand inside the page already: the editor, the diagrams,
+the history. A reader without edit permission gets the read-only variant and does
+not open a collaborative editing connection. That is deliberate; do not break it.
 
-## Реальное время
+## Real time
 
-Два независимых канала.
+Two independent channels.
 
-- Socket.IO (`lib/features/realtime/socket.ts`): дерево, страницы, комментарии, уведомления
-- Hocuspocus на `/collab`: содержимое документа
+- Socket.IO (`lib/features/realtime/socket.ts`): the tree, pages, comments,
+  notifications
+- Hocuspocus on `/collab`: the document content
 
-Не подменять один другим. Событие о переименовании страницы идёт по первому каналу, текст страницы по второму.
+Do not substitute one for the other. The event about a page being renamed goes
+over the first channel, the text of the page over the second.
 
-## Проверка
+## Verification
 
 ```
 pnpm --filter @tessera/web check      # svelte-check
@@ -84,16 +111,19 @@ pnpm --filter @tessera/web test       # Vitest
 pnpm --filter @tessera/web lint       # prettier --check
 ```
 
-Проверки лежат рядом с кодом: `*.test.ts` для обычных модулей, `*.dom.test.ts` и `*.svelte.test.ts` там, где нужен DOM.
+The tests sit next to the code: `*.test.ts` for ordinary modules,
+`*.dom.test.ts` and `*.svelte.test.ts` where a DOM is needed.
 
-После правок интерфейса открыть страницу в браузере и прокликать сценарий. Проверка типов проверяет код, а не работоспособность экрана.
+After interface changes, open the page in a browser and click through the
+scenario. A type check checks the code, not whether the screen works.
 
-## Антипаттерны
+## Antipatterns
 
-- `fetch` внутри компонента
-- показ `message` из отказа вместо перевода по коду
-- жёстко зашитый текст в компоненте, где рядом уже берётся перевод
-- новый подход к стилям вместо Tailwind
-- «универсальный» компонент с десятком булевых флагов вместо двух отдельных
-- обновление дерева страниц только локально, без обращения к серверу и без события
-- обращение к приватному окружению из кода, попадающего в браузер
+- `fetch` inside a component
+- showing `message` from a failure instead of the translation by code
+- text hard-wired into a component that already takes a translation nearby
+- a new approach to styles instead of Tailwind
+- a "universal" component with a dozen boolean flags instead of two separate
+  ones
+- updating the page tree locally only, with no call to the server and no event
+- reading the private environment from code that ends up in the browser

@@ -1,10 +1,10 @@
 ---
-description: Проверка согласованности словарей локализации
+description: Checking the consistency of the localization dictionaries
 ---
 
-Проверь локализацию.
+Check the localization.
 
-## Шаг 1. Валидность JSON
+## Step 1. Valid JSON
 
 ```
 for l in de-DE en-US es-ES fr-FR it-IT ja-JP ko-KR nl-NL pt-BR ru-RU uk-UA zh-CN; do
@@ -12,34 +12,37 @@ for l in de-DE en-US es-ES fr-FR it-IT ja-JP ko-KR nl-NL pt-BR ru-RU uk-UA zh-CN
 done
 ```
 
-## Шаг 2. Согласованность наборов ключей
+## Step 2. Consistency of the key sets
 
 ```
 pnpm --filter @tessera/web test -- dictionaries
 ```
 
-Проверка `apps/web/src/lib/i18n/dictionaries.test.ts` сверяет наборы ключей во
-всех двенадцати словарях. Ориентир: 2318 ключей у десяти локалей и 2336 у
-`ru-RU` и `uk-UA` — разница это славянские формы `_few` и `_many` у девяти
-множественных семейств.
+The test `apps/web/src/lib/i18n/dictionaries.test.ts` compares the key sets
+across all twelve dictionaries. For reference: 1144 keys in ten locales and 1156
+in `ru-RU` and `uk-UA` — the difference is the Slavic `_few` and `_many` forms of
+six plural families.
 
-Отдельно `error-codes.test.ts` сверяет, что каждый код отказа, который отдаёт
-приложение, разворачивается словарём в текст.
+Separately, `error-codes.test.ts` checks that every failure code the application
+serves is expanded into text by the dictionary.
 
-## Шаг 3. Глубокий анализ
+## Step 3. A deeper analysis
 
-Запустить агента `i18n-reviewer`. Он проверит:
+Run the `i18n-reviewer` agent. It will check:
 
-- ключи, используемые в коде и отсутствующие в `en-US`, это блокер
-- захардкоженные пользовательские тексты в компонентах, где рядом уже есть перевод
-- сломанную подстановку: переменная в значении не передана в код или наоборот
-- расхождение множественных форм между локалями
-- дубли одной фразы под разными ключами
+- keys used in the code and missing from `en-US`; that is a blocker
+- hard-wired user-facing texts in components that already take a translation
+  nearby
+- broken substitution: a variable in a value that is not passed from the code, or
+  the other way round
+- a divergence of the plural forms between locales
+- duplicates of one phrase under different keys
 
-## Шаг 4. Отчет
+## Step 4. The report
 
-Показать результат агента пользователю. Сам ничего не переводить: правка
-словаря это отдельное действие, и делает его тот, кто вызвал проверку.
+Show the agent's result to the user. Do not translate anything yourself: editing
+a dictionary is a separate action, and it is done by whoever asked for the check.
 
-Синхронизация переводов выключена (`crowdin.yml`), словари ведутся в
-репозитории. Правится любой словарь напрямую, перезаписывать его больше нечему.
+Translation synchronization is off (`crowdin.yml`) and the dictionaries are kept
+in the repository. Any dictionary is edited directly, and there is nothing left
+that would overwrite it.
