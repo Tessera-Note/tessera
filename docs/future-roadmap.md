@@ -123,10 +123,10 @@ honest either way.
 
 The documentation, the agent configuration, the deployment files and the
 repository scripts are in English. The comments, docstrings and test names in
-the sources are not: about 21 thousand lines across 651 files — `apps/api`
-13807 lines in 219 files, `apps/web` 6385 in 360, `services/collab` 540 in 11,
-`services/hub` 202 in 28, `packages/editor-ext` 79 in 10 (measured 17 September
-2026).
+the sources are not: 21010 lines across 627 files — `apps/api` 13807 lines in
+219 files, `apps/web` 6382 in 359, `services/collab` 540 in 11, `services/hub`
+202 in 28, `packages/editor-ext` 79 in 10 (measured 17 September 2026, the
+locale dictionaries excluded).
 
 This was deliberately not done in one pass: the post-release policy allows
 minimal diffs only, the project rule says comments stay in the language of the
