@@ -184,7 +184,7 @@ class ScimGroupService:
         if not name or not name.strip():
             raise ScimError(
                 400,
-                "Поле displayName обязательно и не может быть пустым",
+                "The displayName field is required and cannot be empty",
                 SCIM_INVALID_VALUE,
                 code="scim.group_name_missing",
             )
@@ -196,14 +196,14 @@ class ScimGroupService:
         if await self._by_name(workspace, name) is not None:
             raise ScimError(
                 409,
-                f'Группа с displayName "{name}" уже есть',
+                f'A group with displayName "{name}" already exists',
                 SCIM_UNIQUENESS,
                 code="scim.group_name_taken",
             )
         if data.external_id and await self._by_external_id(workspace, data.external_id):
             raise ScimError(
                 409,
-                f'externalId "{data.external_id}" уже занят другой группой',
+                f'externalId "{data.external_id}" is already taken by another group',
                 SCIM_UNIQUENESS,
                 code="scim.group_external_id_taken",
             )
@@ -235,9 +235,7 @@ class ScimGroupService:
         if data.member_ids:
             for user_id in await self._known_members(workspace, data.member_ids):
                 await self._session.execute(
-                    insert(GroupUser).values(
-                        id=uuid.uuid4(), user_id=user_id, group_id=group_id
-                    )
+                    insert(GroupUser).values(id=uuid.uuid4(), user_id=user_id, group_id=group_id)
                 )
 
         await self._session.commit()
@@ -256,7 +254,7 @@ class ScimGroupService:
                 if occupied is not None and occupied.id != group.id:
                     raise ScimError(
                         409,
-                        f'Группа с displayName "{name}" уже есть',
+                        f'A group with displayName "{name}" already exists',
                         SCIM_UNIQUENESS,
                         code="scim.group_name_taken",
                     )
@@ -266,11 +264,11 @@ class ScimGroupService:
             duplicate = await self._by_external_id(workspace, data.external_id)
             if duplicate is not None and duplicate.id != group.id:
                 raise ScimError(
-                409,
-                f'externalId "{data.external_id}" уже занят другой группой',
-                SCIM_UNIQUENESS,
-                code="scim.group_external_id_taken",
-            )
+                    409,
+                    f'externalId "{data.external_id}" is already taken by another group',
+                    SCIM_UNIQUENESS,
+                    code="scim.group_external_id_taken",
+                )
             values["scim_external_id"] = data.external_id
             values["directory_key"] = data.external_id
         # Отсутствующий externalId сохраняется по той же причине, что у
@@ -328,7 +326,7 @@ class ScimGroupService:
         if group.is_default:
             raise ScimError(
                 400,
-                f'Группа "{group.name}" — группа по умолчанию, она не удаляется',
+                f'The group "{group.name}" is the default group and cannot be deleted',
                 SCIM_INVALID_VALUE,
                 code="scim.group_default_not_deletable",
             )

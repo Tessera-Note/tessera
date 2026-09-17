@@ -10,7 +10,7 @@ Every synchronization failure arrives in the response body per RFC 7644:
   "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
   "status": "409",
   "scimType": "uniqueness",
-  "detail": "[scim.user_external_id_taken] externalId \"a1b2\" ..."
+  "detail": "[scim.user_external_id_taken] externalId \"a1b2\" is already taken by another record"
 }
 ```
 
@@ -21,8 +21,7 @@ value the synchronization stumbled on. `scimType` is set by the protocol and
 tells the provider whether to retry the request; the code tells a person what
 exactly happened.
 
-Parse the code, never the wording: the words after the code are currently
-emitted in Russian by the application, and they are not part of the contract.
+Parse the code, not the wording: a wording may be rephrased, a code may not.
 
 Codes are not reused: a reason that is removed does not hand its code to
 another.

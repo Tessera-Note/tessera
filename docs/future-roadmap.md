@@ -89,22 +89,6 @@ The scheme, if the answer changes: a generation mark, a key of the form
 mark. The mark is global rather than per space: permission edits are rare, and a
 global mark cannot be forgotten.
 
-## SCIM failures are emitted in Russian while the context claims English
-
-`services/scim_users.py` and `services/scim_groups.py` build the `detail` of a
-failure in Russian (`scim_users.py:216`, for example). At the same time
-`docs/ai-context/enterprise-security.md` states that SCIM failures deliberately
-stay in English, because they are read by an identity management system rather
-than by a person. One of the two is wrong, and the code is what the
-administrator of Okta or Entra ID actually sees.
-
-The two fixes are mutually exclusive, so the decision comes first: either the
-strings in the two services move to English (about twenty strings, plus the
-tests that assert them), or the claim in the context file is corrected to
-describe what the code does. `docs/scim-errors.md` already says that the wording
-after the code is Russian and must not be parsed, so the public documentation is
-honest either way.
-
 ## The comments in the sources are in Russian
 
 The documentation, the agent configuration, the deployment files and the

@@ -115,9 +115,7 @@ class ScimUserService:
         совпавшее, а не длину страницы.
         """
         stmt = (
-            select(User)
-            .where(User.workspace_id == workspace.id)
-            .where(User.deleted_at.is_(None))
+            select(User).where(User.workspace_id == workspace.id).where(User.deleted_at.is_(None))
         )
         counting = (
             select(func.count())
@@ -203,7 +201,7 @@ class ScimUserService:
         if not email:
             raise ScimError(
                 400,
-                "Поле userName обязательно и не может быть пустым",
+                "The userName field is required and cannot be empty",
                 SCIM_INVALID_VALUE,
                 code="scim.user_name_missing",
             )
@@ -213,7 +211,7 @@ class ScimUserService:
             if duplicate is not None:
                 raise ScimError(
                     409,
-                    f'externalId "{data.external_id}" уже занят другой записью',
+                    f'externalId "{data.external_id}" is already taken by another record',
                     SCIM_UNIQUENESS,
                     code="scim.user_external_id_taken",
                 )
@@ -223,7 +221,7 @@ class ScimUserService:
             if existing.scim_external_id and existing.scim_external_id != data.external_id:
                 raise ScimError(
                     409,
-                    f'Адрес {email} занят записью с другим externalId '
+                    f"The address {email} belongs to a record with a different externalId "
                     f'("{existing.scim_external_id}")',
                     SCIM_UNIQUENESS,
                     code="scim.user_email_bound_to_other_external_id",
@@ -274,9 +272,7 @@ class ScimUserService:
         ).scalar_one_or_none()
         if default_group is not None:
             await self._session.execute(
-                insert(GroupUser).values(
-                    id=uuid.uuid4(), user_id=user_id, group_id=default_group
-                )
+                insert(GroupUser).values(id=uuid.uuid4(), user_id=user_id, group_id=default_group)
             )
 
     async def apply(
@@ -299,7 +295,7 @@ class ScimUserService:
             if occupied is not None and occupied.id != person.id:
                 raise ScimError(
                     409,
-                    f"Адрес {email} уже занят другой записью",
+                    f"The address {email} is already taken by another record",
                     SCIM_UNIQUENESS,
                     code="scim.user_email_taken",
                 )
@@ -310,7 +306,7 @@ class ScimUserService:
             if duplicate is not None and duplicate.id != person.id:
                 raise ScimError(
                     409,
-                    f'externalId "{data.external_id}" уже занят другой записью',
+                    f'externalId "{data.external_id}" is already taken by another record',
                     SCIM_UNIQUENESS,
                     code="scim.user_external_id_taken",
                 )
@@ -373,8 +369,8 @@ class ScimUserService:
             # `mutability` с кодом 400 — тем же, каким отвечает ручной путь.
             raise ScimError(
                 400,
-                f"{person.email} — последний владелец рабочего пространства: "
-                "active=false оставило бы его без владельца",
+                f"{person.email} is the last owner of the workspace: "
+                "active=false would leave it without an owner",
                 SCIM_MUTABILITY,
                 code="scim.user_last_owner",
             )
