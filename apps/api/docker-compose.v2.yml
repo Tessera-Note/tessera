@@ -92,7 +92,7 @@ services:
   # памяти процесса, и рассылки между репликами здесь нет: два человека,
   # попавшие на разные реплики, правили бы разные копии одной страницы и не
   # сошлись бы — молча, без единого отказа. Прежде чем поднимать второй,
-  # см. `docs/future-roadmap.md`, раздел о рассылке между репликами.
+  # см. `docs/ai-context/collaboration-realtime.md`.
   tessera-v2-collab:
     build:
       context: ../..
@@ -109,7 +109,7 @@ services:
       COLLAB_INTERNAL_TOKEN: ${COLLAB_INTERNAL_TOKEN:?COLLAB_INTERNAL_TOKEN обязателен}
       # Допуск подключений без имени документа в адресе. Только на время
       # раскатки при одной реплике; до второй реплики выключается, порядок в
-      # docs/v2-migration/09-switchover.md.
+      # docs/ai-context/collaboration-realtime.md.
       COLLAB_ALLOW_UNNAMED_DOCUMENT: ${COLLAB_ALLOW_UNNAMED_DOCUMENT:-false}
     ports:
       # Канал редактирования открывает браузер, поэтому порт публикуется.

@@ -59,20 +59,6 @@ right after. Giving up soft deletion would remove the incident analysis it
 exists for. The item is closed once an older deployment is no longer a rollback
 path; until then the guard is mandatory on every rollback.
 
-## A fractional trash retention is accepted by the field and refused by the server
-
-**Not critical, cheap: the field takes whole numbers only — one line.**
-
-The retention field in the workspace settings is an ordinary text input, and the
-hint honestly renders a fraction: "after 1.5 days". It cannot be saved:
-`trashRetentionDays` in the DTO is declared as an integer
-(`apps/api/tessera_api/api/workspace.py:79`), and the server refuses. A person
-sees a sensible hint and an incomprehensible refusal on save.
-
-Fixed on the screen side: the field takes whole numbers only, and a fraction
-never reaches the server. The hint needs no change, it reads whatever is in the
-field.
-
 ## `base_views` is ordered without an index on the order key
 
 **Not critical: the volume per page is small.**
