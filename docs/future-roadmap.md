@@ -72,6 +72,26 @@ the schema reviewer on 16 September 2026.
 Revisit when a base gets dozens of views per page. Right now there are a few,
 and the sort runs over a handful of rows.
 
+## `packages/editor-ext` is checked by no lint command
+
+**Not critical: the divergence is formatting only.**
+
+The package carries its own `.prettierrc` (`singleQuote`, `trailingComma:
+all`) and no lint script — `scripts` holds `build` and `dev`. The only
+`prettier --check` in the repository belongs to `apps/web` and does not reach
+`packages/`, so nothing has ever checked this package.
+
+Measured on 17 September 2026: `embed-provider.ts` and
+`table/table-readonly-sort.ts` diverge from that config — double quotes through
+the first, two over-wide lines in the second. Both diverged before the comments
+of the package were translated, so the translation did not cause it.
+
+Reformatting them on their own would be a style-only diff across untouched
+code, which the post-release policy forbids. The cheap close: add a `lint`
+script to the package, run it, and format those two files in the same commit as
+the script — one commit that says it is formatting, rather than formatting
+smuggled into an unrelated change.
+
 ## Page permission cache: revisit when the tables fill up
 
 The question was closed by measurement, not by argument: `canUserEditPage` ran
