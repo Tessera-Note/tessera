@@ -1,8 +1,9 @@
 /**
- * Перечень эмодзи: знак, имя, слова для поиска.
+ * The emoji list: the character, the name, the words to search by.
  *
- * Файл собран сценарием `scripts/build-emoji-data.mjs` и правится только им.
- * Читается по требованию — подбором по «:», поэтому в общую сборку не входит.
+ * The file is built by the `scripts/build-emoji-data.mjs` script and is edited
+ * only by it. It is read on demand — by picking after ":" — so it is not part of
+ * the common bundle.
  */
 
 export type EmojiRow = readonly [native: string, id: string, words: string];

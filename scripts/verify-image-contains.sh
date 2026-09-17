@@ -1,29 +1,30 @@
 #!/usr/bin/env bash
-# Сверка: содержит ли собранный образ проверяемую правку.
+# A check: does the built image contain the change under test.
 #
-# Нулевой код возврата docker compose build не доказывает, что образ собран из
-# текущих исходников. Дважды подряд выводы о работе кода делались по стенду,
-# где лежал предыдущий образ. Эта проверка выполняется ДО запуска контейнера и
-# до любых измерений.
+# A zero exit code from docker compose build does not prove that the image was
+# built from the current sources. Twice in a row conclusions about the behavior
+# of the code were drawn from a stand that held the previous image. This check
+# runs BEFORE the container is started and before any measurement.
 #
-#   scripts/verify-image-contains.sh <подстрока> [путь-внутри-образа]
+#   scripts/verify-image-contains.sh <substring> [path-inside-the-image]
 #
-# Пример:
+# Example:
 #   scripts/verify-image-contains.sh open_session_for \
 #     /app/tessera_api/services/auth.py
 #
-# Без второго аргумента ищет по всему /app/tessera_api.
+# Without the second argument it searches the whole of /app/tessera_api.
 #
-# Образ задаётся переменной IMAGE. Имя собирается из имени состава и имени
-# службы, отсюда удвоение. Умолчание — приложение; для экранов
-# IMAGE=tessera-v2-tessera-v2-web:latest с путём /app/apps/web/build, для
-# совместного редактирования IMAGE=tessera-v2-tessera-v2-collab:latest с путём
+# The image is set by the IMAGE variable. The name is assembled from the name of
+# the set and the name of the service, hence the doubling. The default is the
+# application; for the screens use IMAGE=tessera-v2-tessera-v2-web:latest with
+# the path /app/apps/web/build, for collaborative editing
+# IMAGE=tessera-v2-tessera-v2-collab:latest with the path
 # /app/services/collab/src.
 #
-# У приложения исходники в образе лежат как есть, поэтому подстрока ищется
-# такая же, как в файле. У экранов образ несёт сборку, а сборщик переписывает
-# исходник: там подстроку выбирать такую, которая переживает сборку — литерал
-# строки, имя ключа объекта.
+# In the application image the sources lie as they are, so the substring to
+# search for is the same as in the file. The screens image carries a build, and
+# the bundler rewrites the source: there, pick a substring that survives the
+# build — a string literal, an object key name.
 
 set -euo pipefail
 
@@ -32,12 +33,12 @@ NEEDLE="${1:-}"
 TARGET="${2:-/app/tessera_api}"
 
 if [ -z "$NEEDLE" ]; then
-  echo "Использование: $0 <подстрока> [путь-внутри-образа]" >&2
+  echo "Usage: $0 <substring> [path-inside-the-image]" >&2
   exit 2
 fi
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "ОБРАЗ НЕ НАЙДЕН: $IMAGE" >&2
+  echo "IMAGE NOT FOUND: $IMAGE" >&2
   exit 1
 fi
 
@@ -45,17 +46,17 @@ built=$(docker image inspect "$IMAGE" --format '{{.Created}}')
 found=$(docker run --rm --entrypoint sh "$IMAGE" -c \
   "grep -rc -- '$NEEDLE' '$TARGET' 2>/dev/null | awk -F: '{s+=\$NF} END {print s+0}'")
 
-echo "образ:   $IMAGE (собран $built)"
-echo "путь:    $TARGET"
-echo "искали:  $NEEDLE"
-echo "найдено: $found"
+echo "image:   $IMAGE (built $built)"
+echo "path:    $TARGET"
+echo "needle:  $NEEDLE"
+echo "found:   $found"
 
 if [ "$found" -eq 0 ]; then
   echo
-  echo "ПРАВКИ В ОБРАЗЕ НЕТ. Выводы по стенду делать нельзя." >&2
-  echo "Пересобрать, при повторе собрать с --no-cache." >&2
+  echo "THE CHANGE IS NOT IN THE IMAGE. No conclusions may be drawn from the stand." >&2
+  echo "Rebuild, and on a repeat build with --no-cache." >&2
   exit 1
 fi
 
 echo
-echo "Правка в образе есть, можно запускать контейнер и измерять."
+echo "The change is in the image; the container may be started and measured."

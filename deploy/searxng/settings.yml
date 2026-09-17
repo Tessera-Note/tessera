@@ -1,38 +1,38 @@
-# Настройки поиска для ИИ агента Tessera.
+# Search settings for the Tessera AI assistant.
 #
-# Наследуются от умолчаний образа, переопределяется только необходимое.
-# Файл лежит в репозитории, а не правится в томе: развертывание должно быть
-# воспроизводимым.
+# They inherit from the defaults of the image; only what is necessary is
+# overridden. The file lives in the repository rather than being edited in a
+# volume: a deployment has to be reproducible.
 use_default_settings: true
 
 server:
-  # Ключ подписи форм.
+  # The form signing key.
   #
-  # Значение литеральное, а не из окружения: образ подставляет `SEARXNG_SECRET`
-  # правкой этого же файла на старте, а он смонтирован только на чтение, и
-  # подстановка не проходит. Переменная `SEARXNG_SECRET` в compose поэтому ни
-  # на что не влияет.
+  # The value is literal rather than taken from the environment: the image
+  # substitutes `SEARXNG_SECRET` by editing this very file at startup, and the
+  # file is mounted read-only, so the substitution does not go through. That is
+  # why the `SEARXNG_SECRET` variable in compose affects nothing.
   #
-  # Приемлемо потому, что сервис не публикуется наружу и доступен только из
-  # сети compose, а ключ подписывает состояние форм собственного интерфейса
-  # SearXNG, которым здесь никто не пользуется: приложение ходит только за
-  # `format=json`. Если сервис когда-нибудь откроют наружу, ключ надо будет
-  # выносить в том с правом записи.
+  # This is acceptable because the service is not published outside and is
+  # reachable only from the compose network, and the key signs the form state of
+  # the SearXNG interface of its own, which nobody here uses: the application
+  # only ever asks for `format=json`. If the service is ever opened outside, the
+  # key will have to be moved into a writable volume.
   secret_key: "tessera-searxng-secret"
-  # Без этого SearXNG отвечает 403 на любой запрос с format=json, а агенту
-  # нужен именно машинный формат.
+  # Without this SearXNG answers 403 to any request with format=json, and the
+  # assistant needs exactly the machine format.
   limiter: false
   image_proxy: false
 
 search:
-  # JSON по умолчанию выключен. Агент ходит только за ним.
+  # JSON is off by default. The assistant only ever asks for it.
   formats:
     - html
     - json
 
-# Движки, устойчивые к обращениям с датацентрового адреса. Google и
-# DuckDuckGo отсюда регулярно отдают капчу и уходят в suspended, поэтому в
-# наборе их нет.
+# The engines that tolerate calls from a data centre address. Google and
+# DuckDuckGo regularly serve a captcha from here and go into suspended, so they
+# are not in the set.
 engines:
   - name: google
     disabled: true

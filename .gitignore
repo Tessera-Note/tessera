@@ -2,11 +2,11 @@
 .env.*
 !.env.example
 
-# Токен сеанса стенда: учётные данные, см. scripts/stand-session.py
+# The stand session token: credentials, see scripts/stand-session.py
 .stand-session
 data
 
-# Секреты и ключи не кладутся в индекс ни под каким именем.
+# Secrets and keys are never put into the index under any name.
 *.pem
 *.key
 *.crt
@@ -17,18 +17,19 @@ data
 *.keystore
 id_rsa*
 id_ed25519*
-# Шрифты Excalidraw кладёт в статику сборка `@tessera/web`
-# (apps/web/scripts/copy-excalidraw-assets.mjs). В индексе им делать нечего.
+# The Excalidraw fonts are placed into the static directory by the
+# `@tessera/web` build (apps/web/scripts/copy-excalidraw-assets.mjs). They have
+# no business being in the index.
 apps/web/static/excalidraw-assets/
 
 # compiled output
 dist
-# Vite складывает вывод и под другими именами, когда сборку запускают с иным
-# outDir: правило `dist` такие каталоги не закрывает.
+# Vite also writes its output under other names when the build is run with a
+# different outDir: the `dist` rule does not cover those directories.
 dist-*/
 tsconfig.tsbuildinfo
-# Без завершающего слэша и без якоря: pnpm заводит node_modules в каждом
-# пакете, а `/node_modules` закрывал только корневой.
+# With no trailing slash and no anchor: pnpm creates node_modules in every
+# package, while `/node_modules` covered only the root one.
 node_modules/
 /.worktrees
 
@@ -55,9 +56,9 @@ lerna-debug.log*
 coverage
 /.nyc_output
 
-# Резервные копии базы. `deploy/backup-db.sh` и `scripts/deploy-docker.sh`
-# пишут дамп в <DEPLOY_PATH>/backups, а при DEPLOY_PATH внутри чекаута он
-# оказался бы в рабочем дереве.
+# Database backups. `deploy/backup-db.sh` writes the dump into
+# <DEPLOY_PATH>/backups, and with DEPLOY_PATH inside the checkout it would end
+# up in the working tree.
 backups/
 *.sql.gz
 *.dump
@@ -85,12 +86,13 @@ __temp__/
 .nx/cache
 
 # Claude Code
-# settings.json коммитится, это общая конфигурация команды
-# settings.local.json и логи локальные
+# settings.json is committed, it is the shared configuration of the team
+# settings.local.json and the logs are local
 .claude/logs/
 .claude/settings.local.json
 .claude/*.local.json
 .claude/*.local.*
 
-# Рабочие копии для сличения версий рядом: два экземпляра под одним корнем.
+# Working copies for comparing versions side by side: two instances under one
+# root.
 /temp/

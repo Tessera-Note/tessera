@@ -1,21 +1,22 @@
-"""Открыть сеанс на локальном стенде второй версии.
+"""Open a session on the local stand.
 
-Нужен для проверки экранов глазами. Учётную запись на стенде заводить нельзя, а
-пароль в форму агент не вводит: сеанс выдаётся тем же путём, каким его выдаёт
-вход через провайдера — `AuthService.open_session_for`. Пароль здесь не
-участвует и не проверяется.
+Needed for inspecting the screens by eye. An account must not be created on the
+stand, and the agent does not type a password into a form: the session is issued
+the same way signing in through a provider issues it —
+`AuthService.open_session_for`. No password takes part here and none is checked.
 
-Запускается **внутри контейнера стенда**:
+Runs **inside the stand container**:
 
     docker cp scripts/stand-session.py tessera-v2-api:/tmp/stand-session.py
     docker exec tessera-v2-api python /tmp/stand-session.py
 
-Токен печатается в стандартный вывод и есть учётные данные: перенаправлять его
-следует в файл, а не в чат и не в журнал. Сеанс закрывается из интерфейса
-выходом либо отзывом в настройках учётной записи.
+The token is printed to standard output and is credentials: redirect it into a
+file, not into a chat and not into a log. The session is closed from the
+interface by signing out or by revoking it in the account settings.
 
-**Только стенд.** Скрипт отказывается работать, если `APP_URL` не указывает на
-локальную машину: на боевом узле выдача сеанса в обход входа недопустима.
+**The stand only.** The script refuses to work if `APP_URL` does not point at
+the local machine: on a production host, issuing a session around the sign-in is
+not acceptable.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from tessera_api.infrastructure.repositories import UserRepo, WorkspaceRepo
 from tessera_api.services.auth import AuthService
 from tessera_api.services.tokens import TokenService
 
-#: Узлы, которые считаются стендом. Боевой домен сюда не попадает.
+#: The hosts that count as the stand. A production domain is not among them.
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
@@ -44,16 +45,17 @@ def _is_stand() -> bool:
 
 async def main() -> None:
     if not _is_stand():
-        print("APP_URL не указывает на стенд: сеанс не выдан", file=sys.stderr)
+        print("APP_URL does not point at the stand: no session issued", file=sys.stderr)
         raise SystemExit(1)
 
-    # Подключение строится тем же классом, что и в приложении: строка в
-    # окружении записана драйвером v1, и своя сборка движка спотыкается о неё.
+    # The connection is built by the same class as in the application: the
+    # string in the environment is written with another driver, and assembling
+    # the engine by hand stumbles over it.
     database = Database(os.environ["DATABASE_URL"])
     try:
         async with database.session() as session:
-            # Первый заведённый человек: на стенде он один, и это владелец
-            # рабочего пространства.
+            # The first person created: on the stand there is only one, and that
+            # is the owner of the workspace.
             user = (
                 await session.execute(
                     select(User)
@@ -62,8 +64,9 @@ async def main() -> None:
                     .limit(1)
                 )
             ).scalar_one()
-            # Служба собирается так же, как в маршруте входа. Канал событий
-            # не передаётся: он нужен выходу, а не выдаче.
+            # The service is assembled the same way as in the sign-in route. The
+            # event channel is not passed: signing out needs it, issuing does
+            # not.
             service = AuthService(
                 session,
                 UserRepo(session),

@@ -1,15 +1,17 @@
-# Настройки линта для Python вне `apps/api`: сейчас это `scripts/`.
+# Lint settings for the Python outside `apps/api`: currently that is `scripts/`.
 #
-# Свой файл нужен потому, что ruff берёт настройки из ближайшего вверх
-# `pyproject.toml`, а у корня репозитория его нет: настройки приложения лежат в
-# `apps/api/pyproject.toml` и на соседние каталоги не распространяются. Без
-# этого файла скрипты проверялись бы умолчаниями ruff, и `# noqa` с кодом
-# отключённого правила выглядел бы лишним, а импорт своего пакета — сторонним.
+# A file of its own is needed because ruff takes its settings from the nearest
+# `pyproject.toml` upwards, and the repository root has none: the application
+# settings live in `apps/api/pyproject.toml` and do not extend to neighbouring
+# directories. Without this file the scripts would be checked with the ruff
+# defaults, a `# noqa` carrying the code of a disabled rule would look
+# superfluous, and an import of our own package would look third-party.
 #
-# Длина строки и версия языка те же, что в `apps/api/pyproject.toml`. Набор
-# правил шире на `N`: скрипты наследуют имена методов у библиотечных классов
-# (`do_GET` в `stand-cookie.py`), и подавление такого имени должно оставаться
-# осмысленным, а не висеть кодом отключённого правила.
+# The line length and the language version are the same as in
+# `apps/api/pyproject.toml`. The rule set is wider by `N`: the scripts inherit
+# method names from library classes (`do_GET` in `stand-cookie.py`), and
+# suppressing such a name has to stay meaningful rather than hang there as the
+# code of a disabled rule.
 
 line-length = 100
 target-version = "py313"
@@ -18,6 +20,6 @@ target-version = "py313"
 select = ["E", "F", "I", "UP", "B", "SIM", "N"]
 
 [lint.isort]
-# Скрипты обращаются к пакету приложения: `stand-session.py` запускается внутри
-# контейнера, где он установлен.
+# The scripts call the application package: `stand-session.py` runs inside the
+# container, where it is installed.
 known-first-party = ["tessera_api"]

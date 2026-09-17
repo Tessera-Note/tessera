@@ -4,8 +4,9 @@
 /data
 **/.env*
 **/.nx
-# Сборка экранов и служебный каталог SvelteKit. Образ экранов собирается с
-# контекстом всего репозитория, и без этих строк локальная сборка уезжает в
-# контекст, чтобы тут же быть перезаписанной сборкой внутри образа.
+# The build of the screens and the SvelteKit working directory. The screens
+# image is built with the whole repository as context, and without these lines a
+# local build travels into the context only to be overwritten right away by the
+# build inside the image.
 /apps/web/build
 /apps/web/.svelte-kit

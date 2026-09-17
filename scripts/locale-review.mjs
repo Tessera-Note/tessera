@@ -1,37 +1,42 @@
 /**
- * Вычитка словарей носителями языка — по частям, с прошлой вычитки.
+ * Proofreading the dictionaries by native speakers — in parts, since the last
+ * proofreading.
  *
- * Зачем. Двенадцать словарей заведены переводами, сделанными в работе, и
- * носителями не вычитаны. Отдавать вычитывающему две с лишним тысячи строк
- * каждый раз незачем: после первой вычитки ему нужны только строки, которые с
- * тех пор появились или поменялись. Crowdin для этого не включается
- * (`docs/future-roadmap.md`): переводчиков со стороны нет, экземпляр закрытый,
- * и ничего, кроме файла таблицы, наружу не уходит.
+ * Why. The twelve dictionaries are filled with translations made in the course
+ * of the work and have not been proofread by native speakers. There is no reason
+ * to hand a proofreader more than a thousand rows every time: after the first
+ * proofreading they only need the rows that have appeared or changed since.
+ * Crowdin is not turned on for this (`docs/future-roadmap.md`): there are no
+ * outside translators, the instance is closed, and nothing but the table file
+ * leaves it.
  *
- * Как устроено. Отметка вычитки — `docs/i18n-review-marks.json`: для каждого
- * языка коммит, до которого словарь прочитан носителем, дата и кто читал.
- * Выгрузка сравнивает нынешние словари с их видом в этом коммите и отдаёт
- * таблицу только из строк, которые:
+ * How it works. The proofreading mark is `docs/i18n-review-marks.json`: for
+ * every language, the commit up to which the dictionary was read by a native
+ * speaker, the date and who read it. The export compares the current
+ * dictionaries with how they looked in that commit and returns a table of only
+ * the rows that:
  *
- * - появились после отметки;
- * - сменили английский источник — перевод мог устареть;
- * - сменили перевод — правку тоже надо прочитать.
+ * - appeared after the mark;
+ * - changed their English source — the translation may have gone stale;
+ * - changed their translation — an edit has to be read as well.
  *
- * У языка без отметки выгружается всё: первая вычитка — полная.
+ * For a language with no mark everything is exported: the first proofreading is
+ * a full one.
  *
- * Порядок работы:
+ * The order of work:
  *
  *     node scripts/locale-review.mjs status
  *     node scripts/locale-review.mjs export ru-RU            # locale-review-ru-RU.csv
- *     # вычитывающий заполняет столбец proposed там, где перевод надо поменять
+ *     # the proofreader fills in the proposed column where the translation has to change
  *     node scripts/locale-review.mjs import ru-RU locale-review-ru-RU.csv
- *     # проверки словарей, коммит правок
- *     node scripts/locale-review.mjs mark ru-RU --reviewer "Имя"
- *     # коммит отметки
+ *     # the dictionary tests, then commit the changes
+ *     node scripts/locale-review.mjs mark ru-RU --reviewer "Name"
+ *     # commit the mark
  *
- * Отметка ставится только на закоммиченный словарь: иначе она объявляла бы
- * прочитанным то, чего в истории нет. Внесение сверяет подстановки
- * (`{{name}}`) с английским источником и при расхождении ничего не пишет.
+ * The mark is only ever put on a committed dictionary: otherwise it would
+ * declare as read something that is not in the history. The import compares the
+ * substitutions (`{{name}}`) against the English source and writes nothing on a
+ * mismatch.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -46,10 +51,10 @@ const SOURCE = 'en-US';
 const PLURAL = /_(zero|one|two|few|many|other)$/;
 const PLACEHOLDER = /\{\{\s*(\w+)\s*\}\}/g;
 
-/** Столбцы таблицы. Вычитывающий заполняет только последний. */
+/** The columns of the table. The proofreader fills in only the last one. */
 export const COLUMNS = ['key', 'english', 'current', 'reason', 'proposed'];
 
-/** Почему строка попала в выгрузку. */
+/** Why a row ended up in the export. */
 export const REASON = {
   never: 'never reviewed',
   added: 'new',
@@ -57,17 +62,17 @@ export const REASON = {
   translation: 'translation changed'
 };
 
-/** Имена подстановок строки. */
+/** The substitution names of a string. */
 export function placeholders(text) {
   return new Set([...String(text ?? '').matchAll(PLACEHOLDER)].map((one) => one[1]));
 }
 
 /**
- * Английский источник ключа.
+ * The English source of a key.
  *
- * Формы числа (`_few`, `_many`) бывают только у русского и украинского, в
- * источнике их нет: для них берётся форма `_other` той же основы, а без неё —
- * сама основа.
+ * The number forms (`_few`, `_many`) exist only in Russian and Ukrainian and
+ * are absent from the source: for them the `_other` form of the same stem is
+ * taken, and failing that the stem itself.
  */
 export function englishOf(key, source) {
   if (key in source) return source[key];
@@ -76,11 +81,12 @@ export function englishOf(key, source) {
 }
 
 /**
- * Строки к вычитке.
+ * The rows to proofread.
  *
- * `baseSource` и `baseTranslated` — словари в коммите отметки; пустые, если
- * отметки нет. Порядок строк — порядок ключей словаря языка, затем ключи
- * источника, которых в нём нет: так таблица читается рядом с файлом.
+ * `baseSource` and `baseTranslated` are the dictionaries as of the mark commit;
+ * empty when there is no mark. The order of the rows is the order of the keys of
+ * the language dictionary, then the keys of the source that are missing from it:
+ * that way the table reads alongside the file.
  */
 export function pendingRows({ source, translated, baseSource = null, baseTranslated = null }) {
   const keys = [...Object.keys(translated), ...Object.keys(source).filter((key) => !(key in translated))];
@@ -104,11 +110,12 @@ export function pendingRows({ source, translated, baseSource = null, baseTransla
 }
 
 /**
- * Внести вычитанное в словарь.
+ * Apply what was proofread to the dictionary.
  *
- * Берутся строки с непустым `proposed`. Отказ по любой строке — неизвестный
- * ключ или расхождение подстановок с источником — отменяет внесение целиком:
- * наполовину внесённая вычитка хуже невнесённой, её не отличить от полной.
+ * The rows with a non-empty `proposed` are taken. A failure on any row — an
+ * unknown key or substitutions that diverge from the source — cancels the whole
+ * import: a half-applied proofreading is worse than none, as it cannot be told
+ * apart from a complete one.
  */
 export function applyReview({ source, translated, rows }) {
   const problems = [];
@@ -118,17 +125,18 @@ export function applyReview({ source, translated, rows }) {
     if (!proposed) continue;
     const english = englishOf(row.key, source);
     if (english === undefined) {
-      problems.push(`${row.key}: такого ключа в источнике нет`);
+      problems.push(`${row.key}: there is no such key in the source`);
       continue;
     }
     const expected = [...placeholders(english)].sort().join(',');
     const actual = [...placeholders(proposed)].sort().join(',');
-    // Лишней подстановка допустима только `count`: он передаётся всегда, когда
-    // ключ разбирается по формам числа. Так же правило словарей в проверках.
+    // An extra substitution is allowed only for `count`: it is always passed
+    // when a key is resolved by number forms. The dictionary rule in the tests
+    // is the same.
     const extra = [...placeholders(proposed)].filter((one) => !placeholders(english).has(one) && one !== 'count');
     const lost = [...placeholders(english)].filter((one) => !placeholders(proposed).has(one));
     if (lost.length || extra.length) {
-      problems.push(`${row.key}: подстановки не совпадают с источником (ждём ${expected || 'никаких'}, пришло ${actual || 'никаких'})`);
+      problems.push(`${row.key}: the substitutions do not match the source (expected ${expected || 'none'}, got ${actual || 'none'})`);
       continue;
     }
     changes[row.key] = proposed;
@@ -139,8 +147,9 @@ export function applyReview({ source, translated, rows }) {
   for (const [key, value] of Object.entries(translated)) {
     updated[key] = key in changes ? changes[key] : value;
   }
-  // Ключ, которого в словаре языка ещё не было, встаёт в конец: порядок
-  // остального файла не трогается, и разница в истории читается.
+  // A key that was not in the language dictionary yet goes to the end: the order
+  // of the rest of the file is left alone, and the difference reads in the
+  // history.
   for (const [key, value] of Object.entries(changes)) {
     if (!(key in updated)) updated[key] = value;
   }
@@ -148,22 +157,23 @@ export function applyReview({ source, translated, rows }) {
   return { updated, problems, changed };
 }
 
-/** Таблица в CSV. Каждое поле в кавычках: переводы полны запятых и переносов. */
+/** The table as CSV. Every field is quoted: translations are full of commas and line breaks. */
 export function toCsv(rows) {
   const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
   const lines = [COLUMNS.map(quote).join(',')];
   for (const row of rows) lines.push(COLUMNS.map((column) => quote(row[column])).join(','));
-  // Метка порядка байтов: без неё табличные редакторы открывают UTF-8
-  // кракозябрами, и вычитывающий правит уже испорченный текст.
-  return `\uFEFF${lines.join('\r\n')}\r\n`;
+  // The byte order mark: without it spreadsheet editors open UTF-8 as garbage,
+  // and the proofreader ends up editing text that is already spoiled.
+  return `﻿${lines.join('\r\n')}\r\n`;
 }
 
 /**
- * Разделитель таблицы — по строке заголовка.
+ * The delimiter of the table — taken from the header row.
  *
- * Табличные редакторы европейских языков сохраняют CSV с точкой с запятой.
- * Считать разделителем оба знака сразу нельзя: при запятой-разделителе точка
- * с запятой внутри перевода остаётся без кавычек, и строка разбилась бы.
+ * Spreadsheet editors of European languages save CSV with a semicolon. Treating
+ * both characters as the delimiter at once is not possible: with a comma as the
+ * delimiter a semicolon inside a translation is left unquoted, and the row would
+ * be split.
  */
 export function delimiterOf(body) {
   let quoted = false;
@@ -178,9 +188,9 @@ export function delimiterOf(body) {
   return semicolons > commas ? ';' : ',';
 }
 
-/** Разобрать CSV по RFC 4180: кавычки, удвоенные кавычки, переносы внутри поля. */
+/** Parse CSV by RFC 4180: quotes, doubled quotes, line breaks inside a field. */
 export function parseCsv(text) {
-  const body = String(text).replace(/^\uFEFF/, '');
+  const body = String(text).replace(/^﻿/, '');
   const delimiter = delimiterOf(body);
   const records = [];
   let record = [];
@@ -224,12 +234,12 @@ export function parseCsv(text) {
   const [header, ...rest] = records;
   const index = Object.fromEntries(header.map((name, position) => [name.trim(), position]));
   for (const column of ['key', 'proposed']) {
-    if (!(column in index)) throw new Error(`в таблице нет столбца ${column}`);
+    if (!(column in index)) throw new Error(`the table has no ${column} column`);
   }
   return rest.map((values) => Object.fromEntries(COLUMNS.map((column) => [column, values[index[column]] ?? ''])));
 }
 
-// --- обвязка командной строки ---------------------------------------------
+// --- the command line wrapper ---------------------------------------------
 
 function git(...args) {
   return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
@@ -274,14 +284,14 @@ function main(argv) {
     const marks = readMarks();
     for (const one of known.filter((name) => name !== SOURCE)) {
       const mark = marks[one];
-      const state = mark ? `до ${mark.commit.slice(0, 8)}, ${mark.date}, ${mark.reviewer}` : 'не вычитан';
-      console.log(`${one}: ${state}; к вычитке строк: ${pendingFor(one).length}`);
+      const state = mark ? `up to ${mark.commit.slice(0, 8)}, ${mark.date}, ${mark.reviewer}` : 'not proofread';
+      console.log(`${one}: ${state}; rows to proofread: ${pendingFor(one).length}`);
     }
     return 0;
   }
 
   if (!locale || !known.includes(locale) || locale === SOURCE) {
-    console.error(`нужен язык из: ${known.filter((name) => name !== SOURCE).join(', ')}`);
+    console.error(`a language is required, one of: ${known.filter((name) => name !== SOURCE).join(', ')}`);
     return 1;
   }
 
@@ -289,14 +299,14 @@ function main(argv) {
     const rows = pendingFor(locale);
     const out = option(rest, '--out') ?? `locale-review-${locale}.csv`;
     writeFileSync(out, toCsv(rows));
-    console.log(`${out}: строк к вычитке ${rows.length}`);
+    console.log(`${out}: rows to proofread ${rows.length}`);
     return 0;
   }
 
   if (command === 'import') {
     const file = rest[0];
     if (!file) {
-      console.error('нужен файл таблицы');
+      console.error('the table file is required');
       return 1;
     }
     const { updated, problems, changed } = applyReview({
@@ -305,24 +315,24 @@ function main(argv) {
       rows: parseCsv(readFileSync(file, 'utf8'))
     });
     if (problems.length) {
-      console.error('ничего не внесено:');
+      console.error('nothing was applied:');
       for (const one of problems) console.error(`  ${one}`);
       return 1;
     }
     writeFileSync(join(ROOT, LOCALES, `${locale}.json`), `${JSON.stringify(updated, null, 2)}\n`);
-    console.log(`${locale}: изменено строк ${changed}. Прогнать проверки словарей и закоммитить.`);
+    console.log(`${locale}: rows changed ${changed}. Run the dictionary tests and commit.`);
     return 0;
   }
 
   if (command === 'mark') {
     const reviewer = option(rest, '--reviewer');
     if (!reviewer) {
-      console.error('нужен --reviewer "Имя"');
+      console.error('--reviewer "Name" is required');
       return 1;
     }
     const files = [`${LOCALES}/${locale}.json`, `${LOCALES}/${SOURCE}.json`];
     if (git('status', '--porcelain', '--', ...files).trim()) {
-      console.error('словарь не закоммичен: отметка объявила бы прочитанным то, чего в истории нет');
+      console.error('the dictionary is not committed: the mark would declare as read something that is not in the history');
       return 1;
     }
     const commit = option(rest, '--commit') ?? git('rev-parse', 'HEAD').trim();
@@ -330,11 +340,11 @@ function main(argv) {
     marks[locale] = { commit, date: new Date().toISOString().slice(0, 10), reviewer };
     const ordered = Object.fromEntries(Object.keys(marks).sort().map((key) => [key, marks[key]]));
     writeFileSync(join(ROOT, MARKS), `${JSON.stringify(ordered, null, 2)}\n`);
-    console.log(`${locale}: вычитан до ${commit.slice(0, 8)}. Закоммитить ${MARKS}.`);
+    console.log(`${locale}: proofread up to ${commit.slice(0, 8)}. Commit ${MARKS}.`);
     return 0;
   }
 
-  console.error('команды: status, export <язык>, import <язык> <файл>, mark <язык> --reviewer "Имя"');
+  console.error('the commands: status, export <language>, import <language> <file>, mark <language> --reviewer "Name"');
   return 1;
 }
 

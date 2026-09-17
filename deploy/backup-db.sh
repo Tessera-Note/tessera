@@ -13,8 +13,9 @@ set -euo pipefail
 BACKUP_DIR=/backups
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 INTERVAL="${BACKUP_INTERVAL_SECONDS:-86400}"
-# Имя службы базы. Задаётся переменной, потому что боевой состав и стенд
-# называют её по-разному, а зашитое имя молча приводило бы к пустым дампам.
+# The database service name. It comes from a variable because the production set
+# and the stand name it differently, and a hard-wired name would silently lead to
+# empty dumps.
 DB_HOST="${BACKUP_DB_HOST:-tessera-v2-db}"
 
 mkdir -p "$BACKUP_DIR"

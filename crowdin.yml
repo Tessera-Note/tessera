@@ -1,25 +1,25 @@
-# Синхронизация переводов ВЫКЛЮЧЕНА. Не включать, не прочитав это до конца.
+# Translation synchronization is OFF. Do not turn it on before reading this to
+# the end.
 #
-# Решение от 6 сентября 2026: словари ведутся в репозитории, Crowdin не
-# запускается. Довод: переводчиков со стороны нет, экземпляр закрытый, а
-# двенадцать словарей второй версии заведены переводами, сделанными в работе, и
-# в Crowdin их нет. Первая же выгрузка перевела бы их обратно в английский —
-# молча, без единого отказа, потому что для Crowdin отсутствие перевода и есть
-# пустой перевод.
+# The decision of 6 September 2026: the dictionaries are kept in the repository
+# and Crowdin is not used. The reasoning: there are no outside translators, the
+# instance is closed, and the twelve dictionaries are filled with translations
+# made in the course of the work, which Crowdin does not have. The very first
+# download would translate them back into English — silently, with no failure
+# at all, because for Crowdin a missing translation is an empty translation.
 #
-# Записи ниже намеренно закомментированы: с пустым `files` команда `crowdin`
-# отказывается работать, и случайный запуск ничего не портит.
+# The entries below are commented out deliberately: with an empty `files` the
+# `crowdin` command refuses to work, so an accidental run breaks nothing.
 #
-# Что сделать, если синхронизацию всё-таки понадобится включить, ровно в этом
-# порядке:
-#   1. Загрузить нынешние `apps/web/static/locales/*.json` в Crowdin как
-#      переводы (`crowdin upload translations`), а не как источник.
-#   2. Убедиться выгрузкой в отдельную ветку, что ни один ключ не вернулся
-#      английским.
-#   3. Только после этого снять комментарии здесь и поправить правила в
-#      `.claude/skills/i18n/SKILL.md` и `.claude/agents/i18n-reviewer.md`:
-#      сейчас там написано, что словари ведутся в репозитории и правятся
-#      напрямую.
+# What to do if the synchronization is needed after all, in exactly this order:
+#   1. Upload the current `apps/web/static/locales/*.json` to Crowdin as
+#      translations (`crowdin upload translations`), not as the source.
+#   2. Confirm with a download into a separate branch that not a single key came
+#      back English.
+#   3. Only then uncomment the lines here and fix the rules in
+#      `.claude/skills/i18n/SKILL.md` and `.claude/agents/i18n-reviewer.md`:
+#      right now they say the dictionaries are kept in the repository and edited
+#      directly.
 #
 files: []
 #  - source: /apps/web/static/locales/en-US.json

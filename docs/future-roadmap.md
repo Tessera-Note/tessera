@@ -19,8 +19,9 @@ header. The table export gives a proofreader only the strings that appeared or
 changed since the last pass. The import compares substitutions against the
 English source and writes nothing when they diverge. The "read up to this
 commit" mark is kept in `docs/i18n-review-marks.json` and is still empty: the
-first pass for every language is a full one, 1130 strings (1142 for ru and uk,
-with the plural forms).
+first pass for every language is a full one, 1144 strings (1156 for ru and uk,
+with the plural forms; measured by `locale-review.mjs status` on 17 September
+2026).
 
 What is left is the proofreading itself: find a native speaker for each
 language, export, import, set the mark.
@@ -101,6 +102,38 @@ The scheme, if the answer changes: a generation mark, a key of the form
 `perm:can-edit:g<mark>:<userId>:<pageId>`, and any permission change moves the
 mark. The mark is global rather than per space: permission edits are rare, and a
 global mark cannot be forgotten.
+
+## SCIM failures are emitted in Russian while the context claims English
+
+`services/scim_users.py` and `services/scim_groups.py` build the `detail` of a
+failure in Russian (`scim_users.py:216`, for example). At the same time
+`docs/ai-context/enterprise-security.md` states that SCIM failures deliberately
+stay in English, because they are read by an identity management system rather
+than by a person. One of the two is wrong, and the code is what the
+administrator of Okta or Entra ID actually sees.
+
+The two fixes are mutually exclusive, so the decision comes first: either the
+strings in the two services move to English (about twenty strings, plus the
+tests that assert them), or the claim in the context file is corrected to
+describe what the code does. `docs/scim-errors.md` already says that the wording
+after the code is Russian and must not be parsed, so the public documentation is
+honest either way.
+
+## The comments in the sources are in Russian
+
+The documentation, the agent configuration, the deployment files and the
+repository scripts are in English. The comments, docstrings and test names in
+the sources are not: about 21 thousand lines across 651 files — `apps/api`
+13807 lines in 219 files, `apps/web` 6385 in 360, `services/collab` 540 in 11,
+`services/hub` 202 in 28, `packages/editor-ext` 79 in 10 (measured 17 September
+2026).
+
+This was deliberately not done in one pass: the post-release policy allows
+minimal diffs only, the project rule says comments stay in the language of the
+file being edited, and a rewrite of that size touches production code without
+changing any behavior. The decision needed is whether the sources move to
+English at all; if they do, the cheap path is one directory per commit, with the
+checks of that part after each.
 
 ## Observations, not defects
 

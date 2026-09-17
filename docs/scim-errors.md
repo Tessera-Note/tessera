@@ -1,46 +1,52 @@
-# Коды отказов SCIM
+# SCIM failure codes
 
-Для администратора провайдера учётных записей (Okta, Entra ID, Keycloak и
-других), который настраивает синхронизацию каталога с Tessera.
+For the administrator of an identity provider (Okta, Entra ID, Keycloak and
+others) who is setting up directory synchronization with Tessera.
 
-Каждый отказ синхронизации приходит в теле ответа по RFC 7644:
+Every synchronization failure arrives in the response body per RFC 7644:
 
 ```json
 {
   "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
   "status": "409",
   "scimType": "uniqueness",
-  "detail": "[scim.user_external_id_taken] externalId \"a1b2\" уже занят другой записью"
+  "detail": "[scim.user_external_id_taken] externalId \"a1b2\" ..."
 }
 ```
 
-В начале `detail` в квадратных скобках стоит **код причины**. Он постоянный:
-не зависит от языка экземпляра и не меняется, когда меняется формулировка.
-Текст после кода называет поле и значение, на котором споткнулась
-синхронизация. `scimType` задан протоколом и говорит провайдеру, повторять ли
-запрос; код говорит человеку, что именно случилось.
+At the start of `detail`, in square brackets, stands the **reason code**. It is
+permanent: it does not depend on the language of the instance and it does not
+change when the wording changes. The text after the code names the field and the
+value the synchronization stumbled on. `scimType` is set by the protocol and
+tells the provider whether to retry the request; the code tells a person what
+exactly happened.
 
-Коды не переиспользуются: снятая причина свой код не отдаёт другой.
+Parse the code, never the wording: the words after the code are currently
+emitted in Russian by the application, and they are not part of the contract.
 
-| Код | HTTP | `scimType` | Что случилось | Что делать |
+Codes are not reused: a reason that is removed does not hand its code to
+another.
+
+| Code | HTTP | `scimType` | What happened | What to do |
 |---|---|---|---|---|
-| `scim.workspace_missing` | 401 | — | Экземпляр ещё не настроен: рабочего пространства нет. | Завершить первичную настройку Tessera. |
-| `scim.token_invalid` | 401 | — | Токен SCIM не найден, отозван или истёк. | Выпустить новый токен в настройках Tessera и заменить его у провайдера. |
-| `scim.schema_not_found` | 404 | — | Запрошена схема, которой Tessera не описывает. | Проверить адрес: поддержаны схемы User и Group из RFC 7643. |
-| `scim.filter_unsupported` | 400 | `invalidValue` | Фильтр списка не поддерживается. | Поддержан только вид `attribute eq "value"`. |
-| `scim.filter_attribute_unsupported` | 400 | `invalidValue` | Фильтр по признаку, по которому Tessera не ищет. | Для людей: `userName`, `externalId`, `emails`; для групп: `displayName`, `externalId`. |
-| `scim.user_not_found` | 404 | — | Человека с таким идентификатором нет в этом рабочем пространстве. | Провайдер ссылается на удалённую запись: пересоздать связь у провайдера. |
-| `scim.user_name_missing` | 400 | `invalidValue` | Нет ни `userName`, ни адреса почты. | Заполнить `userName` или `emails` в сопоставлении атрибутов. |
-| `scim.user_external_id_taken` | 409 | `uniqueness` | `externalId` уже принадлежит другой записи. | Найти у провайдера две записи с одним идентификатором. |
-| `scim.user_email_bound_to_other_external_id` | 409 | `uniqueness` | Адрес почты уже у записи, связанной с другим `externalId`. | Это разные люди с одним адресом либо переподключённая запись: разобраться у провайдера, какая из двух верная. |
-| `scim.user_email_taken` | 409 | `uniqueness` | Смена адреса на занятый другой записью. | Освободить адрес у второй записи или исправить его у провайдера. |
-| `scim.user_last_owner` | 400 | `mutability` | Отключение или смена роли оставили бы рабочее пространство без владельца. | Сначала назначить другого владельца в Tessera. |
-| `scim.group_not_found` | 404 | — | Группы с таким идентификатором нет. | Провайдер ссылается на удалённую группу: пересоздать связь у провайдера. |
-| `scim.group_name_missing` | 400 | `invalidValue` | Пустой `displayName`. | Заполнить имя группы у провайдера. |
-| `scim.group_name_taken` | 409 | `uniqueness` | Группа с таким `displayName` уже есть. | Переименовать одну из групп. |
-| `scim.group_external_id_taken` | 409 | `uniqueness` | `externalId` уже принадлежит другой группе. | Найти у провайдера две группы с одним идентификатором. |
-| `scim.group_default_not_deletable` | 400 | `invalidValue` | Попытка удалить группу по умолчанию. | Группа по умолчанию нужна Tessera и не синхронизируется удалением; исключить её из области синхронизации. |
+| `scim.workspace_missing` | 401 | — | The instance is not set up yet: there is no workspace. | Finish the initial setup of Tessera. |
+| `scim.token_invalid` | 401 | — | The SCIM token was not found, was revoked or has expired. | Issue a new token in the Tessera settings and replace it at the provider. |
+| `scim.schema_not_found` | 404 | — | A schema was requested that Tessera does not describe. | Check the address: the User and Group schemas of RFC 7643 are supported. |
+| `scim.filter_unsupported` | 400 | `invalidValue` | The list filter is not supported. | Only the form `attribute eq "value"` is supported. |
+| `scim.filter_attribute_unsupported` | 400 | `invalidValue` | A filter by an attribute Tessera does not search by. | For people: `userName`, `externalId`, `emails`; for groups: `displayName`, `externalId`. |
+| `scim.user_not_found` | 404 | — | There is no person with that identifier in this workspace. | The provider refers to a deleted record: recreate the link at the provider. |
+| `scim.user_name_missing` | 400 | `invalidValue` | Neither `userName` nor an email address is present. | Fill in `userName` or `emails` in the attribute mapping. |
+| `scim.user_external_id_taken` | 409 | `uniqueness` | The `externalId` already belongs to another record. | Find the two records with one identifier at the provider. |
+| `scim.user_email_bound_to_other_external_id` | 409 | `uniqueness` | The email address already belongs to a record linked to a different `externalId`. | These are two different people with one address, or a reconnected record: work out at the provider which of the two is right. |
+| `scim.user_email_taken` | 409 | `uniqueness` | A change of the address to one taken by another record. | Free the address on the second record or correct it at the provider. |
+| `scim.user_last_owner` | 400 | `mutability` | Deactivating or changing the role would leave the workspace with no owner. | Appoint another owner in Tessera first. |
+| `scim.group_not_found` | 404 | — | There is no group with that identifier. | The provider refers to a deleted group: recreate the link at the provider. |
+| `scim.group_name_missing` | 400 | `invalidValue` | An empty `displayName`. | Fill in the group name at the provider. |
+| `scim.group_name_taken` | 409 | `uniqueness` | A group with that `displayName` already exists. | Rename one of the groups. |
+| `scim.group_external_id_taken` | 409 | `uniqueness` | The `externalId` already belongs to another group. | Find the two groups with one identifier at the provider. |
+| `scim.group_default_not_deletable` | 400 | `invalidValue` | An attempt to delete the default group. | Tessera needs the default group and it is not synchronized by deletion; exclude it from the synchronization scope. |
 
-Перечень сверяется с кодом проверкой `apps/api/tests/test_scim_errors.py`:
-код, заведённый в приложении и не описанный здесь, и код, описанный здесь и
-не встречающийся в приложении, одинаково роняют проверку.
+The list is compared against the code by the test
+`apps/api/tests/test_scim_errors.py`: a code that exists in the application and
+is not described here, and a code described here that does not occur in the
+application, fail the test equally.

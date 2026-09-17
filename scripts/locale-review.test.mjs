@@ -1,10 +1,10 @@
 /**
- * Проверки вычитки словарей по частям.
+ * Tests for the partial proofreading of the dictionaries.
  *
- * Проверяются правила, от которых зависит, что носитель прочитает нужное и
- * ничего не сломает: в выгрузку попадает только изменённое с прошлой вычитки,
- * таблица переживает круг «выгрузил — поправил в редакторе — внёс», а внесение
- * с неверной подстановкой не пишет ничего.
+ * What is tested are the rules the proofreader depends on to read what they
+ * need and break nothing: only what changed since the last proofreading gets
+ * into the export, the table survives the "export — edit in a spreadsheet —
+ * import" round trip, and an import with a wrong substitution writes nothing.
  */
 
 import assert from 'node:assert/strict';
@@ -15,7 +15,7 @@ import { REASON, applyReview, parseCsv, pendingRows, placeholders, toCsv } from 
 const baseSource = { Save: 'Save', Hello: 'Hello, {{name}}', Old: 'Old text' };
 const baseTranslated = { Save: 'Сохранить', Hello: 'Привет, {{name}}', Old: 'Старый текст' };
 
-test('без отметки выгружается всё', () => {
+test('with no mark everything is exported', () => {
   const rows = pendingRows({ source: baseSource, translated: baseTranslated });
   assert.deepEqual(
     rows.map((one) => one.reason),
@@ -23,7 +23,7 @@ test('без отметки выгружается всё', () => {
   );
 });
 
-test('с отметкой — только изменённое после неё', () => {
+test('with a mark, only what changed after it', () => {
   const source = { ...baseSource, Old: 'Reworded text', Fresh: 'Fresh' };
   const translated = { ...baseTranslated, Save: 'Сохранить изменения', Fresh: 'Свежее' };
   const rows = pendingRows({ source, translated, baseSource, baseTranslated });
@@ -33,11 +33,12 @@ test('с отметкой — только изменённое после не�
     Old: REASON.source,
     Fresh: REASON.added
   });
-  // Нетронутая строка в выгрузку не попадает: ради этого выгрузка и частичная.
+  // An untouched row does not get into the export: that is what the export is
+  // partial for.
   assert.equal('Hello' in byKey, false);
 });
 
-test('ключ источника без перевода тоже попадает к вычитке', () => {
+test('a source key with no translation is up for proofreading too', () => {
   const source = { ...baseSource, Missing: 'Missing' };
   const rows = pendingRows({ source, translated: baseTranslated, baseSource, baseTranslated });
   assert.deepEqual(
@@ -46,7 +47,7 @@ test('ключ источника без перевода тоже попада�
   );
 });
 
-test('формы числа сверяются с формой other источника', () => {
+test('number forms are compared against the other form of the source', () => {
   const source = { 'Files_one': '{{count}} file', 'Files_other': '{{count}} files' };
   const translated = {
     Files_one: '{{count}} файл',
@@ -59,7 +60,7 @@ test('формы числа сверяются с формой other источ�
   assert.equal(few.english, '{{count}} files');
 });
 
-test('таблица переживает круг через CSV', () => {
+test('the table survives a round trip through CSV', () => {
   const rows = [
     { key: 'Hello', english: 'Hello, "friend"', current: 'Привет,\nдруг', reason: REASON.never, proposed: '' }
   ];
@@ -67,23 +68,23 @@ test('таблица переживает круг через CSV', () => {
   assert.deepEqual(back, rows);
 });
 
-test('разбор принимает точку с запятой и метку порядка байтов', () => {
-  const text = '\uFEFFkey;english;current;reason;proposed\r\n"Save";"Save";"Сохранить";"new";"Записать"\r\n';
+test('parsing accepts a semicolon and a byte order mark', () => {
+  const text = '﻿key;english;current;reason;proposed\r\n"Save";"Save";"Сохранить";"new";"Записать"\r\n';
   assert.deepEqual(parseCsv(text), [
     { key: 'Save', english: 'Save', current: 'Сохранить', reason: 'new', proposed: 'Записать' }
   ]);
 });
 
-test('при запятой-разделителе точка с запятой остаётся текстом', () => {
+test('with a comma as the delimiter a semicolon stays text', () => {
   const text = 'key,english,current,reason,proposed\n"Save","Save",Сохранить; записать,new,\n';
   assert.equal(parseCsv(text)[0].current, 'Сохранить; записать');
 });
 
-test('таблица без столбца proposed не принимается', () => {
+test('a table with no proposed column is not accepted', () => {
   assert.throws(() => parseCsv('key,english\n"Save","Save"\n'), /proposed/);
 });
 
-test('внесение меняет только заполненные строки', () => {
+test('the import changes only the filled-in rows', () => {
   const rows = [
     { key: 'Save', proposed: 'Записать' },
     { key: 'Old', proposed: '   ' }
@@ -97,11 +98,12 @@ test('внесение меняет только заполненные стро
   assert.equal(changed, 1);
   assert.equal(updated.Save, 'Записать');
   assert.equal(updated.Old, 'Старый текст');
-  // Порядок ключей файла не меняется: разница в истории читается.
+  // The order of the keys of the file does not change: the difference reads in
+  // the history.
   assert.deepEqual(Object.keys(updated), Object.keys(baseTranslated));
 });
 
-test('потерянная подстановка отменяет внесение целиком', () => {
+test('a lost substitution cancels the whole import', () => {
   const rows = [
     { key: 'Save', proposed: 'Записать' },
     { key: 'Hello', proposed: 'Привет' }
@@ -112,7 +114,7 @@ test('потерянная подстановка отменяет внесен�
   assert.match(problems[0], /Hello/);
 });
 
-test('неизвестный ключ отменяет внесение', () => {
+test('an unknown key cancels the import', () => {
   const { updated, problems } = applyReview({
     source: baseSource,
     translated: baseTranslated,
@@ -122,7 +124,7 @@ test('неизвестный ключ отменяет внесение', () => 
   assert.match(problems[0], /Nope/);
 });
 
-test('лишний count допустим: он передаётся формам числа', () => {
+test('an extra count is allowed: it is passed to the number forms', () => {
   const { problems } = applyReview({
     source: { Files: 'Files' },
     translated: { Files: 'Файлы' },
@@ -131,6 +133,6 @@ test('лишний count допустим: он передаётся форма�
   assert.deepEqual(problems, []);
 });
 
-test('имена подстановок', () => {
+test('substitution names', () => {
   assert.deepEqual([...placeholders('Привет, {{name}} и {{ count }}')].sort(), ['count', 'name']);
 });

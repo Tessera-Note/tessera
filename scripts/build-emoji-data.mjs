@@ -1,17 +1,16 @@
 /**
- * Сборка перечня эмодзи для редактора v2.
+ * Building the emoji list for the editor.
  *
- * Запускается руками, результат кладётся в исходники и коммитится:
+ * Run by hand; the result is put into the sources and committed:
  * `node scripts/build-emoji-data.mjs`.
  *
- * Почему не читать набор в рантайме, как это делает v1. Пакет
- * `@slidoapp/emoji-mart-data` объявлен зависимостью `apps/client`, и его же
- * зависимостью `apps/web` был бы второй объявленный пакет ради ста килобайт
- * неизменных данных. Набор не меняется между сборками, поэтому он снимается
- * один раз и живёт в репозитории обычным файлом.
+ * Why the set is not read at runtime. The `@slidoapp/emoji-mart-data` package
+ * would have to be declared as a dependency of `apps/web` for the sake of a
+ * hundred kilobytes of unchanging data. The set does not change between builds,
+ * so it is taken once and lives in the repository as an ordinary file.
  *
- * Пакет остаётся зависимостью первой версии: этот сценарий читает его из
- * общего `node_modules` и в сборку второй версии не входит.
+ * This script reads the package from the shared `node_modules` and is not part
+ * of the build.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -32,9 +31,9 @@ for (const entry of Object.values(data.emojis)) {
   const native = entry?.skins?.[0]?.native;
   if (!entry?.id || !entry?.name || !native) continue;
 
-  // Слова для поиска: имя и ключевые слова одной строкой в нижнем регистре.
-  // Поиск идёт подстрокой, и держать их разобранными незачем — разбор на
-  // каждый ввод стоил бы дороже самого поиска.
+  // The words to search by: the name and the keywords in one lowercase string.
+  // The search goes by substring, and there is no reason to keep them parsed —
+  // parsing on every keystroke would cost more than the search itself.
   const words = [entry.name, ...(entry.keywords ?? [])]
     .join(' ')
     .toLowerCase()
@@ -52,10 +51,11 @@ const body = rows.map((row) => `  [${row.map(quote).join(', ')}]`).join(',\n');
 writeFileSync(
   target,
   `/**
- * Перечень эмодзи: знак, имя, слова для поиска.
+ * The emoji list: the character, the name, the words to search by.
  *
- * Файл собран сценарием \`scripts/build-emoji-data.mjs\` и правится только им.
- * Читается по требованию — подбором по «:», поэтому в общую сборку не входит.
+ * The file is built by the \`scripts/build-emoji-data.mjs\` script and is edited
+ * only by it. It is read on demand — by picking after ":" — so it is not part of
+ * the common bundle.
  */
 
 export type EmojiRow = readonly [native: string, id: string, words: string];
@@ -67,13 +67,14 @@ ${body}
   'utf8'
 );
 
-// Раскладка строк — дело prettier, а не этого сценария. Повторять его правила
-// вручную бессмысленно: он считает ширину знака по виду, а не по длине строки,
-// и составные эмодзи занимают у него меньше, чем в коде. Без этого шага файл
-// лежал бы в исходниках неотформатированным и не проходил бы `pnpm lint`.
+// Laying out the lines is prettier's business, not this script's. Repeating its
+// rules by hand is pointless: it counts the width of a character by how it
+// looks rather than by the length of the string, and composite emoji take less
+// space for it than they do in the code. Without this step the file would lie in
+// the sources unformatted and would not pass `pnpm lint`.
 execFileSync('npx', ['prettier', '--write', target], {
   cwd: resolve(root, 'apps/web'),
   stdio: 'ignore'
 });
 
-console.log(`эмодзи: ${rows.length}`);
+console.log(`emoji: ${rows.length}`);
