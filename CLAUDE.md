@@ -51,6 +51,9 @@ Comments and strings in code stay in the language of the file being edited.
 User-facing text goes only through the dictionaries in
 `apps/web/static/locales`.
 
+Commit messages and pull request descriptions are written in English. The
+earlier history is in Russian; it is not rewritten.
+
 ## The main rule
 
 For non-trivial changes (more than one file, or more than 50 lines) describe the
