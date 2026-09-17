@@ -1,221 +1,302 @@
-# Проверка и эксплуатация
+# Verification and operations
 
-## Пересборка образа считается состоявшейся только после проверки развертывания
+## A rebuilt image counts only once the deployment has been checked
 
-- **После сборки и до запуска контейнера обязательно сверить, что образ содержит проверяемую правку**: `scripts/verify-image-contains.sh <подстрока> [путь]`. Скрипт заводится ровно потому, что шаг дважды пропускался и выводы делались по стенду с предыдущим образом. Если правки нет, пересобрать, при повторе с `--no-cache`.
-- Затем убедиться, что контейнер стартовал и отвечает `/api/health`, и только после этого измерять результат правки.
-- **Уборка входит в процедуру, а не выполняется по факту нехватки.** Сразу после успешной проверки образа на стенде удалять кеш сборки и висячие образы: `docker builder prune -af` и `docker image prune -f`. Тома не трогать: там данные соседних проектов.
-- Инвариант: на диске всегда остается место минимум под две пересборки. Если перед пересборкой свободно меньше, сначала уборка, и только потом сборка.
+- **After the build and before starting the container, always confirm that the
+  image contains the change under test**: `scripts/verify-image-contains.sh
+  <substring> [path]`. The script exists precisely because that step was skipped
+  twice and conclusions were drawn from a stand running the previous image. If
+  the change is not there, rebuild, and on a repeat with `--no-cache`.
+- Then make sure the container started and answers `/api/health`, and only after
+  that measure the result of the change.
+- **Cleanup is part of the procedure rather than something done when space runs
+  out.** Straight after a successful image check on the stand, delete the build
+  cache and the dangling images: `docker builder prune -af` and `docker image
+  prune -f`. Do not touch the volumes: they hold the data of neighbouring
+  projects.
+- The invariant: the disk always keeps room for at least two rebuilds. If less
+  than that is free before a rebuild, clean up first and build afterwards.
 
-## Данные стенда и уборка за собой
+## Stand data, and cleaning up after yourself
 
-- **Менять на стенде только то, что создал сам.** Если правка требует изменить существующие данные, записать исходное значение до правки и вернуть его после. Так было потеряно имя рабочего пространства: его дважды переименовали в ходе проверки записи аудита, а журнал по решению проекта хранит только имена измененных полей, не значения, и восстановить было нечем.
-- **Удаление в объектном хранилище только по перечислению конкретных путей**, записанных до начала работы. **Маски и шаблоны в командах удаления не применять ни при каких условиях.** Уборка тестовых файлов командой `mc find ... --name "*.svg"` удалила вместе со своими файлами чужое вложение `diagram.excalidraw.svg`, версионирования в хранилище нет, содержимое утрачено безвозвратно.
-- Записи в базе и объекты в хранилище живут отдельно: удаление строки `attachments` не удаляет файл, удаление файла не удаляет строку. После уборки проверять оба места.
+- **On the stand change only what you created yourself.** If a change requires
+  editing existing data, write the original value down before the change and put
+  it back afterwards. That is how a workspace name was lost: it was renamed twice
+  while an audit record was being checked, and the log by project decision keeps
+  only the names of the changed fields, not their values, so there was nothing to
+  restore it from.
+- **Deletion in object storage only by listing concrete paths**, written down
+  before the work starts. **Masks and patterns in deletion commands must not be
+  used under any circumstances.** Cleaning up test files with `mc find ... --name
+  "*.svg"` deleted someone else's attachment `diagram.excalidraw.svg` along with
+  its own files; the storage has no versioning and the content is gone for good.
+- Database rows and storage objects live separately: deleting an `attachments`
+  row does not delete the file, and deleting the file does not delete the row.
+  After a cleanup check both places.
 
-## Сборка не заменяет запуск
+## A build does not replace a start
 
-- У приложения нет шага сборки, который поймал бы разошедшиеся зависимости: они собираются при создании приложения. Правка, добавляющая зависимость обработчику, проходит линт и падает уже при подъёме, если её не объявили в `app.py`.
-- Проверки этого не видят вовсе: сервис в них создаётся напрямую, минуя сборку приложения.
-- Поэтому после правки зависимостей обработчика и после правки списка контроллеров проверять именно старт, а не только линт и проверки. Минимальная проверка: поднять состав и дождаться `/api/health`.
+- The application has no build step that would catch diverged dependencies: they
+  are assembled while the application is being created. A change that gives a
+  handler a dependency passes lint and fails at startup if it was not declared in
+  `app.py`.
+- The tests do not see that at all: a service there is created directly,
+  bypassing the assembly of the application.
+- So after changing a handler's dependencies and after changing the list of
+  controllers, check the start itself rather than only lint and the tests. The
+  minimum check: bring the set up and wait for `/api/health`.
 
-## Разработка и проверка
+## Development and checks
 
-- Приложение: Python 3.13 и `uv`. Установка `uv sync --project apps/api`.
-- Экраны: Node 22 и pnpm 10.18.3. Установка `pnpm install --frozen-lockfile`.
-- Настройки pnpm (`overrides`) лежат в `pnpm-workspace.yaml`, а не в поле `pnpm` внутри `package.json`. Версия pnpm 11 это поле молча игнорирует.
-- Приложение: `uv run --project apps/api pytest`, `uv run --project apps/api ruff check .`.
-- Экраны: `pnpm --filter @tessera/web test`, `pnpm --filter @tessera/web check`, `pnpm --filter @tessera/web lint`. Ни одна из команд файлы не переписывает.
-- Совместное редактирование: `node --test services/collab/src/*.test.js`.
-- `pnpm build` собирает `packages/editor-ext`, затем `apps/web`. Первым шагом сборки экранов идёт копирование шрифтов Excalidraw в статику.
+- The application: Python 3.13 and `uv`. Install with `uv sync --project
+  apps/api`.
+- The screens: Node 22 and pnpm 10.18.3. Install with `pnpm install
+  --frozen-lockfile`.
+- The pnpm settings (`overrides`) live in `pnpm-workspace.yaml` rather than in
+  the `pnpm` field inside `package.json`. pnpm 11 ignores that field silently.
+- The application: `uv run --project apps/api pytest`, `uv run --project apps/api
+  ruff check .`.
+- The screens: `pnpm --filter @tessera/web test`, `pnpm --filter @tessera/web
+  check`, `pnpm --filter @tessera/web lint`. None of these commands rewrites
+  files.
+- Collaborative editing: `node --test services/collab/src/*.test.js`.
+- `pnpm build` builds `packages/editor-ext` and then `apps/web`. The first step
+  of the screens' build copies the Excalidraw fonts into the static directory.
 
-## Пересборка одной службы оставляет прокси с прежним адресом
+## Rebuilding one service leaves the proxy with the old address
 
-Замерено на стенде: после `up -d --build tessera-v2-web` контейнер поднялся и
-отдавал файлы напрямую (порт 3102, ответ 200), а через прокси тот же путь давал
-502. В журнале прокси — `connect() failed (111: Connection refused)` на прежний
-адрес контейнера: nginx разрешает имя службы один раз, при старте, а
-пересозданный контейнер получает другой адрес в сети состава.
+Measured on the stand: after `up -d --build tessera-v2-web` the container came up
+and served files directly (port 3102, answer 200), while the same path through
+the proxy gave a 502. The proxy log has `connect() failed (111: Connection
+refused)` to the container's previous address: nginx resolves a service name
+once, at start, and a recreated container gets a different address in the set's
+network.
 
-Лечится перезапуском прокси: `docker compose -f apps/api/docker-compose.v2.yml
-restart tessera-v2-proxy`.
+Cured by restarting the proxy: `docker compose -f
+apps/api/docker-compose.v2.yml restart tessera-v2-proxy`.
 
-Важно для выводов: 502 через прокси после пересборки означает устаревший адрес,
-а не поломку правки. Проверять сначала напрямую в контейнер, и только потом
-делать вывод о самой правке.
+Important when drawing conclusions: a 502 through the proxy after a rebuild means
+a stale address, not a broken change. Check straight into the container first,
+and only then conclude anything about the change itself.
 
-## Зависимость может быть нужна не исходникам, а сборке
+## A dependency may be needed by the build rather than by the sources
 
-Отсутствие пакета в `import` исходников не означает, что пакет лишний. Проверять
-надо сборкой, а не перебором импортов.
+The absence of a package from the `import` lines of the sources does not mean the
+package is superfluous. That has to be checked with a build rather than by going
+through imports.
 
-Замерено: `clsx` не встречается в исходниках ни разу, и по этому признаку был
-убран из манифеста экранов. Сборка после этого упала на
-`The requested module 'clsx' does not provide an export named 'clsx'` — пакет
-импортирует сам Svelte 5, а объявление в манифесте закрепляло нужную мажорную
-версию. Без него подъём разрешил транзитивную `clsx@1.1.1`, у которой такого
-экспорта нет.
+Measured: `clsx` does not appear in the sources even once, and on that ground it
+was removed from the screens' manifest. The build then fell over with `The
+requested module 'clsx' does not provide an export named 'clsx'` — the package is
+imported by Svelte 5 itself, and the declaration in the manifest pinned the
+required major version. Without it, installation resolved a transitive
+`clsx@1.1.1`, which has no such export.
 
-Порядок: убрал зависимость — прогнал `pnpm build`, `pnpm --filter @tessera/web
-check` и проверки. Зелёный `grep` доказательством не является.
+The order: removed a dependency — ran `pnpm build`, `pnpm --filter @tessera/web
+check` and the tests. A green `grep` is not proof.
 
-## Правку скриптом проверять выводом до коммита
+## Verify a script-made edit by its output before committing
 
-Скрипт меняет файл молча, и ошибка в шаблоне замены остаётся невидимой. На
-правке одной строки комментария в `baseline.sql` замена обрезала строке конец:
-вместо «они ссылаются на таблицы,» осталось «они ссылаются на», и фраза
-разошлась по двум строкам бессмыслицей. Поймано только потому, что после
-скрипта в той же команде был показан кусок файла.
+A script changes a file silently, and a mistake in the replacement pattern stays
+invisible. On a one-line comment edit in `baseline.sql` the replacement cut the
+end off the line, and the sentence broke across two lines into nonsense. It was
+caught only because a slice of the file was printed in the same command right
+after the script.
 
-Поэтому после каждой правки скриптом — показ изменённого места (`sed -n` по
-строкам или `git diff` по файлу) в той же команде, до коммита.
+So after every script-made edit — print the changed place (`sed -n` by line
+numbers, or `git diff` for the file) in the same command, before committing.
 
-И фильтр вывода проверять на самом выводе. Там же `git diff` по файлу с
-комментариями `--` был отброшен шаблоном `^[-+][^-+]`: добавленная строка
-выглядит как `+--`, второй знак — минус, и дифф казался пустым при непустой
-правке. Пустой вывод проверки — это повод усомниться в фильтре, а не
-подтверждение.
+And check the output filter on the output itself. In that same place a `git diff`
+for a file with `--` comments was thrown away by the pattern `^[-+][^-+]`: an
+added line looks like `+--`, the second character is a minus, and the diff looked
+empty while the change was not. Empty output from a check is a reason to doubt
+the filter, not a confirmation.
 
-## Схема базы
+## The database schema
 
-- Схема объявляется в `apps/api/schema/schema.hcl` и применяется Atlas тремя шагами состава. Файлов миграций в коде нет, команды `migration:*` не существует.
-- Разрушающее изменение Atlas выполнит молча, если оно объявлено. Перед применением смотреть план.
-- Хук `.claude/hooks/protect-bash.sh` отвергает команду с `DROP TABLE`, `DROP DATABASE` или `TRUNCATE`, поэтому временную базу на стенде не завести и не убрать. Ручной шаг схемы проверяется в одноразовом контейнере, не на базе стенда: `docker run --rm -d --name tessera-v2-scratch-pg --tmpfs /var/lib/postgresql -e POSTGRES_HOST_AUTH_METHOD=trust pgvector/pgvector:pg18`, затем исходное состояние боевой (определения из миграций первой версии в `temp/v1`), шаг и проверки через `docker exec -i tessera-v2-scratch-pg psql -h 127.0.0.1 -U postgres`, и `docker stop` — данные на tmpfs, после остановки не остаётся ни базы, ни тома. `tmpfs` ставится ровно на путь тома образа (`docker image inspect -f '{{json .Config.Volumes}}'`, у pg18 это `/var/lib/postgresql`): на другом пути Docker заведёт анонимный том. Готовность ждать по `pg_isready -h 127.0.0.1` — на время первичной настройки образ слушает только сокет.
-- К общей с первой версией базе Atlas не применяется: в боевом составе шагов наката нет. Правка схемы, нужная там, в том же коммите добавляет шаг с SQL и пометкой, нужен ли он до подъёма образа; обязательные шаги стережёт `deploy/preflight-check.sql`.
-- Вторая версия подключается к той же базе, что и первая, и схему не пересоздаёт.
+- The schema is declared in `apps/api/schema/schema.hcl` and applied by Atlas in
+  three steps of the set. There are no migration files in the code, and there is
+  no `migration:*` command.
+- Atlas will carry out a destructive change silently if it is declared. Look at
+  the plan before applying.
+- The hook `.claude/hooks/protect-bash.sh` rejects a command containing `DROP
+  TABLE`, `DROP DATABASE` or `TRUNCATE`, so a temporary database cannot be
+  created or removed on the stand. A manual schema step is checked in a
+  throwaway container rather than on the stand database: `docker run --rm -d
+  --name tessera-v2-scratch-pg --tmpfs /var/lib/postgresql -e
+  POSTGRES_HOST_AUTH_METHOD=trust pgvector/pgvector:pg18`, then the starting
+  state of production, then the step and the checks through `docker exec -i
+  tessera-v2-scratch-pg psql -h 127.0.0.1 -U postgres`, and `docker stop` — the
+  data is on tmpfs, and after the stop neither a database nor a volume is left.
+  The `tmpfs` goes exactly on the image's volume path (`docker image inspect -f
+  '{{json .Config.Volumes}}'`; for pg18 that is `/var/lib/postgresql`): on any
+  other path Docker creates an anonymous volume. Wait for readiness with
+  `pg_isready -h 127.0.0.1` — during the initial setup the image listens on the
+  socket only.
+- Atlas is not applied to an external database that already exists: the
+  production set has no rollout steps. A schema change needed there adds, in the
+  same commit, a step with the SQL and a note on whether it is required before
+  the image comes up; the mandatory steps are guarded by
+  `deploy/preflight-check.sql`.
+- The application connects to an existing database and does not recreate the
+  schema.
 
-## Внутренний сервис
+## The internal service
 
-- `services/hub` проверяется своими командами: `uv sync --group dev`, `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`.
-- Тесты гоняются на SQLite во временном файле, база PostgreSQL для них не нужна. Миграции проверяются запуском контейнера: точка входа выполняет `alembic upgrade head` до старта приложения.
+- `services/hub` is checked with its own commands: `uv sync --group dev`, `uv run
+  pytest`, `uv run ruff check .`, `uv run ruff format --check .`.
+- Its tests run on SQLite in a temporary file and need no PostgreSQL. The
+  migrations are checked by starting the container: the entry point runs `alembic
+  upgrade head` before the application starts.
 
-## Docker и развёртывание
+## Docker and deployment
 
-- Образов три: `apps/api/Dockerfile` (приложение и обработчик заданий), `apps/web/Dockerfile` (экраны), `services/collab/Dockerfile` (совместное редактирование).
-- Составов два: `apps/api/docker-compose.v2.yml` — стенд со своими базой, Redis и хранилищем; `apps/api/docker-compose.v2.server.yml` — боевой, где база и хранилище общие с прежним экземпляром.
-- Имена служб зашиты во внутренние адреса (`API_INTERNAL_URL`, `PDF_RENDER_BASE_URL`, `--chromium-allow-list` у Gotenberg). Переименование ломает отрисовку PDF и серверные загрузчики.
+- There are three images: `apps/api/Dockerfile` (the application and the job
+  worker), `apps/web/Dockerfile` (the screens), `services/collab/Dockerfile`
+  (collaborative editing).
+- There are two sets: `apps/api/docker-compose.v2.yml` — the stand, with its own
+  database, Redis and storage; `apps/api/docker-compose.v2.server.yml` — the
+  production one, where the database and the storage are external.
+- The service names are hard-wired into internal addresses
+  (`API_INTERNAL_URL`, `PDF_RENDER_BASE_URL`, `--chromium-allow-list` for
+  Gotenberg). Renaming them breaks PDF rendering and the server-side loaders.
 
-## Состояние текущего чекаута
+## The state of the current checkout
 
-- Каталога `.github/` в этом чекауте нет: CI здесь не запускается, все проверки выполнять локально перечисленными командами.
-- Каталоги `node_modules` и `apps/api/.venv` могут отсутствовать. Хук `.claude/hooks/session-status.sh` сообщает об этом при старте сессии.
+- There is no `.github/` directory in this checkout: CI does not run here, and
+  all the checks are to be run locally with the commands listed above.
+- The `node_modules` and `apps/api/.venv` directories may be missing. The hook
+  `.claude/hooks/session-status.sh` reports that at the start of a session.
 
-## Сторожевые проверки: поведение, а не текст
+## Guard tests: behavior, not text
 
-Проверка, разбирающая исходники регулярным выражением, подтверждает написание,
-а не поведение. В этом репозитории такая проверка пропустила полностью
-нерабочий поиск (весь полнотекстовый запрос падал) и неверно утверждала область
-действия счетчиков частоты.
+A test that parses the sources with a regular expression confirms the spelling,
+not the behavior. In this repository a test like that let through a search that
+did not work at all (the whole full-text query was failing) and asserted the
+wrong scope for the rate counters.
 
-Правило. Если проверяемое свойство выражается в чем-то исполнимом, проверять
-надо исполнимое:
+The rule. If the property under test can be expressed in something executable,
+then the executable thing is what to test:
 
-- собранный SQL — компилировать выражение SQLAlchemy и сравнивать полученный текст, а не искать подстроку в исходнике
-- признаки маршрута — читать `handler.opt` у собранного приложения так же, как их читает guard, а не искать декоратор глазами
-- значения конфигурации — импортировать константу, а не выковыривать из текста модуля
+- the assembled SQL — compile the SQLAlchemy expression and compare the text you
+  get, rather than looking for a substring in the source
+- the flags of a route — read `handler.opt` on the assembled application the same
+  way the guard reads them, rather than looking for the decorator by eye
+- configuration values — import the constant rather than digging it out of the
+  text of the module
 
-Обход файлов при этом законен и нужен: он обеспечивает охват тех контроллеров,
-которые появятся завтра. Из текста берется только список файлов, утверждение
-строится на загруженном объекте.
+Walking the files is legitimate and needed for that: it gives coverage of the
+controllers that will appear tomorrow. Only the list of files is taken from the
+text; the assertion is built on the loaded object.
 
-Текстовый разбор остается верным там, где само проверяемое свойство есть
-свойство исходника: какие ключи перевода код использует, есть ли у необязательного
-аргумента разбор. Исполнимого эквивалента у них нет.
+Text parsing stays correct where the property under test is itself a property of
+the source: which translation keys the code uses, whether an optional argument is
+parsed. Those have no executable equivalent.
 
-## Адрес запроса и доверие прокси
+## The request address and trusting the proxy
 
-`TRUST_PROXY_HOPS` это число доверенных переходов, а не признак «доверять всей
-цепочке». `infrastructure/throttle.py:client_ip` доверяет ровно `hops`
-последним записям `X-Forwarded-For`. Брать первую запись нельзя: её пишет сам
-обращающийся, и предел обходился бы подставным значением. При `hops` = 0
-заголовок игнорируется целиком.
+`TRUST_PROXY_HOPS` is the number of trusted hops, not a "trust the whole chain"
+flag. `infrastructure/throttle.py:client_ip` trusts exactly the last `hops`
+entries of `X-Forwarded-For`. Taking the first entry is not allowed: it is
+written by the caller itself, and the limit could be bypassed with a forged
+value. With `hops` = 0 the header is ignored entirely.
 
-По этому адресу считаются пороги частоты и пишется адрес в журнал аудита.
-Доверие всей цепочке давало бы и обход предела подстановкой заголовка, и
-подделку адреса в журнале.
+The rate thresholds are counted per that address, and that address is what goes
+into the audit log. Trusting the whole chain would allow both bypassing the limit
+by substituting a header and forging the address in the log.
 
-По умолчанию один переход: перед приложением стоит ровно один обратный прокси,
-и он приписывает реальный адрес.
+One hop by default: there is exactly one reverse proxy in front of the
+application, and it is the one that attributes the real address.
 
-## Сторожевую проверку надо проверять внесением дефекта
+## A guard test has to be checked by introducing the defect
 
-Зеленая проверка не доказывает, что она что-то ловит. За одну сессию три
-написанных проверки оказались негодными, и все три были зелеными.
+A green test does not prove that it catches anything. In one session three tests
+that had been written turned out to be useless, and all three were green.
 
-Способ. Внести в исходник ровно тот дефект, ради которого проверка написана,
-прогнать ее, вернуть исходник. Не покраснела значит не работает.
+The way to do it. Introduce into the source exactly the defect the test was
+written for, run it, and restore the source. If it did not go red, it does not
+work.
 
-Возвращать исходник копией сохраненного файла, а не `git checkout`. Откат
-вернет к состоянию последнего коммита и вместе с мутацией сотрет любую
-незакоммиченную правку в том же файле. Так пропало исправление, сделанное
-прямо перед мутацией: мутация подтвердила, что проверка работает, а само
-исправление откатилось, и в коммит не попало.
+Restore the source from a copy of the saved file rather than with `git checkout`.
+A checkout rolls back to the state of the last commit and, along with the
+mutation, wipes any uncommitted change in the same file. That is how a fix made
+right before the mutation was lost: the mutation confirmed that the test worked,
+and the fix itself was rolled back and never made it into the commit.
 
-Что этим найдено:
+What this has found:
 
-- заглушка базы, проглатывавшая условия выборки: снятие ограничения по
-  провайдеру в синхронизации групп проверку не роняло, потому что заглушка
-  всегда отдавала одни и те же строки. Проверялась обработка строк, а не то,
-  какие строки берутся
-- случай, отличимый от штатного только отсутствием записи об отказе: без явной
-  проверки вызов падал внутри, общий обработчик отказ гасил, и снаружи разницы
-  не было
-- карта строк с ключами вида `user.deleted`: общая проверка словарей читает
-  литералы полей `label` и `title`, поэтому правка карты проходила мимо
+- a database stub that swallowed the conditions of a query: removing the
+  restriction by provider in group synchronization did not make the test fail,
+  because the stub always returned the same rows. What was being tested was the
+  handling of the rows, not which rows were taken
+- a case distinguishable from the normal one only by the absence of a failure
+  record: without an explicit check the call failed inside, the common handler
+  swallowed the failure, and from the outside there was no difference
+- a map of strings with keys of the form `user.deleted`: the common dictionary
+  test reads the literals of the `label` and `title` fields, so an edit to the map
+  went past it
 
-Побочный результат того же приема: мутация вскрыла задвоенную проверку в самом
-коде. Снятие одной ничего не меняло, потому что рядом стояла вторая, и заметить
-это иначе было нечем.
+A side result of the same technique: a mutation exposed a duplicated check in the
+code itself. Removing one of them changed nothing because the second stood right
+next to it, and there was no other way to notice.
 
-Заглушка, устроенная как «принимаю что угодно, отдаю заранее заданное», это
-главный источник негодных проверок в этом репозитории. Если проверяется не
-обработка данных, а их отбор, заглушка обязана отбор воспроизводить.
+A stub built as "I accept anything and return what was set in advance" is the
+main source of useless tests in this repository. If what is being tested is not
+the handling of the data but its selection, the stub is obliged to reproduce the
+selection.
 
-## Развёртывание второй версии на своей машине
+## Deploying on your own machine
 
-Целиком своим составом, одной командой:
+The whole thing with its own set, in one command:
 
 ```
 docker compose -f apps/api/docker-compose.v2.yml up -d --build
 ```
 
-и `http://localhost:8080`. Четыре обязательных значения (`APP_SECRET`,
-`POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `COLLAB_INTERNAL_TOKEN`) перечислены
-в шапке самого состава; задаются в `apps/api/.env` или через `--env-file`.
+and `http://localhost:8080`. The four mandatory values (`APP_SECRET`,
+`POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `COLLAB_INTERNAL_TOKEN`) are listed
+in the header of the set itself; they are given in `apps/api/.env` or through
+`--env-file`.
 
-Состав поднимает тринадцать служб, включая обратный прокси. **Прокси
-обязателен**, и не для красоты: за одним адресом стоят три процесса, и без него
-браузер ходил бы на три разных происхождения, а кука входа стала бы сторонней —
-её не отправили бы ни к `/api`, ни к `/collab`.
+The set brings up thirteen services, including the reverse proxy. **The proxy is
+mandatory**, and not for looks: three processes stand behind one address, and
+without it the browser would be calling three different origins and the sign-in
+cookie would become third-party — it would be sent neither to `/api` nor to
+`/collab`.
 
-Схему накатывают три разовых шага: `baseline.sql`, Atlas, `after-atlas.sql`.
-Они есть только в этом составе и намеренно отсутствуют в боевом: `atlas schema
-apply` объявителен и привёл бы общую с v1 базу к своему описанию.
+The schema is rolled out by three one-off steps: `baseline.sql`, Atlas,
+`after-atlas.sql`. They exist only in this set and are deliberately absent from
+the production one: `atlas schema apply` is declarative and would bring an
+external shared database into line with its own description.
 
-На первом подъёме отказов было семь, и ни один не виден проверками: они
-проявляются только при подъёме состава.
+On the first bring-up there were seven failures, and none of them is visible to
+the tests: they show up only when the set is brought up.
 
-## Стенд второй версии по частям
+## The stand in parts
 
-Когда нужно быстро — `apps/api` (Litestar) и `apps/web` (SvelteKit) поднимаются
-рядом с v1 против той же базы, тремя процессами. Docker для этого не нужен.
-**Части не заменяют подъёма составом**: семь отказов выше жили в ветке ровно
-потому, что состав целиком не поднимали.
+When speed is what matters, `apps/api` (Litestar) and `apps/web` (SvelteKit) can
+be brought up against the same database as three processes. Docker is not needed
+for that. **The parts do not replace bringing the set up**: the seven failures
+above lived in the branch precisely because the set as a whole was not being
+brought up.
 
-- API: `uv run python -m uvicorn --factory tessera_api.app:create_app --host
-  127.0.0.1 --port 3100` из `apps/api`, окружение — свой файл с
-  `DATABASE_URL`, указывающим на базу с хоста, а не по имени службы compose.
-- `services/collab`: `PORT=3101 API_URL=http://127.0.0.1:3100 node src/server.js`.
-- Интерфейс: `npx vite dev` из `apps/web`, порт 3200, проксирует `/api`,
-  `/socket.io` и `/collab`.
+- The API: `uv run python -m uvicorn --factory tessera_api.app:create_app --host
+  127.0.0.1 --port 3100` from `apps/api`, with its own environment file whose
+  `DATABASE_URL` points at the database from the host rather than by the compose
+  service name.
+- `services/collab`: `PORT=3101 API_URL=http://127.0.0.1:3100 node
+  src/server.js`.
+- The interface: `npx vite dev` from `apps/web`, port 3200, proxying `/api`,
+  `/socket.io` and `/collab`.
 
-**Вход на стенд.** Учётную запись заводить не нужно, пароль в форму не
-вводится. Сеанс выдаётся из кода тем же путём, каким его выдаёт вход через
-провайдера — `AuthService.open_session_for`, — а cookie ставится ответом
-сервера. Записать `authToken` из JavaScript нельзя: приложение ставит cookie с
-`httponly`, и браузер запрещает страницам её перезаписывать.
+**Signing in to the stand.** There is no need to create an account, and no
+password is typed into a form. The session is issued from the code the same way
+signing in through a provider issues it — `AuthService.open_session_for` — and
+the cookie is set by the server's answer. Writing `authToken` from JavaScript is
+not possible: the application sets the cookie as `httponly`, and the browser
+forbids pages from overwriting it.
 
-Два скрипта и три команды:
+Two scripts and three commands:
 
 ```
 docker cp scripts/stand-session.py tessera-v2-api:/tmp/stand-session.py
@@ -223,178 +304,210 @@ docker exec tessera-v2-api python /tmp/stand-session.py > .stand-session
 python3 scripts/stand-cookie.py
 ```
 
-Затем открыть `http://localhost:9099` — сервер поставит cookie и переведёт на
-стенд. Обе команды перечислены в `allow` файла `.claude/settings.json`: без
-этого классификатор режима auto их не пропускает.
+Then open `http://localhost:9099` — the server will set the cookie and redirect
+to the stand. Both commands are listed in the `allow` section of
+`.claude/settings.json`: without that the classifier of auto mode does not let
+them through.
 
-Оба скрипта отказываются работать вне стенда: сверяют `APP_URL` с локальными
-узлами. Файл `.stand-session` содержит учётные данные, он в `.gitignore` и
-после осмотра удаляется.
+Both scripts refuse to work outside the stand: they compare `APP_URL` against
+local hosts. The `.stand-session` file holds credentials, it is in `.gitignore`
+and it is deleted once the inspection is over.
 
-**Открывать стенд надо тем же именем узла, каким задан `APP_URL`.** Кука
-принадлежит узлу, а не порту: поставленная на `127.0.0.1`, на `localhost` она
-не уйдёт. И рукопожатие канала событий сверяет происхождение страницы с
-`APP_URL` (`api/realtime.py`, `origin_allowed`): при расхождении в консоли
-висит «Канал событий отказал в подключении», страницы работают, а живые
-обновления не приходят — стенд выглядит сломанным там, где он цел. У стенда
-`APP_URL=http://localhost:8080`, поэтому и адрес выдачи куки, и сам осмотр идут
-по `localhost`. Адрес перехода `stand-cookie.py` берёт из `APP_URL`, так что
-расходиться им больше негде.
+**The stand must be opened by the same host name `APP_URL` is set to.** A cookie
+belongs to a host rather than to a port: set on `127.0.0.1`, it will not travel
+to `localhost`. And the handshake of the event channel compares the page's origin
+with `APP_URL` (`api/realtime.py`, `origin_allowed`): on a mismatch the console
+holds "The event channel refused the connection", the pages work, and live
+updates do not arrive — the stand looks broken where it is intact. The stand has
+`APP_URL=http://localhost:8080`, so both the address the cookie is issued on and
+the inspection itself go through `localhost`. The redirect address is taken by
+`stand-cookie.py` from `APP_URL`, so there is nowhere left for them to diverge.
 
-**Пересобирать надо и `tessera-v2-worker`.** Очередь исполняется отдельным
-контейнером с тем же образом, и всё, что делается заданием — печать PDF, ввоз,
-вывоз, — идёт его кодом. Пересборка одних `tessera-v2-api` и `tessera-v2-web`
-оставляет прежний обработчик, и правка выглядит не подействовавшей: на этом
-уже был потерян час на разбор «почему заголовок в PDF не перевёлся».
+**`tessera-v2-worker` has to be rebuilt too.** The queue is executed by a
+separate container with the same image, and everything done as a job — printing
+a PDF, importing, exporting — runs through its code. Rebuilding only
+`tessera-v2-api` and `tessera-v2-web` leaves the previous worker in place, and
+the change looks as if it had no effect: an hour has already been lost that way
+on working out "why the heading in the PDF was not translated".
 
-**Перечень проверяемых страниц** отбирается четырьмя способами: состояние, пространство, поиск по названию (`ilike`, не полнотекст — экран открывают, чтобы найти известную страницу) и подтверждающий. Отбор по подтверждающему идёт подзапросом к `page_verifiers`, а не после выборки: иначе потолок выдачи съедали бы строки, которые всё равно отбрасываются.
+**The list of pages under verification** is filtered in four ways: by state, by
+space, by title search (`ilike`, not full text — the screen is opened to find a
+page you already know of) and by verifier. Filtering by verifier goes as a
+subquery to `page_verifiers` rather than after the selection: otherwise the
+output ceiling would be eaten by rows that get discarded anyway.
 
-Выдача постраничная, курсором по паре «заведено, идентификатор» — тем же способом, что журнал аудита (`{items, meta: {nextCursor}}`). Отбор по правам выбрасывает строки уже после выборки, поэтому страница бывает короче запрошенной; конец перечня показывает пустой `nextCursor`, а не короткая страница. Курсор берётся от последней **прочитанной** строки, а не от последней показанной: иначе страница, целиком отсеянная правами, обрывала бы перечень на середине. Так же устроен перечень шаблонов (`/api/templates/`), и там же отбор по области ушёл на сервер — отобранная на клиенте страница выходила бы пустой при том, что подходящие есть дальше.
+The output is paged, by a cursor on the "created, identifier" pair — the same way
+as the audit log (`{items, meta: {nextCursor}}`). The permission filter discards
+rows after the selection, so a page is sometimes shorter than the one requested;
+the end of the list is shown by an empty `nextCursor` rather than by a short
+page. The cursor is taken from the last **read** row rather than the last shown
+one: otherwise a page filtered out entirely by permissions would cut the list off
+in the middle. The template list (`/api/templates/`) is built the same way, and
+there the scope filter moved to the server — a page filtered on the client would
+come out empty while suitable rows exist further on.
 
-Тем же способом отдаются метки (`GET /api/labels`), страницы с меткой (`/api/labels/pages`), открытые ссылки (`/api/share/`), группы (`GET /api/groups`) и состав группы (`/api/groups/members`). Курсоры для них собирает `services/paging.py`: составной ключ «значение, идентификатор», негодный курсор молча означает «с начала», потолок выдачи задаёт не запрос. У перечней, упорядоченных по тексту, порядок и курсор считаются одним и тем же выражением (`coalesce(title, '')`): сравнение с NULL отбрасывало бы безымянные строки со второй страницы молча. Прежние три кодировщика — журнал, шаблоны, проверки — остались на месте, сводить их было бы правкой ради единообразия.
+The same way serves labels (`GET /api/labels`), pages with a label
+(`/api/labels/pages`), public links (`/api/share/`), groups (`GET /api/groups`)
+and the members of a group (`/api/groups/members`). Their cursors are assembled
+by `services/paging.py`: a composite "value, identifier" key, an invalid cursor
+silently means "from the beginning", and the output ceiling is not set by the
+request. In lists ordered by text, the order and the cursor are computed by one
+and the same expression (`coalesce(title, '')`): a comparison with NULL would
+silently drop untitled rows from the second page onwards. The three earlier
+encoders — the log, the templates, the verifications — stayed where they were;
+merging them would be an edit for the sake of uniformity.
 
-**Проверки `apps/web` разделены на два набора** в `apps/web/vitest.config.ts`
-(файл `vite.config.ts` для проверок не читается вовсе). `unit` — среда без
-окна, `src/**/*.test.ts` кроме оконных. `dom` — `jsdom`, условие разрешения
-`browser`, сборщик Svelte: `*.svelte.test.ts` (разметка компонента) и
-`*.dom.test.ts` (разбор, которому нужно окно, но не нужен компонент). Подпорки
-среды: `src/dom-setup.ts` (`scrollIntoView`, `PointerEvent`), `src/test-stubs/`
-(`$app/environment`, `$env/static/public`, `$app/navigation`), подмена набора
-значков Tabler.
+**The `apps/web` tests are split into two projects** in
+`apps/web/vitest.config.ts` (the `vite.config.ts` file is not read for the tests
+at all). `unit` — an environment with no window, `src/**/*.test.ts` except the
+window ones. `dom` — `jsdom`, the `browser` resolution condition, the Svelte
+plugin: `*.svelte.test.ts` (component markup) and `*.dom.test.ts` (parsing that
+needs a window but not a component). The environment props: `src/dom-setup.ts`
+(`scrollIntoView`, `PointerEvent`), `src/test-stubs/` (`$app/environment`,
+`$env/static/public`, `$app/navigation`), and a substitute for the Tabler icon
+set.
 
-**Осмотр глазами не заменяется ни типами, ни проверками.** Первый полный
-проход по экранам v2 в браузере нашёл девять дефектов при зелёных сборке,
-`svelte-check` и 231 проверке. Четыре из них одного класса: зависимость
-эффекта Svelte, которая не зарегистрировалась, — счётчик, который эффект сам
-же пишет; довод необязательного вызова, не вычисленный из-за пустой ссылки;
-перенос `data` маршрута в местное состояние на каждом ответе сервера. Второй
-проход нашёл пятый случай того же класса, и самый дорогой: метод хранилища,
-вызываемый из эффекта корневого слоя, перечитывал поле, которое сам только что
-записал. Ветвь эффектов снялась целиком — обновляться перестало **всё
-приложение**, при зелёных 351 проверке и `svelte-check`. Правило короткое:
-**метод, зовущийся из эффекта, не читает то, что сам записал**, — записанное
-передаётся доводами.
+**An inspection by eye is not replaced by types or by tests.** The first full
+pass over the screens in a browser found nine defects with a green build, a green
+`svelte-check` and 231 tests. Four of them were of one class: a Svelte effect
+dependency that did not register — a counter the effect writes itself; an
+argument of an optional call that was not computed because of an empty reference;
+copying the route's `data` into local state on every answer from the server. A
+second pass found a fifth case of the same class, and the most expensive one: a
+store method called from an effect in the root layout re-read a field it had just
+written itself. The whole branch of effects came off — **the entire application**
+stopped updating, with 351 green tests and a green `svelte-check`. The rule is
+short: **a method called from an effect does not read what it wrote itself** —
+what was written is passed in as arguments.
 
-**Экран разговора с помощником рисуется только в браузере.** В
-`apps/web/src/routes/(app)/ai/[[chatId]]/+page.server.ts` стоит `ssr = false`.
-Причина не во вкусе: ответ модели показывается разметкой, а очиститель разметки
-(`dompurify`) работает по DOM, которого на сервере нет, — отрисовка на сервере
-падала отказом 500 на первом же сохранённом разговоре. Загрузчик остаётся
-серверным. Возвращая отрисовку на сервер, сначала решить, чем очищать разметку
-без DOM.
+**The assistant chat screen is rendered in the browser only.**
+`apps/web/src/routes/(app)/ai/[[chatId]]/+page.server.ts` has `ssr = false`. The
+reason is not taste: the model's answer is shown as markup, and the markup
+sanitizer (`dompurify`) works on a DOM, which the server does not have — server
+rendering failed with a 500 on the very first saved chat. The loader stays on the
+server. Before moving rendering back to the server, decide first what will
+sanitize the markup without a DOM.
 
-**Смена свойства компонента проверяется через `src/test-stubs/reactive-props.svelte.ts`.**
-`mount` принимает обычный объект, и запись в него до компонента не доходит.
-Проверка, которая вместо смены свойства пересоздаёт компонент, проходит и без
-исправления: новый экземпляр получает чистое состояние сам по себе. Поймано
-внесением дефекта — проверка забывания выдачи в быстром поиске проходила и с
-убранным исправлением.
+**A change of a component property is tested through
+`src/test-stubs/reactive-props.svelte.ts`.** `mount` takes an ordinary object,
+and a write into it never reaches the component. A test that re-creates the
+component instead of changing the property passes without the fix as well: a new
+instance gets clean state on its own. Caught by introducing the defect — the test
+for the quick search forgetting its results passed with the fix removed.
 
-**Что сервер умеет, а интерфейс не зовёт, ищется обратной сверкой маршрутов.**
-`apps/web/src/lib/api/routes.test.ts` проверяет, что каждый зовомый адрес есть
-на сервере; обратный разбор — какие адреса сервера не зовёт никто — нашёл
-четыре готовых возможности без интерфейса (`/api/pages/recent`,
-`/api/pages/created-by-user`, `/api/search-attachments`, `/api/ai/answers`).
-Половина несовпадений объясняется (адреса собираются подстановкой, внутренние
-маршруты зовёт `services/collab`, переходы SSO делает браузер), поэтому это
-приём для разбора руками, а не проверка.
+**What the server can do and the interface never calls is found by comparing the
+routes backwards.** `apps/web/src/lib/api/routes.test.ts` checks that every
+address being called exists on the server; the reverse pass — which server
+addresses nobody calls — found four ready capabilities with no interface
+(`/api/pages/recent`, `/api/pages/created-by-user`, `/api/search-attachments`,
+`/api/ai/answers`). Half of the mismatches are explainable (addresses are
+assembled by substitution, the internal routes are called by `services/collab`,
+the SSO redirects are done by the browser), so this is a technique for a manual
+pass rather than a test.
 
-**Отказ такого рода не виден в консоли по умолчанию.** Он уходит необработанным
-обещанием: страница выглядит целой, просто ничего не обновляется. При осмотре
-v2 ставить слушателя `unhandledrejection` до перехода на страницу.
+**A failure of that kind is not visible in the console by default.** It goes off
+as an unhandled rejection: the page looks intact, it just does not update
+anything. When inspecting, install an `unhandledrejection` listener before
+navigating to the page.
 
-**Стенду нужно хранилище.** Без `STORAGE_LOCAL_PATH` приложение берёт путь
-развёртывания (`/app/data/storage`), которого на машине нет, и загрузка файла
-отвечает 500 без записи в журнал. Для стенда задавать свой каталог.
+**The stand needs storage.** Without `STORAGE_LOCAL_PATH` the application takes
+the deployment path (`/app/data/storage`), which does not exist on the machine,
+and a file upload answers with a 500 and no log record. For the stand, set a
+directory of your own.
 
-**Библиотека диаграмм объявлена в `optimizeDeps`** (`apps/web/vite.config.ts`).
-Она грузится по требованию, и сборщик находит её только в миг первого
-обращения; её зависимость поставляется в старом формате модулей, и разбор на
-лету даёт отказ, а диаграмма молча остаётся текстом.
+**The diagram library is declared in `optimizeDeps`**
+(`apps/web/vite.config.ts`). It loads on demand, and the bundler finds it only at
+the moment of the first call; its dependency ships in the old module format, and
+parsing it on the fly fails, leaving the diagram silently as text.
 
-**Проверки `apps/api` без `DATABASE_URL` и `REDIS_URL` молча пропускаются**: `uv run pytest`
-покажет «734 passed, 1093 skipped» и это не прогон. Прогонять с тем же
-окружением, что и стенд. Без одного `REDIS_URL` прогон выглядит почти полным —
-«2266 passed, 12 skipped» 14 сентября 2026, — и эти двенадцать как раз и есть
-проверки сводки правок и ограничения частоты. Redis стенда без пароля, по
-адресу контейнера `tessera-v2-redis`; проверки удаляют только свои ключи по
-имени, без `FLUSHDB`. Итог полного прогона — ноль пропусков.
+**The `apps/api` tests are silently skipped without `DATABASE_URL` and
+`REDIS_URL`**: `uv run pytest` will show "734 passed, 1093 skipped" and that is
+not a run. Run them with the same environment as the stand. Without `REDIS_URL`
+alone a run looks almost complete — "2266 passed, 12 skipped" on 14 September
+2026 — and those twelve are exactly the digest and rate limit tests. The stand's
+Redis has no password and is at the container address `tessera-v2-redis`; the
+tests delete only their own keys by name, with no `FLUSHDB`. The outcome of a
+full run is zero skips.
 
-## Одновременная правка проверяется соединениями, а не вкладками
+## Simultaneous editing is checked with connections, not with tabs
 
-Десять вкладок руками не набрать одновременно, а расхождение слияния
-проявляется именно в одновременности. `scripts/collab-load.mjs` открывает
-заданное число соединений к каналу правки тем же протоколом, что и браузер
-(`@hocuspocus/provider`), и сверяет три вещи: все соединения видят один
-документ, абзацев ровно столько, сколько отправлено, и то же самое лежит в базе
-после разрыва и паузы на сохранение.
+Ten tabs cannot be typed into at once by hand, and a merge divergence shows up
+precisely in simultaneity. `scripts/collab-load.mjs` opens the given number of
+connections to the editing channel with the same protocol as the browser
+(`@hocuspocus/provider`) and compares three things: that all the connections see
+one document, that there are exactly as many paragraphs as were sent, and that
+the same thing is in the database after disconnecting and a pause for saving.
 
 ```
 docker exec tessera-v2-api python /tmp/stand-session.py > .stand-session
 TESSERA_TOKEN=$(cat .stand-session) CLIENTS=10 ROUNDS=20 node scripts/collab-load.mjs <slugId>
 ```
 
-Нужен Node 22: у двадцатого нет глобального `WebSocket`, и провайдер падает
-`ReferenceError` ещё до подключения.
+Node 22 is required: the twentieth has no global `WebSocket`, and the provider
+fails with a `ReferenceError` before it even connects.
 
-`HOLD_MS` держит соединения открытыми после правок — так перечень
-присутствующих можно посмотреть глазами: соединения объявляют себя в awareness
-так же, как браузер.
+`HOLD_MS` keeps the connections open after the edits — that way the list of
+people present can be looked at by eye: the connections announce themselves in
+awareness the same way the browser does.
 
-Ограничение: все соединения идут от одной учётной записи, заводить записи на
-стенде нельзя. От настоящих десяти человек это отличается подписями в перечне
-присутствующих и числом проверок прав в обходе сервиса; само слияние правок от
-числа учётных записей не зависит.
+The limitation: all the connections come from one account, and accounts must not
+be created on the stand. What differs from ten real people is the names in the
+presence list and the number of permission checks in the service's walk; the
+merging of the edits itself does not depend on the number of accounts.
 
-## Выгрузку PDF проверять по готовому файлу, а не по разметке
+## Check a PDF export by the finished file, not by the markup
 
-Лист печати рисует Gotenberg, и то, что видно в браузере, не равно тому, что
-попадает в файл. Пустой прямоугольник во всю печатную область жил в каждой
-выгрузке и в разметке не существовал вовсе: его давала заливка полотна, которую
-Chromium берёт с `html`.
+The print sheet is rendered by Gotenberg, and what is visible in the browser is
+not the same as what ends up in the file. An empty rectangle over the whole
+printable area lived in every export and did not exist in the markup at all: it
+came from the canvas fill that Chromium takes from `html`.
 
-Разбирать готовый файл: `fitz` (PyMuPDF) показывает заливки и их прямоугольники.
+Parse the finished file: `fitz` (PyMuPDF) shows the fills and their rectangles.
 
 ```
 python3 -c "import fitz; [print(d['type'], d['fill'], d['rect']) for d in fitz.open('out.pdf')[0].get_drawings()]"
 ```
 
-Задание ставится обращением `POST /api/pdf-export/page`, готовый файл забирается
-`POST /api/pdf-export/download` по `fileTaskId`; лист для печати открывается и
-глазами — `/pdf-render/<pageId>?token=<...>`, токен выписывает
-`PdfExportService.issue_render_token`.
+The job is queued by calling `POST /api/pdf-export/page` and the finished file is
+fetched with `POST /api/pdf-export/download` by `fileTaskId`; the print sheet can
+also be opened by eye — `/pdf-render/<pageId>?token=<...>`, with the token issued
+by `PdfExportService.issue_render_token`.
 
-## Печать проверяется в одноразовой копии, и Gotenberg пускает только прокси
+## Printing is checked in a throwaway copy, and Gotenberg admits the proxy only
 
-Список разрешённых Chromium адресов задан у Gotenberg флагом
-`--chromium-allow-list` из `PDF_ALLOW_LIST`, по умолчанию
-`^http://tessera-v2-proxy/(pdf-render/|_app/|api/files/|locales/)`. Любой другой
-адрес он не откроет, в том числе временный контейнер экранов: страница листа не
-загрузится, а отказ придёт от Gotenberg, не от приложения.
+The list of addresses Chromium is allowed is set for Gotenberg by the
+`--chromium-allow-list` flag from `PDF_ALLOW_LIST`, by default
+`^http://tessera-v2-proxy/(pdf-render/|_app/|api/files/|locales/)`. It will not
+open any other address, a temporary container of the screens included: the page
+of the sheet will not load, and the failure will come from Gotenberg rather than
+from the application.
 
-Порядок проверки печати на содержимом, которого на стенде нет (узел ролика,
-редкая разметка), замерен 16 сентября 2026 целиком:
+The order for checking printing on content the stand does not have (an embed
+node, rare markup) was measured in full on 16 September 2026:
 
-1. Одноразовая копия базы стенда: контейнер `pgvector/pgvector:pg18` на
-   `--tmpfs`, в сети стенда, `pg_dump` из `tessera-v2-db` в неё.
-2. В копии завести страницу с нужной разметкой и задание печати. Колонка
-   задания называется `metadata`, а поле модели — `task_metadata`
-   (`mapped_column("metadata", …)`); состав документа берётся из
-   `metadata.pageIds`.
-3. Токен листа: HS256 на `APP_SECRET`, поля `fileTaskId`, `workspaceId`, `type`
-   = `pdf-render`, срок десять минут (`TOKEN_TYPE` и `TOKEN_EXPIRES` в
-   `services/pdf_export.py`). Вход маршруту листа не нужен, токен и есть
-   учётные данные.
-4. Временная пара против копии — **через `docker compose run`**, а не
-   `docker run`: в файлах окружения `REDIS_URL` указывает на имя первой версии
-   (`tessera-redis`), которого в сети второй нет, и собранное вручную окружение
-   роняет приложение на подключении к Redis. Составу же имена соседей известны,
-   и секреты никуда не выписываются. Экранам довольно
-   `API_INTERNAL_URL` на временное приложение и своего порта наружу.
-5. Свой Gotenberg из того же образа со списком под адрес копии. Стенд не
-   трогать: его список менять незачем.
-6. Выгрузка — `POST /forms/chromium/convert/url` с тем же набором полей, что у
-   приложения, включая `waitForExpression` на `data-pdf-ready`. Готовый файл
-   вынести из контейнера и посмотреть глазами, как требует раздел выше.
-7. Убрать за собой: временные контейнеры копии, приложения, экранов и
-   Gotenberg.
+1. A throwaway copy of the stand database: a `pgvector/pgvector:pg18` container
+   on `--tmpfs`, in the stand's network, with `pg_dump` from `tessera-v2-db` into
+   it.
+2. In the copy, create a page with the markup you need and a print job. The job's
+   column is called `metadata` while the model field is `task_metadata`
+   (`mapped_column("metadata", …)`); the composition of the document is taken
+   from `metadata.pageIds`.
+3. The sheet token: HS256 on `APP_SECRET`, fields `fileTaskId`, `workspaceId`,
+   `type` = `pdf-render`, a ten-minute lifetime (`TOKEN_TYPE` and `TOKEN_EXPIRES`
+   in `services/pdf_export.py`). The sheet route needs no sign-in — the token is
+   the credentials.
+4. A temporary pair against the copy — **through `docker compose run`** rather
+   than `docker run`: in the environment files `REDIS_URL` points at a host name
+   that does not exist in this network, and a hand-assembled environment makes
+   the application fall over connecting to Redis. The set, on the other hand,
+   knows the names of the neighbours, and no secrets get written out anywhere.
+   For the screens, `API_INTERNAL_URL` pointing at the temporary application plus
+   a port of their own is enough.
+5. Your own Gotenberg from the same image, with the list set for the copy's
+   address. Do not touch the stand: there is no reason to change its list.
+6. The export — `POST /forms/chromium/convert/url` with the same set of fields as
+   the application uses, including `waitForExpression` on `data-pdf-ready`. Take
+   the finished file out of the container and look at it by eye, as the section
+   above requires.
+7. Clean up after yourself: the temporary containers of the copy, the
+   application, the screens and Gotenberg.

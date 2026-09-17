@@ -1,147 +1,150 @@
-# Молчаливое расхождение: способ поиска
+# Silent divergence: how to look for it
 
-Отдельный класс дефектов, у которого одно определение: **человек считает
-сделанным то, что не сделано, и продукт об этом молчит.**
+A separate class of defects with a single definition: **a person considers done
+what has not been done, and the product says nothing about it.**
 
-Это не наблюдение и не мораль, а способ искать. Самое вредное за день работы
-находилось не там, где искали, и каждый раз оказывалось этим классом.
+This is not an observation or a moral, it is a way of searching. The most
+harmful thing found in a day of work was never where it was being looked for,
+and every time it turned out to be this class.
 
-## Почему обычные способы его не находят
+## Why the usual means do not find it
 
-Тесты проверяют, что путь успеха работает. Здесь путь успеха работает, а
-расходится **сообщение о нём с тем, что произошло**. Ошибок в логах нет, кодов
-отказа нет, красного в интерфейсе нет. Дефект виден только тому, кто позже
-обнаружит, что результата не случилось, и обычно связать одно с другим уже
-нечем.
+Tests check that the success path works. Here the success path does work; what
+diverges is **the message about it and what actually happened**. There are no
+errors in the logs, no failure codes, nothing red in the interface. The defect is
+visible only to whoever later discovers that the result never happened, and by
+then there is usually nothing left to connect the two.
 
-Поэтому искать его надо целенаправленно, перебором по признакам, а не ждать
-жалобы.
+So it has to be looked for deliberately, by going through the signs, rather than
+waiting for a complaint.
 
-## Признаки, по которым перебирать
+## The signs to go through
 
-### 1. Интерфейс подтверждает успех до того, как результат достигнут
+### 1. The interface confirms success before the result is achieved
 
-- состояние меняется до ожидания ответа сервера
-- уведомление «успешно» показывается там, где сервер ещё не ответил
-- локальное состояние очищается перед запросом, который может не пройти
+- state changes before the server's answer is awaited
+- a "success" notification is shown where the server has not answered yet
+- local state is cleared before a request that may not go through
 
-**Найдено так:** выход из системы очищал локальное состояние, потом отзывал
-сессию на сервере. Отказ отзыва не обрабатывался: переход не выполнялся,
-человек оставался с видом вышедшего и живой сессией.
+**Found that way:** signing out cleared the local state and then revoked the
+session on the server. A failure of the revocation was not handled: the
+navigation did not happen, and the person was left looking signed out with a
+live session.
 
-### 2. Отказ гасится там, где человек его ждёт
+### 2. A failure is swallowed where a person is waiting for it
 
-- пустой `catch` вокруг действия, которое человек начал сам
-- `.catch(() => {})` на промисе, меняющем данные
-- на стороне приложения то же самое: `except Exception: pass` и `except`, который
-  возвращает значение по умолчанию вместо отказа
-- обработчик, который убирает индикатор загрузки, но ничего не говорит
+- an empty `catch` around an action the person started themselves
+- `.catch(() => {})` on a promise that changes data
+- the same thing on the application side: `except Exception: pass`, and an
+  `except` that returns a default value instead of a failure
+- a handler that removes the loading indicator and says nothing
 
-**Найдено так:** прикрепление файла в чате ИИ. Маршрут отдавал пустое вложение
-с видом успеха, клиент гасил отказ пустым `catch`, файл исчезал без
-объяснения. Плюс четыре таких же на загрузке аватара и значка пространства.
+**Found that way:** attaching a file in the AI chat. The route served an empty
+attachment with the look of success, the client swallowed the failure with an
+empty `catch`, and the file disappeared with no explanation. Plus four of the
+same kind in avatar and space icon uploads.
 
-### 3. Заглушка, отвечающая успехом
+### 3. A stub that answers with success
 
-- маршрут, возвращающий пустой объект вместо результата
-- функция, объявленная и не делающая ничего, но не падающая
+- a route that returns an empty object instead of a result
+- a function that is declared, does nothing, and does not fail
 
-**Найдено так:** та же загрузка в чате. Ревизия называла её «существующим
-долгом», то есть безобидной. Долг оказался теряющим данные.
+**Found that way:** the same upload in the chat. A review called it "existing
+debt", meaning harmless. The debt turned out to be losing data.
 
-### 4. Постановка задачи, у которой нет исполнителя
+### 4. A queued job with nothing to run it
 
-- задача ставится в очередь, обработчика на неё нет
-- задача помечается успешной раньше, чем результат получен
+- a job is put in a queue and has no handler
+- a job is marked successful earlier than the result is obtained
 
-**Найдено так:** `STRIPE_SEATS_SYNC` ставится в очередь биллинга, а
-`@Processor` у неё нет ни одного. И отдельно: выгрузка PDF сохраняла файл с
-текстом ошибки внутри и помечала задачу успешной.
+**Found that way:** a job was queued while nothing consumed that queue at all.
+And separately: the PDF export saved a file with the text of an error inside it
+and marked the task successful.
 
-**Как искать:** сверять в обе стороны. Обход от обработчиков к источникам
-пропускает постановку без исполнителя, обход от источников к обработчикам
-пропускает обратное. Осторожно с обработчиками, не разбирающими имя задачи:
-`EmailProcessor` берёт всю свою очередь целиком и по формальному признаку
-выглядит отсутствующим.
+**How to look:** compare in both directions. Walking from handlers to sources
+misses a queued job with no runner; walking from sources to handlers misses the
+converse. Be careful with handlers that do not inspect the job name: one that
+takes its whole queue looks absent by a formal grep.
 
-### 5. Описанное и недействующее
+### 5. Described and not in force
 
-- переменная документирована, но до приложения не доходит
-- комментарий утверждает гарантию, которой в коде нет
-- проверка написана и ничего не проверяет
-- настройка сохраняется и нигде не читается
+- a variable is documented but never reaches the application
+- a comment asserts a guarantee the code does not have
+- a test is written and checks nothing
+- a setting is saved and read nowhere
 
-**Найдено так:** `TRUST_PROXY_HOPS` описана в `STACK.md`, а compose её не
-передавал. Комментарий обещал однократность решения по плану, которой в коде не
-было. Три сторожевые проверки были зелёными и негодными.
+**Found that way:** `TRUST_PROXY_HOPS` was described in `STACK.md` while compose
+did not pass it through. A comment promised that a decision was made once by
+design, which the code did not do. Three guard tests were green and useless.
 
-Переключатели «Полная ширина страницы» и «Закреплённая панель редактора»
-сохранялись на сервер, отдавались обратно в сеансе и не читались ни одним
-экраном: человек их щёлкал, сервер отвечал «сохранено», лист и панель не
-менялись. Проверять такое надо не по экрану настроек, а обратным ходом — от
-поля настройки к месту, где оно применяется.
+The "Full page width" and "Pinned editor toolbar" switches were saved to the
+server, served back in the session and read by no screen at all: a person
+toggled them, the server answered "saved", and neither the sheet nor the toolbar
+changed. Checking for that is done not from the settings screen but backwards —
+from the settings field to the place where it is applied.
 
-### 6. Частичный результат, поданный как полный
+### 6. A partial result presented as a complete one
 
-- набор обрабатывается, часть пропускается, отчёт один на всех
-- «применено» вместо «применено четыре из семи»
+- a set is processed, part of it is skipped, and the report is one for all
+- "applied" instead of "four of seven applied"
 
-**Найдено так:** выгрузка PDF обрывается на пределе в сто страниц и ничего об
-этом не говорит. Человек, выгрузивший пространство из ста пятидесяти страниц,
-получает файл из ста и считает его полным. Сейчас след есть только в журнале
-сервера, до человека сообщение не доходит — незакрытое.
+**Found that way:** the PDF export stops at the limit of a hundred pages and says
+nothing about it. A person who exported a space of a hundred and fifty pages gets
+a file of one hundred and considers it complete. There is now a trace in the
+server log only, and the message does not reach the person — not closed.
 
-**Как искать:** любое место, где цикл проглатывает отказ элемента или
-обрывается на пределе и продолжает молчать. Перебор по серверу дал восемь
-таких циклов, семь оказались законными: пропуск страницы без прав совпадает с
-тем, что человек видит в дереве, а пробы файловых путей ничего не обещают.
-Решение почти всегда одно из двух: остановиться на первом отказе либо назвать
-пропущенное. Молча продолжать нельзя.
+**How to look:** any place where a loop swallows the failure of an item, or stops
+at a limit and keeps quiet. Going through the server gave eight such loops; seven
+turned out to be legitimate: skipping a page without permissions matches what the
+person sees in the tree, and probing file paths promises nothing. The fix is
+almost always one of two: stop at the first failure, or name what was skipped.
+Carrying on silently is not allowed.
 
-### 7. Отказ, невидимый оператору
+### 7. A failure invisible to the operator
 
-Отдельный подвид: расхождение, о котором не узнаёт не человек за экраном, а тот,
-кто обслуживает систему. Три подряд `.catch(() => {})` в учёте активности
-сессий гасят отказ Redis и базы без единой записи: отметки перестают
-обновляться, и заметить это нечем.
+A separate subspecies: a divergence that is missed not by the person at the
+screen but by whoever runs the system. Three `.catch(() => {})` in a row in
+session activity accounting swallow a Redis and a database failure without a
+single record: the marks stop being updated and there is nothing to notice it by.
 
-Это не тот же класс — здесь никто не считает действие сделанным, — но
-механизм тот же, и лечится так же: молчание заменяется записью.
+This is not the same class — nobody here considers the action done — but the
+mechanism is the same, and the cure is the same: silence is replaced by a record.
 
-### 8. Правка, которую отменяет второй источник того же состояния
+### 8. A change undone by a second source of the same state
 
-- одно и то же состояние хранится дважды, и запись идёт в одну половину
-- читающий предпочитает другую, и правка возвращается назад при следующем
-  открытии
+- the same state is stored twice, and the write goes into one half
+- the reader prefers the other, and the change rolls back at the next opening
 
-**Найдено так:** тело страницы лежит и в `pages.content` (JSON), и в
-`pages.ydoc` (двоичное состояние совместного редактирования), а
-`CollabService.load` отдаёт соседу `ydoc`, пока он есть. `PageService.update`
-писал только JSON, поэтому правка через MCP, внешним обращением или уборкой
-держалась до первого открытия страницы в редакторе и молча откатывалась.
-Правка, идущая мимо совместного документа, обязана снимать `ydoc`: собрать
-двоичное состояние на стороне приложения нечем — схема узлов редактора живёт
-в `services/collab` на Node.
+**Found that way:** the page body lives both in `pages.content` (JSON) and in
+`pages.ydoc` (the binary collaborative editing state), and `CollabService.load`
+serves the neighbour `ydoc` while there is one. `PageService.update` wrote only
+the JSON, so a change made through MCP, by an outside call or by maintenance held
+until the page was first opened in the editor and then rolled back silently. A
+change that goes outside the collaborative document must clear `ydoc`: there is
+nothing to assemble the binary state with on the application side — the editor
+node schema lives in `services/collab` on Node.
 
-**Как искать:** любое поле, продублированное в другом представлении. В этом
-репозитории таких пар три: `content` и `ydoc`, `text_content` и `content`,
-`pages.tsv` и `text_content`. Последняя пара держится триггером базы, первые
-две — вызывающим кодом. Признак: запись одной половины без другой.
+**How to look:** any field duplicated in another representation. There are three
+such pairs in this repository: `content` and `ydoc`, `text_content` and
+`content`, `pages.tsv` and `text_content`. The last pair is held by a database
+trigger, the first two by the calling code. The sign: a write to one half without
+the other.
 
-## Порядок перебора
+## The order of the sweep
 
-1. Найти места по признаку (греп, обход, сверка в обе стороны)
-2. По каждому ответить на один вопрос: **что человек считает сделанным после
-   этого действия, и совпадает ли это с тем, что произошло**
-3. Расхождение чинится одним из трёх способов: сделать по-настоящему, отказать
-   явно, назвать частичность. Молчание не входит в список
+1. Find the places by the sign (grep, a walk, a comparison in both directions)
+2. For each one answer a single question: **what does a person consider done
+   after this action, and does that match what happened**
+3. A divergence is fixed in one of three ways: do it for real, fail explicitly,
+   or name the partialness. Silence is not on the list
 
-## Чего этот класс не покрывает автоматическая проверка
+## What an automatic check does not cover in this class
 
-Отличить «глушит зря» от «глушит осознанно» может только чтение. Проверка на
-наличие пустого `catch` запретила бы и законные случаи, а проверка на наличие
-комментария проверяла бы наличие комментария, а не смысл. Это ровно та негодная
-форма, о которой сказано в `verification-operations.md`.
+Only reading can tell "swallows for nothing" from "swallows deliberately". A
+check for an empty `catch` would forbid the legitimate cases too, and a check for
+the presence of a comment would be checking the presence of a comment rather than
+its meaning. That is exactly the useless form described in
+`verification-operations.md`.
 
-Поэтому перебор ведётся руками и записывается: что просмотрено, что исправлено,
-что оставлено и почему.
+So the sweep is done by hand and written down: what was looked through, what was
+fixed, what was left and why.

@@ -1,76 +1,89 @@
-# Bases и шаблоны
+# Bases and templates
 
 ## Bases
 
-`api/bases.py` (23 маршрута), `services/bases.py`. Base это таблица над страницами: свои свойства, строки и представления.
+`api/bases.py` (23 routes), `services/bases.py`. A base is a table over pages:
+its own properties, rows and views.
 
-Разделы маршрутов: сама база (создание, сведения, правка, удаление, превращение страницы в базу, раскрытие страниц, вывоз CSV), свойства (создание, правка, удаление, перестановка), строки (создание, сведения, правка, удаление, удаление многих, перестановка, список), представления (создание, правка, удаление, список).
+The route groups: the base itself (create, details, edit, delete, turn a page
+into a base, expand pages, CSV export), properties (create, edit, delete,
+reorder), rows (create, details, edit, delete, delete many, reorder, list),
+views (create, edit, delete, list).
 
-Порядок строк и свойств держится тем же дробным ключом, что и дерево страниц, с сортировкой `C`.
+The order of rows and properties is held by the same fractional key as the page
+tree, with `C` collation.
 
-## Настройки вида свойства
+## Property display settings
 
-Лежат в `type_options` рядом с прочим и решают только показ: формат числа
-(`format`, `precision`, `separator`, `currency`), время у даты (`includeTime`,
-`timeFormat`), отметка флажка по умолчанию (`defaultValue`), несколько человек
-в ячейке (`allowMultiple`), алфавитный порядок вариантов (`alphabetize`).
+They live in `type_options` next to everything else and decide display only: the
+number format (`format`, `precision`, `separator`, `currency`), the time part of
+a date (`includeTime`, `timeFormat`), the default state of a checkbox
+(`defaultValue`), several people in one cell (`allowMultiple`), alphabetical
+order of options (`alphabetize`).
 
-Два места, где это легко сломать.
+There are two places where this is easy to break.
 
-- **Разбор формулы собирает `type_options` заново.** Поля показа переносятся
-  отдельно (`DISPLAY_OPTIONS` в `services/bases.py`), иначе сохранение
-  выражения стирает формат числа — и настройка «два знака после запятой» молча
-  пропадает.
-- **Значение по умолчанию ставит сервер** (`_defaults` в `create_row`), а не
-  экран: строку заводят и ввозом таблицы, и по API, а обещание относится к
-  свойству, а не к одному экрану.
+- **Parsing a formula assembles `type_options` from scratch.** The display
+  fields are carried over separately (`DISPLAY_OPTIONS` in
+  `services/bases.py`); otherwise saving an expression wipes the number format —
+  and the "two decimal places" setting disappears silently.
+- **The default value is set by the server** (`_defaults` in `create_row`), not
+  by the screen: a row is created both by importing a table and through the API,
+  and the promise belongs to the property rather than to one screen.
 
-Показ числа и даты собирают `numberText` и `dateText`
-(`apps/web/src/lib/features/base/cells.ts`). Разделители подставляются сами, а
-не средствами языка вывода: набор выбирает человек, и язык браузера читателя не
-должен менять вид чужой таблицы.
+Number and date display is assembled by `numberText` and `dateText`
+(`apps/web/src/lib/features/base/cells.ts`). Separators are substituted
+directly rather than by the facilities of the output language: the set is chosen
+by a person, and the browser language of the reader must not change how someone
+else's table looks.
 
-## Отбор и порядок — сначала свои
+## Filter and order — yours first
 
-Представление общее: записанный отбор меняет таблицу у всех. Поэтому правка
-живёт на экране (`draft` в маршруте базы), а всем уходит отдельным действием
-«Сохранить для всех». Молчаливая запись переставляла бы таблицу у всей команды
-из-за того, что один человек отсортировал её для себя.
+A view is shared: a recorded filter changes the table for everyone. That is why
+an edit lives on the screen (`draft` in the base route) and reaches everyone
+through a separate "Save for everyone" action. A silent write would reorder the
+table for the whole team just because one person sorted it for themselves.
 
-## Формулы
+## Formulas
 
-Считаются на сервере, при выдаче строк. Разбор живёт в
-`apps/api/tessera_api/domain/formula`: перенос пакета `packages/base-formula`
-первой версии, где он был на TypeScript и работал только в браузере.
+They are computed on the server, while rows are served. The parser lives in
+`apps/api/tessera_api/domain/formula`; earlier the same engine was TypeScript
+and worked in the browser only.
 
-Порядок тот же, что и там: строка → лексемы → дерево с именами колонок → дерево
-с идентификаторами → проверка вида → вычисление на строке. Формат хранения не
-менялся (`{source, ast, resultType, dependencies, astVersion}`), поэтому
-формулы, заведённые до перехода, читаются как есть.
+The order is the same: string → tokens → a tree with column names → a tree with
+identifiers → type check → evaluation on a row. The storage format is unchanged
+(`{source, ast, resultType, dependencies, astVersion}`), so formulas entered
+earlier are read as they are.
 
-Устройство, о котором стоит знать заранее.
+Things worth knowing about the design in advance.
 
-- **Значения не хранятся.** Колонка-формула считается при каждой выдаче:
-  `services/bases.py:apply_formulas`. Хранение означало бы пересчёт всей таблицы
-  после правки соседней ячейки и расхождение сохранённого с настоящим.
-- **В дереве лежит идентификатор колонки, а не имя.** Переименование колонки
-  формулу не ломает.
-- **Круг ловится до сохранения** (`FormulaGraph.cycle_with`): база с кругом
-  перестала бы открываться, а починить её изнутри уже нечем.
-- **Ошибка данных — значение, а не отказ.** Деление на ноль красит одну ячейку
-  (`{"__err": "DIV_BY_ZERO"}`), остальные строки считаются. Человеку показывается
-  перевод по коду, а не английский текст из `msg`.
-- **Тридцать действий**: числа, строки, даты, приведение, `empty`. Имена и
-  написание совпадают с первой версией: они лежат в уже сохранённых формулах.
+- **Values are not stored.** A formula column is computed on every serving:
+  `services/bases.py:apply_formulas`. Storing them would mean recomputing the
+  whole table after an edit to a neighbouring cell, and a divergence between
+  what is stored and what is true.
+- **The tree holds the column identifier, not its name.** Renaming a column does
+  not break a formula.
+- **A cycle is caught before saving** (`FormulaGraph.cycle_with`): a base with a
+  cycle would stop opening, and there would be nothing left to fix it with from
+  the inside.
+- **A data error is a value, not a failure.** Division by zero colours one cell
+  (`{"__err": "DIV_BY_ZERO"}`) and the other rows are still computed. A person
+  is shown the translation for the code rather than the English text from `msg`.
+- **Thirty functions**: numbers, strings, dates, casts, `empty`. The names and
+  their spelling are fixed: they are held in formulas that have already been
+  saved.
 
-Проверки: `apps/api/tests/test_formula.py`, база для них не нужна.
+Tests: `apps/api/tests/test_formula.py`; they need no database.
 
-## Шаблоны
+## Templates
 
-`api/templates.py` (шесть маршрутов), `services/templates.py`. Шаблон это заготовка страницы; применение создаёт новую страницу в выбранном месте.
+`api/templates.py` (six routes), `services/templates.py`. A template is a page
+blank; applying it creates a new page in the chosen place.
 
-Инструменты MCP умеют то же самое: `get_template`, `create_template`, `update_template`, `delete_template`, `use_template`.
+The MCP tools can do the same: `get_template`, `create_template`,
+`update_template`, `delete_template`, `use_template`.
 
-## Права
+## Permissions
 
-И base, и шаблон принадлежат space и рабочему пространству. Любая выдача их содержимого проходит ту же проверку доступа, что и страница: `services/page_access.py`.
+Both a base and a template belong to a space and a workspace. Any serving of
+their content passes the same access check as a page: `services/page_access.py`.

@@ -1,35 +1,54 @@
-# Безопасность и корпоративные возможности
+# Security and corporate features
 
-## Вход через провайдера
+## Signing in through a provider
 
-`api/sso.py` (13 маршрутов), `services/sso.py`, `services/sso_providers.py`, `services/saml.py`, `services/oidc.py`, `services/ldap.py`.
+`api/sso.py` (13 routes), `services/sso.py`, `services/sso_providers.py`,
+`services/saml.py`, `services/oidc.py`, `services/ldap.py`.
 
-Три вида провайдеров: SAML (подписи через `signxml`), OIDC, LDAP (`ldap3`). Приём ответа провайдера идёт по корневому пути, а не под `/api`: так требует сам протокол.
+Three kinds of providers: SAML (signatures through `signxml`), OIDC, LDAP
+(`ldap3`). The provider's response is received on a root path rather than under
+`/api`: the protocol itself requires that.
 
-Рабочее пространство может требовать вход только через провайдера. На этот случай есть аварийный вход паролем — он задаётся настройкой и по умолчанию закрыт.
+A workspace can require signing in through a provider only. For that case there
+is an emergency password sign-in — it is switched on by a setting and is closed
+by default.
 
 ## SCIM
 
-`api/scim.py` (16 маршрутов), `api/scim_tokens.py`, сервисы `scim_users.py`, `scim_groups.py`, `scim_filter.py`, `scim_schemas.py`, `scim_tokens.py`.
+`api/scim.py` (16 routes), `api/scim_tokens.py`, services `scim_users.py`,
+`scim_groups.py`, `scim_filter.py`, `scim_schemas.py`, `scim_tokens.py`.
 
-Токен это 256 бит из `secrets.token_urlsafe`, хранится хешем, сравнивается за постоянное время. Ограничителя частоты на маршрутах SCIM нет намеренно: перебор по сети такому токену не угрожает, а четыре открытых маршрута отдают статическое описание протокола.
+A token is 256 bits from `secrets.token_urlsafe`, stored as a hash and compared
+in constant time. There is deliberately no rate limiter on the SCIM routes:
+guessing such a token over the network is no threat, and four open routes serve
+a static description of the protocol.
 
-Отказы SCIM остаются английскими намеренно: их читает не человек, а система управления учётными записями, и формат отказа задан протоколом.
+SCIM failures deliberately stay in English: they are read by an identity
+management system rather than by a person, and the format of a failure is set by
+the protocol.
 
-## Второй фактор
+## Second factor
 
-`api/mfa.py` (11 маршрутов), `services/mfa.py`. Одноразовые коды по времени и запасные коды. Отдельное ограничение частоты.
+`api/mfa.py` (11 routes), `services/mfa.py`. Time-based one-time codes and
+backup codes. Its own rate limit.
 
-## Аудит
+## Audit
 
-`api/audit.py` (три маршрута), `services/audit.py`. Срок хранения задаётся настройкой рабочего пространства, от 0 до 3650 дней. Адрес клиента в записи аудита зависит от `TRUST_PROXY_HOPS`.
+`api/audit.py` (three routes), `services/audit.py`. The retention period is a
+workspace setting, from 0 to 3650 days. The client address in an audit record
+depends on `TRUST_PROXY_HOPS`.
 
-## Проверка страниц
+## Page verification
 
-`api/page_verification.py` (девять маршрутов), `services/page_verification.py`. Страница получает состояние проверки и срок, часовой проход по срокам отправляет уведомления.
+`api/page_verification.py` (nine routes), `services/page_verification.py`. A
+page gets a verification state and a deadline, and an hourly pass over the
+deadlines sends notifications.
 
-## Секреты
+## Secrets
 
-- никогда не логировать токены входа, `APP_SECRET`, ключи провайдеров ИИ, пароли SMTP, токены SCIM и `COLLAB_INTERNAL_TOKEN`
-- ключи провайдеров ИИ шифруются AES-256-GCM от `APP_SECRET` (`infrastructure/secrets.py`), наружу отдаётся маскированный превью
-- открытый маршрут помечается явно и объясняется: это изменение поверхности аутентификации
+- never log sign-in tokens, `APP_SECRET`, AI provider keys, SMTP passwords,
+  SCIM tokens or `COLLAB_INTERNAL_TOKEN`
+- AI provider keys are encrypted with AES-256-GCM from `APP_SECRET`
+  (`infrastructure/secrets.py`), and only a masked preview is served outward
+- an open route is marked explicitly and explained: it is a change to the
+  authentication surface

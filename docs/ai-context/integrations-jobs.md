@@ -1,58 +1,83 @@
-# Интеграции и фоновые задания
+# Integrations and background jobs
 
-## Очередь
+## The queue
 
-arq поверх Redis. Определения заданий в `tessera_api/jobs.py`, точка входа исполнителя в `tessera_api/worker.py`, обвязка в `infrastructure/queue.py`. В составе исполнитель поднят отдельным процессом (`tessera-v2-worker`).
+arq on top of Redis. Job definitions in `tessera_api/jobs.py`, the worker entry
+point in `tessera_api/worker.py`, plumbing in `infrastructure/queue.py`. In the
+set the worker runs as its own process (`tessera-v2-worker`).
 
-Разделение файлов намеренное: `jobs.py` импортируется без окружения, а `worker.py` требует готовых настроек соединения ещё до запуска.
+The file split is deliberate: `jobs.py` is imported without the environment,
+while `worker.py` needs ready connection settings before it even starts.
 
-В очередь уходят письма, версии страниц, упоминания, обратные ссылки, индексация для ИИ, уведомления, перенос внешних картинок (`services/media_rehost.py`) и обслуживание (`services/maintenance.py`, `services/digest.py`).
+Into the queue go mail, page versions, mentions, backlinks, indexing for AI,
+notifications, moving external images (`services/media_rehost.py`) and
+maintenance (`services/maintenance.py`, `services/digest.py`).
 
-## Хранилище
+## Storage
 
-`infrastructure/storage.py`. Локальный каталог либо хранилище, совместимое с S3. В составе поднят MinIO, ведро создаёт отдельный шаг `tessera-v2-minio-init`.
+`infrastructure/storage.py`. A local directory or S3-compatible storage. MinIO
+runs in the set, and the bucket is created by a separate step,
+`tessera-v2-minio-init`.
 
-Пределы размера: `FILE_UPLOAD_SIZE_LIMIT` и `FILE_IMPORT_SIZE_LIMIT`.
+Size limits: `FILE_UPLOAD_SIZE_LIMIT` and `FILE_IMPORT_SIZE_LIMIT`.
 
-## Почта
+## Mail
 
-`infrastructure/mail.py`, тексты в `infrastructure/mail_text.py`, разметка в `infrastructure/mail_html.py`.
+`infrastructure/mail.py`, texts in `infrastructure/mail_text.py`, markup in
+`infrastructure/mail_html.py`.
 
-Драйверы: запись в журнал (`MAIL_DRIVER=log`, умолчание стенда) и SMTP. Тексты писем заведены на двенадцати языках — тех же, что у экранов. Расхождение выглядит так, что человек ведёт вику на своём языке, а письмо приходит по-английски, и отказом это не проявляется.
+Drivers: writing to the log (`MAIL_DRIVER=log`, the stand default) and SMTP. The
+mail texts are entered in twelve languages — the same ones as the screens. A
+divergence looks like this: a person keeps their wiki in their own language and
+the letter arrives in English, and nothing reports it as a failure.
 
-## Отрисовка PDF
+## PDF rendering
 
-Gotenberg по адресу `GOTENBERG_URL`. Он забирает страницу у экранов по `PDF_RENDER_BASE_URL`, маршрут `(render)`. Имя службы зашито в `--chromium-allow-list`: переименование ломает отрисовку.
+Gotenberg at `GOTENBERG_URL`. It fetches the page from the screens at
+`PDF_RENDER_BASE_URL`, route `(render)`. The service name is hard-wired into
+`--chromium-allow-list`: renaming it breaks rendering.
 
-`services/pdf_export.py`, предел времени `PDF_EXPORT_TIMEOUT`, отдельное ограничение частоты.
+`services/pdf_export.py`, the time limit `PDF_EXPORT_TIMEOUT`, its own rate
+limit.
 
-В один документ входит не больше `MAX_PAGES` (сто) страниц ветви, и предел
-отсчитывается по страницам, которые заказчик видит, а не по всем. Ветвь больше
-предела выгружается частью, но не молча: задание хранит `totalPages`, ответ
-постановки несёт `includedPages` и `totalPages` (экран страницы показывает
-сообщение сразу), а лист печати сам пишет «вошли N из M» в начале документа —
-файл уходит дальше без экрана, на котором это показали.
+One document holds no more than `MAX_PAGES` (one hundred) pages of the branch,
+and the limit counts the pages the requester can see rather than all of them. A
+branch larger than the limit is exported in part, but not silently: the job
+stores `totalPages`, the queueing response carries `includedPages` and
+`totalPages` (the page screen shows a message straight away), and the print
+sheet itself writes "N of M included" at the top of the document — the file
+travels on without the screen that showed it.
 
-Страницы ветви идут в порядке дерева — обход в глубину, соседи по `position`,
-как на экране (`_tree_order` в `services/pdf_export.py`). Общий запрос потомков
-`PageService._descendants` порядка не даёт и не должен: остальным его
-пользователям он не важен. От порядка зависит, какие сто страниц попадают в
-обрезанную выгрузку, — первые по дереву.
+The pages of a branch go in tree order — depth first, siblings by `position`, as
+on the screen (`_tree_order` in `services/pdf_export.py`). The shared
+descendants query `PageService._descendants` gives no order and must not: its
+other users do not need it. The order decides which hundred pages end up in a
+truncated export — the first ones by tree.
 
-## Диаграммы
+## Diagrams
 
-drawio поднят своим контейнером, адрес приходит на экран как `PUBLIC_DRAWIO_URL`. Excalidraw работает в браузере, шрифты раздаёт само приложение из `apps/web/static/excalidraw-assets`.
+drawio runs in its own container, and its address reaches the screen as
+`PUBLIC_DRAWIO_URL`. Excalidraw works in the browser; the fonts are served by
+the application itself from `apps/web/static/excalidraw-assets`.
 
-## Поиск в сети
+## Web search
 
-SearXNG своим контейнером. Им пользуется инструмент `search_web` помощника. Наружу состав при этом не выходит за пределы того, что настроено в `deploy/searxng/settings.yml`.
+SearXNG in its own container. The assistant's `search_web` tool uses it. The set
+still reaches outside no further than what is configured in
+`deploy/searxng/settings.yml`.
 
-## Внутренний сервис
+## The internal service
 
-`services/hub` на Python и Litestar, своя база `tessera_hub` и свои миграции Alembic. Закрывает обращения, которые в исходном коде уходили на сторонние адреса: последняя версия, приём телеметрии, документация, лицензия и поддержка.
+`services/hub` on Python and Litestar, with its own database `tessera_hub` and
+its own Alembic migrations. It closes the calls that would otherwise go to
+outside addresses: the latest version, telemetry intake, documentation, the
+license and support.
 
-Адреса: `HUB_INTERNAL_URL` для приложения, `HUB_URL` для ссылок человеку.
+Addresses: `HUB_INTERNAL_URL` for the application, `HUB_URL` for links shown to
+a person.
 
-## Проверка живости
+## Liveness check
 
-`api/health.py`: `/api/health` отвечает состоянием PostgreSQL и Redis, `/api/health/live` — только тем, что процесс жив. Оба маршрута открыты.
+`api/health.py`: `/api/health` answers with the state of PostgreSQL and Redis,
+`/api/health/live` only with the fact that the process is alive. Both routes are
+open.

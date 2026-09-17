@@ -1,45 +1,61 @@
-# Повторяющиеся паттерны
+# Recurring patterns
 
-## Приложение
+## The application
 
-- контроллер извлекает принципала из `request.scope["principal"]` и сразу передаёт работу сервису
-- сервис создаётся на месте с сессией и нужными зависимостями: `NotificationService(db_session, realtime, mailer)`
-- зависимости объявляются в `app.py` и приходят в обработчик через `NamedDependency`
-- DTO это `msgspec.Struct`; имена полей повторяют то, что шлют экраны, вплоть до верблюжьего регистра, а нарушение стиля помечается `# noqa: N815` с причиной
-- отказ поднимается кодом из `domain/errors.py`, а не готовым текстом
-- запрос к базе живёт в репозитории и всегда ограничен рабочим пространством
-- список, растущий вместе с рабочим пространством, всегда с пределом
+- a controller takes the principal from `request.scope["principal"]` and hands
+  the work to a service straight away
+- a service is created on the spot with a session and the dependencies it needs:
+  `NotificationService(db_session, realtime, mailer)`
+- dependencies are declared in `app.py` and reach a handler through
+  `NamedDependency`
+- a DTO is a `msgspec.Struct`; the field names repeat what the screens send,
+  camel case included, and a style violation is marked `# noqa: N815` with a
+  reason
+- a failure is raised by a code from `domain/errors.py` rather than with ready
+  text
+- a database query lives in a repository and is always limited by the workspace
+- a list that grows along with the workspace always has a limit
 
-## Экраны
+## The screens
 
-- обращение к серверу живёт в `lib/features/<домен>/services`, компонент зовёт функцию оттуда
-- перевод приходит из стора: `const t = $derived(locale.t)`
-- состояние экрана на рунах, разделяемое — в `*.svelte.ts`
-- тяжёлое грузится по требованию внутри страницы, а не в оболочке маршрута
-- отказ разбирается по коду через `lib/api/failure.ts`
+- a call to the server lives in `lib/features/<domain>/services`, and a component
+  calls a function from there
+- a translation comes from the store: `const t = $derived(locale.t)`
+- screen state is on runes; shared state goes in `*.svelte.ts`
+- heavy things load on demand inside the page rather than in the route shell
+- a failure is parsed by its code through `lib/api/failure.ts`
 
-## Комментарии в коде
+## Comments in the code
 
-Комментарий объясняет то, что не видно из кода: почему выбран этот способ, что было замерено, какой отказ он предотвращает. Такие комментарии в этом репозитории ценны и не удаляются при правках, если поведение не изменилось.
+A comment explains what is not visible from the code: why this way was chosen,
+what was measured, which failure it prevents. Comments like that are valuable in
+this repository and are not deleted during edits as long as the behavior has not
+changed.
 
-Образцы: почему у экранов адаптер Node, а не статика; почему сервис совместного редактирования собирается на glibc; почему прокси нужен и на своей машине; почему индексы с сортировкой вынесены из ведения Atlas.
+Examples: why the screens use the Node adapter rather than static output; why
+the collaboration service is built on glibc; why the proxy is needed even on your
+own machine; why the collated indexes were taken out of Atlas's hands.
 
-## Проверки
+## Tests
 
-- приложение: `apps/api/tests`, pytest в режиме `asyncio_mode = auto`
-- экраны: рядом с кодом, `*.test.ts`; там, где нужен DOM — `*.dom.test.ts` и `*.svelte.test.ts`
-- совместное редактирование: `services/collab/src/*.test.js`, встроенное средство Node
-- проверка против настоящей базы помечает себя пропуском, если базы нет
+- the application: `apps/api/tests`, pytest with `asyncio_mode = auto`
+- the screens: next to the code, `*.test.ts`; where a DOM is needed —
+  `*.dom.test.ts` and `*.svelte.test.ts`
+- collaborative editing: `services/collab/src/*.test.js`, the Node built-in
+  runner
+- a test against a real database marks itself as skipped when there is no
+  database
 
-## Один контракт в нескольких точках
+## One contract in several places
 
-Правило, заведённое в одном месте, почти всегда обязано действовать ещё в нескольких. Проверять все, а не только ту точку, где нашли изъян.
+A rule introduced in one place almost always has to hold in several more. Check
+all of them, not only the point where the flaw was found.
 
-| Правило | Где ещё смотреть |
+| Rule | Where else to look |
 | --- | --- |
-| доступ к странице | контроллер, MCP, события, совместное редактирование, поиск, вывоз, публичные ссылки, контекст ИИ |
-| принадлежность рабочему пространству | репозитории, MCP, поиск, эмбеддинги |
-| ограничение частоты | вход, MFA, `/ai`, `/mcp`, `/pdf-export`, вывоз |
-| код отказа | каталог `domain/errors.py`, двенадцать словарей, `error-codes.test.ts` |
-| обновление дерева | локальное состояние, обращение к серверу, событие |
-| эффект после сохранения текста | история, упоминания, обратные ссылки, индексация ИИ, уведомления |
+| page access | the controller, MCP, events, collaborative editing, search, export, public links, the AI context |
+| belonging to a workspace | repositories, MCP, search, embeddings |
+| rate limiting | sign-in, MFA, `/ai`, `/mcp`, `/pdf-export`, export |
+| failure code | the catalogue in `domain/errors.py`, twelve dictionaries, `error-codes.test.ts` |
+| updating the tree | local state, the call to the server, the event |
+| an effect after the text is saved | history, mentions, backlinks, AI indexing, notifications |
