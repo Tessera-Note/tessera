@@ -79,6 +79,20 @@ different lines. A mark taken over by another replica comes back from the renew
 call in the list of lost documents: the replica closes the connections for such
 a document and does not save it.
 
+**Two replicas were measured on the stand on 17 September 2026.** A second
+replica was raised beside the first, its name added to the proxy upstream, and
+the proxy restarted; two pages were then edited at once by four connections
+each, with the connections held open. The marks
+(`collab:owner:page.<id>`) named one replica and were being renewed (25 s left
+of 30), that replica reported `{"connections": 8, "documents": 2}` on `/stats`
+while the other reported zeros, and both documents converged and reached the
+database. Neither log carried a refusal.
+
+What that run does not show is spreading across replicas: both documents hashed
+to the same replica, and spreading is a property of the hash ring rather than of
+the mark. So the safe claim is that a second replica does no harm, not that it
+halves the load.
+
 ## The service image
 
 The base has glibc rather than Alpine: PDF parsing goes through the native module

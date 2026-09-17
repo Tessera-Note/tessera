@@ -88,11 +88,17 @@ services:
   # схемы расходится с первым, а расхождение здесь — порча содержимого, которая
   # не проявляется отказом.
   #
-  # **Экземпляр один, и второго заводить нельзя.** Состояние документа живёт в
-  # памяти процесса, и рассылки между репликами здесь нет: два человека,
-  # попавшие на разные реплики, правили бы разные копии одной страницы и не
-  # сошлись бы — молча, без единого отказа. Прежде чем поднимать второй,
-  # см. `docs/ai-context/collaboration-realtime.md`.
+  # **A second replica is admissible, under two conditions.** A document lives
+  # in the memory of one process and there is no broadcast between replicas, but
+  # none is needed: the proxy pins every connection of a document to one replica
+  # by the `documentName` argument, and an ownership mark in Redis holds it
+  # there. Measured on the stand on 17 September 2026 with two replicas and two
+  # open documents: the marks named one replica, the other held nothing, and
+  # both documents converged and reached the database.
+  #
+  # The conditions: the unnamed-document allowance below stays off, and the
+  # proxy is restarted rather than reloaded when the set of replicas changes.
+  # The order is in `docs/ai-context/collaboration-realtime.md`.
   tessera-v2-collab:
     build:
       context: ../..
