@@ -1,18 +1,20 @@
 /**
- * Разбор PDF в HTML.
+ * Parsing a PDF into HTML.
  *
- * Здесь, а не на стороне Python, потому что качество разбора — свойство
- * библиотеки, а не языка: `@docmost/pdf-inspector` отдаёт markdown с
- * заголовками и списками, тогда как `pypdf` отдаёт голый текст, и ввезённый
- * документ терял всю структуру. Пакет объявлен в корневом `package.json`:
- * `services` не входит в рабочее пространство pnpm, и свой манифест здесь
- * пакетный менеджер не читает. А сервис преобразования для того и существует —
- * там уже живут HTML, Markdown и вывоз DOCX.
+ * Here rather than on the Python side, because the quality of the parsing is a
+ * property of the library rather than of the language: `@docmost/pdf-inspector`
+ * returns markdown with headings and lists, while `pypdf` returns bare text and
+ * an imported document lost all of its structure. The package is declared in
+ * the root `package.json`: `services` is not part of the pnpm workspace, and
+ * the package manager does not read a manifest here. And the conversion service
+ * exists for exactly this — HTML, Markdown and the DOCX export already live in
+ * it.
  *
- * Что переносится, замерено в v1 на настоящих файлах: заголовки с уровнями,
- * абзацы, маркированные списки, кириллица. Что теряется: начертание внутри
- * строки, таблицы и картинки — библиотека их не отдаёт даже там, где они в
- * документе есть, поэтому обещать их перенос нельзя.
+ * What is carried over was measured on real files in the earlier version:
+ * headings with levels, paragraphs, bulleted lists, Cyrillic text. What is
+ * lost: the styling inside a line, tables and images — the library does not
+ * return them even where the document has them, so their transfer cannot be
+ * promised.
  */
 import { createRequire } from 'node:module';
 
@@ -20,22 +22,24 @@ import { markdownToHtml } from './extensions.js';
 
 const require = createRequire(import.meta.url);
 
-/** Виды PDF, у которых текстового слоя нет вовсе. */
+/** The kinds of PDF that have no text layer at all. */
 const WITHOUT_TEXT = new Set(['Scanned', 'ImageBased']);
 
 /**
- * Причины отказа. Уходят кодом, а не текстом: перевод живёт на стороне,
- * которая говорит с человеком, и второй его набор здесь разошёлся бы с первым.
+ * The reasons for a failure. They travel as a code rather than as text: the
+ * translation lives on the side that talks to a person, and a second set of it
+ * here would diverge from the first.
  */
 export const PDF_EMPTY = 'pdf_empty';
 export const PDF_UNREADABLE = 'pdf_unreadable';
 export const PDF_NO_TEXT_LAYER = 'pdf_no_text_layer';
 
 /**
- * Разобрать PDF.
+ * Parse a PDF.
  *
- * Библиотека грузится при первом обращении, а не при запуске: сервис поднимают
- * ради совместной правки, и разбор PDF в этом пути не участвует.
+ * The library is loaded on the first call rather than at startup: the service
+ * is brought up for collaborative editing, and parsing a PDF is not part of
+ * that path.
  */
 export async function htmlFromPdf(base64, parser) {
   const bytes = Buffer.from(base64 || '', 'base64');
@@ -52,9 +56,9 @@ export async function htmlFromPdf(base64, parser) {
 
   const markdown = (parsed?.markdown ?? '').trim();
   if (WITHOUT_TEXT.has(parsed?.pdfType) || !markdown) {
-    // Скан без текстового слоя. Достать из него текст можно только
-    // распознаванием, которого в развёртывании нет, и пустая страница вместо
-    // документа выглядела бы успешным ввозом.
+    // A scan with no text layer. Getting text out of it takes recognition,
+    // which the deployment does not have, and an empty page instead of a
+    // document would look like a successful import.
     throw new Error(PDF_NO_TEXT_LAYER);
   }
 

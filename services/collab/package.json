@@ -2,7 +2,7 @@
   "name": "@tessera/collab",
   "private": true,
   "type": "module",
-  "description": "Сервис преобразования содержимого страниц. Схема узлов редактора живёт здесь.",
+  "description": "Page content conversion service. The editor node schema lives here.",
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test src/*.test.js"

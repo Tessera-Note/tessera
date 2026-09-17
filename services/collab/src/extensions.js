@@ -1,11 +1,13 @@
 /**
- * Схема узлов редактора — одна на всё приложение.
+ * The editor node schema — one for the whole product.
  *
- * Список перенесён из первой версии состав в состав, а не заведён заново.
+ * The list was carried over from the earlier version item for item rather than
+ * written anew.
  *
- * Второй список означал бы две схемы, обязанные совпадать. Расхождение схем это
- * порча содержимого, и проявляется оно не сразу: документ сохраняется, а узел,
- * которого нет во второй схеме, молча выбрасывается при следующем разборе.
+ * A second list would mean two schemas obliged to match. A divergence between
+ * the schemas is content corruption, and it does not show up at once: the
+ * document is saved, and a node missing from the second schema is dropped
+ * silently on the next parse.
  */
 import { createRequire } from 'node:module';
 

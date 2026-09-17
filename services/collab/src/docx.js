@@ -1,16 +1,17 @@
 /**
- * Сборка документа Word.
+ * Assembling a Word document.
  *
- * Здесь, а не на Python, по той же причине, что и остальное в этом сервисе:
- * сериализатор обходит документ по схеме узлов редактора, и второе описание
- * этой схемы теряло бы узлы молча. Сам сериализатор живёт в
- * `packages/editor-ext` и общий с v1 — переписывать его не потребовалось.
+ * Here rather than in Python, for the same reason as everything else in this
+ * service: the serializer walks the document by the editor node schema, and a
+ * second description of that schema would lose nodes silently. The serializer
+ * itself lives in `packages/editor-ext` and is shared with the earlier
+ * version — it did not have to be rewritten.
  *
- * **Картинки приходят готовыми.** Хранилище вложений и права на них живут на
- * стороне Python: там проверено, что вложение принадлежит пространству
- * страницы, и оттуда же прочитано его содержимое. Ходить в хранилище отсюда
- * значило бы завести второе место, решающее, какой файл можно положить в
- * документ.
+ * **The images arrive ready.** The attachment storage and the permissions on it
+ * live on the Python side: there it is checked that an attachment belongs to
+ * the space of the page, and its content is read from there as well. Reaching
+ * into the storage from here would mean a second place deciding which file may
+ * go into a document.
  */
 
 import { createRequire } from 'node:module';
@@ -23,15 +24,16 @@ const { pageNodeToDocxBuffer } = require('@tessera/editor-ext');
 const { getSchema } = require('@tiptap/core');
 const { Node } = require('@tiptap/pm/model');
 
-/** Пустая картинка. Сериализатор такую пропускает, а `null` уронил бы разбор. */
+/** An empty image. The serializer skips one, while `null` would break the parse. */
 const MISSING = new Uint8Array(0);
 
 /**
- * Узел ProseMirror из JSON.
+ * A ProseMirror node from JSON.
  *
- * Неизвестный узел не роняет выгрузку: он разворачивается на месте, а лист
- * выбрасывается, и разбор повторяется. Так же в v1. Иначе один узел из чужой
- * версии редактора лишал бы человека всего документа.
+ * An unknown node does not bring the export down: it is unwrapped in place, the
+ * leaf is dropped, and the parse is repeated. The earlier version does the
+ * same. Otherwise one node from a different version of the editor would cost a
+ * person the whole document.
  */
 export function nodeFromJson(json) {
   const schema = getSchema(tiptapExtensions);
@@ -57,20 +59,20 @@ function stripUnknown(json, schema) {
       content.push(cleaned);
       continue;
     }
-    // Узел неизвестен: его дети остаются на месте, сам он исчезает. Так текст
-    // из врезки или колонки доезжает до файла, даже если самой врезки в схеме
-    // нет.
+    // The node is unknown: its children stay in place and it disappears
+    // itself. That way the text from a callout or a column still reaches the
+    // file, even when the callout itself is not in the schema.
     if (Array.isArray(cleaned.content)) content.push(...cleaned.content);
   }
   return { ...json, content };
 }
 
 /**
- * Собрать документ Word. Возвращает содержимое файла.
+ * Assemble a Word document. Returns the contents of the file.
  *
- * `images` — соответствие адреса в документе и содержимого в base64. Ключом
- * служит именно адрес: сериализатор знает о картинке только то, что записано в
- * узле.
+ * `images` maps an address in the document to content in base64. The key is the
+ * address specifically: the serializer knows about an image only what is
+ * written in the node.
  */
 export async function docxFromJson(json, images = {}) {
   const doc = nodeFromJson(json);
