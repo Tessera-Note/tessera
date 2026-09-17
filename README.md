@@ -1,95 +1,119 @@
 # Tessera
 
-Совместная вики. Рабочее пространство содержит spaces, space содержит
-иерархические страницы: права на страницу, комментарии, вложения, история
-правок, поиск и совместное редактирование в реальном времени.
+A self-hosted team wiki. Workspaces hold spaces, spaces hold a tree of pages:
+per-page permissions, comments, attachments, page history, search and real-time
+collaborative editing.
 
-Экземпляр разворачивается своим `docker compose` и работает без выхода в
-интернет: диаграммы, поиск, хранилище вложений, отрисовка PDF и служба версий
-подняты рядом. Осознанных исключений два — провайдер модели для ИИ и внешний
-SMTP, и оба выключаются настройкой.
+Tessera is a free, self-hosted alternative to Notion and Docmost. You run it on
+your own hardware, your content stays in your database, and every companion
+service ships with it.
 
-## Возможности
+## Why run it yourself
 
-- Совместное редактирование в реальном времени, каретка соседа с подписью
-- Диаграммы: Draw.io, Excalidraw, Mermaid
-- Spaces и права: рабочее пространство, группы, права на отдельную страницу
-- Комментарии, история страницы, метки, избранное, корзина
-- Вложения, ввоз и вывоз (Markdown, HTML, DOCX, PDF, выгрузки Confluence)
-- Поиск по тексту и поиск через помощника, чат с помощником, MCP
-- Bases: таблица над страницами с формулами и своими представлениями
-- Шаблоны страниц, проверка страниц по сроку, публичные ссылки
-- Вход паролем, SSO (SAML, OIDC, LDAP), SCIM, двухфакторный вход
-- Двенадцать языков интерфейса и писем
+- **Your data stays in your infrastructure.** One `docker compose` brings up the
+  whole instance; nothing is sent to a vendor.
+- **It works in a closed network.** Diagrams, search, attachment storage, PDF
+  rendering and the version service run next to the app. Only two integrations
+  reach outside, and both are optional and off by default: an AI model provider
+  and an external SMTP server.
+- **Ready for company use without a paid tier.** Single sign-on (SAML, OIDC,
+  LDAP), SCIM provisioning, two-factor authentication, groups, per-page
+  permissions and an audit log are part of the product, not an upsell.
+- **No per-seat pricing.** Apache-2.0 licensed: use it internally, modify it,
+  deploy it for as many people as you like.
+- **Twelve interface and email languages**, including plural forms for Slavic
+  languages.
 
-## Состав
+## Features
 
-| Часть | Стек | Каталог |
+- Real-time collaborative editing with a named cursor for every participant
+- Diagrams: Draw.io, Excalidraw, Mermaid
+- Spaces and permissions: workspace, groups, per-page access
+- Comments, page history, labels, favourites, trash
+- Attachments, import and export (Markdown, HTML, DOCX, PDF, Confluence dumps)
+- Full-text search, assistant-driven search, chat with an assistant, MCP
+- Bases: a table over pages with formulas and saved views
+- Page templates, page verification with an expiry date, public share links
+- Password sign-in, SSO (SAML, OIDC, LDAP), SCIM, two-factor authentication
+- Twelve languages for the interface and outgoing email
+
+## Architecture
+
+| Part | Stack | Directory |
 |---|---|---|
-| Приложение | Python 3.13, Litestar, SQLAlchemy 2.0 async, msgspec | `apps/api` |
-| Экраны | SvelteKit 2, Svelte 5, Tailwind 4, Vite 8 | `apps/web` |
-| Совместное редактирование | Node 22, Hocuspocus, Yjs, Tiptap | `services/collab` |
-| Служба версий и лицензии | Python 3.13, Litestar | `services/hub` |
-| Расширения редактора | TypeScript, общие узлы Tiptap | `packages/editor-ext` |
+| Application | Python 3.13, Litestar, SQLAlchemy 2.0 async, msgspec | `apps/api` |
+| Screens | SvelteKit 2, Svelte 5, Tailwind 4, Vite 8 | `apps/web` |
+| Collaborative editing | Node 22, Hocuspocus, Yjs, Tiptap | `services/collab` |
+| Version and license service | Python 3.13, Litestar | `services/hub` |
+| Editor extensions | TypeScript, shared Tiptap nodes | `packages/editor-ext` |
 
-Бизнес-логика, права и запись в базу целиком на Python. У `services/collab` одно
-закрытое исключение: схема узлов редактора и протокол Hocuspocus. Решения о
-правах он спрашивает у приложения внутренними маршрутами
-`/api/internal/collab/*`.
+Business rules, authorization and database writes live in the Python
+application. `services/collab` has one deliberate exception — the editor node
+schema and the Hocuspocus protocol — and it asks the application for
+authorization decisions over internal routes (`/api/internal/collab/*`).
 
-## Запуск
+Storage is PostgreSQL with pgvector; Redis serves the cache, the job queue and
+the event channel; attachments go to any S3-compatible storage (MinIO ships in
+the compose file).
 
-Развёртывание с нуля, включая обязательные переменные и создание первой учётной
-записи, описано в `docs/deployment-from-scratch.md`.
+## Quick start
 
 ```
 docker compose -f apps/api/docker-compose.v2.yml up -d --build
 ```
 
-Открыть `http://localhost:8080`. Четыре значения обязательны и задаются в
+Open `http://localhost:8080`. Four values are required and live in
 `apps/api/.env`: `APP_SECRET`, `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`,
-`COLLAB_INTERNAL_TOKEN`. Смысл каждого — в шапке самого compose-файла.
+`COLLAB_INTERNAL_TOKEN`. Each one is explained in the header of the compose
+file.
 
-Для боевого сервера отдельный состав `apps/api/docker-compose.v2.server.yml`:
-те же процессы, но база, Redis и хранилище общие с прежним экземпляром.
+The first workspace and its owner are created once, on first run. The full
+procedure — required variables, first account, reverse proxy, backups — is in
+[`docs/deployment-from-scratch.md`](docs/deployment-from-scratch.md).
 
-## Разработка
+A separate compose file, `apps/api/docker-compose.v2.server.yml`, is meant for a
+server where the database, Redis and object storage already exist.
 
-Нужны Python 3.13 с `uv`, Node 22 и pnpm 10.18.3.
+## Development
+
+You need Python 3.13 with `uv`, Node 22 and pnpm 10.18.3.
 
 ```
 uv sync --project apps/api
 pnpm install --frozen-lockfile
 ```
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `uv run --project apps/api litestar --app tessera_api.app:create_app run --reload` | приложение на 3000 |
-| `pnpm --filter @tessera/web dev` | экраны на 3200, проксирует `/api`, `/socket.io`, `/collab` |
-| `uv run --project apps/api pytest` | проверки приложения |
-| `uv run --project apps/api ruff check .` | линт приложения |
-| `pnpm --filter @tessera/web test` | проверки экранов |
-| `pnpm --filter @tessera/web check` | проверка типов экранов |
-| `pnpm build` | сборка расширений редактора и экранов |
+| `uv run --project apps/api litestar --app tessera_api.app:create_app run --reload` | application on port 3000 |
+| `pnpm --filter @tessera/web dev` | screens on port 3200, proxying `/api`, `/socket.io`, `/collab` |
+| `uv run --project apps/api pytest` | application tests |
+| `uv run --project apps/api ruff check .` | application lint |
+| `pnpm --filter @tessera/web test` | screen tests |
+| `pnpm --filter @tessera/web check` | screen type check |
+| `pnpm build` | build editor extensions and screens |
 
-Схема базы ведётся Atlas от `apps/api/schema/schema.hcl`, а не миграциями в
-коде. Порядок работы со схемой — в `docs/ai-context/data-runtime.md`.
+Part of the application test suite runs against a real PostgreSQL and a real
+Redis; without `DATABASE_URL` and `REDIS_URL` those tests are skipped, and the
+skip is visible in the output.
 
-## Документация
+The database schema is declared in `apps/api/schema/schema.hcl` and applied by
+Atlas. There are no migration files in the repository; the workflow is described
+in [`docs/ai-context/data-runtime.md`](docs/ai-context/data-runtime.md).
 
-| Документ | О чём |
+## Documentation
+
+| Document | About |
 |---|---|
-| `docs/deployment-from-scratch.md` | развёртывание с нуля |
-| `docs/ai-context/README.md` | технический контекст по слоям, таблица «задача — какие файлы читать» |
-| `docs/future-roadmap.md` | отложенные доработки, единственное место для них |
-| `docs/open-api.md` | внешнее API |
-| `CLAUDE.md`, `AGENTS.md` | рабочие правила для агентов |
-| `STACK.md` | версии, конфигурация, переменные окружения |
+| [`docs/deployment-from-scratch.md`](docs/deployment-from-scratch.md) | deployment from scratch |
+| [`docs/ai-context/README.md`](docs/ai-context/README.md) | technical context per layer, with a "task — files to read" table |
+| [`docs/open-api.md`](docs/open-api.md) | external API |
+| [`docs/future-roadmap.md`](docs/future-roadmap.md) | deferred work, the only place for it |
+| [`CLAUDE.md`](CLAUDE.md), [`AGENTS.md`](AGENTS.md) | working rules for coding agents |
+| [`STACK.md`](STACK.md) | versions, configuration, environment variables |
 
-## Репозиторий
+## License
 
-```
-git clone git@github.com:Tessera-Note/tessera.git
-```
-
-Репозиторий закрытый, нужен доступ к организации `Tessera-Note`.
+Apache License 2.0 — see [`LICENSE`](LICENSE). Third-party components vendored
+into this repository keep their own licenses; they are listed in
+[`NOTICE`](NOTICE).
