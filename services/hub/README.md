@@ -1,64 +1,64 @@
 # tessera-hub
 
-Внутренний сервис Tessera. Закрывает обращения, которые в исходном коде уходили
-на сторонние адреса, чтобы экземпляр работал без выхода в интернет.
+An internal service. It answers the calls that would otherwise leave for
+third-party addresses, so that an instance runs without internet access.
 
-## Что отдает
+## What it serves
 
-| Адрес | Кто вызывает | Назначение |
+| Address | Caller | Purpose |
 |---|---|---|
-| `GET /api/releases/latest` | сервер Tessera, `VersionService` | последняя версия для сравнения с текущей |
-| `GET /releases` | ссылка «что нового» в интерфейсе | список выпусков с описанием |
-| `POST /api/telemetry/event` | сервер Tessera, `TelemetryService` | прием суточных счетчиков |
-| `GET /docs`, `GET /docs/{slug}` | ссылки на документацию в интерфейсе | руководства по ключам API и MCP |
-| `GET /license` | блок лицензии в настройках | условия использования экземпляра |
-| `GET /support` | ссылка поддержки | куда обращаться с вопросами |
-| `GET /health`, `GET /health/live` | docker compose | готовность и живость |
+| `GET /api/releases/latest` | the application, `VersionService` | latest version, to compare with the running one |
+| `GET /releases` | the "what's new" link in the interface | release list with descriptions |
+| `POST /api/telemetry/event` | the application, `TelemetryService` | receives daily counters |
+| `GET /docs`, `GET /docs/{slug}` | documentation links in the interface | guides for API keys and MCP |
+| `GET /license` | the license block in settings | terms for running the instance |
+| `GET /support` | the support link | where to ask questions |
+| `GET /health`, `GET /health/live` | docker compose | readiness and liveness |
 
-## Стек
+## Stack
 
-Python 3.13, Litestar, SQLAlchemy 2.0 async, asyncpg, Alembic, Jinja. Пакетный
-менеджер uv, линтер и форматтер ruff, тесты pytest.
+Python 3.13, Litestar, SQLAlchemy 2.0 async, asyncpg, Alembic, Jinja. Package
+manager uv, linter and formatter ruff, tests with pytest.
 
-## Устройство
+## Layout
 
 ```
 hub/
-  config.py                настройки из переменных окружения
-  app.py                   сборка приложения, внедрение зависимостей
-  rendering.py             Markdown в HTML
-  api/                     контроллеры: releases, telemetry, docs, health
-  domain/                  модели SQLAlchemy и структуры обмена
-  infrastructure/          подключение к базе, репозитории, стартовое наполнение
-  templates/               шаблоны страниц
-migrations/                миграции Alembic
-tests/                     тесты на SQLite во временном файле
+  config.py                settings from environment variables
+  app.py                   application assembly, dependency injection
+  rendering.py             Markdown to HTML
+  api/                     controllers: releases, telemetry, docs, health
+  domain/                  SQLAlchemy models and exchange structures
+  infrastructure/          database connection, repositories, initial seed
+  templates/               page templates
+migrations/                Alembic migrations
+tests/                     tests against SQLite in a temporary file
 ```
 
-Запросы к базе живут только в репозиториях, бизнес-правила в контроллерах,
-структуры обмена отдельно от моделей.
+Database queries live only in repositories, business rules in controllers, and
+exchange structures separately from models.
 
-## Переменные окружения
+## Environment variables
 
-| Переменная | Обязательна | Назначение |
+| Variable | Required | Purpose |
 |---|---|---|
-| `HUB_DATABASE_URL` | да | строка подключения, например `postgresql+asyncpg://tessera_hub:пароль@tessera-db:5432/tessera_hub` |
-| `HUB_PRODUCT_NAME` | нет | имя продукта в заголовках страниц, по умолчанию `Tessera` |
-| `HUB_PUBLIC_URL` | нет | адрес сервиса для браузера, попадает в ссылку на выпуски |
-| `HUB_SUPPORT_EMAIL` | нет | адрес на странице поддержки |
-| `HUB_SEED_RELEASE_VERSION` | нет | версия, регистрируемая при старте, если ее еще нет |
-| `HUB_DEBUG` | нет | подробные ошибки и лог SQL, только для разработки |
+| `HUB_DATABASE_URL` | yes | connection string, for example `postgresql+asyncpg://tessera_hub:PASSWORD@tessera-db:5432/tessera_hub` |
+| `HUB_PRODUCT_NAME` | no | product name in page titles, `Tessera` by default |
+| `HUB_PUBLIC_URL` | no | service address for the browser; goes into the release link |
+| `HUB_SUPPORT_EMAIL` | no | address shown on the support page |
+| `HUB_SEED_RELEASE_VERSION` | no | version registered at startup if it is not there yet |
+| `HUB_DEBUG` | no | verbose errors and SQL log, for development only |
 
-## Локальный запуск
+## Running locally
 
 ```
 uv sync --group dev
-HUB_DATABASE_URL=postgresql+asyncpg://tessera_hub:пароль@localhost:5432/tessera_hub \
+HUB_DATABASE_URL=postgresql+asyncpg://tessera_hub:PASSWORD@localhost:5432/tessera_hub \
   uv run alembic upgrade head
 HUB_DATABASE_URL=... uv run litestar --app hub.app:create_app run --port 4000
 ```
 
-## Проверки
+## Checks
 
 ```
 uv run pytest
@@ -66,13 +66,13 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-## Содержимое страниц
+## Page content
 
-Страницы документации, лицензии и поддержки наполняются при старте из
-`hub/infrastructure/seed.py` и перезаписываются по слагу при каждом запуске.
-Правка текста делается там, после перезапуска она попадает в базу. Записи,
-добавленные вручную с другими слагами, при этом не затрагиваются.
+The documentation, license and support pages are seeded at startup from
+`hub/infrastructure/seed.py` and rewritten by slug on every run. Edit the text
+there; after a restart it lands in the database. Rows added by hand under other
+slugs are left alone.
 
-Выпуск регистрируется только при заданной `HUB_SEED_RELEASE_VERSION` и только
-если такой версии еще нет. Пометка последнего выпуска ровно одна, это
-гарантирует частичный уникальный индекс.
+A release is registered only when `HUB_SEED_RELEASE_VERSION` is set and only if
+that version is not there yet. Exactly one release is marked as the latest, and
+a partial unique index guarantees that.
