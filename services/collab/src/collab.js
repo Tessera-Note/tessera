@@ -1,14 +1,15 @@
 /**
- * Канал совместного редактирования.
+ * The collaborative editing channel.
  *
- * Протокол Hocuspocus поверх Yjs, путь `/collab`, имя документа `page.<id>` —
- * всё как в v1: клиент не переписывается, он подключается к другому процессу по
- * тому же протоколу.
+ * The Hocuspocus protocol over Yjs, the path `/collab`, the document name
+ * `page.<id>` — all as in the earlier version: the client is not rewritten, it
+ * connects to another process over the same protocol.
  *
- * Здесь живёт состояние документа и схема узлов редактора. Права и запись в
- * базу живут на стороне Python, и каждый вопрос о них уходит туда. Разделение
- * не вкусовое: схема узлов описана расширениями Tiptap, и второе её описание
- * теряет узлы молча, а права, описанные дважды, расходятся.
+ * The state of the document and the editor node schema live here. Permissions
+ * and database writes live on the Python side, and every question about them
+ * goes there. The split is not a matter of taste: the node schema is described
+ * by Tiptap extensions, and a second description of it loses nodes silently,
+ * while permissions described twice diverge.
  */
 
 import { createRequire } from 'node:module';
@@ -34,35 +35,36 @@ const { TiptapTransformer } = require('@hocuspocus/transformer');
 const { generateText } = require('@tiptap/core');
 const Y = require('yjs');
 
-/** Имя поля документа в Yjs. Общее с v1 и с клиентом. */
+/** The name of the document field in Yjs. Shared with the client. */
 const FIELD = 'default';
 
-/** Имя документа: `page.<идентификатор страницы>`. */
+/** The document name: `page.<page identifier>`. */
 const DOCUMENT_PREFIX = 'page.';
 
 /**
- * Через сколько после последней правки сохранять и как долго можно
- * откладывать. Значения из v1: чаще — очередь ожидающих транзакций на одной
- * строке, реже — шире окно потери правок при падении процесса.
+ * How long after the last edit to save, and how long the saving may be put off.
+ * The values come from the earlier version: more often means a queue of waiting
+ * transactions on one row, less often means a wider window for losing edits if
+ * the process falls over.
  */
 const DEBOUNCE_MS = Number(process.env.COLLAB_DEBOUNCE_MS || 10000);
 const MAX_DEBOUNCE_MS = Number(process.env.COLLAB_MAX_DEBOUNCE_MS || 45000);
 
 /**
- * Как часто перепроверяются права у уже открытых соединений.
+ * How often the permissions of already open connections are re-checked.
  *
- * Подключение проверяется один раз, а сеанс длится часами. Без обхода человек,
- * которого убрали из пространства, дописывает открытый документ до тех пор,
- * пока сам не закроет вкладку.
+ * A connection is checked once, while a session lasts for hours. Without the
+ * sweep, a person who was removed from a space keeps writing into the open
+ * document until they close the tab themselves.
  */
 const SWEEP_INTERVAL_MS = Number(process.env.COLLAB_SWEEP_INTERVAL_MS || 30000);
 
-/** Служебные сообщения канала. Клиент разбирает их в `onStateless`. */
+/** The service messages of the channel. The client parses them in `onStateless`. */
 export const ACCESS_REVOKED = 'access.revoked';
 export const ACCESS_CHANGED = 'access.changed';
 export const DOCUMENT_UNREADABLE = 'document.unreadable';
 
-/** Код закрытия соединения при отзыве доступа. Тот же, что в v1. */
+/** The close code used when access is revoked. The same as in the earlier version. */
 const FORBIDDEN = { code: 4403, reason: 'Forbidden' };
 
 export function pageIdOf(documentName) {
@@ -73,12 +75,12 @@ export function pageIdOf(documentName) {
 }
 
 /**
- * Плоский текст документа.
+ * The flat text of a document.
  *
- * Считается здесь, а не на стороне Python: он выводится из той же схемы узлов,
- * и второй его расчёт разошёлся бы с первым ровно на тех узлах, ради которых
- * сервис и выделен. Пустая строка при отказе разбора — не потеря: поиск по
- * тексту восстановится следующим сохранением.
+ * Computed here rather than on the Python side: it follows from the same node
+ * schema, and a second computation of it would diverge from the first on
+ * exactly the nodes this service exists for. An empty string on a refused parse
+ * is not a loss: the text search recovers with the next save.
  */
 export function textOf(json) {
   try {
@@ -89,12 +91,12 @@ export function textOf(json) {
 }
 
 /**
- * Кто правил документ с прошлого сохранения.
+ * Who edited the document since the last save.
  *
- * Список нужен серверной половине: правивший становится подписчиком страницы, и
- * из этих же людей складывается лента обновлений. Хранится по имени документа
- * и очищается вместе с сохранением: иначе один и тот же человек попадал бы в
- * каждое следующее сохранение до выгрузки документа из памяти.
+ * The server half needs the list: whoever edited becomes a watcher of the page,
+ * and the update feed is built from the same people. It is kept by document
+ * name and cleared together with the save: otherwise the same person would end
+ * up in every following save until the document is unloaded from memory.
  */
 class Contributors {
   constructor() {
@@ -128,32 +130,32 @@ function log(message) {
 }
 
 /**
- * Отзыв доступа у одного соединения.
+ * Revoking access for one connection.
  *
- * Сообщение уходит до закрытия: `close` шлёт клиенту только строку причины, и
- * отличить отзыв прав от обычного разрыва по нему нельзя. Без явного сообщения
- * редактор на экране остаётся редактируемым, и набранное уходит в локальный
- * документ, то есть в никуда.
+ * The message goes out before the close: `close` sends the client only the
+ * reason string, and a revocation cannot be told from an ordinary disconnect by
+ * it. Without an explicit message the editor on the screen stays editable, and
+ * what is typed goes into the local document, that is, nowhere.
  */
 function revoke(connection, documentName, reason) {
   try {
     connection.sendStateless(JSON.stringify({ type: ACCESS_REVOKED, reason }));
   } catch {
-    // Сокет мог закрыться между обходом и отправкой, это не ошибка.
+    // The socket may have closed between the sweep and the send; not an error.
   }
   try {
     connection.close(FORBIDDEN);
   } catch {
-    // То же самое.
+    // The same as above.
   }
-  log(`соединение отключено от ${documentName}: ${reason}`);
+  log(`a connection was disconnected from ${documentName}: ${reason}`);
 }
 
 /**
- * Понижение до чтения и возврат права записи.
+ * Downgrading to read-only, and giving the write permission back.
  *
- * Значение вычисляется заново каждый проход, а не только понижается:
- * восстановленное право обязано возвращаться без переподключения.
+ * The value is computed anew on every pass rather than only lowered: a
+ * restored permission must come back without a reconnect.
  */
 function applyReadOnly(connection, readOnly, documentName) {
   if (connection.readOnly === readOnly) return;
@@ -161,44 +163,44 @@ function applyReadOnly(connection, readOnly, documentName) {
   try {
     connection.sendStateless(JSON.stringify({ type: ACCESS_CHANGED, canEdit: !readOnly }));
   } catch {
-    // См. `revoke`.
+    // See `revoke`.
   }
-  log(`${documentName}: соединение переведено в режим ${readOnly ? 'чтения' : 'правки'}`);
+  log(`${documentName}: the connection was switched to ${readOnly ? 'read-only' : 'editing'} mode`);
 }
 
 /**
- * Допуск подключений без имени документа в адресе.
+ * The allowance for connections with no document name in the address.
  *
- * Только на время раскатки при одной реплике: вкладки, открытые до
- * обновления, подключаются по старому адресу, без довода, и без допуска
- * перестают синхронизироваться до перезагрузки. При двух репликах допуск
- * опасен — такое соединение прокси кладёт не на ту реплику, где живёт
- * документ. Поэтому по умолчанию выключен, а каждое допущенное подключение
- * пишется в журнал.
+ * Only for the duration of a rollout, and only with a single replica: tabs
+ * opened before an update connect by the old address, with no argument, and
+ * without the allowance they stop synchronizing until a reload. With two
+ * replicas the allowance is dangerous — the proxy puts such a connection on a
+ * replica other than the one the document lives on. So it is off by default,
+ * and every admitted connection is written to the log.
  */
 export function allowUnnamedFromEnv(value = process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT) {
   return value === 'true' || value === '1';
 }
 
 /**
- * Имя реплики для отметки владения документом.
+ * The replica name for the ownership mark of a document.
  *
- * По умолчанию имя узла: у контейнера это его идентификатор, и две реплики
- * различаются без настройки. Явное имя нужно, когда реплики запускаются вне
- * контейнеров на одном узле.
+ * The host name by default: for a container that is its identifier, so two
+ * replicas differ with no configuration. An explicit name is needed when the
+ * replicas run outside containers on one host.
  */
 export function replicaFromEnv(value = process.env.COLLAB_REPLICA_ID) {
   return (typeof value === 'string' && value.trim()) || hostname();
 }
 
-/** Коды отказа отметки владения. Те же, что отдаёт приложение. */
+/** The failure codes of the ownership mark. The same ones the application serves. */
 const OWNED_ELSEWHERE = 'error.collaboration.document_owned_elsewhere';
 const OWNER_STORE_UNAVAILABLE = 'error.collaboration.owner_store_unavailable';
 
 /**
- * Сколько документов уходит в одном запросе продления. Открытых документов у
- * реплики сколько угодно, а запрос к приложению обязан оставаться коротким;
- * приложение продлевает присланный список целиком.
+ * How many documents go in one renewal request. A replica may have any number
+ * of open documents, while a request to the application must stay short; the
+ * application renews the whole list it was sent.
  */
 const RENEW_BATCH = 500;
 
@@ -210,29 +212,30 @@ export function createCollabServer({
   const contributors = new Contributors();
 
   if (allowUnnamed) {
-    log('допуск подключений без имени документа в адресе включён: только при одной реплике');
+    log('the allowance for connections with no document name in the address is on: only with a single replica');
   }
 
   /**
-   * Отметка владения документами этой реплики.
+   * The ownership mark of the documents of this replica.
    *
-   * Документ Yjs живёт в памяти одной реплики, и открытый сразу на двух он
-   * расходится молча. Отметку держит приложение в Redis: взять при
-   * подключении, продлевать, пока документ открыт, снять при выгрузке. Период
-   * продления приходит в ответе на взятие — срок и период живут в настройках
-   * приложения, второй их копии здесь нет.
+   * A Yjs document lives in the memory of one replica, and opened on two at
+   * once it diverges silently. The mark is held by the application in Redis:
+   * take it on connect, renew it while the document is open, release it on
+   * unload. The renewal period comes in the answer to the take — the lifetime
+   * and the period live in the settings of the application, and there is no
+   * second copy of them here.
    */
   const ownership = { renewEveryMs: null, timer: null, running: false };
-  /** Документы, отметку которых перехватила другая реплика: их не сохранять. */
+  /** Documents whose mark another replica took over: do not save those. */
   const lost = new Set();
 
   async function claim(documentName) {
     if (lost.has(documentName) && hocuspocus.documents.has(documentName)) {
-      // Перехваченный документ ещё в памяти: соединения закрыты, выгрузка не
-      // закончилась. Взяв отметку сейчас, реплика продолжила бы с устаревшим
-      // состоянием и сохранила бы его поверх правок владельца. Клиент
-      // подключится снова, когда документ выгрузится.
-      log(`${documentName}: документ ещё выгружается после перехвата отметки, соединение отвергнуто`);
+      // A taken-over document is still in memory: the connections are closed
+      // and the unload has not finished. Taking the mark now, the replica would
+      // continue from stale state and would save it over the edits of the
+      // owner. The client connects again once the document is unloaded.
+      log(`${documentName}: the document is still unloading after the ownership mark was taken over, connection refused`);
       throw new Error('document is still unloading after ownership was lost');
     }
     let answer;
@@ -241,13 +244,13 @@ export function createCollabServer({
     } catch (error) {
       if (error?.code === OWNED_ELSEWHERE) {
         log(
-          `${documentName}: документ открыт на реплике ${error.params?.owner ?? 'неизвестной'}, соединение отвергнуто`,
+          `${documentName}: the document is open on replica ${error.params?.owner ?? 'unknown'}, connection refused`,
         );
       } else if (error?.code === OWNER_STORE_UNAVAILABLE) {
-        log(`${documentName}: хранилище отметок владения (Redis) недоступно, соединение отвергнуто`);
+        log(`${documentName}: the ownership mark store (Redis) is unavailable, connection refused`);
       } else {
         log(
-          `${documentName}: отметка владения не взята (${error?.message || error}), соединение отвергнуто`,
+          `${documentName}: the ownership mark was not taken (${error?.message || error}), connection refused`,
         );
       }
       throw error;
@@ -275,8 +278,8 @@ export function createCollabServer({
     if (ownership.running) return;
     const names = [...hocuspocus.documents.keys()];
     if (names.length === 0) {
-      // Открытых документов нет — продлевать нечего; таймер заведёт следующее
-      // взятие.
+      // There are no open documents — nothing to renew; the next take will
+      // start the timer again.
       stopRenewal();
       return;
     }
@@ -289,78 +292,81 @@ export function createCollabServer({
         }
       }
     } catch (error) {
-      // Недоступность не повод рвать соединения: отметка живёт ещё срок, и
-      // следующий проход её продлит. Если за это время документ перейдёт к
-      // другой реплике, следующий ответ вернёт его списком потерянных.
-      log(`отметки владения не продлены: ${error?.message || error}`);
+      // Unavailability is no reason to drop the connections: the mark lives out
+      // its lifetime, and the next pass renews it. If the document moves to
+      // another replica in the meantime, the next answer returns it in the list
+      // of the lost.
+      log(`the ownership marks were not renewed: ${error?.message || error}`);
     } finally {
       ownership.running = false;
     }
   }
 
   /**
-   * Отметку перехватила другая реплика: документ здесь больше не свой.
+   * Another replica took the mark over: the document is no longer ours here.
    *
-   * Соединения закрываются, а сохранение пропускается: запись состояния,
-   * разошедшегося с репликой-владельцем, стёрла бы её правки. Клиент
-   * переподключается и попадает к владельцу либо получает отказ с просьбой
-   * перезагрузить страницу.
+   * The connections are closed and the save is skipped: writing state that has
+   * diverged from the owning replica would erase its edits. The client
+   * reconnects and lands on the owner, or gets a refusal asking it to reload
+   * the page.
    */
   function dropLost(documentName, owner) {
     const document = hocuspocus.documents.get(documentName);
     if (!document) return;
     lost.add(documentName);
     log(
-      `${documentName}: отметку владения держит реплика ${owner}, соединения закрыты, сохранение пропущено`,
+      `${documentName}: the ownership mark is held by replica ${owner}, connections closed, saving skipped`,
     );
     for (const connection of document.getConnections()) {
       try {
         connection.close();
       } catch {
-        // Соединение могло закрыться само, это не ошибка.
+        // The connection may have closed by itself; not an error.
       }
     }
   }
 
   /**
-   * Документы, которые не удалось разобрать, и причина по каждому.
+   * The documents that could not be parsed, and the reason for each.
    *
-   * Такое случается, когда в теле встречается узел, которого нет в схеме
-   * редактора: после ввоза из чужой системы и после отката версии приложения.
-   * Запись здесь делает две вещи: запрещает сохранение — пустой документ в
-   * памяти стёр бы страницу целиком — и даёт причину подключившемуся, вместо
-   * пустого листа без единого слова.
+   * That happens when the body contains a node the editor schema does not have:
+   * after an import from another system, and after a rollback of the
+   * application version. A record here does two things: it forbids saving — an
+   * empty document in memory would erase the whole page — and it gives the
+   * reason to whoever connects, instead of a blank sheet with not a word on it.
    */
   const unreadable = new Map();
 
   const hocuspocus = new Hocuspocus({
     debounce: DEBOUNCE_MS,
     maxDebounce: MAX_DEBOUNCE_MS,
-    // Свой лог вместо стандартного: тот пишет каждое подключение построчно и
-    // на десятке вкладок превращает журнал в поток.
+    // A log of our own instead of the standard one: that one writes every
+    // connection line by line and, on a dozen tabs, turns the log into a
+    // stream.
     quiet: true,
 
     async onAuthenticate({ documentName, token, connectionConfig, requestParameters }) {
-      // Имя документа приходит дважды: доводом адреса и первым сообщением
-      // протокола. Прокси закрепляет соединение за репликой по адресу —
-      // сообщений он не разбирает, — а документ открывается по сообщению.
-      // Разойдясь, они привели бы соединение на реплику, где документ не
-      // живёт, и правки двух реплик по одному документу не сошлись бы молча.
-      // Поэтому расхождение, как и отсутствие довода, это отказ. Отсутствие
-      // довода пропускается только допуском раскатки (`allowUnnamedFromEnv`),
-      // и каждое такое подключение остаётся в журнале.
+      // The document name arrives twice: as an argument of the address and in
+      // the first protocol message. The proxy pins a connection to a replica by
+      // the address — it does not parse messages — while the document is opened
+      // by the message. Diverging, they would bring the connection to a replica
+      // the document does not live on, and the edits of two replicas on one
+      // document would not converge, silently. So a mismatch, like a missing
+      // argument, is a refusal. A missing argument is let through only by the
+      // rollout allowance (`allowUnnamedFromEnv`), and every such connection
+      // stays in the log.
       const named = requestParameters?.get('documentName') ?? null;
       if (named === null && allowUnnamed) {
         log(
-          `${documentName}: подключение без имени в адресе допущено флагом раскатки, ${new Date().toISOString()}`,
+          `${documentName}: a connection with no name in the address was admitted by the rollout flag, ${new Date().toISOString()}`,
         );
       } else if (named !== documentName) {
-        log(`${documentName}: имя в адресе подключения не совпало с именем документа`);
+        log(`${documentName}: the name in the connection address did not match the document name`);
         throw new Error('document name mismatch');
       }
       const answer = await authorize(token, documentName);
-      // Отметка после прав: тот, кому доступа нет, документ за репликой не
-      // закрепляет.
+      // The mark comes after the permissions: someone with no access does not
+      // pin a document to a replica.
       await claim(documentName);
       if (!answer?.canEdit) {
         connectionConfig.readOnly = true;
@@ -375,9 +381,9 @@ export function createCollabServer({
       const answer = await loadDocument(pageId);
 
       if (answer?.ydoc) {
-        // Двоичное состояние первым: в нём есть история правок, которой в JSON
-        // нет, и восстановление из JSON теряет незавершённые правки открытых
-        // вкладок.
+        // The binary state comes first: it holds the history of edits, which
+        // the JSON does not, and restoring from JSON loses the unfinished edits
+        // of open tabs.
         const document = new Y.Doc();
         Y.applyUpdate(document, new Uint8Array(Buffer.from(answer.ydoc, 'base64')));
         return document;
@@ -386,18 +392,19 @@ export function createCollabServer({
       if (answer?.content) {
         try {
           const document = TiptapTransformer.toYdoc(answer.content, FIELD, tiptapExtensions);
-          // Разобрался: прежняя отметка о неразобранном снимается. Иначе
-          // страница, починенная правкой тела, оставалась бы запертой до
-          // перезапуска процесса.
+          // It parsed: the earlier "unreadable" record is removed. Otherwise a
+          // page repaired by an edit to its body would stay locked until the
+          // process restarts.
           unreadable.delete(documentName);
           return document;
         } catch (error) {
           const reason = String(error?.message || error);
           unreadable.set(documentName, reason);
-          log(`${documentName}: тело не разобрано, ${reason}`);
-          // Пустой документ, а не отказ подключения: отказ клиент читает как
-          // обрыв связи и переподключается без конца. Содержимое при этом не
-          // теряется — сохранение для такого документа запрещено ниже.
+          log(`${documentName}: the body was not parsed, ${reason}`);
+          // An empty document rather than a refused connection: the client
+          // reads a refusal as a dropped connection and reconnects without end.
+          // Nothing is lost by it — saving is forbidden below for such a
+          // document.
           return new Y.Doc();
         }
       }
@@ -407,10 +414,11 @@ export function createCollabServer({
     },
 
     /**
-     * Сообщить подключившемуся, что тело страницы не разобрано.
+     * Tell whoever connected that the body of the page was not parsed.
      *
-     * Каждому соединению отдельно, а не рассылкой по документу: подключаются
-     * в разное время, а рассылка дошла бы только до тех, кто уже был.
+     * To every connection separately rather than by a broadcast over the
+     * document: people connect at different times, and a broadcast would only
+     * reach those who were already there.
      */
     async connected({ documentName, connection }) {
       const reason = unreadable.get(documentName);
@@ -418,7 +426,8 @@ export function createCollabServer({
       try {
         connection.sendStateless(JSON.stringify({ type: DOCUMENT_UNREADABLE, reason }));
       } catch {
-        // См. `revoke`: соединение могло закрыться, пока шёл ответ.
+        // See `revoke`: the connection may have closed while the answer was on
+        // its way.
       }
     },
 
@@ -427,17 +436,18 @@ export function createCollabServer({
       if (!pageId) return;
 
       if (unreadable.has(documentName)) {
-        // Тело не разобралось, и документ в памяти пуст. Запись стёрла бы
-        // страницу целиком — ровно то содержимое, из-за которого разбор и не
-        // прошёл. Правки здесь не теряются: править нечего, документ пуст.
-        log(`${documentName}: сохранение пропущено, тело не разобрано`);
+        // The body did not parse, and the document in memory is empty. A write
+        // would erase the whole page — exactly the content the parse failed
+        // over. No edits are lost here: there is nothing to edit, the document
+        // is empty.
+        log(`${documentName}: saving skipped, the body was not parsed`);
         return;
       }
 
       if (lost.has(documentName)) {
-        // Отметку держит другая реплика: её состояние новее, и запись этого
-        // стёрла бы её правки. См. `dropLost`.
-        log(`${documentName}: сохранение пропущено, отметкой владеет другая реплика`);
+        // Another replica holds the mark: its state is newer, and writing this
+        // one would erase its edits. See `dropLost`.
+        log(`${documentName}: saving skipped, the mark is owned by another replica`);
         return;
       }
 
@@ -456,8 +466,9 @@ export function createCollabServer({
           contributors: editors,
         });
       } catch (error) {
-        // Правившие возвращаются в список: иначе они пропадут из подписчиков
-        // страницы, а повторить сохранение будет уже некому.
+        // Those who edited go back into the list: otherwise they disappear from
+        // the watchers of the page, and there would be nobody left to repeat
+        // the save.
         for (const one of editors) contributors.add(documentName, one);
         throw error;
       }
@@ -480,17 +491,18 @@ export function createCollabServer({
 
     async afterUnloadDocument({ documentName }) {
       contributors.forget(documentName);
-      // Отметка о неразобранном снимается вместе с документом: при следующем
-      // открытии тело читается заново, и оно могло измениться.
+      // The "unreadable" record goes away with the document: on the next
+      // opening the body is read anew, and it may have changed.
       unreadable.delete(documentName);
-      // Отметка владения снимается при выгрузке, чтобы документ не ждал
-      // истечения срока. Перехваченную снимать нечего: она чужая, и приложение
-      // чужую не снимет.
+      // The ownership mark is released on unload, so that the document does not
+      // wait for the lifetime to run out. A taken-over one is not ours to
+      // release: it belongs to another replica, and the application will not
+      // release someone else's.
       if (lost.delete(documentName)) return;
       try {
         await releaseDocument(documentName, replica);
       } catch (error) {
-        log(`${documentName}: отметка владения не снята (${error?.message || error}), истечёт по сроку`);
+        log(`${documentName}: the ownership mark was not released (${error?.message || error}), it will expire by its lifetime`);
       }
     },
   });
@@ -499,11 +511,11 @@ export function createCollabServer({
 }
 
 /**
- * Один проход перепроверки прав.
+ * One pass of the permission re-check.
  *
- * Одна проверка на человека, а не на соединение: у одного человека бывает
- * несколько вкладок с одной страницей, и спрашивать права на каждую значит
- * умножать запросы к базе на число вкладок.
+ * One check per person rather than per connection: one person may have several
+ * tabs with the same page, and asking about the permissions for each one means
+ * multiplying the database queries by the number of tabs.
  */
 export async function sweepOnce(hocuspocus) {
   for (const document of hocuspocus.documents.values()) {
@@ -514,10 +526,10 @@ export async function sweepOnce(hocuspocus) {
     for (const connection of connections) {
       const userId = connection.context?.user?.id;
       if (!userId) {
-        // Контекст ставит `onAuthenticate`, и соединения без него быть не
-        // может. Если оно появилось, проверить права неизвестно кому нельзя, а
-        // оставить непроверенным нельзя тем более.
-        revoke(connection, document.name, 'соединение без пользователя');
+        // The context is set by `onAuthenticate`, and a connection without one
+        // cannot exist. If one has appeared, the permissions of an unknown
+        // person cannot be checked, and leaving it unchecked is worse still.
+        revoke(connection, document.name, 'a connection with no user');
         continue;
       }
       const known = byUser.get(userId);
@@ -531,15 +543,16 @@ export async function sweepOnce(hocuspocus) {
     try {
       answer = await rights(document.name, [...byUser.keys()]);
     } catch (error) {
-      // Недоступная серверная половина не повод отбирать доступ: это временный
-      // отказ, а отзыв выкидывает человека из документа с потерей набранного.
-      log(`права по ${document.name} не проверены: ${error?.message || error}`);
+      // An unreachable server half is no reason to take access away: it is a
+      // temporary failure, while a revocation throws a person out of the
+      // document and loses what they typed.
+      log(`the permissions for ${document.name} were not checked: ${error?.message || error}`);
       continue;
     }
 
     if (answer?.gone) {
       for (const connection of connections) {
-        revoke(connection, document.name, 'страница не найдена');
+        revoke(connection, document.name, 'the page was not found');
       }
       continue;
     }
@@ -548,7 +561,7 @@ export async function sweepOnce(hocuspocus) {
       const verdict = answer?.users?.[userId];
       if (!verdict || !verdict.allowed) {
         for (const connection of userConnections) {
-          revoke(connection, document.name, 'доступ к странице отозван');
+          revoke(connection, document.name, 'access to the page was revoked');
         }
         continue;
       }
@@ -559,7 +572,7 @@ export async function sweepOnce(hocuspocus) {
   }
 }
 
-/** Таймер перепроверки. Проходы не накладываются: медленная база растянула бы обход. */
+/** The re-check timer. The passes do not overlap: a slow database would stretch the sweep. */
 export function startSweep(hocuspocus, intervalMs = SWEEP_INTERVAL_MS) {
   let running = false;
   const timer = setInterval(async () => {
@@ -568,7 +581,7 @@ export function startSweep(hocuspocus, intervalMs = SWEEP_INTERVAL_MS) {
     try {
       await sweepOnce(hocuspocus);
     } catch (error) {
-      log(`обход прав прерван: ${error?.message || error}`);
+      log(`the permission sweep was interrupted: ${error?.message || error}`);
     } finally {
       running = false;
     }
@@ -578,12 +591,13 @@ export function startSweep(hocuspocus, intervalMs = SWEEP_INTERVAL_MS) {
 }
 
 /**
- * Остановка канала: дождаться выгрузки документов и закрыть соединения.
+ * Stopping the channel: wait for the documents to unload and close the
+ * connections.
  *
- * Просто закрыть сокеты нельзя: у Hocuspocus сохранение отложено, и разрыв
- * соединения до выгрузки документа теряет последние правки. Поэтому сначала
- * закрываются соединения, а ожидание идёт до того момента, когда в памяти не
- * осталось ни одного документа.
+ * Simply closing the sockets is not possible: saving in Hocuspocus is deferred,
+ * and dropping a connection before the document is unloaded loses the last
+ * edits. So the connections are closed first, and the wait runs until not a
+ * single document is left in memory.
  */
 export function closeCollab(hocuspocus, { timeoutMs = 5000 } = {}) {
   return new Promise((resolve) => {
@@ -592,8 +606,8 @@ export function closeCollab(hocuspocus, { timeoutMs = 5000 } = {}) {
       return;
     }
 
-    // Предел ожидания обязателен: документ, чьё сохранение не проходит,
-    // подвесил бы остановку процесса навсегда.
+    // A wait limit is mandatory: a document whose save never goes through would
+    // hang the shutdown of the process forever.
     const guard = setTimeout(resolve, timeoutMs);
     hocuspocus.configuration.extensions.push({
       async afterUnloadDocument({ instance }) {
@@ -608,10 +622,11 @@ export function closeCollab(hocuspocus, { timeoutMs = 5000 } = {}) {
 }
 
 /**
- * Приём подключений на путь `/collab`.
+ * Accepting connections on the `/collab` path.
  *
- * Апгрейд перехватывается вручную: на том же порту работает HTTP для
- * преобразования содержимого, и отдавать ему сокеты нельзя, как и наоборот.
+ * The upgrade is intercepted by hand: the HTTP for content conversion works on
+ * the same port, and the sockets must not be handed to it, nor the other way
+ * round.
  */
 export function attachCollab(httpServer, hocuspocus) {
   const wss = new WebSocketServer({ noServer: true });
@@ -626,8 +641,8 @@ export function attachCollab(httpServer, hocuspocus) {
     }
 
     if (pathname !== '/collab') {
-      // Чужой путь закрывается сразу: висящий сокет на неизвестном пути
-      // занимает соединение и не даёт ни ответа, ни отказа.
+      // A foreign path is closed at once: a socket left hanging on an unknown
+      // path holds a connection and gives neither an answer nor a refusal.
       socket.destroy();
       return;
     }

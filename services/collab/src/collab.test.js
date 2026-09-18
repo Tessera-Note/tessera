@@ -1,11 +1,14 @@
 /**
- * Проверки канала совместного редактирования.
+ * Tests of the collaborative editing channel.
  *
- * Настоящее подключение по WebSocket поднимается целиком: протокол Hocuspocus
- * это не только сообщения, но и порядок хуков, и подмена сервера проверяла бы
- * подмену. Серверная половина подменена локальным HTTP: она проверяется своими
- * проверками на Python, а здесь важно, что именно ей отправлено и как разобран
- * ответ.
+ * A real WebSocket connection is raised in full: the Hocuspocus protocol is not
+ * only the messages but also the order of the hooks, and substituting the
+ * server would be testing the substitute. The server half is substituted by a
+ * local HTTP one: it has its own tests in Python, and what matters here is
+ * exactly what was sent to it and how the answer was parsed.
+ *
+ * The fixtures are deliberately Cyrillic: non-ASCII content passing through the
+ * channel costs nothing extra to check here.
  */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -30,7 +33,7 @@ const WebSocket = require('ws');
 const PAGE_ID = '11111111-1111-4111-8111-111111111111';
 const USER = { id: '22222222-2222-4222-8222-222222222222', name: 'Проверяющий' };
 
-/** Подменённая серверная половина: запоминает запросы и отвечает заданным. */
+/** The substituted server half: it remembers the requests and answers as told. */
 function backend(answers) {
   const seen = [];
   const server = createServer(async (request, response) => {
@@ -60,7 +63,7 @@ async function listen(server) {
   return server.address().port;
 }
 
-/** Поднять пару «серверная половина и канал» и выполнить проверку на них. */
+/** Raise the pair "server half and channel" and run a check against them. */
 async function withChannel(answers, run, options = {}) {
   const { server: fake, seen } = backend(answers);
   const backendPort = await listen(fake);
@@ -77,9 +80,10 @@ async function withChannel(answers, run, options = {}) {
     await run({ port, seen, hocuspocus });
   } finally {
     await closeCollab(hocuspocus, { timeoutMs: 500 }).catch(() => {});
-    // Соединения обрываются принудительно. `close` ждёт закрытия каждого, а
-    // здесь их держат и сокет редактирования, и постоянное соединение клиента
-    // HTTP: без этого проверка висит вместо того, чтобы закончиться.
+    // The connections are dropped by force. `close` waits for each one to
+    // close, and here they are held both by the editing socket and by the
+    // keep-alive connection of the HTTP client: without this the test hangs
+    // instead of finishing.
     http.closeAllConnections?.();
     fake.closeAllConnections?.();
     await new Promise((resolve) => http.close(resolve));
@@ -88,18 +92,20 @@ async function withChannel(answers, run, options = {}) {
 }
 
 /**
- * Подключиться клиентским провайдером и дождаться исхода.
+ * Connect with the client provider and wait for the outcome.
  *
- * Сокетом управляет сам провайдер: при переданном снаружи он не подключается
- * без явного `attach`, и проверка молча ждала бы события, которого не будет.
+ * The provider manages the socket itself: given one from outside it does not
+ * connect without an explicit `attach`, and the test would silently wait for an
+ * event that never comes.
  */
 function connect(
   port,
   {
-    token = 'токен',
+    token = 'token',
     documentName = `page.${PAGE_ID}`,
-    // Имя документа идёт и доводом адреса: по нему прокси закрепляет
-    // соединение за репликой, и сервер сверяет его с именем из протокола.
+    // The document name also goes as an argument of the address: the proxy pins
+    // the connection to a replica by it, and the server compares it with the
+    // name from the protocol.
     address = `ws://127.0.0.1:${port}/collab?documentName=${encodeURIComponent(documentName)}`,
   } = {},
 ) {
@@ -107,9 +113,9 @@ function connect(
     const messages = [];
     let provider;
 
-    // Свой предел ожидания: без него отказ, о котором клиент не сообщает,
-    // подвешивает проверку вместо того, чтобы её уронить.
-    const guard = setTimeout(() => resolve({ ok: false, reason: 'ответа нет', provider, messages }), 5000);
+    // A wait limit of our own: without it a refusal the client does not report
+    // hangs the test instead of failing it.
+    const guard = setTimeout(() => resolve({ ok: false, reason: 'no answer', provider, messages }), 5000);
     const done = (value) => {
       clearTimeout(guard);
       resolve(value);
@@ -120,8 +126,8 @@ function connect(
       WebSocketPolyfill: WebSocket,
       name: documentName,
       token,
-      // Переподключение выключено: проверка ждёт один исход, а не бесконечные
-      // попытки после отказа.
+      // Reconnecting is off: the test waits for one outcome rather than for
+      // endless attempts after a refusal.
       maxAttempts: 1,
       onStateless: ({ payload }) => messages.push(JSON.parse(payload)),
       onSynced: () => done({ ok: true, provider, messages }),
@@ -134,7 +140,7 @@ function close({ provider }) {
   try {
     provider?.destroy();
   } catch {
-    /* уже закрыт */
+    /* already closed */
   }
 }
 
@@ -147,20 +153,20 @@ const AUTHORIZED = {
   '/api/internal/collab/rights': {
     body: { gone: false, users: { [USER.id]: { allowed: true, canEdit: true } } },
   },
-  // Отметка владения: одна реплика, документ всегда свой.
+  // The ownership mark: a single replica, the document is always ours.
   '/api/internal/collab/owner': { body: { owned: true, ttlMs: 30000, renewEveryMs: 10000 } },
   '/api/internal/collab/owner/renew': { body: { lost: [], renewEveryMs: 10000 } },
   '/api/internal/collab/owner/release': { body: { released: true } },
 };
 
-test('имя документа разбирается только в известном виде', () => {
+test('the document name is parsed only in the known form', () => {
   assert.equal(pageIdOf(`page.${PAGE_ID}`), PAGE_ID);
   assert.equal(pageIdOf('page.'), null);
   assert.equal(pageIdOf('чужое'), null);
   assert.equal(pageIdOf(null), null);
 });
 
-test('плоский текст берётся из документа', () => {
+test('the flat text is taken from the document', () => {
   const json = {
     type: 'doc',
     content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст страницы' }] }],
@@ -168,64 +174,64 @@ test('плоский текст берётся из документа', () => {
   assert.match(textOf(json), /Текст страницы/);
 });
 
-test('битый документ не роняет расчёт текста', () => {
-  // Пустая строка это не потеря: поиск по тексту восстановится следующим
-  // сохранением, а отказ здесь оборвал бы всё сохранение целиком.
+test('a broken document does not break the text computation', () => {
+  // An empty string is not a loss: the text search recovers with the next save,
+  // while a failure here would cut the whole save short.
   assert.equal(textOf({ type: 'выдуманный' }), '');
 });
 
-test('подключение спрашивает права у серверной половины', async () => {
+test('a connection asks the server half about the permissions', async () => {
   await withChannel(AUTHORIZED, async ({ port, seen }) => {
     const result = await connect(port);
     assert.equal(result.ok, true);
     close(result);
 
     const asked = seen.find((one) => one.path === '/api/internal/collab/authorize');
-    assert.ok(asked, 'права не спрошены');
+    assert.ok(asked, 'the permissions were not asked about');
     assert.equal(asked.body.documentName, `page.${PAGE_ID}`);
-    assert.equal(asked.body.token, 'токен');
+    assert.equal(asked.body.token, 'token');
   });
 });
 
-test('имя документа в адресе обязано совпадать с именем в протоколе', async () => {
-  // Прокси закрепляет соединение за репликой по адресу, а документ
-  // открывается по сообщению протокола. Разошедшиеся имена привели бы
-  // соединение на реплику, где документ не живёт.
+test('the document name in the address must match the name in the protocol', async () => {
+  // The proxy pins a connection to a replica by the address, while the document
+  // is opened by the protocol message. Names that diverged would bring the
+  // connection to a replica the document does not live on.
   await withChannel(AUTHORIZED, async ({ port, seen }) => {
     const other = 'page.33333333-3333-4333-8333-333333333333';
     const result = await connect(port, {
       address: `ws://127.0.0.1:${port}/collab?documentName=${encodeURIComponent(other)}`,
     });
-    assert.equal(result.ok, false, 'соединение открылось с чужим именем в адресе');
+    assert.equal(result.ok, false, 'the connection opened with a foreign name in the address');
     close(result);
     assert.equal(
       seen.some((one) => one.path === '/api/internal/collab/authorize'),
       false,
-      'права спрошены, хотя имя в адресе не совпало',
+      'the permissions were asked about even though the name in the address did not match',
     );
   });
 });
 
-test('без имени в адресе соединение не открывается', async () => {
-  // Без довода прокси положил бы соединение на реплику пустого имени — не на
-  // ту, где живёт документ.
+test('with no name in the address the connection does not open', async () => {
+  // Without the argument the proxy would put the connection on the replica of
+  // an empty name — not on the one the document lives on.
   await withChannel(AUTHORIZED, async ({ port }) => {
     const result = await connect(port, { address: `ws://127.0.0.1:${port}/collab` });
-    assert.equal(result.ok, false, 'соединение открылось без имени в адресе');
+    assert.equal(result.ok, false, 'the connection opened with no name in the address');
     close(result);
   });
 });
 
-test('флаг раскатки пускает подключение без имени и пишет его в журнал', async (t) => {
-  // Вкладки, открытые до обновления, подключаются по старому адресу. При одной
-  // реплике их можно пустить, но каждое такое подключение обязано остаться в
-  // журнале: по нему видно, что старые вкладки ещё живы.
+test('the rollout flag admits a connection with no name and logs it', async (t) => {
+  // Tabs opened before an update connect by the old address. With a single
+  // replica they can be let through, but every such connection must stay in the
+  // log: it is how one sees that the old tabs are still alive.
   const logged = t.mock.method(console, 'log', () => {});
   await withChannel(
     AUTHORIZED,
     async ({ port }) => {
       const result = await connect(port, { address: `ws://127.0.0.1:${port}/collab` });
-      assert.equal(result.ok, true, 'с флагом соединение без имени не открылось');
+      assert.equal(result.ok, true, 'with the flag on, a connection with no name did not open');
       close(result);
     },
     { allowUnnamed: true },
@@ -233,16 +239,16 @@ test('флаг раскатки пускает подключение без и�
 
   const lines = logged.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(
-    lines.some((one) => one.includes('без имени документа в адресе включён')),
-    'включённый допуск не объявлен при запуске',
+    lines.some((one) => one.includes('the allowance for connections with no document name in the address is on')),
+    'the enabled allowance was not announced at startup',
   );
-  const admitted = lines.find((one) => one.includes('без имени в адресе допущено'));
-  assert.ok(admitted, 'допущенное подключение не записано в журнал');
-  assert.ok(admitted.includes(`page.${PAGE_ID}`), 'в записи нет документа');
-  assert.match(admitted, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'в записи нет времени');
+  const admitted = lines.find((one) => one.includes('a connection with no name in the address was admitted by the rollout flag'));
+  assert.ok(admitted, 'the admitted connection was not written to the log');
+  assert.ok(admitted.includes(`page.${PAGE_ID}`), 'the record does not name the document');
+  assert.match(admitted, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'the record has no time in it');
 });
 
-test('с флагом раскатки расхождение имён по-прежнему отказ', async () => {
+test('with the rollout flag a name mismatch is still a refusal', async () => {
   await withChannel(
     AUTHORIZED,
     async ({ port, seen }) => {
@@ -250,35 +256,35 @@ test('с флагом раскатки расхождение имён по-пр
       const result = await connect(port, {
         address: `ws://127.0.0.1:${port}/collab?documentName=${encodeURIComponent(other)}`,
       });
-      assert.equal(result.ok, false, 'соединение открылось с чужим именем в адресе');
+      assert.equal(result.ok, false, 'the connection opened with a foreign name in the address');
       close(result);
       assert.equal(
         seen.some((one) => one.path === '/api/internal/collab/authorize'),
         false,
-        'права спрошены, хотя имя в адресе не совпало',
+        'the permissions were asked about even though the name in the address did not match',
       );
     },
     { allowUnnamed: true },
   );
 });
 
-test('с флагом раскатки пустое имя в адресе — тоже расхождение', async () => {
-  // Довод есть, но пустой: это не старая вкладка, а сломанный адрес, и прокси
-  // закрепил бы его по пустому ключу.
+test('with the rollout flag an empty name in the address is a mismatch too', async () => {
+  // The argument is there but empty: that is not an old tab but a broken
+  // address, and the proxy would pin it by an empty key.
   await withChannel(
     AUTHORIZED,
     async ({ port }) => {
       const result = await connect(port, { address: `ws://127.0.0.1:${port}/collab?documentName=` });
-      assert.equal(result.ok, false, 'соединение открылось с пустым именем в адресе');
+      assert.equal(result.ok, false, 'the connection opened with an empty name in the address');
       close(result);
     },
     { allowUnnamed: true },
   );
 });
 
-test('флаг раскатки включается только явным значением', () => {
+test('the rollout flag is enabled only by an explicit value', () => {
   for (const value of ['', 'false', '0', 'yes', 'TRUE ']) {
-    assert.equal(allowUnnamedFromEnv(value), false, `значение «${value}» включило допуск`);
+    assert.equal(allowUnnamedFromEnv(value), false, `the value "${value}" enabled the allowance`);
   }
   assert.equal(allowUnnamedFromEnv('true'), true);
   assert.equal(allowUnnamedFromEnv('1'), true);
@@ -286,13 +292,13 @@ test('флаг раскатки включается только явным з�
   const saved = process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT;
   delete process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT;
   try {
-    assert.equal(allowUnnamedFromEnv(), false, 'без переменной допуск включён');
+    assert.equal(allowUnnamedFromEnv(), false, 'with no variable set the allowance is on');
   } finally {
     if (saved !== undefined) process.env.COLLAB_ALLOW_UNNAMED_DOCUMENT = saved;
   }
 });
 
-test('общий секрет уходит своим заголовком', async () => {
+test('the shared secret travels in a header of its own', async () => {
   await withChannel(AUTHORIZED, async ({ port, seen }) => {
     const result = await connect(port);
     close(result);
@@ -300,23 +306,24 @@ test('общий секрет уходит своим заголовком', asy
   });
 });
 
-test('отказ серверной половины закрывает подключение', async () => {
+test('a refusal from the server half closes the connection', async () => {
   await withChannel(
     { '/api/internal/collab/authorize': { status: 403, code: 'error.page.access_denied' } },
     async ({ port }) => {
       const result = await connect(port);
-      assert.equal(result.ok, false, 'соединение открылось без права');
+      assert.equal(result.ok, false, 'the connection opened with no permission');
       close(result);
     },
   );
 });
 
-test('документ грузится из состояния, а не из json, когда состояние есть', async () => {
+test('the document loads from the state rather than from the json when the state is there', async () => {
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/document': {
       body: {
-        // Состояние пустого документа: важно, что оно предпочтено json.
+        // The state of an empty document: what matters is that it is preferred
+        // over the json.
         ydoc: Buffer.from([0, 0]).toString('base64'),
         content: { type: 'doc', content: [] },
       },
@@ -331,10 +338,11 @@ test('документ грузится из состояния, а не из js
   });
 });
 
-test('неразобранное тело не роняет подключение и объясняет причину', async () => {
-  // Узел, которого нет в схеме: так бывает после ввоза из чужой системы и
-  // после отката версии приложения. Прежде подключение обрывалось, и человек
-  // видел пустой лист без единого слова о причине.
+test('an unparsed body does not break the connection and explains the reason', async () => {
+  // A node the schema does not have: that happens after an import from another
+  // system and after a rollback of the application version. Before, the
+  // connection was dropped and a person saw a blank sheet with not a word about
+  // the reason.
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/document': {
@@ -348,15 +356,15 @@ test('неразобранное тело не роняет подключени
     const result = await connect(port);
     assert.equal(result.ok, true);
     const notice = result.messages.find((one) => one.type === 'document.unreadable');
-    assert.ok(notice, 'причина не пришла');
+    assert.ok(notice, 'the reason never arrived');
     assert.ok(notice.reason.length > 0);
     close(result);
   });
 });
 
-test('неразобранное тело не сохраняется поверх страницы', async () => {
-  // Документ в памяти пуст, потому что тело не разобралось. Запись стёрла бы
-  // ровно то содержимое, из-за которого разбор и не прошёл.
+test('an unparsed body is not saved over the page', async () => {
+  // The document in memory is empty because the body did not parse. A write
+  // would erase exactly the content the parse failed over.
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/document': {
@@ -371,8 +379,8 @@ test('неразобранное тело не сохраняется повер
     assert.equal(result.ok, true);
     close(result);
 
-    // Сохранение вызывается напрямую: ждать разгрузки документа по времени
-    // значило бы держать проверку минуту ради одного вызова.
+    // The save is called directly: waiting for the document to unload by time
+    // would mean holding the test for a minute for the sake of one call.
     const document = hocuspocus.documents.get(`page.${PAGE_ID}`);
     await hocuspocus.storeDocumentHooks(document, {
       instance: hocuspocus,
@@ -384,21 +392,21 @@ test('неразобранное тело не сохраняется повер
       requestParameters: new URLSearchParams(),
       socketId: 'проверка',
       transactionOrigin: null,
-      // Немедленно: иначе запись откладывается на время debounce, и проверка
-      // заканчивается раньше, чем сохранение вообще пробуют.
+      // Immediately: otherwise the write is deferred for the debounce, and the
+      // test finishes before the save is even attempted.
     }, true);
 
     assert.equal(
       seen.some((one) => one.path === '/api/internal/collab/store'),
       false,
-      'пустой документ ушёл в запись',
+      'an empty document went into the write',
     );
   });
 });
 
-test('разобранное тело тем же путём в запись уходит', async () => {
-  // Спутник предыдущей проверки: без него та проходила бы и при сохранении,
-  // сломанном по любой другой причине.
+test('a parsed body goes into the write by the same path', async () => {
+  // The companion of the previous test: without it that one would pass even
+  // with saving broken for any other reason.
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/document': {
@@ -430,12 +438,12 @@ test('разобранное тело тем же путём в запись у�
     }, true);
 
     const stored = seen.find((one) => one.path === '/api/internal/collab/store');
-    assert.ok(stored, 'разобранный документ в запись не ушёл');
+    assert.ok(stored, 'the parsed document never went into the write');
     assert.match(stored.body.text, /Обычный текст/);
   });
 });
 
-test('обход прав отзывает доступ и закрывает соединение', async () => {
+test('the permission sweep revokes access and closes the connection', async () => {
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/rights': {
@@ -447,18 +455,18 @@ test('обход прав отзывает доступ и закрывает с
     assert.equal(result.ok, true);
 
     await sweepOnce(hocuspocus);
-    // Сообщение уходит до закрытия: без него редактор на экране остаётся
-    // редактируемым, и набранное уходит в никуда.
+    // The message goes out before the close: without it the editor on the
+    // screen stays editable, and what is typed goes nowhere.
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.ok(
       result.messages.some((one) => one.type === 'access.revoked'),
-      'клиент не получил сообщения об отзыве',
+      'the client never got the revocation message',
     );
     close(result);
   });
 });
 
-test('обход понижает до чтения без переподключения', async () => {
+test('the sweep downgrades to read-only without a reconnect', async () => {
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/rights': {
@@ -471,13 +479,13 @@ test('обход понижает до чтения без переподклю�
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const changed = result.messages.find((one) => one.type === 'access.changed');
-    assert.ok(changed, 'клиент не получил сообщения о смене права');
+    assert.ok(changed, 'the client never got the permission-change message');
     assert.equal(changed.canEdit, false);
     close(result);
   });
 });
 
-test('недоступная серверная половина не отбирает доступ', async () => {
+test('an unreachable server half does not take access away', async () => {
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/rights': { status: 500, code: 'oops' },
@@ -487,8 +495,8 @@ test('недоступная серверная половина не отбир
     await sweepOnce(hocuspocus);
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Временный отказ базы не повод выкинуть человека из документа с потерей
-    // набранного: следующий проход повторит проверку.
+    // A temporary database failure is no reason to throw a person out of the
+    // document and lose what they typed: the next pass repeats the check.
     assert.equal(
       result.messages.some((one) => one.type === 'access.revoked'),
       false,
@@ -497,7 +505,7 @@ test('недоступная серверная половина не отбир
   });
 });
 
-test('пропавшая страница отзывает всех', async () => {
+test('a page that disappeared revokes everyone', async () => {
   const answers = {
     ...AUTHORIZED,
     '/api/internal/collab/rights': { body: { gone: true, users: {} } },
@@ -511,21 +519,21 @@ test('пропавшая страница отзывает всех', async () =
   });
 });
 
-test('чужой путь апгрейда закрывается', async () => {
+test('a foreign upgrade path is closed', async () => {
   await withChannel(AUTHORIZED, async ({ port }) => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}/чужое`);
     const outcome = await new Promise((resolve) => {
-      socket.on('error', () => resolve('отказ'));
-      socket.on('open', () => resolve('открыт'));
+      socket.on('error', () => resolve('refused'));
+      socket.on('open', () => resolve('opened'));
     });
-    assert.equal(outcome, 'отказ');
+    assert.equal(outcome, 'refused');
   });
 });
 
-test('секрет с кириллицей отвергается до обращения', async () => {
-  // Заголовок HTTP допускает только видимые знаки латиницы. Без этой проверки
-  // отказ приходит из недр клиента сообщением про ByteString, по которому
-  // причину не найти.
+test('a secret with Cyrillic text is refused before the call', async () => {
+  // An HTTP header admits visible Latin characters only. Without this check the
+  // failure comes from the depths of the client as a message about a
+  // ByteString, which tells nobody the reason.
   const { authorize } = await import('./backend.js');
   const before = process.env.COLLAB_INTERNAL_TOKEN;
   process.env.COLLAB_INTERNAL_TOKEN = 'секрет';
@@ -540,11 +548,11 @@ test('секрет с кириллицей отвергается до обра�
 });
 
 /**
- * Отметки владения, подменяющие приложение: общие для двух реплик.
+ * The ownership marks standing in for the application: shared by two replicas.
  *
- * Правила Redis проверяются на стороне Python настоящим Redis. Здесь важно,
- * что служба делает с ответами — пускает, отвергает, продлевает, снимает и
- * бросает перехваченный документ.
+ * The Redis rules are tested on the Python side against a real Redis. What
+ * matters here is what the service does with the answers — admits, refuses,
+ * renews, releases, and drops a document that was taken over.
  */
 function ownerStore({ ttlMs = 30000, renewEveryMs = 10000, releases = true } = {}) {
   const marks = new Map();
@@ -582,7 +590,8 @@ function ownerStore({ ttlMs = 30000, renewEveryMs = 10000, releases = true } = {
       }),
       '/api/internal/collab/owner/release': ({ documentName, replica }) => {
         released.push({ documentName, replica });
-        // Упавшая реплика снять отметку не может: такой прогон снятие отключает.
+        // A replica that fell over cannot release the mark: such a run disables
+        // releasing.
         if (releases && alive(documentName)?.owner === replica) marks.delete(documentName);
         return { body: { released: true } };
       },
@@ -590,7 +599,7 @@ function ownerStore({ ttlMs = 30000, renewEveryMs = 10000, releases = true } = {
   };
 }
 
-/** Две реплики с общим приложением: у каждой свой порт и своё имя. */
+/** Two replicas with a shared application: each has its own port and name. */
 async function withReplicas(answers, run) {
   const { server: fake, seen } = backend(answers);
   const backendPort = await listen(fake);
@@ -619,7 +628,7 @@ async function withReplicas(answers, run) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Журнал службы без вывода: строки собираются для проверки. */
+/** The service log with no output: the lines are collected for the test. */
 function captureLog(t) {
   const calls = t.mock.method(console, 'log', () => {});
   return () => calls.mock.calls.map((call) => String(call.arguments[0]));
@@ -627,35 +636,35 @@ function captureLog(t) {
 
 const DOCUMENT = `page.${PAGE_ID}`;
 
-test('имя реплики — явное из окружения, иначе имя узла', async () => {
+test('the replica name is the explicit one from the environment, otherwise the host name', async () => {
   const { hostname } = await import('node:os');
   assert.equal(replicaFromEnv('replica-a'), 'replica-a');
   assert.equal(replicaFromEnv('  '), hostname());
   assert.equal(replicaFromEnv(''), hostname());
 });
 
-test('документ, открытый на одной реплике, другой не отдаётся', async (t) => {
+test('a document open on one replica is not served by another', async (t) => {
   const lines = captureLog(t);
   const store = ownerStore();
   await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first, second] }) => {
     const held = await connect(first.port);
-    assert.equal(held.ok, true, 'первая реплика не открыла документ');
+    assert.equal(held.ok, true, 'the first replica did not open the document');
 
     const refused = await connect(second.port);
-    assert.equal(refused.ok, false, 'вторая реплика открыла документ, занятый первой');
-    assert.equal(store.alive(DOCUMENT)?.owner, 'r1', 'отметка ушла от живой владеющей реплики');
+    assert.equal(refused.ok, false, 'the second replica opened a document taken by the first');
+    assert.equal(store.alive(DOCUMENT)?.owner, 'r1', 'the mark left a live owning replica');
     close(refused);
     close(held);
   });
   assert.ok(
-    lines().some((one) => one.includes(`${DOCUMENT}: документ открыт на реплике r1`)),
-    'в журнале не названа реплика-владелец',
+    lines().some((one) => one.includes(`${DOCUMENT}: the document is open on replica r1`)),
+    'the log does not name the owning replica',
   );
 });
 
-test('после падения владеющей реплики документ открывается на другой по истечении срока', async () => {
-  // Упавшая реплика не продлевает и не снимает: срок короткий, продление
-  // реже прогона, снятие отключено.
+test('after the owning replica falls over the document opens on another once the lifetime runs out', async () => {
+  // A replica that fell over neither renews nor releases: the lifetime is
+  // short, the renewal is rarer than the run, and releasing is disabled.
   const store = ownerStore({ ttlMs: 300, renewEveryMs: 60000, releases: false });
   await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first, second] }) => {
     const held = await connect(first.port);
@@ -663,27 +672,28 @@ test('после падения владеющей реплики докумен
     close(held);
 
     const early = await connect(second.port);
-    assert.equal(early.ok, false, 'документ отдан до истечения срока отметки');
+    assert.equal(early.ok, false, 'the document was served before the mark lifetime ran out');
     close(early);
 
     await sleep(400);
 
     const later = await connect(second.port);
-    assert.equal(later.ok, true, 'по истечении срока документ так и не открылся');
+    assert.equal(later.ok, true, 'once the lifetime ran out the document still did not open');
     assert.equal(store.alive(DOCUMENT)?.owner, 'r2');
     close(later);
   });
 });
 
-test('одна реплика: продление держит отметку, выгрузка её снимает', async () => {
+test('a single replica: the renewal holds the mark, the unload releases it', async () => {
   const store = ownerStore({ ttlMs: 300, renewEveryMs: 100 });
   await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first, second] }) => {
     const held = await connect(first.port);
     assert.equal(held.ok, true);
 
-    // Втрое дольше срока: без продления отметка давно истекла бы.
+    // Three times the lifetime: without the renewal the mark would have expired
+    // long ago.
     await sleep(900);
-    assert.equal(store.alive(DOCUMENT)?.owner, 'r1', 'продление не удержало отметку');
+    assert.equal(store.alive(DOCUMENT)?.owner, 'r1', 'the renewal did not hold the mark');
     const other = await connect(second.port);
     assert.equal(other.ok, false);
     close(other);
@@ -692,16 +702,16 @@ test('одна реплика: продление держит отметку, �
     for (let step = 0; step < 40 && !store.released.some((one) => one.replica === 'r1'); step += 1) {
       await sleep(50);
     }
-    assert.ok(store.released.some((one) => one.replica === 'r1'), 'выгрузка не сняла отметку');
+    assert.ok(store.released.some((one) => one.replica === 'r1'), 'the unload did not release the mark');
     assert.equal(store.alive(DOCUMENT), null);
 
     const again = await connect(first.port);
-    assert.equal(again.ok, true, 'та же реплика не открыла документ повторно');
+    assert.equal(again.ok, true, 'the same replica did not open the document again');
     close(again);
   });
 });
 
-test('недоступное хранилище отметок — отказ со своей причиной в журнале', async (t) => {
+test('an unavailable mark store means a refusal with its own reason in the log', async (t) => {
   const lines = captureLog(t);
   const answers = {
     ...AUTHORIZED,
@@ -709,42 +719,42 @@ test('недоступное хранилище отметок — отказ с
   };
   await withChannel(answers, async ({ port }) => {
     const result = await connect(port);
-    assert.equal(result.ok, false, 'без хранилища отметок соединение открылось');
+    assert.equal(result.ok, false, 'with no mark store the connection opened');
     close(result);
   });
   const written = lines();
-  assert.ok(written.some((one) => one.includes('хранилище отметок владения (Redis) недоступно')));
+  assert.ok(written.some((one) => one.includes('the ownership mark store (Redis) is unavailable')));
   assert.ok(
-    !written.some((one) => one.includes('документ открыт на реплике')),
-    'недоступность записана как занятый документ',
+    !written.some((one) => one.includes('the document is open on replica')),
+    'unavailability was recorded as a taken document',
   );
 });
 
-test('перехваченная отметка закрывает соединения и не пишет состояние', async (t) => {
+test('a taken-over mark closes the connections and writes no state', async (t) => {
   const lines = captureLog(t);
   const store = ownerStore({ renewEveryMs: 100 });
   await withReplicas({ ...AUTHORIZED, ...store.answers }, async ({ replicas: [first], seen }) => {
     const held = await connect(first.port);
     assert.equal(held.ok, true);
 
-    // Отметка ушла к другой реплике, пока эта ещё держит документ.
+    // The mark went to another replica while this one still holds the document.
     store.marks.set(DOCUMENT, { owner: 'r2', until: Date.now() + 30000 });
     await sleep(400);
 
     const document = first.hocuspocus.documents.get(DOCUMENT);
-    assert.equal(document?.getConnectionsCount() ?? 0, 0, 'соединения с перехваченным документом живы');
+    assert.equal(document?.getConnectionsCount() ?? 0, 0, 'connections to the taken-over document are alive');
     close(held);
     await sleep(200);
     assert.equal(
       seen.some((one) => one.path === '/api/internal/collab/store'),
       false,
-      'состояние перехваченного документа ушло в запись',
+      'the state of the taken-over document went into the write',
     );
   });
-  assert.ok(lines().some((one) => one.includes('отметку владения держит реплика r2')));
+  assert.ok(lines().some((one) => one.includes('the ownership mark is held by replica r2')));
 });
 
-test('продление уходит порциями, и каждая часть списка продлевается', async () => {
+test('the renewal goes in batches, and every part of the list is renewed', async () => {
   const store = ownerStore({ renewEveryMs: 100 });
   const second = 'page.44444444-4444-4444-8444-444444444444';
   await withChannel(
@@ -757,10 +767,10 @@ test('продление уходит порциями, и каждая част
       await sleep(350);
 
       const renewals = seen.filter((one) => one.path === '/api/internal/collab/owner/renew');
-      assert.ok(renewals.length >= 2, 'продлений не было');
+      assert.ok(renewals.length >= 2, 'there were no renewals');
       assert.ok(
         renewals.every((one) => one.body.documents.length === 1),
-        'в одном запросе больше документов, чем задано порцией',
+        'one request carried more documents than the batch size allows',
       );
       const renewed = new Set(renewals.flatMap((one) => one.body.documents));
       assert.deepEqual([...renewed].sort(), [DOCUMENT, second].sort());
@@ -771,30 +781,31 @@ test('продление уходит порциями, и каждая част
   );
 });
 
-test('перехваченный документ, ещё не выгруженный, новых соединений не принимает', async (t) => {
+test('a taken-over document that has not unloaded yet accepts no new connections', async (t) => {
   const lines = captureLog(t);
   const store = ownerStore({ renewEveryMs: 100 });
   const starter = 'page.55555555-5555-4555-8555-555555555555';
   await withChannel(
     { ...AUTHORIZED, ...store.answers },
     async ({ port, hocuspocus, seen }) => {
-      // Прямое соединение держит документ в памяти без сокета — так же, как
-      // выгрузка, которая ещё не закончилась.
+      // A direct connection holds the document in memory with no socket — the
+      // same way an unload that has not finished does.
       const direct = await hocuspocus.openDirectConnection(DOCUMENT, {});
       store.marks.set(DOCUMENT, { owner: 'r2', until: Date.now() + 30000 });
 
-      // Взятие другого документа заводит таймер продления, и продление видит
-      // перехват документа, который реплика ещё держит.
+      // Taking another document starts the renewal timer, and the renewal sees
+      // the takeover of a document the replica still holds.
       const running = await connect(port, { documentName: starter });
       assert.equal(running.ok, true);
       await sleep(300);
-      assert.ok(lines().some((one) => one.includes(`${DOCUMENT}: отметку владения держит реплика r2`)));
+      assert.ok(lines().some((one) => one.includes(`${DOCUMENT}: the ownership mark is held by replica r2`)));
 
-      // Владелец отпустил документ, но устаревшая копия ещё в памяти этой реплики.
+      // The owner released the document, but the stale copy is still in the
+      // memory of this replica.
       store.marks.delete(DOCUMENT);
       const again = await connect(port);
-      assert.equal(again.ok, false, 'соединение продолжило устаревший документ');
-      assert.ok(lines().some((one) => one.includes(`${DOCUMENT}: документ ещё выгружается после перехвата`)));
+      assert.equal(again.ok, false, 'the connection continued a stale document');
+      assert.ok(lines().some((one) => one.includes(`${DOCUMENT}: the document is still unloading after the ownership mark was taken over`)));
       close(again);
 
       await direct.disconnect();
@@ -803,7 +814,7 @@ test('перехваченный документ, ещё не выгружен�
       assert.equal(
         seen.some((one) => one.path === '/api/internal/collab/store' && one.body.pageId === PAGE_ID),
         false,
-        'устаревшее состояние ушло в запись',
+        'stale state went into the write',
       );
     },
     { replica: 'r1' },
