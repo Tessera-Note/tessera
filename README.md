@@ -124,6 +124,8 @@ in [`docs/ai-context/data-runtime.md`](docs/ai-context/data-runtime.md).
 
 | Document | About |
 |---|---|
+| [`docs/local-setup.md`](docs/local-setup.md) | running the whole system locally, step by step |
+| [`examples/README.md`](examples/README.md) | ready-made scripts: start, stop, restart, backup, restore |
 | [`docs/deployment-from-scratch.md`](docs/deployment-from-scratch.md) | deployment from scratch |
 | [`docs/ai-context/README.md`](docs/ai-context/README.md) | technical context per layer, with a "task — files to read" table |
 | [`docs/open-api.md`](docs/open-api.md) | external API |
