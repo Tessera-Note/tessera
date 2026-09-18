@@ -111,19 +111,31 @@ global mark cannot be forgotten.
 
 ## The comments in the sources are in Russian
 
-The documentation, the agent configuration, the deployment files and the
-repository scripts are in English. The comments, docstrings and test names in
-the sources are not: 21010 lines across 627 files — `apps/api` 13807 lines in
-219 files, `apps/web` 6382 in 359, `services/collab` 540 in 11, `services/hub`
-202 in 28, `packages/editor-ext` 79 in 10 (measured 17 September 2026, the
-locale dictionaries excluded).
+The documentation, the agent configuration, the deployment files, the repository
+scripts, `packages/editor-ext` and the collaboration service are in English. The
+comments, docstrings and test names in the rest of the sources are not: 20403
+lines across 609 files — `apps/api` 13784 lines in 219 files, `apps/web` 6378 in
+359, `services/hub` 202 in 28 (measured 18 September 2026, the locale
+dictionaries excluded).
 
-This was deliberately not done in one pass: the post-release policy allows
-minimal diffs only, the project rule says comments stay in the language of the
-file being edited, and a rewrite of that size touches production code without
-changing any behavior. The decision needed is whether the sources move to
-English at all; if they do, the cheap path is one directory per commit, with the
-checks of that part after each.
+The rule is settled and lives in `CLAUDE.md`: new and changed comments are
+written in English, and the existing ones move only when a file is touched for
+another reason. No separate pass over `apps/api` and `apps/web` is planned — a
+rewrite of that size touches production code without changing any behavior,
+which the post-release policy does not allow.
+
+Closed in bounded batches, one commit each: `packages/editor-ext` (79 lines in
+ten files), then the collaboration service — the conversion modules with the
+manifest, the backend caller with the PDF tests, the server, the conversion
+tests, the channel together with its own tests in one commit because eight
+assertions quote its log lines word for word, and the image. The log lines, the
+three revocation reasons and the two refusals about `COLLAB_INTERNAL_TOKEN` are
+text the code produces, so they are English too.
+
+What is left in `services/collab` is 39 lines in three test files, and every one
+of them is a deliberate Cyrillic fixture: that a heading, a paragraph and a page
+title in Cyrillic survive the channel, the conversion and the save costs nothing
+extra to check, and each of the three files now says so in its docstring.
 
 ## Observations, not defects
 
